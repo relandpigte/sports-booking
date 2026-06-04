@@ -3,10 +3,13 @@
 import * as z from "zod";
 import { AuthError } from "next-auth";
 import bcrypt from "bcryptjs";
+import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/lib/db";
 import { signIn, signOut } from "@/lib/auth";
-import { LoginSchema, RegisterSchema } from "@/lib/validation";
+import { verifySession } from "@/lib/dal";
+import { normalizeAvatar } from "@/lib/avatar";
+import { LoginSchema, RegisterSchema, ProfileSchema } from "@/lib/validation";
 
 export type AuthFormState = {
   errors?: Record<string, string>;
@@ -68,6 +71,11 @@ export async function registerAction(
     };
   }
 
+  const avatar = normalizeAvatar(String(formData.get("image") ?? ""));
+  if (avatar.error) {
+    return { errors: { image: avatar.error }, values };
+  }
+
   const passwordHash = await bcrypt.hash(data.password, 10);
   await prisma.user.create({
     data: {
@@ -77,6 +85,7 @@ export async function registerAction(
       phone: data.phone,
       skillLevel: data.skillLevel,
       privateProfile: data.privateProfile,
+      image: avatar.value,
       passwordHash,
     },
   });
@@ -137,4 +146,53 @@ export async function loginAction(
 
 export async function logoutAction() {
   await signOut({ redirectTo: "/login" });
+}
+
+export type ProfileFormState = {
+  ok?: boolean;
+  errors?: Record<string, string>;
+  message?: string;
+};
+
+// Lets a signed-in user update their own profile (account settings).
+export async function updateProfileAction(
+  _prev: ProfileFormState,
+  formData: FormData
+): Promise<ProfileFormState> {
+  const { userId } = await verifySession();
+
+  const raw = {
+    name: String(formData.get("name") ?? ""),
+    playerName: String(formData.get("playerName") ?? ""),
+    phone: String(formData.get("phone") ?? ""),
+    skillLevel: String(formData.get("skillLevel") ?? ""),
+    privateProfile: formData.get("privateProfile") === "on",
+  };
+
+  const parsed = ProfileSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { errors: firstErrors(parsed.error) };
+  }
+
+  const avatar = normalizeAvatar(String(formData.get("image") ?? ""));
+  if (avatar.error) {
+    return { errors: { image: avatar.error } };
+  }
+
+  const data = parsed.data;
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      name: data.name,
+      playerName: data.playerName ?? null,
+      phone: data.phone ?? null,
+      skillLevel: data.skillLevel,
+      privateProfile: data.privateProfile,
+      image: avatar.value,
+    },
+  });
+
+  revalidatePath("/dashboard/account");
+  revalidatePath("/dashboard");
+  return { ok: true, message: "Profile updated." };
 }

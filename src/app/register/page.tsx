@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { Toggle } from "@/components/ui/Toggle";
+import { AvatarUpload } from "@/components/ui/AvatarUpload";
 import { SKILL_LEVELS, DEFAULT_SKILL_LEVEL } from "@/lib/constants";
 import { registerAction, type AuthFormState } from "@/lib/actions";
 
@@ -17,15 +18,8 @@ export default function RegisterPage() {
     registerAction,
     initialState
   );
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [privateProfile, setPrivateProfile] = useState(false);
   const [agreed, setAgreed] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) setPhotoPreview(URL.createObjectURL(file));
-  }
 
   return (
     <main className="min-h-screen bg-white px-4 py-8 sm:py-12">
@@ -63,52 +57,8 @@ export default function RegisterPage() {
             </p>
           )}
 
-          {/* Profile picture (preview only — not yet persisted) */}
-          <div className="flex flex-col items-center gap-3">
-            <p className="text-sm font-medium text-gray-700">
-              Profile Picture{" "}
-              <span className="font-normal text-gray-400">(Optional)</span>
-            </p>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-gray-300 text-gray-400 transition-colors hover:border-primary hover:text-primary"
-              aria-label="Upload profile picture"
-            >
-              {photoPreview ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={photoPreview}
-                  alt="Profile preview"
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                  <circle cx="12" cy="13" r="4" />
-                </svg>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" y1="3" x2="12" y2="15" />
-              </svg>
-              Upload Photo
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handlePhotoChange}
-            />
-          </div>
+          {/* Profile picture */}
+          <AvatarUpload error={state.errors?.image} />
 
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input

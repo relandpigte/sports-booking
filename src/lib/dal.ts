@@ -27,6 +27,7 @@ export const getCurrentUser = cache(async () => {
       name: true,
       playerName: true,
       email: true,
+      phone: true,
       image: true,
       role: true,
       skillLevel: true,

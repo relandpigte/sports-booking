@@ -25,8 +25,12 @@ export function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 
-  // Guard protected areas.
-  if (!isAuthed && pathname.startsWith("/dashboard")) {
+  // Guard protected areas. (Role enforcement for /admin happens in the page
+  // via requireAdmin — this is just an optimistic signed-in check.)
+  if (
+    !isAuthed &&
+    (pathname.startsWith("/dashboard") || pathname.startsWith("/admin"))
+  ) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
@@ -34,5 +38,5 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/login", "/register"],
+  matcher: ["/dashboard/:path*", "/admin/:path*", "/login", "/register"],
 };

@@ -8,7 +8,8 @@ import {
   type DayHours,
 } from "@/lib/constants";
 
-const defaultDay = (): DayHours => ({ closed: false, open: "09:00", close: "17:00" });
+// Default: open 6:00 AM to 12:00 AM (midnight).
+const defaultDay = (): DayHours => ({ closed: false, open: "06:00", close: "00:00" });
 
 function buildInitial(initial?: OperatingHours | null): OperatingHours {
   const out = {} as OperatingHours;

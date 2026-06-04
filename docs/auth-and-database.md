@@ -1,0 +1,92 @@
+# Auth & Database Setup
+
+This app uses **Auth.js (NextAuth v5)** with a **Credentials** provider for
+email/password login, and **Prisma** against **Postgres** for storage.
+
+## 1. Environment variables
+
+Copy `.env.example` to `.env` and fill in:
+
+| Variable       | What it is                                                            |
+| -------------- | -------------------------------------------------------------------- |
+| `DATABASE_URL` | Postgres connection string (Neon, Supabase, RDS, or local Postgres). |
+| `AUTH_SECRET`  | Secret used to sign session JWTs. Generate with the command below.    |
+
+```bash
+openssl rand -base64 32   # value for AUTH_SECRET
+```
+
+> A development `AUTH_SECRET` is already present in `.env`. **Generate a fresh
+> one for production.** `.env` is gitignored (`.env*`), so it is never committed.
+
+## 2. Create the database schema
+
+With `DATABASE_URL` pointing at a real Postgres database, push the Prisma schema:
+
+```bash
+npm run db:push        # fast, no migration history — good for dev
+# or, to track migrations:
+npm run db:migrate     # creates a migration under prisma/migrations
+```
+
+The Prisma client is generated automatically on `npm install` (via the
+`postinstall` script) and after schema changes (`npm run db:generate`).
+
+## 3. Run
+
+```bash
+npm run dev
+```
+
+- `/register` — create a player account (password is hashed with bcrypt).
+- `/login` — sign in.
+- `/dashboard` — protected; redirects to `/login` when signed out.
+
+## How it fits together
+
+| File                                   | Role                                                             |
+| -------------------------------------- | ---------------------------------------------------------------- |
+| `prisma/schema.prisma`                 | `User` + Auth.js adapter models (`Account`, `Session`, …).       |
+| `src/lib/db.ts`                        | Singleton `PrismaClient`.                                        |
+| `src/lib/auth.ts`                      | NextAuth config: Credentials provider, JWT sessions, callbacks.  |
+| `src/app/api/auth/[...nextauth]/route.ts` | NextAuth request handlers (`GET`/`POST`).                      |
+| `src/lib/actions.ts`                   | Server Actions: `registerAction`, `loginAction`, `logoutAction`. |
+| `src/lib/validation.ts`                | Zod schemas for login/registration.                              |
+| `src/lib/dal.ts`                       | Data Access Layer: `verifySession`, `getCurrentUser`.            |
+| `src/proxy.ts`                         | Next.js 16 "Proxy" (formerly Middleware): optimistic route guard. |
+
+### User roles
+
+`User.role` is an enum with three values: **`ADMIN`**, **`PLAYER`**, **`PARTNER`**
+(defined in `prisma/schema.prisma`). New registrations default to `PLAYER`.
+
+- The role is carried in the session JWT (`session.user.role`) via the callbacks
+  in `src/lib/auth.ts`.
+- Gate a page or server action with `requireRole()` from `src/lib/dal.ts`:
+
+  ```ts
+  import { requireRole } from "@/lib/dal";
+  // redirects to /login unless the user is an admin or partner
+  const user = await requireRole("ADMIN", "PARTNER");
+  ```
+
+- Assign a non-default role manually for now (no admin UI yet), e.g. via
+  `npm run db:studio` or SQL:
+
+  ```sql
+  UPDATE "User" SET role = 'ADMIN' WHERE email = 'you@example.com';
+  ```
+
+> **Schema changed?** After editing `prisma/schema.prisma`, re-run
+> `npm run db:push` (and `npm run db:generate` is handled for you on install).
+
+### Notes & next steps
+
+- **Sessions are JWT**, which the Credentials provider requires. The Prisma
+  adapter is wired in so you can add OAuth providers (Google, etc.) later with
+  database sessions if desired.
+- The **profile photo** on the registration form is preview-only right now — it
+  isn't persisted (no blob storage configured yet).
+- `src/proxy.ts` does an **optimistic** cookie check only. The authoritative
+  check is `verifySession()` in the DAL, which every protected page/server
+  action should call.

@@ -1,0 +1,74 @@
+// Prisma schema for Sports 360
+// Models follow the Auth.js (NextAuth) Prisma adapter conventions, extended
+// with the player-profile fields captured during registration.
+// Docs: https://authjs.dev/getting-started/adapters/prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  PLAYER
+  PARTNER
+}
+
+model User {
+  id             String    @id @default(cuid())
+  name           String?
+  playerName     String?
+  email          String    @unique
+  emailVerified  DateTime?
+  phone          String?
+  image          String?
+  passwordHash   String?
+  role           Role      @default(PLAYER)
+  skillLevel     String    @default("intermediate")
+  privateProfile Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  accounts Account[]
+  sessions Session[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}

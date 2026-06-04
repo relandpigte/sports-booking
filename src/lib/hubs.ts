@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import type { OperatingHours } from "@/lib/constants";
 
@@ -51,6 +52,22 @@ export async function listMyHubs(): Promise<Hub[]> {
     operatingHours: (r.operatingHours as OperatingHours | null) ?? null,
   }));
 }
+
+// Public hub profile (no auth, not owner-scoped). Memoized per request so the
+// page and its metadata share a single query.
+export const getPublicHub = cache(
+  async (id: string): Promise<Hub | null> => {
+    const row = await prisma.hub.findUnique({
+      where: { id },
+      select: hubSelect,
+    });
+    if (!row) return null;
+    return {
+      ...row,
+      operatingHours: (row.operatingHours as OperatingHours | null) ?? null,
+    };
+  }
+);
 
 // Fetches one hub, scoped to the current partner (ownership enforced).
 export async function getMyHub(id: string): Promise<Hub | null> {

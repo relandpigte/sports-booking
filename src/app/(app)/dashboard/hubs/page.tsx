@@ -76,6 +76,13 @@ export default async function HubsPage() {
               </div>
               <div className="flex items-center justify-end gap-1 border-t border-gray-100 px-3 py-2">
                 <Link
+                  href={`/hubs/${hub.id}`}
+                  target="_blank"
+                  className="rounded-md px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                >
+                  View
+                </Link>
+                <Link
                   href={`/dashboard/hubs/${hub.id}/edit`}
                   className="rounded-md px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary-soft"
                 >

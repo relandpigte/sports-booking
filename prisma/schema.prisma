@@ -35,6 +35,26 @@ model User {
 
   accounts Account[]
   sessions Session[]
+  hubs     Hub[]
+}
+
+// A partner-operated venue/club profile.
+model Hub {
+  id             String   @id @default(cuid())
+  ownerId        String
+  name           String
+  about          String?  @db.Text
+  logo           String?  @db.Text // data URL
+  coverPhotos    String[] // data URLs
+  phone          String?
+  email          String?
+  operatingHours Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
 }
 
 model Account {

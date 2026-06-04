@@ -8,10 +8,6 @@ type PartnerHomeUser = {
 export function PartnerHome({ user }: { user: PartnerHomeUser }) {
   const comingSoon = [
     {
-      label: "My Venues",
-      desc: "Add and manage the courts and facilities you operate.",
-    },
-    {
       label: "Booking requests",
       desc: "Review and respond to players booking your courts.",
     },
@@ -37,7 +33,21 @@ export function PartnerHome({ user }: { user: PartnerHomeUser }) {
         </span>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <Link
+        href="/dashboard/hubs"
+        className="mt-6 block rounded-2xl border border-gray-200 p-5 transition-colors hover:border-gray-300"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-base font-semibold text-gray-900">My Hubs</h2>
+          <span className="text-sm font-medium text-primary">Manage →</span>
+        </div>
+        <p className="mt-1 text-sm text-gray-500">
+          Create and manage your venues — cover photos, logo, about, contact,
+          and operating hours.
+        </p>
+      </Link>
+
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         {comingSoon.map((c) => (
           <div
             key={c.label}
@@ -56,7 +66,7 @@ export function PartnerHome({ user }: { user: PartnerHomeUser }) {
         ))}
       </div>
 
-      <section className="mt-6 rounded-2xl border border-gray-200 p-5">
+      <section className="mt-4 rounded-2xl border border-gray-200 p-5">
         <h2 className="text-base font-semibold text-gray-900">
           Account Settings
         </h2>

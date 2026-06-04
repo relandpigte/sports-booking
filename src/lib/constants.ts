@@ -25,3 +25,19 @@ export const ROLE_OPTIONS = ROLE_VALUES.map((value) => ({
   value,
   label: ROLE_LABELS[value],
 }));
+
+// Days of the week, used for hub operating hours.
+export const WEEKDAYS = [
+  { value: "mon", label: "Monday" },
+  { value: "tue", label: "Tuesday" },
+  { value: "wed", label: "Wednesday" },
+  { value: "thu", label: "Thursday" },
+  { value: "fri", label: "Friday" },
+  { value: "sat", label: "Saturday" },
+  { value: "sun", label: "Sunday" },
+] as const;
+
+export type Weekday = (typeof WEEKDAYS)[number]["value"];
+
+export type DayHours = { closed: boolean; open: string; close: string };
+export type OperatingHours = Record<Weekday, DayHours>;

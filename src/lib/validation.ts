@@ -86,3 +86,22 @@ export const ProfileSchema = z.object({
 });
 
 export type ProfileInput = z.infer<typeof ProfileSchema>;
+
+// --- Partner: hub ---
+
+export const HubSchema = z.object({
+  name: z.string().trim().min(2, { error: "Hub name is required" }),
+  about: optionalText,
+  phone: optionalText,
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .optional()
+    .refine((v) => !v || z.email().safeParse(v).success, {
+      error: "Enter a valid email",
+    })
+    .transform((v) => (v ? v : undefined)),
+});
+
+export type HubInput = z.infer<typeof HubSchema>;

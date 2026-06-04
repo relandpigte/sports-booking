@@ -10,6 +10,7 @@ type Item = {
   label: string;
   exact?: boolean;
   playerOnly?: boolean;
+  partnerOnly?: boolean;
   icon: ReactNode;
 };
 
@@ -34,6 +35,17 @@ const items: Item[] = [
       <svg {...iconProps}>
         <path d="M3 9.5 12 3l9 6.5" />
         <path d="M5 10v10h14V10" />
+      </svg>
+    ),
+  },
+  {
+    href: "/dashboard/hubs",
+    label: "My Hubs",
+    partnerOnly: true,
+    icon: (
+      <svg {...iconProps}>
+        <path d="M3 21h18M5 21V8l7-4 7 4v13" />
+        <path d="M9 21v-6h6v6" />
       </svg>
     ),
   },
@@ -88,7 +100,9 @@ export function DashboardNav({ role }: { role?: Role }) {
     }`;
 
   const visibleItems = items.filter(
-    (item) => !item.playerOnly || role === "PLAYER"
+    (item) =>
+      (!item.playerOnly || role === "PLAYER") &&
+      (!item.partnerOnly || role === "PARTNER")
   );
 
   return (

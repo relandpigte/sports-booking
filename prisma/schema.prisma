@@ -48,6 +48,8 @@ model Hub {
   coverPhotos    String[] // data URLs
   games          String[] // court games offered (see GAMES in constants)
   address        String?  @db.Text
+  latitude       Float?
+  longitude      Float?
   phone          String?
   email          String?
   operatingHours Json?

@@ -4,6 +4,7 @@ import { PublicTopBar } from "@/components/hubs/PublicTopBar";
 import { Avatar } from "@/components/ui/Avatar";
 import { getPublicHub } from "@/lib/hubs";
 import { formatTime, summarizeOperatingHours } from "@/lib/hours";
+import { formatPHP } from "@/lib/currency";
 import {
   WEEKDAYS,
   GAME_LABELS,
@@ -38,6 +39,12 @@ export default async function PublicHubPage({
 
   const [cover, ...moreCovers] = hub.coverPhotos;
   const hours = hub.operatingHours;
+
+  const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  const hasCoords = hub.latitude != null && hub.longitude != null;
+  const mapsQuery = hasCoords
+    ? `${hub.latitude},${hub.longitude}`
+    : (hub.address ?? "");
 
   return (
     <div className="min-h-screen bg-white">
@@ -110,13 +117,24 @@ export default async function PublicHubPage({
           </section>
         )}
 
-        {hub.address && (
+        {(hub.address || hasCoords) && (
           <section className="mt-8">
             <h2 className="text-base font-semibold text-gray-900">Location</h2>
-            <p className="mt-2 text-sm text-gray-600">{hub.address}</p>
+            {hub.address && (
+              <p className="mt-2 text-sm text-gray-600">{hub.address}</p>
+            )}
+            {mapsKey && hasCoords && (
+              <iframe
+                title={`Map of ${hub.name}`}
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                className="mt-3 h-64 w-full rounded-xl border border-gray-200"
+                src={`https://www.google.com/maps/embed/v1/place?key=${mapsKey}&q=${hub.latitude},${hub.longitude}&zoom=16`}
+              />
+            )}
             <a
               href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                hub.address
+                mapsQuery
               )}`}
               target="_blank"
               rel="noopener noreferrer"
@@ -214,7 +232,7 @@ export default async function PublicHubPage({
                   </div>
                   <p className="mt-1 text-sm font-medium text-primary">
                     {c.hourlyRate != null
-                      ? `$${c.hourlyRate.toFixed(2)}/hr`
+                      ? `${formatPHP(c.hourlyRate)}/hr`
                       : "Rate on request"}
                   </p>
                   {hours && (

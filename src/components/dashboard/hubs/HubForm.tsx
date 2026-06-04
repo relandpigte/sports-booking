@@ -9,6 +9,7 @@ import { AvatarUpload } from "@/components/ui/AvatarUpload";
 import { CoverPhotosUpload } from "@/components/dashboard/hubs/CoverPhotosUpload";
 import { GamesSelect } from "@/components/dashboard/hubs/GamesSelect";
 import { CourtsEditor } from "@/components/dashboard/hubs/CourtsEditor";
+import { LocationPicker } from "@/components/dashboard/hubs/LocationPicker";
 import { OperatingHoursEditor } from "@/components/dashboard/hubs/OperatingHoursEditor";
 import {
   createHubAction,
@@ -72,12 +73,10 @@ export function HubForm({ hub }: { hub?: Hub }) {
         </div>
       </div>
 
-      <Input
-        label="Location / Address"
-        name="address"
-        placeholder="e.g. 12 River St, Brisbane QLD 4000"
-        defaultValue={state.values?.address ?? hub?.address ?? ""}
-        error={state.errors?.address}
+      <LocationPicker
+        defaultAddress={hub?.address ?? ""}
+        defaultLat={hub?.latitude ?? null}
+        defaultLng={hub?.longitude ?? null}
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

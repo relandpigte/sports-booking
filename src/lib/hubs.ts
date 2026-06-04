@@ -48,6 +48,8 @@ export type Hub = {
   coverPhotos: string[];
   games: string[];
   address: string | null;
+  latitude: number | null;
+  longitude: number | null;
   phone: string | null;
   email: string | null;
   operatingHours: OperatingHours | null;
@@ -63,6 +65,8 @@ const hubSelect = {
   coverPhotos: true,
   games: true,
   address: true,
+  latitude: true,
+  longitude: true,
   phone: true,
   email: true,
   operatingHours: true,

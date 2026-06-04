@@ -87,8 +87,15 @@ type ParsedHub = {
   coverPhotos: string[];
   games: string[];
   courts: CourtInput[];
+  latitude: number | null;
+  longitude: number | null;
   operatingHours: OperatingHours;
 };
+
+function parseCoord(raw: string, min: number, max: number): number | null {
+  const n = parseFloat(raw);
+  return Number.isFinite(n) && n >= min && n <= max ? n : null;
+}
 
 function parseGames(formData: FormData): string[] {
   const allowed = new Set<string>(GAME_VALUES);
@@ -136,6 +143,8 @@ function parseHubForm(
       coverPhotos: covers.values,
       games: parseGames(formData),
       courts: parseCourts(formData),
+      latitude: parseCoord(String(formData.get("latitude") ?? ""), -90, 90),
+      longitude: parseCoord(String(formData.get("longitude") ?? ""), -180, 180),
       operatingHours: parseOperatingHours(formData),
     },
   };
@@ -149,7 +158,8 @@ export async function createHubAction(
 
   const result = parseHubForm(formData);
   if (!result.ok) return result.state;
-  const { data, logo, coverPhotos, games, courts, operatingHours } = result.hub;
+  const { data, logo, coverPhotos, games, courts, latitude, longitude, operatingHours } =
+    result.hub;
 
   await prisma.hub.create({
     data: {
@@ -157,6 +167,8 @@ export async function createHubAction(
       name: data.name,
       about: data.about ?? null,
       address: data.address ?? null,
+      latitude,
+      longitude,
       phone: data.phone ?? null,
       email: data.email ?? null,
       logo,
@@ -194,7 +206,8 @@ export async function updateHubAction(
 
   const result = parseHubForm(formData);
   if (!result.ok) return result.state;
-  const { data, logo, coverPhotos, games, courts, operatingHours } = result.hub;
+  const { data, logo, coverPhotos, games, courts, latitude, longitude, operatingHours } =
+    result.hub;
 
   await prisma.hub.update({
     where: { id },
@@ -202,6 +215,8 @@ export async function updateHubAction(
       name: data.name,
       about: data.about ?? null,
       address: data.address ?? null,
+      latitude,
+      longitude,
       phone: data.phone ?? null,
       email: data.email ?? null,
       logo,

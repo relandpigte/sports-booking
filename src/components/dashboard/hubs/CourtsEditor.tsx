@@ -76,7 +76,7 @@ export function CourtsEditor({ defaultValue = [] }: { defaultValue?: Court[] }) 
               ))}
             </select>
             <div className="flex items-center gap-1">
-              <span className="text-sm text-gray-400">$</span>
+              <span className="text-sm text-gray-400">₱</span>
               <input
                 name="courtRates"
                 type="number"

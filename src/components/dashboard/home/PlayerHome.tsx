@@ -1,18 +1,17 @@
 import Link from "next/link";
-import type { Metadata } from "next";
-import { getCurrentUser } from "@/lib/dal";
-import { SKILL_LEVELS, ROLE_LABELS } from "@/lib/constants";
+import { SKILL_LEVELS } from "@/lib/constants";
 
-export const metadata: Metadata = {
-  title: "Home — Sports 360",
+type PlayerHomeUser = {
+  name: string | null;
+  playerName: string | null;
+  skillLevel: string;
+  privateProfile: boolean;
 };
 
-export default async function DashboardHome() {
-  const user = await getCurrentUser();
-
+export function PlayerHome({ user }: { user: PlayerHomeUser }) {
   const skillLabel =
-    SKILL_LEVELS.find((s) => s.value === user?.skillLevel)?.label ??
-    user?.skillLevel ??
+    SKILL_LEVELS.find((s) => s.value === user.skillLevel)?.label ??
+    user.skillLevel ??
     "—";
 
   const stats = [
@@ -21,27 +20,20 @@ export default async function DashboardHome() {
     { label: "Skill level", value: skillLabel, href: "/dashboard/account" },
     {
       label: "Profile",
-      value: user?.privateProfile ? "Private" : "Public",
+      value: user.privateProfile ? "Private" : "Public",
       href: "/dashboard/account",
     },
   ];
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Welcome back, {user?.playerName ?? user?.name ?? "Player"}
-          </h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Play. Book. Connect. All in one app.
-          </p>
-        </div>
-        {user?.role && user.role !== "PLAYER" && (
-          <span className="mt-1 shrink-0 rounded-full bg-primary-soft px-2.5 py-1 text-xs font-semibold text-primary">
-            {ROLE_LABELS[user.role]}
-          </span>
-        )}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">
+          Welcome back, {user.playerName ?? user.name ?? "Player"}
+        </h1>
+        <p className="mt-1 text-sm text-gray-500">
+          Play. Book. Connect. All in one app.
+        </p>
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -60,9 +52,7 @@ export default async function DashboardHome() {
       <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
         <section className="rounded-2xl border border-gray-200 p-5">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-gray-900">
-              Next up
-            </h2>
+            <h2 className="text-base font-semibold text-gray-900">Next up</h2>
             <Link
               href="/dashboard/bookings"
               className="text-sm font-medium text-primary hover:underline"

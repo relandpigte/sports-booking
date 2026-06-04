@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { verifySession } from "@/lib/dal";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/dal";
 import { PlaceholderSection } from "@/components/dashboard/PlaceholderSection";
 
 export const metadata: Metadata = {
@@ -7,7 +8,9 @@ export const metadata: Metadata = {
 };
 
 export default async function TournamentsPage() {
-  await verifySession();
+  const user = await getCurrentUser();
+  // Tournaments are a player-only feature.
+  if (user?.role !== "PLAYER") redirect("/dashboard");
 
   return (
     <PlaceholderSection

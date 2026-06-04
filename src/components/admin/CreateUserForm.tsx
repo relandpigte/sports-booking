@@ -100,7 +100,7 @@ export function CreateUserForm() {
           {pending ? "Creating…" : "Create User"}
         </Button>
         <Link
-          href="/admin"
+          href="/users"
           className="rounded-lg border border-gray-300 px-4 py-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
         >
           Cancel

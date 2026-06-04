@@ -96,8 +96,8 @@ export async function createUserAction(
     },
   });
 
-  revalidatePath("/admin");
-  redirect("/admin");
+  revalidatePath("/users");
+  redirect("/users");
 }
 
 export async function updateUserAction(
@@ -156,8 +156,8 @@ export async function updateUserAction(
     },
   });
 
-  revalidatePath("/admin");
-  redirect("/admin");
+  revalidatePath("/users");
+  redirect("/users");
 }
 
 export async function setUserRoleAction(formData: FormData) {
@@ -170,7 +170,7 @@ export async function setUserRoleAction(formData: FormData) {
   if (id === admin?.id) return;
 
   await prisma.user.update({ where: { id }, data: { role } });
-  revalidatePath("/admin");
+  revalidatePath("/users");
 }
 
 export async function deleteUserAction(formData: FormData) {
@@ -182,5 +182,5 @@ export async function deleteUserAction(formData: FormData) {
   if (id === admin?.id) return;
 
   await prisma.user.delete({ where: { id } });
-  revalidatePath("/admin");
+  revalidatePath("/users");
 }

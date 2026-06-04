@@ -5,7 +5,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Role } from "@prisma/client";
 
-type Item = { href: string; label: string; exact?: boolean; icon: ReactNode };
+type Item = {
+  href: string;
+  label: string;
+  exact?: boolean;
+  playerOnly?: boolean;
+  icon: ReactNode;
+};
 
 const iconProps = {
   width: 18,
@@ -34,6 +40,7 @@ const items: Item[] = [
   {
     href: "/dashboard/tournaments",
     label: "Tournaments",
+    playerOnly: true,
     icon: (
       <svg {...iconProps}>
         <path d="M6 4h12v3a6 6 0 0 1-12 0z" />
@@ -45,6 +52,7 @@ const items: Item[] = [
   {
     href: "/dashboard/bookings",
     label: "Bookings",
+    playerOnly: true,
     icon: (
       <svg {...iconProps}>
         <rect x="3" y="4" width="18" height="18" rx="2" />
@@ -79,9 +87,13 @@ export function DashboardNav({ role }: { role?: Role }) {
         : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
     }`;
 
+  const visibleItems = items.filter(
+    (item) => !item.playerOnly || role === "PLAYER"
+  );
+
   return (
     <nav className="flex flex-row gap-1 overflow-x-auto md:flex-col md:overflow-visible">
-      {items.map((item) => (
+      {visibleItems.map((item) => (
         <Link
           key={item.href}
           href={item.href}
@@ -95,8 +107,15 @@ export function DashboardNav({ role }: { role?: Role }) {
 
       {role === "ADMIN" && (
         <Link
-          href="/admin"
-          className="flex items-center gap-3 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 md:mt-2 md:border-t md:border-gray-100 md:pt-3"
+          href="/users"
+          aria-current={
+            pathname === "/users" || pathname.startsWith("/users/")
+              ? "page"
+              : undefined
+          }
+          className={`${linkClass(
+            pathname === "/users" || pathname.startsWith("/users/")
+          )} md:mt-2 md:border-t md:border-gray-100 md:pt-3`}
         >
           <svg {...iconProps}>
             <path d="M12 3l8 4v5c0 4.5-3 7.5-8 9-5-1.5-8-4.5-8-9V7z" />

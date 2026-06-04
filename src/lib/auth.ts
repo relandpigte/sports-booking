@@ -33,11 +33,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) return null;
 
+        // NOTE: do NOT return `image` here. With JWT sessions, NextAuth maps
+        // the user's image into the session cookie (token.picture). Profile
+        // pictures are data URLs, which would bloat the cookie and trigger
+        // HTTP 431 (Request Header Fields Too Large). Avatars are loaded from
+        // the database via the DAL for display instead.
         return {
           id: user.id,
           email: user.email,
           name: user.name,
-          image: user.image,
           role: user.role,
         };
       },
@@ -49,6 +53,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id = user.id;
         token.role = user.role;
       }
+      // Keep the cookie small — never persist an avatar in the JWT.
+      if (token.picture) token.picture = undefined;
       return token;
     },
     session({ session, token }) {

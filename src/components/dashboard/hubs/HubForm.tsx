@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
 import { AvatarUpload } from "@/components/ui/AvatarUpload";
 import { CoverPhotosUpload } from "@/components/dashboard/hubs/CoverPhotosUpload";
+import { GamesSelect } from "@/components/dashboard/hubs/GamesSelect";
 import { OperatingHoursEditor } from "@/components/dashboard/hubs/OperatingHoursEditor";
 import {
   createHubAction,
@@ -88,6 +89,8 @@ export function HubForm({ hub }: { hub?: Hub }) {
           error={state.errors?.email}
         />
       </div>
+
+      <GamesSelect defaultValue={hub?.games ?? []} />
 
       <OperatingHoursEditor defaultValue={hub?.operatingHours ?? null} />
 

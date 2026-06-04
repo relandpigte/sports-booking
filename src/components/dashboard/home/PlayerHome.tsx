@@ -49,7 +49,20 @@ export function PlayerHome({ user }: { user: PlayerHomeUser }) {
         ))}
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+      <Link
+        href="/hubs"
+        className="mt-6 block rounded-2xl border border-gray-200 p-5 transition-colors hover:border-gray-300"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-base font-semibold text-gray-900">Find a Hub</h2>
+          <span className="text-sm font-medium text-primary">Browse →</span>
+        </div>
+        <p className="mt-1 text-sm text-gray-500">
+          Discover pickleball, tennis, and other court-game venues near you.
+        </p>
+      </Link>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
         <section className="rounded-2xl border border-gray-200 p-5">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-semibold text-gray-900">Next up</h2>

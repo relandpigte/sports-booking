@@ -2,7 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 import { redirect } from "next/navigation";
-import type { OperatingHours } from "@/lib/constants";
+import type { OperatingHours, Game } from "@/lib/constants";
 
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/dal";
@@ -22,6 +22,7 @@ export type Hub = {
   about: string | null;
   logo: string | null;
   coverPhotos: string[];
+  games: string[];
   phone: string | null;
   email: string | null;
   operatingHours: OperatingHours | null;
@@ -34,6 +35,7 @@ const hubSelect = {
   about: true,
   logo: true,
   coverPhotos: true,
+  games: true,
   phone: true,
   email: true,
   operatingHours: true,
@@ -44,6 +46,21 @@ export async function listMyHubs(): Promise<Hub[]> {
   const partner = await requirePartner();
   const rows = await prisma.hub.findMany({
     where: { ownerId: partner.id },
+    orderBy: { createdAt: "desc" },
+    select: hubSelect,
+  });
+  return rows.map((r) => ({
+    ...r,
+    operatingHours: (r.operatingHours as OperatingHours | null) ?? null,
+  }));
+}
+
+// Public directory of all hubs, optionally filtered by game. No auth.
+export async function listPublicHubs(
+  opts: { game?: Game } = {}
+): Promise<Hub[]> {
+  const rows = await prisma.hub.findMany({
+    where: opts.game ? { games: { has: opts.game } } : {},
     orderBy: { createdAt: "desc" },
     select: hubSelect,
   });

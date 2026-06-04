@@ -9,7 +9,12 @@ import { prisma } from "@/lib/db";
 import { requirePartner } from "@/lib/hubs";
 import { HubSchema } from "@/lib/validation";
 import { normalizeAvatar, normalizeCoverPhotos } from "@/lib/avatar";
-import { WEEKDAYS, type OperatingHours, type Weekday } from "@/lib/constants";
+import {
+  WEEKDAYS,
+  GAME_VALUES,
+  type OperatingHours,
+  type Weekday,
+} from "@/lib/constants";
 
 export type HubFormState = {
   errors?: Record<string, string>;
@@ -44,8 +49,17 @@ type ParsedHub = {
   data: { name: string; about?: string; phone?: string; email?: string };
   logo: string | null;
   coverPhotos: string[];
+  games: string[];
   operatingHours: OperatingHours;
 };
+
+function parseGames(formData: FormData): string[] {
+  const allowed = new Set<string>(GAME_VALUES);
+  return formData
+    .getAll("games")
+    .map((v) => String(v))
+    .filter((v) => allowed.has(v));
+}
 
 // Shared parse/validate for create and update. Returns the parsed hub, or an
 // error state to return to the form.
@@ -82,6 +96,7 @@ function parseHubForm(
       data: parsed.data,
       logo: logo.value,
       coverPhotos: covers.values,
+      games: parseGames(formData),
       operatingHours: parseOperatingHours(formData),
     },
   };
@@ -95,7 +110,7 @@ export async function createHubAction(
 
   const result = parseHubForm(formData);
   if (!result.ok) return result.state;
-  const { data, logo, coverPhotos, operatingHours } = result.hub;
+  const { data, logo, coverPhotos, games, operatingHours } = result.hub;
 
   await prisma.hub.create({
     data: {
@@ -106,6 +121,7 @@ export async function createHubAction(
       email: data.email ?? null,
       logo,
       coverPhotos,
+      games,
       operatingHours: operatingHours as unknown as Prisma.InputJsonValue,
     },
   });
@@ -131,7 +147,7 @@ export async function updateHubAction(
 
   const result = parseHubForm(formData);
   if (!result.ok) return result.state;
-  const { data, logo, coverPhotos, operatingHours } = result.hub;
+  const { data, logo, coverPhotos, games, operatingHours } = result.hub;
 
   await prisma.hub.update({
     where: { id },
@@ -142,6 +158,7 @@ export async function updateHubAction(
       email: data.email ?? null,
       logo,
       coverPhotos,
+      games,
       operatingHours: operatingHours as unknown as Prisma.InputJsonValue,
     },
   });

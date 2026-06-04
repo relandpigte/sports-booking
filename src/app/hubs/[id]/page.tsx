@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Logo } from "@/components/Logo";
+import { PublicTopBar } from "@/components/hubs/PublicTopBar";
 import { Avatar } from "@/components/ui/Avatar";
 import { getPublicHub } from "@/lib/hubs";
-import { WEEKDAYS, type Weekday } from "@/lib/constants";
+import { WEEKDAYS, GAME_LABELS, type Weekday } from "@/lib/constants";
 
 export async function generateMetadata({
   params,
@@ -45,18 +44,7 @@ export default async function PublicHubPage({
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Public top bar */}
-      <header className="flex items-center justify-between border-b border-gray-100 px-4 py-3 sm:px-6">
-        <Link href="/" aria-label="Sports 360 home">
-          <Logo />
-        </Link>
-        <Link
-          href="/login"
-          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-        >
-          Log in
-        </Link>
-      </header>
+      <PublicTopBar />
 
       <main className="mx-auto w-full max-w-3xl px-4 pb-16 sm:px-6">
         {/* Cover */}
@@ -98,7 +86,20 @@ export default async function PublicHubPage({
           <Avatar src={hub.logo} name={hub.name} size={64} />
           <div className="min-w-0">
             <h1 className="text-2xl font-bold text-gray-900">{hub.name}</h1>
-            <p className="text-sm text-gray-500">Sports 360 hub</p>
+            {hub.games.length > 0 ? (
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {hub.games.map((g) => (
+                  <span
+                    key={g}
+                    className="rounded-full bg-primary-soft px-2 py-0.5 text-xs font-medium text-primary"
+                  >
+                    {GAME_LABELS[g] ?? g}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">Sports 360 hub</p>
+            )}
           </div>
         </div>
 

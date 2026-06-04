@@ -46,6 +46,7 @@ model Hub {
   about          String?  @db.Text
   logo           String?  @db.Text // data URL
   coverPhotos    String[] // data URLs
+  games          String[] // court games offered (see GAMES in constants)
   phone          String?
   email          String?
   operatingHours Json?

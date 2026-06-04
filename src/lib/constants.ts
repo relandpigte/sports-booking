@@ -41,3 +41,21 @@ export type Weekday = (typeof WEEKDAYS)[number]["value"];
 
 export type DayHours = { closed: boolean; open: string; close: string };
 export type OperatingHours = Record<Weekday, DayHours>;
+
+// Court games a hub can offer (used to categorize hubs in the directory).
+export const GAMES = [
+  { value: "pickleball", label: "Pickleball" },
+  { value: "tennis", label: "Tennis" },
+  { value: "badminton", label: "Badminton" },
+  { value: "basketball", label: "Basketball" },
+  { value: "squash", label: "Squash" },
+  { value: "volleyball", label: "Volleyball" },
+] as const;
+
+export type Game = (typeof GAMES)[number]["value"];
+
+export const GAME_VALUES = GAMES.map((g) => g.value);
+
+export const GAME_LABELS: Record<string, string> = Object.fromEntries(
+  GAMES.map((g) => [g.value, g.label])
+);

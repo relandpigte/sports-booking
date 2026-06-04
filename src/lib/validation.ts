@@ -92,6 +92,7 @@ export type ProfileInput = z.infer<typeof ProfileSchema>;
 export const HubSchema = z.object({
   name: z.string().trim().min(2, { error: "Hub name is required" }),
   about: optionalText,
+  address: optionalText,
   phone: optionalText,
   email: z
     .string()

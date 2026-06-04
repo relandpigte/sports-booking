@@ -47,15 +47,31 @@ model Hub {
   logo           String?  @db.Text // data URL
   coverPhotos    String[] // data URLs
   games          String[] // court games offered (see GAMES in constants)
+  address        String?  @db.Text
   phone          String?
   email          String?
   operatingHours Json?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner  User    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  courts Court[]
 
   @@index([ownerId])
+}
+
+// A bookable court within a hub. Its schedule follows the hub's operating hours.
+model Court {
+  id         String   @id @default(cuid())
+  hubId      String
+  name       String
+  courtType  String   @default("covered") // "covered" | "open"
+  hourlyRate Decimal? @db.Decimal(10, 2)
+  createdAt  DateTime @default(now())
+
+  hub Hub @relation(fields: [hubId], references: [id], onDelete: Cascade)
+
+  @@index([hubId])
 }
 
 model Account {

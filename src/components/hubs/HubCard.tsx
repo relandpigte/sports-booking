@@ -40,6 +40,11 @@ export function HubCard({ hub }: { hub: Hub }) {
             ))}
           </div>
         )}
+        {hub.courts.length > 0 && (
+          <p className="mt-2 text-xs text-gray-400">
+            {hub.courts.length} {hub.courts.length === 1 ? "court" : "courts"}
+          </p>
+        )}
       </div>
     </Link>
   );

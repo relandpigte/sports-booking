@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { AvatarUpload } from "@/components/ui/AvatarUpload";
 import { CoverPhotosUpload } from "@/components/dashboard/hubs/CoverPhotosUpload";
 import { GamesSelect } from "@/components/dashboard/hubs/GamesSelect";
+import { CourtsEditor } from "@/components/dashboard/hubs/CourtsEditor";
 import { OperatingHoursEditor } from "@/components/dashboard/hubs/OperatingHoursEditor";
 import {
   createHubAction,
@@ -71,6 +72,14 @@ export function HubForm({ hub }: { hub?: Hub }) {
         </div>
       </div>
 
+      <Input
+        label="Location / Address"
+        name="address"
+        placeholder="e.g. 12 River St, Brisbane QLD 4000"
+        defaultValue={state.values?.address ?? hub?.address ?? ""}
+        error={state.errors?.address}
+      />
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Input
           label="Phone Number"
@@ -93,6 +102,8 @@ export function HubForm({ hub }: { hub?: Hub }) {
       <GamesSelect defaultValue={hub?.games ?? []} />
 
       <OperatingHoursEditor defaultValue={hub?.operatingHours ?? null} />
+
+      <CourtsEditor defaultValue={hub?.courts ?? []} />
 
       <div className="flex items-center gap-3">
         <Button type="submit" disabled={pending} className="flex-1">

@@ -59,3 +59,17 @@ export const GAME_VALUES = GAMES.map((g) => g.value);
 export const GAME_LABELS: Record<string, string> = Object.fromEntries(
   GAMES.map((g) => [g.value, g.label])
 );
+
+// Court types — pricing typically differs between covered and open courts.
+export const COURT_TYPES = [
+  { value: "covered", label: "Covered" },
+  { value: "open", label: "Open" },
+] as const;
+
+export type CourtType = (typeof COURT_TYPES)[number]["value"];
+
+export const COURT_TYPE_VALUES = COURT_TYPES.map((c) => c.value);
+
+export const COURT_TYPE_LABELS: Record<string, string> = Object.fromEntries(
+  COURT_TYPES.map((c) => [c.value, c.label])
+);

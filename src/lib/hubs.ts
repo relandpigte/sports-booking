@@ -2,10 +2,34 @@ import "server-only";
 
 import { cache } from "react";
 import { redirect } from "next/navigation";
+import { Prisma } from "@prisma/client";
 import type { OperatingHours, Game } from "@/lib/constants";
 
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/dal";
+
+export type Court = {
+  id: string;
+  name: string;
+  courtType: string;
+  hourlyRate: number | null;
+};
+
+type CourtRow = {
+  id: string;
+  name: string;
+  courtType: string;
+  hourlyRate: Prisma.Decimal | null;
+};
+
+function mapCourt(c: CourtRow): Court {
+  return {
+    id: c.id,
+    name: c.name,
+    courtType: c.courtType,
+    hourlyRate: c.hourlyRate ? c.hourlyRate.toNumber() : null,
+  };
+}
 
 // Hubs are a partner-only feature. Returns the current partner, or redirects.
 export async function requirePartner() {
@@ -23,9 +47,11 @@ export type Hub = {
   logo: string | null;
   coverPhotos: string[];
   games: string[];
+  address: string | null;
   phone: string | null;
   email: string | null;
   operatingHours: OperatingHours | null;
+  courts: Court[];
   createdAt: Date;
 };
 
@@ -36,11 +62,33 @@ const hubSelect = {
   logo: true,
   coverPhotos: true,
   games: true,
+  address: true,
   phone: true,
   email: true,
   operatingHours: true,
   createdAt: true,
+  courts: {
+    select: { id: true, name: true, courtType: true, hourlyRate: true },
+    orderBy: { createdAt: "asc" },
+  },
 } as const;
+
+// Maps a Prisma hub row to the app Hub type (JSON hours + Decimal rates).
+function mapHub<
+  T extends {
+    operatingHours: Prisma.JsonValue;
+    courts: CourtRow[];
+  }
+>(row: T): Omit<T, "operatingHours" | "courts"> & {
+  operatingHours: OperatingHours | null;
+  courts: Court[];
+} {
+  return {
+    ...row,
+    operatingHours: (row.operatingHours as OperatingHours | null) ?? null,
+    courts: row.courts.map(mapCourt),
+  };
+}
 
 export async function listMyHubs(): Promise<Hub[]> {
   const partner = await requirePartner();
@@ -49,10 +97,7 @@ export async function listMyHubs(): Promise<Hub[]> {
     orderBy: { createdAt: "desc" },
     select: hubSelect,
   });
-  return rows.map((r) => ({
-    ...r,
-    operatingHours: (r.operatingHours as OperatingHours | null) ?? null,
-  }));
+  return rows.map(mapHub);
 }
 
 // Public directory of all hubs, optionally filtered by game. No auth.
@@ -64,10 +109,7 @@ export async function listPublicHubs(
     orderBy: { createdAt: "desc" },
     select: hubSelect,
   });
-  return rows.map((r) => ({
-    ...r,
-    operatingHours: (r.operatingHours as OperatingHours | null) ?? null,
-  }));
+  return rows.map(mapHub);
 }
 
 // Public hub profile (no auth, not owner-scoped). Memoized per request so the
@@ -79,10 +121,7 @@ export const getPublicHub = cache(
       select: hubSelect,
     });
     if (!row) return null;
-    return {
-      ...row,
-      operatingHours: (row.operatingHours as OperatingHours | null) ?? null,
-    };
+    return mapHub(row);
   }
 );
 
@@ -94,8 +133,5 @@ export async function getMyHub(id: string): Promise<Hub | null> {
     select: hubSelect,
   });
   if (!row) return null;
-  return {
-    ...row,
-    operatingHours: (row.operatingHours as OperatingHours | null) ?? null,
-  };
+  return mapHub(row);
 }

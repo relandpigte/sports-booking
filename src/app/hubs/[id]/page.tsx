@@ -3,7 +3,13 @@ import { notFound } from "next/navigation";
 import { PublicTopBar } from "@/components/hubs/PublicTopBar";
 import { Avatar } from "@/components/ui/Avatar";
 import { getPublicHub } from "@/lib/hubs";
-import { WEEKDAYS, GAME_LABELS, type Weekday } from "@/lib/constants";
+import { formatTime, summarizeOperatingHours } from "@/lib/hours";
+import {
+  WEEKDAYS,
+  GAME_LABELS,
+  COURT_TYPE_LABELS,
+  type Weekday,
+} from "@/lib/constants";
 
 export async function generateMetadata({
   params,
@@ -16,15 +22,6 @@ export async function generateMetadata({
     title: hub ? `${hub.name} — Sports 360` : "Hub — Sports 360",
     description: hub?.about ?? undefined,
   };
-}
-
-function formatTime(t: string): string {
-  const [hStr, mStr] = t.split(":");
-  const h = Number(hStr);
-  if (Number.isNaN(h)) return t;
-  const period = h < 12 ? "AM" : "PM";
-  const hr = h % 12 === 0 ? 12 : h % 12;
-  return `${hr}:${(mStr ?? "00").padStart(2, "0")} ${period}`;
 }
 
 export default async function PublicHubPage({
@@ -113,6 +110,27 @@ export default async function PublicHubPage({
           </section>
         )}
 
+        {hub.address && (
+          <section className="mt-8">
+            <h2 className="text-base font-semibold text-gray-900">Location</h2>
+            <p className="mt-2 text-sm text-gray-600">{hub.address}</p>
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                hub.address
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z" />
+                <circle cx="12" cy="10" r="3" />
+              </svg>
+              Open in Google Maps
+            </a>
+          </section>
+        )}
+
         <div className="mt-8 grid grid-cols-1 gap-8 sm:grid-cols-2">
           {/* Contact */}
           <section>
@@ -175,6 +193,45 @@ export default async function PublicHubPage({
             )}
           </section>
         </div>
+
+        {/* Courts */}
+        {hub.courts.length > 0 && (
+          <section className="mt-8">
+            <h2 className="text-base font-semibold text-gray-900">
+              Courts ({hub.courts.length})
+            </h2>
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {hub.courts.map((c) => (
+                <div
+                  key={c.id}
+                  className="rounded-xl border border-gray-200 p-4"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium text-gray-900">{c.name}</p>
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                      {COURT_TYPE_LABELS[c.courtType] ?? c.courtType}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm font-medium text-primary">
+                    {c.hourlyRate != null
+                      ? `$${c.hourlyRate.toFixed(2)}/hr`
+                      : "Rate on request"}
+                  </p>
+                  {hours && (
+                    <dl className="mt-3 flex flex-col gap-0.5 text-xs text-gray-500">
+                      {summarizeOperatingHours(hours).map((seg, idx) => (
+                        <div key={idx} className="flex justify-between gap-3">
+                          <dt>{seg.label}</dt>
+                          <dd className="text-gray-700">{seg.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </main>
     </div>
   );

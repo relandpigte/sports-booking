@@ -34,6 +34,11 @@ yarn-error.log*
 .env*
 !.env.example
 
+# credentials / secrets (never commit)
+__resources/
+*client_secret*.json
+*.pem
+
 # vercel
 .vercel
 

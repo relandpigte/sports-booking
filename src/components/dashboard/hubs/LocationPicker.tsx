@@ -21,11 +21,13 @@ export function LocationPicker({
   const [lng, setLng] = useState<number | null>(defaultLng);
   const [loadError, setLoadError] = useState(false);
 
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null); // no-key fallback
+  const acHostRef = useRef<HTMLDivElement>(null); // hosts the autocomplete element
   const mapRef = useRef<HTMLDivElement>(null);
+  const pacRef = useRef<google.maps.places.PlaceAutocompleteElement | null>(null);
 
   useEffect(() => {
-    if (!KEY || !inputRef.current || !mapRef.current) return;
+    if (!KEY || !acHostRef.current || !mapRef.current) return;
     let cancelled = false;
 
     (async () => {
@@ -35,14 +37,14 @@ export function LocationPicker({
           "@googlemaps/js-api-loader"
         );
         setOptions({ key: KEY, v: "weekly" });
-        const [{ Map }, { Marker }, { Autocomplete }, { Geocoder }] =
+        const [{ Map }, { Marker }, { PlaceAutocompleteElement }, { Geocoder }] =
           await Promise.all([
             importLibrary("maps"),
             importLibrary("marker"),
             importLibrary("places"),
             importLibrary("geocoding"),
           ]);
-        if (cancelled || !mapRef.current || !inputRef.current) return;
+        if (cancelled || !acHostRef.current || !mapRef.current) return;
 
         const hasCoords = defaultLat != null && defaultLng != null;
         const center = hasCoords
@@ -72,41 +74,56 @@ export function LocationPicker({
           map.setCenter(p);
         };
 
-        // Type-ahead address search.
-        const autocomplete = new Autocomplete(inputRef.current, {
-          fields: ["formatted_address", "geometry"],
-        });
-        autocomplete.addListener("place_changed", () => {
-          const place = autocomplete.getPlace();
-          const loc = place.geometry?.location;
-          if (!loc) return;
-          map.setZoom(16);
-          setPoint({ lat: loc.lat(), lng: loc.lng() });
-          const formatted = place.formatted_address ?? inputRef.current!.value;
-          setAddress(formatted);
-          if (inputRef.current) inputRef.current.value = formatted;
+        const reverseGeocode = (p: google.maps.LatLngLiteral) => {
+          geocoder.geocode({ location: p }, (results, status) => {
+            if (status === "OK" && results?.[0]) {
+              const formatted = results[0].formatted_address;
+              setAddress(formatted);
+              if (pacRef.current) pacRef.current.value = formatted;
+            }
+          });
+        };
+
+        // New Places API autocomplete (web component).
+        const pac = new PlaceAutocompleteElement({ includedRegionCodes: ["ph"] });
+        pac.style.width = "100%";
+        if (defaultAddress) pac.value = defaultAddress;
+        acHostRef.current.appendChild(pac);
+        pacRef.current = pac;
+
+        pac.addEventListener("gmp-select", async (ev) => {
+          try {
+            const place = ev.placePrediction.toPlace();
+            await place.fetchFields({ fields: ["formattedAddress", "location"] });
+            const loc = place.location;
+            if (loc) {
+              map.setZoom(16);
+              setPoint({ lat: loc.lat(), lng: loc.lng() });
+            }
+            const formatted = place.formattedAddress ?? "";
+            if (formatted) {
+              setAddress(formatted);
+              pac.value = formatted;
+            }
+          } catch {
+            // ignore selection errors
+          }
         });
 
-        // Drag the pin → reverse-geocode to an address.
+        // Drag the pin or click the map → reverse-geocode to an address.
         marker.addListener("dragend", () => {
           const pos = marker.getPosition();
           if (!pos) return;
           const p = { lat: pos.lat(), lng: pos.lng() };
           setLat(p.lat);
           setLng(p.lng);
-          geocoder.geocode({ location: p }, (results, status) => {
-            if (status === "OK" && results?.[0]) {
-              const formatted = results[0].formatted_address;
-              setAddress(formatted);
-              if (inputRef.current) inputRef.current.value = formatted;
-            }
-          });
+          reverseGeocode(p);
         });
-
-        // Click the map to drop/move the pin.
         map.addListener("click", (e: google.maps.MapMouseEvent) => {
           if (!e.latLng) return;
-          setPoint({ lat: e.latLng.lat(), lng: e.latLng.lng() });
+          const p = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+          setPoint(p);
+          reverseGeocode(p);
         });
       } catch {
         if (!cancelled) setLoadError(true);
@@ -122,23 +139,22 @@ export function LocationPicker({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label
-        htmlFor="hub-address"
-        className="text-sm font-medium text-gray-800"
-      >
+      <span className="text-sm font-medium text-gray-800">
         Location / Address
-      </label>
-      <input
-        id="hub-address"
-        ref={inputRef}
-        defaultValue={defaultAddress}
-        onChange={(e) => setAddress(e.target.value)}
-        placeholder={
-          KEY ? "Search for an address…" : "e.g. 12 River St, Manila"
-        }
-        autoComplete="off"
-        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-      />
+      </span>
+
+      {KEY ? (
+        <div ref={acHostRef} className="w-full" />
+      ) : (
+        <input
+          ref={inputRef}
+          defaultValue={defaultAddress}
+          onChange={(e) => setAddress(e.target.value)}
+          placeholder="e.g. 12 River St, Manila"
+          autoComplete="off"
+          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+        />
+      )}
 
       {KEY && (
         <>
@@ -149,6 +165,11 @@ export function LocationPicker({
           <p className="text-xs text-gray-400">
             Search above, or click the map / drag the pin to set the exact spot.
           </p>
+          {address && (
+            <p className="text-xs text-gray-500">
+              Selected: <span className="text-gray-700">{address}</span>
+            </p>
+          )}
         </>
       )}
       {!KEY && (
@@ -158,7 +179,7 @@ export function LocationPicker({
       )}
       {loadError && (
         <p className="text-xs text-amber-600">
-          Map couldn&apos;t load — you can still type the address.
+          Map couldn&apos;t load — you can still save without it.
         </p>
       )}
 

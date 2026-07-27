@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/dal";
 import { userCounts } from "@/lib/admin";
+import { countMyUpcomingBookings, getMyNextBooking } from "@/lib/bookings";
 import { PlayerHome } from "@/components/dashboard/home/PlayerHome";
 import { AdminHome } from "@/components/dashboard/home/AdminHome";
 import { PartnerHome } from "@/components/dashboard/home/PartnerHome";
@@ -23,5 +24,15 @@ export default async function DashboardHome() {
     return <PartnerHome user={user} />;
   }
 
-  return <PlayerHome user={user} />;
+  const [upcomingCount, nextBooking] = await Promise.all([
+    countMyUpcomingBookings(),
+    getMyNextBooking(),
+  ]);
+  return (
+    <PlayerHome
+      user={user}
+      upcomingCount={upcomingCount}
+      nextBooking={nextBooking}
+    />
+  );
 }

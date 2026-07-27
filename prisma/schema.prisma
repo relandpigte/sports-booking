@@ -36,6 +36,7 @@ model User {
   accounts Account[]
   sessions Session[]
   hubs     Hub[]
+  bookings Booking[]
 }
 
 // A partner-operated venue/club profile.
@@ -56,8 +57,9 @@ model Hub {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  owner  User    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  courts Court[]
+  owner    User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  courts   Court[]
+  bookings Booking[]
 
   @@index([ownerId])
 }
@@ -71,9 +73,86 @@ model Court {
   hourlyRate Decimal? @db.Decimal(10, 2)
   createdAt  DateTime @default(now())
 
-  hub Hub @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  hub      Hub       @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  bookings Booking[]
 
   @@index([hubId])
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+enum CancelledBy {
+  PLAYER
+  PARTNER
+  ADMIN
+}
+
+// A court reservation of 1..MAX_BOOKING_HOURS contiguous hours.
+//
+// `date` is a "YYYY-MM-DD" Asia/Manila civil date; `startHour`/`endHour` are
+// Manila local hours where `endHour` may be 24 (midnight the next day).
+// `startsAt`/`endsAt` are the derived UTC instants, used ONLY for
+// upcoming/past ordering — never for slot identity.
+//
+// There is no COMPLETED status: "past" is derived from `endsAt < now`.
+model Booking {
+  id           String        @id @default(cuid())
+  courtId      String
+  // Denormalized so the partner list and revalidation don't need a join.
+  hubId        String
+  userId       String
+  date         String
+  startHour    Int
+  endHour      Int
+  hours        Int
+  startsAt     DateTime
+  endsAt       DateTime
+  // Snapshots: a partner can edit Court.hourlyRate after the booking is made.
+  hourlyRate   Decimal?      @db.Decimal(10, 2)
+  totalPrice   Decimal?      @db.Decimal(10, 2)
+  status       BookingStatus @default(CONFIRMED)
+  notes        String?       @db.Text
+  cancelledAt  DateTime?
+  cancelledBy  CancelledBy?
+  cancelReason String?       @db.Text
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  court Court         @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  hub   Hub           @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slots BookingSlot[]
+
+  @@index([userId, startsAt])
+  @@index([hubId, startsAt])
+  @@index([courtId, date])
+}
+
+// Live occupancy of a single court-hour.
+//
+// The @@unique([courtId, date, hour]) below is the ONLY thing preventing a
+// double-booking: two concurrent transactions inserting the same key block,
+// then one fails with P2002, rolling back its whole Booking.
+//
+// IMPORTANT: these rows are DELETED when a booking is cancelled, so the hour
+// becomes bookable again. Do not soft-delete them — Prisma cannot express a
+// partial unique index (`WHERE status = 'CONFIRMED'`), so a lingering row
+// would block that hour forever. The parent Booking survives as CANCELLED.
+model BookingSlot {
+  id        String @id @default(cuid())
+  bookingId String
+  courtId   String
+  date      String
+  hour      Int
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@unique([courtId, date, hour])
+  @@index([bookingId])
+  @@index([courtId, date])
 }
 
 model Account {

@@ -1,4 +1,4 @@
-import type { Role } from "@prisma/client";
+import type { BookingStatus, Role } from "@prisma/client";
 
 export const SKILL_LEVELS = [
   { value: "beginner", label: "Beginner" },
@@ -73,3 +73,27 @@ export const COURT_TYPE_VALUES = COURT_TYPES.map((c) => c.value);
 export const COURT_TYPE_LABELS: Record<string, string> = Object.fromEntries(
   COURT_TYPES.map((c) => [c.value, c.label])
 );
+
+// --- Bookings ---------------------------------------------------------------
+
+// Longest single booking, in contiguous 1-hour slots.
+export const MAX_BOOKING_HOURS = 4;
+
+// How far ahead players can book.
+export const BOOKING_WINDOW_DAYS = 30;
+
+// Players can't cancel within this many hours of the start time.
+export const CANCEL_CUTOFF_HOURS = 2;
+
+export const DURATION_OPTIONS = Array.from(
+  { length: MAX_BOOKING_HOURS },
+  (_, i) => {
+    const h = i + 1;
+    return { value: String(h), label: h === 1 ? "1 hour" : `${h} hours` };
+  }
+);
+
+export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
+  CONFIRMED: "Confirmed",
+  CANCELLED: "Cancelled",
+};

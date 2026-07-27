@@ -1,6 +1,5 @@
 "use server";
 
-import * as z from "zod";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -8,6 +7,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requirePartner } from "@/lib/hubs";
 import { HubSchema } from "@/lib/validation";
+import { firstErrors } from "@/lib/zod-errors";
 import { normalizeAvatar, normalizeCoverPhotos } from "@/lib/avatar";
 import {
   WEEKDAYS,
@@ -51,17 +51,6 @@ export type HubFormState = {
   message?: string;
   values?: Record<string, string>;
 };
-
-function firstErrors(error: z.ZodError): Record<string, string> {
-  const { fieldErrors } = z.flattenError(error) as {
-    fieldErrors: Record<string, string[] | undefined>;
-  };
-  const out: Record<string, string> = {};
-  for (const [key, messages] of Object.entries(fieldErrors)) {
-    if (messages && messages.length > 0) out[key] = messages[0];
-  }
-  return out;
-}
 
 function parseOperatingHours(formData: FormData): OperatingHours {
   const out = {} as OperatingHours;
@@ -209,6 +198,40 @@ export async function updateHubAction(
   const { data, logo, coverPhotos, games, courts, latitude, longitude, operatingHours } =
     result.hub;
 
+  // Work out the court reconcile up front: a court with upcoming bookings
+  // blocks the whole save, so this has to be checked before anything is
+  // written or the hub fields would persist while the courts didn't.
+  // Existing-id checks keep this scoped to this hub's courts.
+  const existing = await prisma.court.findMany({
+    where: { hubId: id },
+    select: { id: true },
+  });
+  const existingIds = new Set(existing.map((e) => e.id));
+  const keptIds = new Set(
+    courts.filter((c) => c.id && existingIds.has(c.id)).map((c) => c.id)
+  );
+  const toDelete = existing
+    .filter((e) => !keptIds.has(e.id))
+    .map((e) => e.id);
+
+  if (toDelete.length) {
+    // Court deletion cascades to Booking, so removing a court would silently
+    // wipe out players' confirmed reservations. Block it instead.
+    const blocked = await prisma.booking.findFirst({
+      where: {
+        courtId: { in: toDelete },
+        status: "CONFIRMED",
+        endsAt: { gte: new Date() },
+      },
+      select: { court: { select: { name: true } } },
+    });
+    if (blocked) {
+      return {
+        message: `“${blocked.court.name}” has upcoming bookings and can't be removed. Cancel them first.`,
+      };
+    }
+  }
+
   await prisma.hub.update({
     where: { id },
     data: {
@@ -226,21 +249,7 @@ export async function updateHubAction(
     },
   });
 
-  // Reconcile courts: update kept ones, create new, delete removed.
-  // Existing-id checks keep this scoped to this hub's courts.
-  const existing = await prisma.court.findMany({
-    where: { hubId: id },
-    select: { id: true },
-  });
-  const existingIds = new Set(existing.map((e) => e.id));
-  const keptIds = new Set(
-    courts.filter((c) => c.id && existingIds.has(c.id)).map((c) => c.id)
-  );
-
   const ops: Prisma.PrismaPromise<unknown>[] = [];
-  const toDelete = existing
-    .filter((e) => !keptIds.has(e.id))
-    .map((e) => e.id);
   if (toDelete.length) {
     ops.push(prisma.court.deleteMany({ where: { id: { in: toDelete } } }));
   }

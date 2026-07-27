@@ -1,6 +1,5 @@
 "use server";
 
-import * as z from "zod";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -10,6 +9,7 @@ import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin";
 import { normalizeAvatar } from "@/lib/avatar";
 import { ROLE_VALUES } from "@/lib/constants";
+import { firstErrors } from "@/lib/zod-errors";
 import {
   AdminCreateUserSchema,
   AdminUpdateUserSchema,
@@ -20,17 +20,6 @@ export type AdminFormState = {
   message?: string;
   values?: Record<string, string>;
 };
-
-function firstErrors(error: z.ZodError): Record<string, string> {
-  const { fieldErrors } = z.flattenError(error) as {
-    fieldErrors: Record<string, string[] | undefined>;
-  };
-  const out: Record<string, string> = {};
-  for (const [key, messages] of Object.entries(fieldErrors)) {
-    if (messages && messages.length > 0) out[key] = messages[0];
-  }
-  return out;
-}
 
 function isRole(value: string): value is Role {
   return (ROLE_VALUES as readonly string[]).includes(value);

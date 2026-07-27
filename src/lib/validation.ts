@@ -1,5 +1,5 @@
 import * as z from "zod";
-import { SKILL_LEVELS, ROLE_VALUES } from "@/lib/constants";
+import { SKILL_LEVELS, ROLE_VALUES, MAX_BOOKING_HOURS } from "@/lib/constants";
 
 const skillValues = SKILL_LEVELS.map((s) => s.value) as [string, ...string[]];
 const roleValues = [...ROLE_VALUES] as [string, ...string[]];
@@ -106,3 +106,41 @@ export const HubSchema = z.object({
 });
 
 export type HubInput = z.infer<typeof HubSchema>;
+
+// --- Player: bookings ---
+
+export const CreateBookingSchema = z.object({
+  courtId: z.string().min(1, { error: "Choose a court" }),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, { error: "Choose a date" }),
+  startHour: z.coerce
+    .number()
+    .int({ error: "Choose a start time" })
+    .min(0, { error: "Choose a start time" })
+    .max(23, { error: "Choose a start time" }),
+  hours: z.coerce
+    .number()
+    .int({ error: "Choose a duration" })
+    .min(1, { error: "Choose a duration" })
+    .max(MAX_BOOKING_HOURS, {
+      error: `Bookings can be at most ${MAX_BOOKING_HOURS} hours`,
+    }),
+  notes: optionalText,
+});
+
+export const CancelBookingSchema = z.object({
+  id: z.string().min(1),
+  reason: optionalText,
+});
+
+// The partner is declining someone else's reservation, so a reason is required.
+export const PartnerCancelBookingSchema = z.object({
+  id: z.string().min(1),
+  reason: z
+    .string()
+    .trim()
+    .min(3, { error: "Give the player a reason" }),
+});
+
+export type CreateBookingInput = z.infer<typeof CreateBookingSchema>;

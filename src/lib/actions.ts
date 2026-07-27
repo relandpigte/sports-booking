@@ -1,6 +1,5 @@
 "use server";
 
-import * as z from "zod";
 import { AuthError } from "next-auth";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
@@ -10,23 +9,13 @@ import { signIn, signOut } from "@/lib/auth";
 import { verifySession } from "@/lib/dal";
 import { normalizeAvatar } from "@/lib/avatar";
 import { LoginSchema, RegisterSchema, ProfileSchema } from "@/lib/validation";
+import { firstErrors } from "@/lib/zod-errors";
 
 export type AuthFormState = {
   errors?: Record<string, string>;
   message?: string;
   values?: Record<string, string>;
 };
-
-function firstErrors(error: z.ZodError): Record<string, string> {
-  const { fieldErrors } = z.flattenError(error) as {
-    fieldErrors: Record<string, string[] | undefined>;
-  };
-  const out: Record<string, string> = {};
-  for (const [key, messages] of Object.entries(fieldErrors)) {
-    if (messages && messages.length > 0) out[key] = messages[0];
-  }
-  return out;
-}
 
 export async function registerAction(
   _prev: AuthFormState,

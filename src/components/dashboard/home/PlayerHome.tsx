@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { SKILL_LEVELS } from "@/lib/constants";
+import type { BookingView } from "@/lib/bookings";
+import { formatManilaDateLong, formatSlotRange } from "@/lib/time";
+import { formatPHP } from "@/lib/currency";
 
 type PlayerHomeUser = {
   name: string | null;
@@ -8,14 +11,26 @@ type PlayerHomeUser = {
   privateProfile: boolean;
 };
 
-export function PlayerHome({ user }: { user: PlayerHomeUser }) {
+export function PlayerHome({
+  user,
+  upcomingCount,
+  nextBooking,
+}: {
+  user: PlayerHomeUser;
+  upcomingCount: number;
+  nextBooking: BookingView | null;
+}) {
   const skillLabel =
     SKILL_LEVELS.find((s) => s.value === user.skillLevel)?.label ??
     user.skillLevel ??
     "—";
 
   const stats = [
-    { label: "Upcoming bookings", value: "0", href: "/dashboard/bookings" },
+    {
+      label: "Upcoming bookings",
+      value: String(upcomingCount),
+      href: "/dashboard/bookings",
+    },
     { label: "Tournaments joined", value: "0", href: "/dashboard/tournaments" },
     { label: "Skill level", value: skillLabel, href: "/dashboard/account" },
     {
@@ -73,9 +88,30 @@ export function PlayerHome({ user }: { user: PlayerHomeUser }) {
               View all
             </Link>
           </div>
-          <p className="mt-3 text-sm text-gray-500">
-            You have no upcoming bookings. Find a court to get started.
-          </p>
+          {nextBooking ? (
+            <div className="mt-3">
+              <Link
+                href={`/hubs/${nextBooking.hub.id}`}
+                className="font-medium text-gray-900 hover:underline"
+              >
+                {nextBooking.hub.name}
+              </Link>
+              <p className="text-sm text-gray-500">{nextBooking.court.name}</p>
+              <p className="mt-2 text-sm font-medium text-gray-900">
+                {formatManilaDateLong(nextBooking.date)}
+              </p>
+              <p className="text-sm text-gray-500">
+                {formatSlotRange(nextBooking.startHour, nextBooking.endHour)}
+                {nextBooking.totalPrice != null
+                  ? ` · ${formatPHP(nextBooking.totalPrice)}`
+                  : ""}
+              </p>
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-gray-500">
+              You have no upcoming bookings. Find a court to get started.
+            </p>
+          )}
         </section>
 
         <section className="rounded-2xl border border-gray-200 p-5">

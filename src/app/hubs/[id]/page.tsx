@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PublicTopBar } from "@/components/hubs/PublicTopBar";
+import { BookCourtPanel } from "@/components/hubs/BookCourtPanel";
 import { Avatar } from "@/components/ui/Avatar";
 import { getPublicHub } from "@/lib/hubs";
+import { getViewer } from "@/lib/dal";
+import { getCourtAvailability } from "@/lib/bookings";
 import { formatTime, summarizeOperatingHours } from "@/lib/hours";
 import { formatPHP } from "@/lib/currency";
+import { manilaNowHour, manilaToday } from "@/lib/time";
 import {
   WEEKDAYS,
   GAME_LABELS,
@@ -39,6 +43,17 @@ export default async function PublicHubPage({
 
   const [cover, ...moreCovers] = hub.coverPhotos;
   const hours = hub.operatingHours;
+
+  // This page is public, so getViewer (which returns null when signed out)
+  // rather than getCurrentUser (which would redirect anonymous visitors).
+  const today = manilaToday();
+  const firstCourt = hub.courts[0];
+  const [viewer, initialAvailability] = await Promise.all([
+    getViewer(),
+    // Render the first court's grid populated, so there's no empty flash before
+    // the availability stream connects.
+    firstCourt ? getCourtAvailability(firstCourt.id, today) : null,
+  ]);
 
   const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   const hasCoords = hub.latitude != null && hub.longitude != null;
@@ -211,6 +226,23 @@ export default async function PublicHubPage({
             )}
           </section>
         </div>
+
+        <BookCourtPanel
+          courts={hub.courts}
+          operatingHours={hours}
+          today={today}
+          nowHour={manilaNowHour()}
+          initialAvailability={
+            initialAvailability
+              ? {
+                  courtId: initialAvailability.courtId,
+                  date: initialAvailability.date,
+                  bookedHours: initialAvailability.bookedHours,
+                }
+              : null
+          }
+          viewerRole={viewer?.role ?? null}
+        />
 
         {/* Courts */}
         {hub.courts.length > 0 && (

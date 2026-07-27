@@ -76,22 +76,17 @@ export const COURT_TYPE_LABELS: Record<string, string> = Object.fromEntries(
 
 // --- Bookings ---------------------------------------------------------------
 
-// Longest single booking, in contiguous 1-hour slots.
-export const MAX_BOOKING_HOURS = 4;
+// Players choose their own duration by tapping contiguous hours on the grid —
+// there is no product limit on length. This is only a sanity bound so a
+// hand-crafted request can't claim an absurd number of hours; a real booking
+// is capped anyway by the hub's closing time and by other players' bookings.
+export const MAX_BOOKING_HOURS = 24;
 
 // How far ahead players can book.
 export const BOOKING_WINDOW_DAYS = 30;
 
 // Players can't cancel within this many hours of the start time.
 export const CANCEL_CUTOFF_HOURS = 2;
-
-export const DURATION_OPTIONS = Array.from(
-  { length: MAX_BOOKING_HOURS },
-  (_, i) => {
-    const h = i + 1;
-    return { value: String(h), label: h === 1 ? "1 hour" : `${h} hours` };
-  }
-);
 
 export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
   CONFIRMED: "Confirmed",

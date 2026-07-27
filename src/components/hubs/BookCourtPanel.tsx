@@ -10,15 +10,17 @@ import { DateStrip } from "@/components/hubs/DateStrip";
 import { SlotGrid } from "@/components/hubs/SlotGrid";
 import { useAvailabilityStream } from "@/hooks/useAvailabilityStream";
 import { createBookingAction, type BookingFormState } from "@/lib/booking-actions";
-import { buildSlots, canBook, maxDurationFrom } from "@/lib/slots";
+import {
+  buildSlots,
+  canBook,
+  clampRange,
+  rangeHours,
+  toggleHour,
+  type HourRange,
+} from "@/lib/slots";
 import { formatPHP } from "@/lib/currency";
 import { formatHourLabel, formatManilaDateLong } from "@/lib/time";
-import {
-  COURT_TYPE_LABELS,
-  DURATION_OPTIONS,
-  MAX_BOOKING_HOURS,
-  type OperatingHours,
-} from "@/lib/constants";
+import { COURT_TYPE_LABELS, type OperatingHours } from "@/lib/constants";
 
 type PanelCourt = {
   id: string;
@@ -46,8 +48,7 @@ export function BookCourtPanel({
 }) {
   const [courtId, setCourtId] = useState(courts[0]?.id ?? "");
   const [date, setDate] = useState(today);
-  const [startHour, setStartHour] = useState<number | null>(null);
-  const [hours, setHours] = useState(1);
+  const [range, setRange] = useState<HourRange | null>(null);
   const [state, formAction, pending] = useActionState(
     createBookingAction,
     initialState
@@ -73,17 +74,13 @@ export function BookCourtPanel({
     [operatingHours, date, bookedHours, today, nowHour]
   );
 
-  // The selection is validated during render rather than repaired in an
-  // effect, so a slot someone else books out from under us simply stops being
-  // selected on the next frame.
-  const maxHours =
-    startHour == null ? 0 : maxDurationFrom(slots, startHour, MAX_BOOKING_HOURS);
-  const selectedStart = maxHours > 0 ? startHour : null;
-  const selectedHours = Math.min(hours, Math.max(maxHours, 1));
-
-  const durationOptions = DURATION_OPTIONS.slice(0, Math.max(maxHours, 1));
+  // The selection is trimmed during render rather than repaired in an effect,
+  // so hours someone else books out from under us drop off on the next frame
+  // instead of silently staying selected.
+  const selected = clampRange(slots, range);
+  const selectedHours = selected ? rangeHours(selected) : 0;
   const ready =
-    selectedStart != null && canBook(slots, selectedStart, selectedHours);
+    selected != null && canBook(slots, selected.start, selectedHours);
   const total =
     court?.hourlyRate != null ? court.hourlyRate * selectedHours : null;
 
@@ -91,14 +88,18 @@ export function BookCourtPanel({
   // not an effect.
   function selectCourt(id: string) {
     setCourtId(id);
-    setStartHour(null);
-    setHours(1);
+    setRange(null);
   }
 
   function selectDate(next: string) {
     setDate(next);
-    setStartHour(null);
-    setHours(1);
+    setRange(null);
+  }
+
+  // Toggle against the trimmed selection so a tap never revives an hour that
+  // is no longer available.
+  function toggle(hour: number) {
+    setRange(toggleHour(selected, hour));
   }
 
   if (courts.length === 0) return null;
@@ -115,7 +116,7 @@ export function BookCourtPanel({
         {/* The panel keeps its state in React; these carry it into FormData. */}
         <input type="hidden" name="courtId" value={courtId} />
         <input type="hidden" name="date" value={date} />
-        <input type="hidden" name="startHour" value={selectedStart ?? ""} />
+        <input type="hidden" name="startHour" value={selected?.start ?? ""} />
         <input type="hidden" name="hours" value={selectedHours} />
 
         {state.message && (
@@ -171,7 +172,12 @@ export function BookCourtPanel({
         </div>
 
         <div className="flex flex-col gap-2">
-          <span className="text-sm font-medium text-gray-800">Start time</span>
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-sm font-medium text-gray-800">Time</span>
+            <span className="text-xs text-gray-400">
+              Tap hours to build your session
+            </span>
+          </div>
           {closed ? (
             <p className="rounded-lg bg-gray-50 px-3 py-2.5 text-sm text-gray-500">
               Closed on {formatManilaDateLong(date)}.
@@ -179,9 +185,8 @@ export function BookCourtPanel({
           ) : (
             <SlotGrid
               slots={slots}
-              startHour={selectedStart}
-              hours={selectedHours}
-              onSelect={setStartHour}
+              range={selected}
+              onToggle={toggle}
               loading={bookedHours == null}
               live={live}
             />
@@ -191,25 +196,16 @@ export function BookCourtPanel({
           )}
         </div>
 
-        {selectedStart != null && (
-          <Select
-            label="Duration"
-            name="duration"
-            value={String(selectedHours)}
-            onChange={(e) => setHours(Number(e.target.value))}
-            options={durationOptions}
-          />
-        )}
-
         <div className="flex flex-col gap-3 border-t border-gray-100 pt-4">
-          {selectedStart != null && (
-            <div className="flex items-center justify-between text-sm">
+          {selected != null && (
+            <div className="flex items-center justify-between gap-3 text-sm">
               <span className="text-gray-500">
                 {formatManilaDateLong(date)} ·{" "}
-                {formatHourLabel(selectedStart)} –{" "}
-                {formatHourLabel(selectedStart + selectedHours)}
+                {formatHourLabel(selected.start)} –{" "}
+                {formatHourLabel(selected.end + 1)} ({selectedHours}
+                {selectedHours === 1 ? " hr" : " hrs"})
               </span>
-              <span className="text-base font-semibold text-gray-900">
+              <span className="shrink-0 text-base font-semibold text-gray-900">
                 {total != null ? formatPHP(total) : "Rate on request"}
               </span>
             </div>
@@ -230,8 +226,8 @@ export function BookCourtPanel({
             <Button type="submit" disabled={!ready || pending}>
               {pending
                 ? "Booking…"
-                : selectedStart == null
-                  ? "Pick a start time"
+                : selected == null
+                  ? "Pick your hours"
                   : `Book ${selectedHours} ${selectedHours === 1 ? "hour" : "hours"}`}
             </Button>
           )}

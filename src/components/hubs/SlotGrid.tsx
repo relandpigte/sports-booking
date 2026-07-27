@@ -1,21 +1,19 @@
 "use client";
 
-import type { Slot } from "@/lib/slots";
+import type { HourRange, Slot } from "@/lib/slots";
 
-// One hourly slot button. The selected range is the [startHour, startHour+hours)
-// window the player is assembling.
+// Hourly slots the player taps to build a contiguous session. Tapping an hour
+// adds it, extends the run, or removes it — see toggleHour in lib/slots.
 export function SlotGrid({
   slots,
-  startHour,
-  hours,
-  onSelect,
+  range,
+  onToggle,
   loading,
   live,
 }: {
   slots: Slot[];
-  startHour: number | null;
-  hours: number;
-  onSelect: (hour: number) => void;
+  range: HourRange | null;
+  onToggle: (hour: number) => void;
   loading: boolean;
   live: boolean;
 }) {
@@ -46,10 +44,11 @@ export function SlotGrid({
       >
         {slots.map((slot) => {
           const selected =
-            startHour != null &&
-            slot.hour >= startHour &&
-            slot.hour < startHour + hours;
-          const isStart = startHour === slot.hour;
+            range != null && slot.hour >= range.start && slot.hour <= range.end;
+          // The two hours that extend or trim the run get a ring, so it's
+          // obvious where the next tap acts.
+          const isEdge =
+            selected && (slot.hour === range.start || slot.hour === range.end);
 
           return (
             <button
@@ -57,7 +56,7 @@ export function SlotGrid({
               type="button"
               disabled={!slot.available}
               aria-pressed={selected}
-              onClick={() => onSelect(slot.hour)}
+              onClick={() => onToggle(slot.hour)}
               title={
                 slot.reason === "booked"
                   ? "Already booked"
@@ -74,7 +73,7 @@ export function SlotGrid({
                     : slot.reason === "past"
                       ? "cursor-not-allowed border-gray-200 bg-white text-gray-300"
                       : "border-gray-300 bg-white text-gray-700 hover:border-primary hover:text-primary",
-                isStart ? "ring-2 ring-primary/20" : "",
+                isEdge ? "ring-2 ring-primary/30" : "",
               ].join(" ")}
             >
               {slot.label}

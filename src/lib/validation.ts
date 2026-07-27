@@ -123,9 +123,9 @@ export const CreateBookingSchema = z.object({
     .number()
     .int({ error: "Choose a duration" })
     .min(1, { error: "Choose a duration" })
-    .max(MAX_BOOKING_HOURS, {
-      error: `Bookings can be at most ${MAX_BOOKING_HOURS} hours`,
-    }),
+    // Sanity bound only — see MAX_BOOKING_HOURS. The real limit is the hub's
+    // closing time, enforced by the availability re-check in the action.
+    .max(MAX_BOOKING_HOURS, { error: "That booking is too long" }),
   notes: optionalText,
 });
 

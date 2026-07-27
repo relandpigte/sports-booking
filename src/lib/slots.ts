@@ -82,6 +82,10 @@ export function buildSlots(input: BuildSlotsInput): {
   return { closed: false, slots };
 }
 
+export function isAvailable(slots: Slot[], hour: number): boolean {
+  return slots.some((s) => s.hour === hour && s.available);
+}
+
 // Whether a start hour + duration is a fully available contiguous run.
 export function canBook(
   slots: Slot[],
@@ -90,19 +94,60 @@ export function canBook(
 ): boolean {
   if (hours < 1) return false;
   for (let h = startHour; h < startHour + hours; h++) {
-    const slot = slots.find((s) => s.hour === h);
-    if (!slot || !slot.available) return false;
+    if (!isAvailable(slots, h)) return false;
   }
   return true;
 }
 
-// How many contiguous available hours run from startHour, capped.
-export function maxDurationFrom(
+// An inclusive run of hours the player has selected by tapping the grid.
+export type HourRange = { start: number; end: number };
+
+export function rangeHours(range: HourRange): number {
+  return range.end - range.start + 1;
+}
+
+/**
+ * Applies a tap on `hour` to the current selection, keeping it contiguous.
+ *
+ * - nothing selected, or a tap outside the run  -> start a new run there
+ * - a tap directly before/after the run         -> extend it
+ * - a tap on the only selected hour             -> clear
+ * - a tap on either end                         -> shrink from that end
+ * - a tap inside the run                        -> end the run there
+ *
+ * Unavailable hours are never reachable: the grid disables them, and a run can
+ * only grow one hour at a time into a neighbour that must itself be available.
+ */
+export function toggleHour(
+  range: HourRange | null,
+  hour: number
+): HourRange | null {
+  if (!range) return { start: hour, end: hour };
+  const { start, end } = range;
+
+  if (hour < start - 1 || hour > end + 1) return { start: hour, end: hour };
+  if (hour === start - 1) return { start: hour, end };
+  if (hour === end + 1) return { start, end: hour };
+
+  // The hour is inside the current run, so this tap is a deselect.
+  if (start === end) return null;
+  if (hour === start) return { start: start + 1, end };
+  if (hour === end) return { start, end: end - 1 };
+  return { start, end: hour };
+}
+
+/**
+ * Trims a selection to what is still bookable — someone else may have taken an
+ * hour inside it since it was made. Keeps the longest run from the original
+ * start rather than dropping the whole selection.
+ */
+export function clampRange(
   slots: Slot[],
-  startHour: number,
-  cap: number
-): number {
-  let n = 0;
-  while (n < cap && canBook(slots, startHour, n + 1)) n++;
-  return n;
+  range: HourRange | null
+): HourRange | null {
+  if (!range) return null;
+  if (!isAvailable(slots, range.start)) return null;
+  let end = range.start;
+  while (end + 1 <= range.end && isAvailable(slots, end + 1)) end++;
+  return { start: range.start, end };
 }

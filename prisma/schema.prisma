@@ -90,6 +90,13 @@ enum CancelledBy {
   ADMIN
 }
 
+// Deliberately not CancelledBy: only the venue moves a booking, so that enum's
+// PLAYER value would be unreachable here.
+enum RescheduledBy {
+  PARTNER
+  ADMIN
+}
+
 // A court reservation of 1..MAX_BOOKING_HOURS contiguous hours.
 //
 // `date` is a "YYYY-MM-DD" Asia/Manila civil date; `startHour`/`endHour` are
@@ -118,8 +125,27 @@ model Booking {
   cancelledAt  DateTime?
   cancelledBy  CancelledBy?
   cancelReason String?       @db.Text
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+
+  // --- Reschedule (venue-initiated move) ---------------------------------
+  // Only the venue moves a booking. We keep just the IMMEDIATELY PRECEDING
+  // state — all the player-facing "Moved by the venue" banner needs — plus a
+  // count so repeated moves aren't invisible.
+  //
+  // prevCourtName is a SNAPSHOT, not a relation: courts get renamed and
+  // deleted, and the player should still see the court they were originally
+  // told. Nothing ever joins on it.
+  rescheduledAt    DateTime?
+  rescheduledBy    RescheduledBy?
+  rescheduleReason String?        @db.Text
+  rescheduleCount  Int            @default(0)
+  prevCourtName    String?
+  prevDate         String?
+  prevStartHour    Int?
+  prevEndHour      Int?
+  prevTotalPrice   Decimal?       @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   court Court         @relation(fields: [courtId], references: [id], onDelete: Cascade)
   hub   Hub           @relation(fields: [hubId], references: [id], onDelete: Cascade)

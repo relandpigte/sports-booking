@@ -1,6 +1,10 @@
 import type { NextRequest } from "next/server";
 
-import { getBookedHours, getCourtForBooking } from "@/lib/bookings";
+import {
+  getBookedHours,
+  getBookedHoursExcluding,
+  getCourtForBooking,
+} from "@/lib/bookings";
 import { isValidDateString } from "@/lib/time";
 
 // Server-Sent Events stream of a court's booked hours for one Manila date.
@@ -23,6 +27,20 @@ export async function GET(
   // Next 16: params is a Promise — synchronous access was removed.
   const { courtId } = await ctx.params;
   const date = request.nextUrl.searchParams.get("date") ?? "";
+
+  // Optional: ignore one booking's own slots, so the reschedule picker shows
+  // that booking's current hours as selectable instead of booked-by-itself.
+  //
+  // This stays unauthenticated like the rest of the route. An `exclude` can
+  // only REMOVE hours from the list, so every possible response is a subset of
+  // what this route already serves publicly — no identity, price or player
+  // ever appears. Worst case someone guesses an id and sees a taken hour drawn
+  // as free; they still can't book it, because the create and reschedule
+  // actions re-check with the unexcluded query and the unique index rejects
+  // the insert. The exclusion is a UI affordance, never an authorization
+  // decision.
+  const rawExclude = request.nextUrl.searchParams.get("exclude") ?? "";
+  const excludeId = /^[a-z0-9]{1,64}$/.test(rawExclude) ? rawExclude : null;
 
   if (!isValidDateString(date)) {
     return new Response("Invalid date", { status: 400 });
@@ -71,7 +89,9 @@ export async function GET(
       const tick = async () => {
         if (closed) return;
         try {
-          const bookedHours = await getBookedHours(courtId, date);
+          const bookedHours = excludeId
+            ? await getBookedHoursExcluding(courtId, date, excludeId)
+            : await getBookedHours(courtId, date);
           const key = bookedHours.join(",");
           if (key !== lastKey) {
             lastKey = key;

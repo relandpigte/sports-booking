@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { getMyHub } from "@/lib/hubs";
 import { listHubBookings } from "@/lib/bookings";
 import { BookingCard } from "@/components/bookings/BookingCard";
+import { manilaNowHour, manilaToday } from "@/lib/time";
 
 export const metadata: Metadata = {
   title: "Hub Bookings — Sports 360",
@@ -25,6 +26,14 @@ export default async function HubBookingsPage({
   if (!hub || !bookings) notFound();
 
   const { upcoming, past } = bookings;
+
+  // Everything the reschedule picker needs. Only upcoming bookings get it.
+  const reschedule = {
+    courts: hub.courts,
+    operatingHours: hub.operatingHours,
+    today: manilaToday(),
+    nowHour: manilaNowHour(),
+  };
 
   return (
     <div>
@@ -49,7 +58,13 @@ export default async function HubBookingsPage({
         {upcoming.length > 0 ? (
           <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
             {upcoming.map((b) => (
-              <BookingCard key={b.id} booking={b} view="partner" cancellable />
+              <BookingCard
+                key={b.id}
+                booking={b}
+                view="partner"
+                cancellable
+                reschedule={reschedule}
+              />
             ))}
           </div>
         ) : (

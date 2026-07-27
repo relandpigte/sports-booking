@@ -13,7 +13,10 @@ type Snapshot = { courtId: string; date: string; bookedHours: number[] };
 export function useAvailabilityStream(
   courtId: string | null,
   date: string,
-  initial: Snapshot | null
+  initial: Snapshot | null,
+  // Reschedule only: ignore this booking's own slots, so its current hours
+  // arrive as free rather than booked by itself.
+  excludeBookingId?: string
 ): { bookedHours: number[] | null; live: boolean } {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [connected, setConnected] = useState(false);
@@ -22,7 +25,8 @@ export function useAvailabilityStream(
     if (!courtId) return;
 
     const source = new EventSource(
-      `/api/courts/${courtId}/availability/stream?date=${date}`
+      `/api/courts/${courtId}/availability/stream?date=${date}` +
+        (excludeBookingId ? `&exclude=${excludeBookingId}` : "")
     );
 
     source.onopen = () => setConnected(true);
@@ -41,7 +45,7 @@ export function useAvailabilityStream(
     source.onerror = () => setConnected(false);
 
     return () => source.close();
-  }, [courtId, date]);
+  }, [courtId, date, excludeBookingId]);
 
   // Match both sources against the current selection rather than resetting
   // state in an effect — a late frame from a previous court/date is simply

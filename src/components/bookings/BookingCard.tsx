@@ -2,21 +2,41 @@ import Link from "next/link";
 
 import { Avatar } from "@/components/ui/Avatar";
 import { CancelBookingButton } from "@/components/bookings/CancelBookingButton";
+import { RescheduleBookingButton } from "@/components/bookings/RescheduleBookingButton";
 import type { BookingView } from "@/lib/bookings";
 import { formatPHP } from "@/lib/currency";
 import { formatManilaDateLong, formatSlotRange } from "@/lib/time";
-import { BOOKING_STATUS_LABELS, COURT_TYPE_LABELS } from "@/lib/constants";
+import {
+  BOOKING_STATUS_LABELS,
+  COURT_TYPE_LABELS,
+  type OperatingHours,
+} from "@/lib/constants";
 
 // `player` shows the booker's details (partner view); `hub` shows the venue
 // (player view). Cancel controls appear only for upcoming, confirmed bookings.
+//
+// `reschedule` is passed only by the partner's hub list; player surfaces omit
+// it and are unaffected.
 export function BookingCard({
   booking,
   view,
   cancellable,
+  reschedule,
 }: {
   booking: BookingView;
   view: "player" | "partner";
   cancellable: boolean;
+  reschedule?: {
+    courts: {
+      id: string;
+      name: string;
+      courtType: string;
+      hourlyRate: number | null;
+    }[];
+    operatingHours: OperatingHours | null;
+    today: string;
+    nowHour: number;
+  };
 }) {
   const cancelled = booking.status === "CANCELLED";
   const tooLateToCancel = view === "player" && booking.playerCancelCutoffPassed;
@@ -98,6 +118,33 @@ export function BookingCard({
         </p>
       )}
 
+      {/* Amber, not red — a move must never read as a cancellation. */}
+      {booking.movedFrom && !cancelled && (
+        <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">
+          <p className="font-medium">
+            Moved by the venue
+            {booking.movedFrom.count > 1
+              ? ` (${booking.movedFrom.count} times)`
+              : ""}
+          </p>
+          <p className="mt-0.5">
+            Was {booking.movedFrom.courtName ?? "another court"} ·{" "}
+            {formatManilaDateLong(booking.movedFrom.date)} ·{" "}
+            {formatSlotRange(
+              booking.movedFrom.startHour,
+              booking.movedFrom.endHour
+            )}
+            {booking.movedFrom.totalPrice != null &&
+            booking.movedFrom.totalPrice !== booking.totalPrice
+              ? ` · was ${formatPHP(booking.movedFrom.totalPrice)}`
+              : ""}
+          </p>
+          {booking.movedFrom.reason && (
+            <p className="mt-1">{booking.movedFrom.reason}</p>
+          )}
+        </div>
+      )}
+
       {cancelled && booking.cancelReason && (
         <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
           {booking.cancelledBy === "PLAYER"
@@ -108,7 +155,24 @@ export function BookingCard({
       )}
 
       {cancellable && !cancelled && (
-        <div className="mt-4 flex justify-end border-t border-gray-100 pt-3">
+        <div className="mt-4 flex flex-wrap items-start justify-end gap-2 border-t border-gray-100 pt-3">
+          {reschedule && (
+            <RescheduleBookingButton
+              bookingId={booking.id}
+              courts={reschedule.courts}
+              operatingHours={reschedule.operatingHours}
+              today={reschedule.today}
+              nowHour={reschedule.nowHour}
+              current={{
+                courtId: booking.court.id,
+                courtName: booking.court.name,
+                date: booking.date,
+                startHour: booking.startHour,
+                endHour: booking.endHour,
+                totalPrice: booking.totalPrice,
+              }}
+            />
+          )}
           {tooLateToCancel ? (
             <p className="text-xs text-gray-400">
               Too close to the start time to cancel online — contact the venue.

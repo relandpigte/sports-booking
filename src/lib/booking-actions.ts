@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getViewer } from "@/lib/dal";
 import { firstErrors } from "@/lib/zod-errors";
-import { buildSlots, canBook } from "@/lib/slots";
+import { buildSlots, isAvailable, runHours, toRuns } from "@/lib/slots";
 import { getBookedHours, getCourtForBooking } from "@/lib/bookings";
 import {
   CancelBookingSchema,
@@ -20,6 +20,7 @@ import {
 } from "@/lib/constants";
 import {
   addDays,
+  formatHourLabel,
   manilaInstant,
   manilaNowHour,
   manilaToday,
@@ -55,13 +56,12 @@ export async function createBookingAction(
   const parsed = CreateBookingSchema.safeParse({
     courtId: String(formData.get("courtId") ?? ""),
     date: String(formData.get("date") ?? ""),
-    startHour: String(formData.get("startHour") ?? ""),
-    hours: String(formData.get("hours") ?? ""),
+    hours: formData.getAll("hours").map((v) => String(v)),
     notes: String(formData.get("notes") ?? ""),
   });
   if (!parsed.success) return { errors: firstErrors(parsed.error) };
 
-  const { courtId, date, startHour, hours, notes } = parsed.data;
+  const { courtId, date, hours, notes } = parsed.data;
 
   const court = await getCourtForBooking(courtId);
   if (!court) return { message: "Court not found." };
@@ -89,80 +89,99 @@ export async function createBookingAction(
   if (closed) {
     return { errors: { date: "This hub is closed on that day." } };
   }
-  if (!canBook(slots, startHour, hours)) {
-    return { errors: { startHour: "That time is no longer available." } };
-  }
-
-  const endHour = startHour + hours;
-  const startsAt = manilaInstant(date, startHour);
-  const endsAt = manilaInstant(date, endHour);
-
-  // Don't let a player double-book themselves across two courts.
-  const clash = await prisma.booking.findFirst({
-    where: {
-      userId: viewer.id,
-      status: "CONFIRMED",
-      startsAt: { lt: endsAt },
-      endsAt: { gt: startsAt },
-    },
-    select: { id: true },
-  });
-  if (clash) {
+  const unavailable = hours.filter((h) => !isAvailable(slots, h));
+  if (unavailable.length > 0) {
     return {
-      errors: { startHour: "You already have a booking during that time." },
+      errors: {
+        hours: `${unavailable
+          .map(formatHourLabel)
+          .join(", ")} ${unavailable.length === 1 ? "is" : "are"} no longer available.`,
+      },
     };
   }
 
-  const totalPrice =
-    court.hourlyRate != null ? court.hourlyRate * hours : null;
+  // The hours need not be contiguous, so a selection can span several
+  // sessions. Each run becomes its own booking the player can cancel on its
+  // own, while a single unbroken block still produces exactly one booking.
+  const runs = toRuns(hours);
 
-  let bookingId: string;
-  try {
-    const created = await prisma.$transaction(async (tx) => {
-      const booking = await tx.booking.create({
-        data: {
-          courtId,
-          hubId: court.hub.id,
-          userId: viewer.id,
-          date,
-          startHour,
-          endHour,
-          hours,
-          startsAt,
-          endsAt,
-          hourlyRate: court.hourlyRate,
-          totalPrice,
-          notes: notes ?? null,
-          status: "CONFIRMED",
-        },
-        select: { id: true },
-      });
-
-      // The unique index on (courtId, date, hour) is what actually prevents a
-      // double-booking: a concurrent transaction holding the same key makes
-      // this block, then fail with P2002 once the other commits — rolling back
-      // the Booking row above along with it.
-      //
-      // Deliberately NOT skipDuplicates: that would swallow the collision and
-      // leave a booking whose hours are only partially reserved.
-      await tx.bookingSlot.createMany({
-        data: Array.from({ length: hours }, (_, i) => ({
-          bookingId: booking.id,
-          courtId,
-          date,
-          hour: startHour + i,
-        })),
-      });
-
-      return booking;
+  // Don't let a player double-book themselves across two courts.
+  for (const run of runs) {
+    const clash = await prisma.booking.findFirst({
+      where: {
+        userId: viewer.id,
+        status: "CONFIRMED",
+        startsAt: { lt: manilaInstant(date, run.end + 1) },
+        endsAt: { gt: manilaInstant(date, run.start) },
+      },
+      select: { id: true },
     });
-    bookingId = created.id;
+    if (clash) {
+      return {
+        errors: {
+          hours: `You already have a booking at ${formatHourLabel(run.start)}.`,
+        },
+      };
+    }
+  }
+
+  let created: { id: string }[];
+  try {
+    // One transaction for the whole selection: if any hour is taken while we
+    // write, the player gets none of them rather than a partial set they
+    // didn't ask for.
+    created = await prisma.$transaction(async (tx) => {
+      const out: { id: string }[] = [];
+
+      for (const run of runs) {
+        const runLength = runHours(run);
+        const booking = await tx.booking.create({
+          data: {
+            courtId,
+            hubId: court.hub.id,
+            userId: viewer.id,
+            date,
+            startHour: run.start,
+            endHour: run.end + 1,
+            hours: runLength,
+            startsAt: manilaInstant(date, run.start),
+            endsAt: manilaInstant(date, run.end + 1),
+            hourlyRate: court.hourlyRate,
+            totalPrice:
+              court.hourlyRate != null ? court.hourlyRate * runLength : null,
+            notes: notes ?? null,
+            status: "CONFIRMED",
+          },
+          select: { id: true },
+        });
+
+        // The unique index on (courtId, date, hour) is what actually prevents a
+        // double-booking: a concurrent transaction holding the same key makes
+        // this block, then fail with P2002 once the other commits — rolling
+        // back every booking in this transaction along with it.
+        //
+        // Deliberately NOT skipDuplicates: that would swallow the collision and
+        // leave a booking whose hours are only partially reserved.
+        await tx.bookingSlot.createMany({
+          data: Array.from({ length: runLength }, (_, i) => ({
+            bookingId: booking.id,
+            courtId,
+            date,
+            hour: run.start + i,
+          })),
+        });
+
+        out.push(booking);
+      }
+
+      return out;
+    });
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      return { message: "Someone just booked that time. Pick another slot." };
+      return { message: "Someone just booked one of those hours. Try again." };
     }
     throw error;
   }
@@ -172,8 +191,11 @@ export async function createBookingAction(
   // No redirect: the player stays on the hub page and watches the slots they
   // just took grey out.
   return {
-    success: `Booked ${court.name} on ${date}.`,
-    bookingId,
+    success:
+      created.length === 1
+        ? `Booked ${court.name} on ${date}.`
+        : `Booked ${created.length} sessions on ${court.name}.`,
+    bookingId: created[0].id,
   };
 }
 

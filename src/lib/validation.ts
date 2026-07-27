@@ -114,18 +114,14 @@ export const CreateBookingSchema = z.object({
   date: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, { error: "Choose a date" }),
-  startHour: z.coerce
-    .number()
-    .int({ error: "Choose a start time" })
-    .min(0, { error: "Choose a start time" })
-    .max(23, { error: "Choose a start time" }),
-  hours: z.coerce
-    .number()
-    .int({ error: "Choose a duration" })
-    .min(1, { error: "Choose a duration" })
-    // Sanity bound only — see MAX_BOOKING_HOURS. The real limit is the hub's
-    // closing time, enforced by the availability re-check in the action.
-    .max(MAX_BOOKING_HOURS, { error: "That booking is too long" }),
+  // The hours the player tapped, in any combination — they need not be
+  // contiguous. The action groups them into runs, one booking each.
+  hours: z
+    .array(z.coerce.number().int().min(0).max(23))
+    .min(1, { error: "Choose at least one hour" })
+    // Sanity bound only — see MAX_BOOKING_HOURS. The real limits are the hub's
+    // closing time and other bookings, enforced by the availability re-check.
+    .max(MAX_BOOKING_HOURS, { error: "That's too many hours to book at once" }),
   notes: optionalText,
 });
 

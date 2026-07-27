@@ -12,11 +12,10 @@ import { useAvailabilityStream } from "@/hooks/useAvailabilityStream";
 import { createBookingAction, type BookingFormState } from "@/lib/booking-actions";
 import {
   buildSlots,
-  canBook,
-  clampRange,
-  rangeHours,
-  toggleHour,
-  type HourRange,
+  clampSelection,
+  runHours,
+  toRuns,
+  toggleHourIn,
 } from "@/lib/slots";
 import { formatPHP } from "@/lib/currency";
 import { formatHourLabel, formatManilaDateLong } from "@/lib/time";
@@ -48,7 +47,7 @@ export function BookCourtPanel({
 }) {
   const [courtId, setCourtId] = useState(courts[0]?.id ?? "");
   const [date, setDate] = useState(today);
-  const [range, setRange] = useState<HourRange | null>(null);
+  const [picked, setPicked] = useState<number[]>([]);
   const [state, formAction, pending] = useActionState(
     createBookingAction,
     initialState
@@ -77,29 +76,31 @@ export function BookCourtPanel({
   // The selection is trimmed during render rather than repaired in an effect,
   // so hours someone else books out from under us drop off on the next frame
   // instead of silently staying selected.
-  const selected = clampRange(slots, range);
-  const selectedHours = selected ? rangeHours(selected) : 0;
-  const ready =
-    selected != null && canBook(slots, selected.start, selectedHours);
+  const selected = useMemo(
+    () => clampSelection(slots, picked),
+    [slots, picked]
+  );
+  // Hours needn't be contiguous; each unbroken run becomes its own booking.
+  const runs = useMemo(() => toRuns(selected), [selected]);
   const total =
-    court?.hourlyRate != null ? court.hourlyRate * selectedHours : null;
+    court?.hourlyRate != null ? court.hourlyRate * selected.length : null;
 
   // Switching court or date invalidates the selection — reset in the handler,
   // not an effect.
   function selectCourt(id: string) {
     setCourtId(id);
-    setRange(null);
+    setPicked([]);
   }
 
   function selectDate(next: string) {
     setDate(next);
-    setRange(null);
+    setPicked([]);
   }
 
   // Toggle against the trimmed selection so a tap never revives an hour that
   // is no longer available.
   function toggle(hour: number) {
-    setRange(toggleHour(selected, hour));
+    setPicked(toggleHourIn(selected, hour));
   }
 
   if (courts.length === 0) return null;
@@ -116,8 +117,9 @@ export function BookCourtPanel({
         {/* The panel keeps its state in React; these carry it into FormData. */}
         <input type="hidden" name="courtId" value={courtId} />
         <input type="hidden" name="date" value={date} />
-        <input type="hidden" name="startHour" value={selected?.start ?? ""} />
-        <input type="hidden" name="hours" value={selectedHours} />
+        {selected.map((hour) => (
+          <input key={hour} type="hidden" name="hours" value={hour} />
+        ))}
 
         {state.message && (
           <p
@@ -175,7 +177,7 @@ export function BookCourtPanel({
           <div className="flex items-baseline justify-between gap-3">
             <span className="text-sm font-medium text-gray-800">Time</span>
             <span className="text-xs text-gray-400">
-              Tap hours to build your session
+              Tap any hours you want — they don&apos;t have to be back to back
             </span>
           </div>
           {closed ? (
@@ -185,29 +187,46 @@ export function BookCourtPanel({
           ) : (
             <SlotGrid
               slots={slots}
-              range={selected}
+              selected={selected}
               onToggle={toggle}
               loading={bookedHours == null}
               live={live}
             />
           )}
-          {state.errors?.startHour && (
-            <p className="text-xs text-red-500">{state.errors.startHour}</p>
+          {state.errors?.hours && (
+            <p className="text-xs text-red-500">{state.errors.hours}</p>
           )}
         </div>
 
         <div className="flex flex-col gap-3 border-t border-gray-100 pt-4">
-          {selected != null && (
-            <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-gray-500">
-                {formatManilaDateLong(date)} ·{" "}
-                {formatHourLabel(selected.start)} –{" "}
-                {formatHourLabel(selected.end + 1)} ({selectedHours}
-                {selectedHours === 1 ? " hr" : " hrs"})
-              </span>
-              <span className="shrink-0 text-base font-semibold text-gray-900">
-                {total != null ? formatPHP(total) : "Rate on request"}
-              </span>
+          {runs.length > 0 && (
+            <div className="flex flex-col gap-1.5 text-sm">
+              <p className="text-gray-500">{formatManilaDateLong(date)}</p>
+              {/* A gap between hours means separate sessions, so list each one
+                  — they're booked (and cancelled) individually. */}
+              {runs.map((run) => (
+                <div
+                  key={run.start}
+                  className="flex items-center justify-between gap-3"
+                >
+                  <span className="text-gray-700">
+                    {formatHourLabel(run.start)} –{" "}
+                    {formatHourLabel(run.end + 1)}
+                  </span>
+                  <span className="shrink-0 text-gray-500">
+                    {runHours(run)} {runHours(run) === 1 ? "hr" : "hrs"}
+                  </span>
+                </div>
+              ))}
+              <div className="mt-1 flex items-center justify-between gap-3 border-t border-gray-100 pt-2">
+                <span className="text-gray-500">
+                  {selected.length} {selected.length === 1 ? "hour" : "hours"}
+                  {runs.length > 1 ? ` · ${runs.length} sessions` : ""}
+                </span>
+                <span className="shrink-0 text-base font-semibold text-gray-900">
+                  {total != null ? formatPHP(total) : "Rate on request"}
+                </span>
+              </div>
             </div>
           )}
 
@@ -223,12 +242,12 @@ export function BookCourtPanel({
               Bookings are for player accounts.
             </p>
           ) : (
-            <Button type="submit" disabled={!ready || pending}>
+            <Button type="submit" disabled={selected.length === 0 || pending}>
               {pending
                 ? "Booking…"
-                : selected == null
+                : selected.length === 0
                   ? "Pick your hours"
-                  : `Book ${selectedHours} ${selectedHours === 1 ? "hour" : "hours"}`}
+                  : `Book ${selected.length} ${selected.length === 1 ? "hour" : "hours"}`}
             </Button>
           )}
 

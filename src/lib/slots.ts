@@ -99,55 +99,37 @@ export function canBook(
   return true;
 }
 
-// An inclusive run of hours the player has selected by tapping the grid.
-export type HourRange = { start: number; end: number };
+// An inclusive run of back-to-back hours. A selection can contain several —
+// a player might want 9 AM and then 6–8 PM on the same day.
+export type Run = { start: number; end: number };
 
-export function rangeHours(range: HourRange): number {
-  return range.end - range.start + 1;
+export function runHours(run: Run): number {
+  return run.end - run.start + 1;
 }
 
-/**
- * Applies a tap on `hour` to the current selection, keeping it contiguous.
- *
- * - nothing selected, or a tap outside the run  -> start a new run there
- * - a tap directly before/after the run         -> extend it
- * - a tap on the only selected hour             -> clear
- * - a tap on either end                         -> shrink from that end
- * - a tap inside the run                        -> end the run there
- *
- * Unavailable hours are never reachable: the grid disables them, and a run can
- * only grow one hour at a time into a neighbour that must itself be available.
- */
-export function toggleHour(
-  range: HourRange | null,
-  hour: number
-): HourRange | null {
-  if (!range) return { start: hour, end: hour };
-  const { start, end } = range;
-
-  if (hour < start - 1 || hour > end + 1) return { start: hour, end: hour };
-  if (hour === start - 1) return { start: hour, end };
-  if (hour === end + 1) return { start, end: hour };
-
-  // The hour is inside the current run, so this tap is a deselect.
-  if (start === end) return null;
-  if (hour === start) return { start: start + 1, end };
-  if (hour === end) return { start, end: end - 1 };
-  return { start, end: hour };
+// Adds or removes a single hour. Hours are independent: the selection does not
+// have to be contiguous, so a tap only ever affects the hour tapped.
+export function toggleHourIn(selected: number[], hour: number): number[] {
+  return selected.includes(hour)
+    ? selected.filter((h) => h !== hour)
+    : [...selected, hour].sort((a, b) => a - b);
 }
 
-/**
- * Trims a selection to what is still bookable — someone else may have taken an
- * hour inside it since it was made. Keeps the longest run from the original
- * start rather than dropping the whole selection.
- */
-export function clampRange(
-  slots: Slot[],
-  range: HourRange | null
-): HourRange | null {
-  if (!range) return null;
-  if (!isAvailable(slots, range.start)) return null;
-  let end = range.start;
-  while (end + 1 <= range.end && isAvailable(slots, end + 1)) end++;
-  return { start: range.start, end };
+// Drops hours that are no longer bookable — someone else may have taken one
+// since it was selected. The rest of the selection survives.
+export function clampSelection(slots: Slot[], selected: number[]): number[] {
+  return selected.filter((hour) => isAvailable(slots, hour));
+}
+
+// Groups selected hours into contiguous runs, each of which becomes its own
+// booking: [9, 18, 19, 20] -> [{9,9}, {18,20}].
+export function toRuns(selected: number[]): Run[] {
+  const sorted = [...new Set(selected)].sort((a, b) => a - b);
+  const runs: Run[] = [];
+  for (const hour of sorted) {
+    const last = runs[runs.length - 1];
+    if (last && hour === last.end + 1) last.end = hour;
+    else runs.push({ start: hour, end: hour });
+  }
+  return runs;
 }

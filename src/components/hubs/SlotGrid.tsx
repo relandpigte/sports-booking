@@ -1,18 +1,18 @@
 "use client";
 
-import type { HourRange, Slot } from "@/lib/slots";
+import type { Slot } from "@/lib/slots";
 
-// Hourly slots the player taps to build a contiguous session. Tapping an hour
-// adds it, extends the run, or removes it — see toggleHour in lib/slots.
+// Hourly slots the player taps to pick their times. Each hour toggles on its
+// own — a selection does not have to be one unbroken block.
 export function SlotGrid({
   slots,
-  range,
+  selected,
   onToggle,
   loading,
   live,
 }: {
   slots: Slot[];
-  range: HourRange | null;
+  selected: number[];
   onToggle: (hour: number) => void;
   loading: boolean;
   live: boolean;
@@ -43,19 +43,14 @@ export function SlotGrid({
         aria-label="Available start times"
       >
         {slots.map((slot) => {
-          const selected =
-            range != null && slot.hour >= range.start && slot.hour <= range.end;
-          // The two hours that extend or trim the run get a ring, so it's
-          // obvious where the next tap acts.
-          const isEdge =
-            selected && (slot.hour === range.start || slot.hour === range.end);
+          const isSelected = selected.includes(slot.hour);
 
           return (
             <button
               key={slot.hour}
               type="button"
               disabled={!slot.available}
-              aria-pressed={selected}
+              aria-pressed={isSelected}
               onClick={() => onToggle(slot.hour)}
               title={
                 slot.reason === "booked"
@@ -66,14 +61,13 @@ export function SlotGrid({
               }
               className={[
                 "h-11 rounded-lg border text-sm font-medium transition-colors",
-                selected
+                isSelected
                   ? "border-primary bg-primary text-white"
                   : slot.reason === "booked"
                     ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 line-through"
                     : slot.reason === "past"
                       ? "cursor-not-allowed border-gray-200 bg-white text-gray-300"
                       : "border-gray-300 bg-white text-gray-700 hover:border-primary hover:text-primary",
-                isEdge ? "ring-2 ring-primary/30" : "",
               ].join(" ")}
             >
               {slot.label}

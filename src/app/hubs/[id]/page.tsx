@@ -227,22 +227,33 @@ export default async function PublicHubPage({
           </section>
         </div>
 
-        <BookCourtPanel
-          courts={hub.courts}
-          operatingHours={hours}
-          today={today}
-          nowHour={manilaNowHour()}
-          initialAvailability={
-            initialAvailability
-              ? {
-                  courtId: initialAvailability.courtId,
-                  date: initialAvailability.date,
-                  bookedHours: initialAvailability.bookedHours,
-                }
-              : null
-          }
-          viewerRole={viewer?.role ?? null}
-        />
+        {/* The hub still renders when the venue's subscription has lapsed —
+            nothing is deleted, it just stops taking new bookings. */}
+        {hub.bookable ? (
+          <BookCourtPanel
+            courts={hub.courts}
+            operatingHours={hours}
+            today={today}
+            nowHour={manilaNowHour()}
+            initialAvailability={
+              initialAvailability
+                ? {
+                    courtId: initialAvailability.courtId,
+                    date: initialAvailability.date,
+                    bookedHours: initialAvailability.bookedHours,
+                  }
+                : null
+            }
+            viewerRole={viewer?.role ?? null}
+          />
+        ) : (
+          <section className="mt-8 rounded-2xl border border-dashed border-gray-300 px-6 py-10 text-center">
+            <p className="text-sm text-gray-500">
+              This venue isn&apos;t taking online bookings right now. Contact
+              them directly using the details above.
+            </p>
+          </section>
+        )}
 
         {/* Courts */}
         {hub.courts.length > 0 && (

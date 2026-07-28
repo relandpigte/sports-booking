@@ -182,6 +182,16 @@ export default function RegisterPage() {
             </Button>
           </div>
         </form>
+
+        <p className="mt-6 text-center text-sm text-gray-500">
+          Running a venue or club?{" "}
+          <Link
+            href="/register/partner"
+            className="font-medium text-primary hover:underline"
+          >
+            Register as a partner
+          </Link>
+        </p>
       </div>
     </main>
   );

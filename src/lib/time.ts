@@ -68,6 +68,30 @@ export function isValidDateString(s: string): boolean {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
 }
 
+// --- Instant arithmetic (billing deadlines) ---------------------------------
+// Deliberately named differently from addDays above, which shifts a civil-date
+// STRING. These shift a real instant, and confusing the two would be silent.
+
+export function addDaysTo(instant: Date, n: number): Date {
+  return new Date(instant.getTime() + n * 24 * MS_PER_HOUR);
+}
+
+// Adds calendar months, CLAMPING to the end of the target month:
+// Jan 31 + 1 month is Feb 28, not Mar 3. setUTCMonth overflows silently, which
+// is the whole reason this helper exists.
+export function addMonthsTo(instant: Date, n: number): Date {
+  const year = instant.getUTCFullYear();
+  const month = instant.getUTCMonth() + n;
+  const day = instant.getUTCDate();
+
+  // Day 0 of the following month is the last day of the target month.
+  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+
+  const out = new Date(instant.getTime());
+  out.setUTCFullYear(year, month, Math.min(day, lastDay));
+  return out;
+}
+
 // "2026-07-27" -> "Mon, Jul 27"
 export function formatManilaDate(date: string): string {
   return new Intl.DateTimeFormat("en-PH", {

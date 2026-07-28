@@ -50,6 +50,17 @@ const items: Item[] = [
     ),
   },
   {
+    href: "/dashboard/billing",
+    label: "Billing",
+    partnerOnly: true,
+    icon: (
+      <svg {...iconProps}>
+        <rect x="2" y="5" width="20" height="14" rx="2" />
+        <path d="M2 10h20" />
+      </svg>
+    ),
+  },
+  {
     href: "/dashboard/tournaments",
     label: "Tournaments",
     playerOnly: true,

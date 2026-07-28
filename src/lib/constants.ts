@@ -1,4 +1,9 @@
-import type { BookingStatus, Role } from "@prisma/client";
+import type {
+  BookingStatus,
+  PaymentStatus,
+  Role,
+  SubscriptionStatus,
+} from "@prisma/client";
 
 export const SKILL_LEVELS = [
   { value: "beginner", label: "Beginner" },
@@ -91,4 +96,64 @@ export const CANCEL_CUTOFF_HOURS = 2;
 export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
   CONFIRMED: "Confirmed",
   CANCELLED: "Cancelled",
+};
+
+// --- Billing ----------------------------------------------------------------
+
+// Free trial for a brand-new partner. No charge is taken at registration.
+export const TRIAL_DAYS = 14;
+
+// After a payment is missed, access survives this long before it's restricted.
+export const GRACE_DAYS = 7;
+
+// Card dunning: how long between automatic retries, and how many to attempt
+// before falling back to "Pay now" only.
+export const RENEWAL_RETRY_DAYS = 3;
+export const MAX_RENEWAL_ATTEMPTS = 3;
+
+// Show the billing banner this many days before a renewal or trial end.
+export const BILLING_NOTICE_DAYS = 3;
+
+export const PLAN_KEY_VALUES = ["STARTER", "PRO", "ELITE"] as const;
+
+// Only CARD auto-renews. The e-wallet hints below are shown to the partner
+// verbatim, because "we will never charge this automatically" is a promise the
+// product has to make out loud.
+export const PAYMENT_METHODS = [
+  {
+    value: "CARD",
+    label: "Credit or debit card",
+    hint: "Renews automatically each month. Cancel any time.",
+  },
+  {
+    value: "GCASH",
+    label: "GCash",
+    hint: "We never charge your e-wallet automatically — we'll remind you to pay each month.",
+  },
+  {
+    value: "MAYA",
+    label: "Maya",
+    hint: "We never charge your e-wallet automatically — we'll remind you to pay each month.",
+  },
+] as const;
+
+export type PaymentMethodValue = (typeof PAYMENT_METHODS)[number]["value"];
+
+export const PAYMENT_METHOD_LABELS: Record<string, string> = Object.fromEntries(
+  PAYMENT_METHODS.map((m) => [m.value, m.label])
+);
+
+export const SUBSCRIPTION_STATUS_LABELS: Record<SubscriptionStatus, string> = {
+  TRIALING: "Free trial",
+  ACTIVE: "Active",
+  PAST_DUE: "Payment due",
+  UNPAID: "Unpaid",
+  CANCELLED: "Cancelled",
+};
+
+export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
+  PENDING: "Pending",
+  SUCCEEDED: "Paid",
+  FAILED: "Failed",
+  REFUNDED: "Refunded",
 };

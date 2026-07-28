@@ -57,3 +57,17 @@ export const requireRole = cache(async (...allowed: Role[]) => {
   }
   return user;
 });
+
+// Partner-only guard. Lives here rather than in hubs.ts so billing.ts can use
+// it without a cycle (hubs.ts imports billing.ts for the listing filter);
+// hubs.ts re-exports it, so existing importers are unaffected.
+//
+// Redirects to /dashboard rather than /login: the visitor is signed in, they
+// just aren't a partner.
+export async function requirePartner() {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "PARTNER") {
+    redirect("/dashboard");
+  }
+  return user;
+}

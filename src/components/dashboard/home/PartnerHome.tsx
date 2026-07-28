@@ -1,19 +1,31 @@
 import Link from "next/link";
 
+import { Badge, type BadgeTone } from "@/components/ui/Badge";
+
 type PartnerHomeUser = {
   name: string | null;
   playerName: string | null;
 };
 
-export function PartnerHome({ user }: { user: PartnerHomeUser }) {
+export type PartnerHomeBilling = {
+  planName: string;
+  statusLabel: string;
+  tone: BadgeTone;
+  detail: string;
+  usage: string;
+};
+
+export function PartnerHome({
+  user,
+  billing,
+}: {
+  user: PartnerHomeUser;
+  billing: PartnerHomeBilling | null;
+}) {
   const comingSoon = [
     {
       label: "Booking requests",
       desc: "Review and respond to players booking your courts.",
-    },
-    {
-      label: "Earnings",
-      desc: "Track payouts and revenue from your bookings.",
     },
   ];
 
@@ -48,6 +60,21 @@ export function PartnerHome({ user }: { user: PartnerHomeUser }) {
       </Link>
 
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {billing && (
+          <Link
+            href="/dashboard/billing"
+            className="rounded-2xl border border-gray-200 p-5 transition-colors hover:border-gray-300"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-base font-semibold text-gray-900">
+                {billing.planName}
+              </h2>
+              <Badge tone={billing.tone}>{billing.statusLabel}</Badge>
+            </div>
+            <p className="mt-1.5 text-sm text-gray-500">{billing.detail}</p>
+            <p className="mt-1 text-sm text-gray-400">{billing.usage}</p>
+          </Link>
+        )}
         {comingSoon.map((c) => (
           <div
             key={c.label}

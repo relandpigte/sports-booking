@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { Avatar } from "@/components/ui/Avatar";
 import { DashboardNav } from "@/components/dashboard/DashboardNav";
+import { BillingBanner } from "@/components/billing/BillingBanner";
 import { getCurrentUser } from "@/lib/dal";
 import { logoutAction } from "@/lib/actions";
 
@@ -55,7 +56,10 @@ export default async function DashboardLayout({
       </aside>
 
       <main className="flex-1 px-4 py-8 sm:px-8">
-        <div className="mx-auto w-full max-w-5xl">{children}</div>
+        <div className="mx-auto w-full max-w-5xl">
+          {user?.role === "PARTNER" && <BillingBanner />}
+          {children}
+        </div>
       </main>
     </div>
   );

@@ -7,6 +7,14 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const AUTH_PAGES = ["/login", "/register"];
 
+// Matches the page itself and anything beneath it, so /register/partner is
+// treated as an auth page too.
+function isAuthPage(pathname: string): boolean {
+  return AUTH_PAGES.some(
+    (page) => pathname === page || pathname.startsWith(`${page}/`)
+  );
+}
+
 // Auth.js stores the session JWT under one of these cookie names
 // (the `__Secure-` prefix is used when served over HTTPS).
 function hasSessionCookie(req: NextRequest): boolean {
@@ -21,7 +29,7 @@ export function proxy(req: NextRequest) {
   const isAuthed = hasSessionCookie(req);
 
   // Logged-in users shouldn't see the login/register screens.
-  if (isAuthed && AUTH_PAGES.includes(pathname)) {
+  if (isAuthed && isAuthPage(pathname)) {
     return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 
@@ -38,5 +46,11 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/users/:path*", "/login", "/register"],
+  matcher: [
+    "/dashboard/:path*",
+    "/users/:path*",
+    "/login",
+    "/register",
+    "/register/:path*",
+  ],
 };

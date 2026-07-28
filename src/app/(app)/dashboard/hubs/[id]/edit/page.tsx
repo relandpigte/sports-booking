@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { HubForm } from "@/components/dashboard/hubs/HubForm";
 import { getMyHub } from "@/lib/hubs";
+import { requireEntitledPartner } from "@/lib/billing";
 
 export const metadata: Metadata = {
   title: "Edit Hub — Sports 360",
@@ -14,6 +15,8 @@ export default async function EditHubPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  // Editing a hub requires an active subscription; viewing it does not.
+  await requireEntitledPartner();
   const hub = await getMyHub(id);
 
   if (!hub) {

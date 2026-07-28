@@ -1,12 +1,16 @@
 import "server-only";
 
 import { cache } from "react";
-import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 import type { OperatingHours, Game } from "@/lib/constants";
 
 import { prisma } from "@/lib/db";
-import { getCurrentUser } from "@/lib/dal";
+import { requirePartner } from "@/lib/dal";
+import {
+  entitledSubscriptionWhere,
+  isEntitled,
+  sweepDueSubscriptions,
+} from "@/lib/billing";
 
 export type Court = {
   id: string;
@@ -31,14 +35,10 @@ function mapCourt(c: CourtRow): Court {
   };
 }
 
-// Hubs are a partner-only feature. Returns the current partner, or redirects.
-export async function requirePartner() {
-  const user = await getCurrentUser();
-  if (!user || user.role !== "PARTNER") {
-    redirect("/dashboard");
-  }
-  return user;
-}
+// Hubs are a partner-only feature. The guard itself lives in dal.ts (so
+// billing.ts can use it without an import cycle) and is re-exported here for
+// every existing caller.
+export { requirePartner };
 
 export type Hub = {
   id: string;
@@ -104,28 +104,77 @@ export async function listMyHubs(): Promise<Hub[]> {
   return rows.map(mapHub);
 }
 
+// Pulls forward card renewals so they happen without anyone signing in.
+// Throttled per server instance, never allowed to break the page, and
+// deliberately NOT load-bearing: listing correctness comes from the time-based
+// entitlement filter below, not from this. Delete it once a real cron calls
+// /api/billing/sweep.
+let lastSweepAt = 0;
+async function maybeSweep(): Promise<void> {
+  if (Date.now() - lastSweepAt < 60_000) return;
+  lastSweepAt = Date.now();
+  try {
+    await sweepDueSubscriptions({ limit: 25 });
+  } catch {
+    // Never break a public page over billing housekeeping.
+  }
+}
+
 // Public directory of all hubs, optionally filtered by game. No auth.
+//
+// Only hubs whose owner has an entitled subscription are listed. Note this is a
+// nested filter on a nullable to-one, which means "a subscription EXISTS and
+// matches" — so a partner with no subscription row at all is excluded. That is
+// exactly why existing partners are backfilled in prisma/seed.mjs.
 export async function listPublicHubs(
   opts: { game?: Game } = {}
 ): Promise<Hub[]> {
+  await maybeSweep();
   const rows = await prisma.hub.findMany({
-    where: opts.game ? { games: { has: opts.game } } : {},
+    where: {
+      ...(opts.game ? { games: { has: opts.game } } : {}),
+      owner: { subscription: entitledSubscriptionWhere(new Date()) },
+    },
     orderBy: { createdAt: "desc" },
     select: hubSelect,
   });
   return rows.map(mapHub);
 }
 
+const publicHubSelect = {
+  ...hubSelect,
+  owner: {
+    select: {
+      subscription: {
+        select: {
+          status: true,
+          trialEndsAt: true,
+          currentPeriodEnd: true,
+          graceEndsAt: true,
+          cancelAtPeriodEnd: true,
+        },
+      },
+    },
+  },
+} as const;
+
+// A hub that isn't taking bookings still RENDERS — the requirement is "no new
+// bookings", not "vanish", and the partner's own View link must keep working.
+export type PublicHub = Hub & { bookable: boolean };
+
 // Public hub profile (no auth, not owner-scoped). Memoized per request so the
-// page and its metadata share a single query.
+// page and its metadata share a single query. cache() here is React
+// per-render memoization only — nothing lands in the Next Data Cache, so there
+// is no tag to revalidate.
 export const getPublicHub = cache(
-  async (id: string): Promise<Hub | null> => {
+  async (id: string): Promise<PublicHub | null> => {
     const row = await prisma.hub.findUnique({
       where: { id },
-      select: hubSelect,
+      select: publicHubSelect,
     });
     if (!row) return null;
-    return mapHub(row);
+    const { owner, ...rest } = row;
+    return { ...mapHub(rest), bookable: isEntitled(owner.subscription) };
   }
 );
 

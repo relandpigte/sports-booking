@@ -33,10 +33,234 @@ model User {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  accounts Account[]
-  sessions Session[]
-  hubs     Hub[]
-  bookings Booking[]
+  accounts       Account[]
+  sessions       Session[]
+  hubs           Hub[]
+  bookings       Booking[]
+  subscription   Subscription?
+  payments       Payment[]
+  paymentMethods SavedPaymentMethod[]
+}
+
+// --- Billing -----------------------------------------------------------------
+// Partners pay monthly to keep their hubs listed and taking bookings. Tiers are
+// gated on the TOTAL number of courts across all of a partner's hubs; hubs
+// themselves are unlimited on every tier.
+
+enum PlanKey {
+  STARTER
+  PRO
+  ELITE
+}
+
+// TRIALING  — free trial running, no charge taken.
+// ACTIVE    — paid through currentPeriodEnd.
+// PAST_DUE  — payment owed; access survives until graceEndsAt.
+// UNPAID    — grace elapsed. No access. Nothing deleted.
+// CANCELLED — cancelled and the period ran out. No access.
+//
+// Cancelling mid-period leaves the row ACTIVE with cancelAtPeriodEnd=true, so
+// CANCELLED always means "no access" and the entitlement predicate never has to
+// special-case it.
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  UNPAID
+  CANCELLED
+}
+
+enum PaymentMethodType {
+  CARD
+  GCASH
+  MAYA
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentKind {
+  SUBSCRIPTION // an automatic renewal charge
+  MANUAL // the partner pressed "Pay now"
+  COMP // comped/backfilled period, amount 0
+}
+
+// Plans live in the database rather than in constants so pricing can change
+// without a deploy, and so a Payment can reference the plan it actually bought.
+model Plan {
+  id           String  @id @default(cuid())
+  key          PlanKey @unique
+  name         String
+  blurb        String?
+  priceMonthly Decimal @db.Decimal(10, 2)
+  currency     String  @default("PHP")
+  // null = unlimited. Counted across ALL of the partner's hubs.
+  maxCourts    Int?
+  sortOrder    Int     @default(0)
+  active       Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptions Subscription[]
+  payments      Payment[]
+}
+
+// One row per partner, mutated through its lifecycle. History lives in Payment.
+//
+// There is deliberately NO price column here: the amount is always read from
+// plan.priceMonthly at charge time and snapshotted onto Payment.amount. A copy
+// here could only ever drift out of sync with the plan.
+model Subscription {
+  id     String @id @default(cuid())
+  userId String @unique
+  planId String
+
+  status    SubscriptionStatus @default(TRIALING)
+  // How the partner intends to pay. CARD is the only method that auto-renews.
+  method    PaymentMethodType
+  // True only when method=CARD AND a live SavedPaymentMethod exists. This flag
+  // is the mechanical guarantee that GCash/Maya are never silently re-charged:
+  // the renewal path is a no-op unless it is set.
+  autoRenew Boolean            @default(false)
+
+  trialEndsAt        DateTime?
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  // Set when entering PAST_DUE. Access survives until this instant.
+  graceEndsAt        DateTime?
+  cancelAtPeriodEnd  Boolean   @default(false)
+  cancelledAt        DateTime?
+
+  // Card dunning. Reset on every successful charge.
+  renewalAttempts Int       @default(0)
+  nextRetryAt     DateTime?
+
+  // Optimistic-concurrency guard for the lazy state machine. Every transition is
+  // updateMany({ where: { id, version } }) asserting count === 1, so two requests
+  // crossing the same deadline can't both apply it.
+  version Int @default(0)
+
+  // Diagnostic only — never used as a correctness guard.
+  lastEvaluatedAt DateTime?
+
+  // --- gateway seam (nullable now, filled by a real provider later) ---------
+  provider               String  @default("fake")
+  providerCustomerId     String?
+  providerSubscriptionId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan     Plan      @relation(fields: [planId], references: [id])
+  payments Payment[]
+
+  @@index([status, currentPeriodEnd])
+  @@index([status, trialEndsAt])
+  @@index([status, graceEndsAt])
+}
+
+// A saved card. Separate from Subscription because a card has its own lifecycle
+// (added, replaced, expires, detached) and e-wallets have no token at all —
+// folding it in would mean nullable card columns that apply to one method of three.
+model SavedPaymentMethod {
+  id        String            @id @default(cuid())
+  userId    String
+  type      PaymentMethodType
+  isDefault Boolean           @default(false)
+
+  // Display only. The card number and CVC are never persisted, never logged,
+  // and never echoed back into a form's values.
+  brand    String?
+  last4    String?
+  expMonth Int?
+  expYear  Int?
+
+  // --- gateway seam ---------------------------------------------------------
+  provider           String  @default("fake")
+  providerCustomerId String?
+  providerMethodId   String?
+
+  createdAt DateTime  @default(now())
+  // Soft delete: a historical Payment may still reference this row.
+  deletedAt DateTime?
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments Payment[]
+
+  @@index([userId, deletedAt])
+}
+
+model Payment {
+  id             String @id @default(cuid())
+  subscriptionId String
+  // Denormalized like Booking.hubId — the history list and the ownership check
+  // shouldn't need a join.
+  userId         String
+  planId         String
+
+  kind     PaymentKind       @default(SUBSCRIPTION)
+  amount   Decimal           @db.Decimal(10, 2)
+  currency String            @default("PHP")
+  method   PaymentMethodType
+  status   PaymentStatus     @default(PENDING)
+
+  // The period this payment buys, set at creation so a SUCCEEDED payment can
+  // extend the subscription idempotently even if success arrives by webhook
+  // minutes later.
+  periodStart DateTime
+  periodEnd   DateTime
+
+  // THE double-charge guard: `${subscriptionId}:${periodEnd.toISOString()}:${attempt}`.
+  // Two requests crossing the same renewal deadline compute the same key; the
+  // loser gets P2002 and applies the winner's outcome instead of charging twice.
+  // A retry after a FAILED payment increments attempt, so real retries still work.
+  // Same idea as BookingSlot's unique index.
+  idempotencyKey String @unique
+
+  savedPaymentMethodId String?
+
+  // --- gateway seam ---------------------------------------------------------
+  providerPaymentId String?
+  providerClientKey String?
+  redirectUrl       String? @db.Text
+  providerRef       String?
+  failureCode       String?
+  failureMessage    String? @db.Text
+  raw               Json?
+
+  paidAt         DateTime?
+  refundedAt     DateTime?
+  refundedAmount Decimal?  @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscription       Subscription        @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan               Plan                @relation(fields: [planId], references: [id])
+  savedPaymentMethod SavedPaymentMethod? @relation(fields: [savedPaymentMethodId], references: [id])
+
+  @@index([subscriptionId, createdAt])
+  @@index([userId, createdAt])
+  @@index([status, subscriptionId])
+}
+
+// Webhook replay guard — real gateways retry deliveries.
+model ProviderEvent {
+  id          String   @id @default(cuid())
+  provider    String
+  eventId     String
+  type        String
+  payload     Json
+  processedAt DateTime @default(now())
+
+  @@unique([provider, eventId])
 }
 
 // A partner-operated venue/club profile.

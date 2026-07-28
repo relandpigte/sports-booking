@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { HubForm } from "@/components/dashboard/hubs/HubForm";
-import { requirePartner } from "@/lib/hubs";
+import { requireEntitledPartner } from "@/lib/billing";
 
 export const metadata: Metadata = {
   title: "New Hub — Sports 360",
 };
 
 export default async function NewHubPage() {
-  await requirePartner();
+  // Sends a lapsed partner to /dashboard/billing rather than /login.
+  await requireEntitledPartner();
 
   return (
     <div className="mx-auto w-full max-w-3xl">

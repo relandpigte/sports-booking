@@ -71,6 +71,12 @@ export async function createBookingAction(
   const court = await getCourtForBooking(courtId);
   if (!court) return { message: "Court not found." };
 
+  // The hub page hides the panel when a venue's subscription has lapsed, but a
+  // Server Action is a public endpoint and has to enforce it too.
+  if (!court.hub.bookable) {
+    return { message: "This venue isn't taking online bookings right now." };
+  }
+
   const today = manilaToday();
   if (date < today) {
     return { errors: { date: "That date has already passed." } };

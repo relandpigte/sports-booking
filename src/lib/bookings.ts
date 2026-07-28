@@ -12,6 +12,7 @@ import { prisma } from "@/lib/db";
 import { getViewer } from "@/lib/dal";
 import { requirePartner } from "@/lib/hubs";
 import { buildSlots, type Slot } from "@/lib/slots";
+import { isEntitled } from "@/lib/billing";
 import { manilaNowHour, manilaToday } from "@/lib/time";
 import { CANCEL_CUTOFF_HOURS, type OperatingHours } from "@/lib/constants";
 
@@ -182,7 +183,26 @@ export const getCourtForBooking = cache(async (courtId: string) => {
       name: true,
       courtType: true,
       hourlyRate: true,
-      hub: { select: { id: true, name: true, operatingHours: true } },
+      hub: {
+        select: {
+          id: true,
+          name: true,
+          operatingHours: true,
+          owner: {
+            select: {
+              subscription: {
+                select: {
+                  status: true,
+                  trialEndsAt: true,
+                  currentPeriodEnd: true,
+                  graceEndsAt: true,
+                  cancelAtPeriodEnd: true,
+                },
+              },
+            },
+          },
+        },
+      },
     },
   });
   if (!row) return null;
@@ -195,6 +215,9 @@ export const getCourtForBooking = cache(async (courtId: string) => {
       id: row.hub.id,
       name: row.hub.name,
       operatingHours: (row.hub.operatingHours as OperatingHours | null) ?? null,
+      // A venue whose subscription has lapsed keeps its data but stops taking
+      // new bookings.
+      bookable: isEntitled(row.hub.owner.subscription),
     },
   };
 });

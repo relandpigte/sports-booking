@@ -1,5 +1,11 @@
 import * as z from "zod";
-import { SKILL_LEVELS, ROLE_VALUES, MAX_BOOKING_HOURS } from "@/lib/constants";
+import {
+  SKILL_LEVELS,
+  ROLE_VALUES,
+  MAX_BOOKING_HOURS,
+  PLAN_KEY_VALUES,
+  PAYMENT_METHODS,
+} from "@/lib/constants";
 
 const skillValues = SKILL_LEVELS.map((s) => s.value) as [string, ...string[]];
 const roleValues = [...ROLE_VALUES] as [string, ...string[]];
@@ -9,35 +15,37 @@ export const LoginSchema = z.object({
   password: z.string().min(1, { error: "Password is required" }),
 });
 
-export const RegisterSchema = z
-  .object({
-    fullName: z
-      .string()
-      .trim()
-      .min(2, { error: "Full name is required" }),
-    playerName: z
-      .string()
-      .trim()
-      .min(2, { error: "Player name is required" }),
-    email: z.email({ error: "Enter a valid email" }).trim().toLowerCase(),
-    phone: z
-      .string()
-      .trim()
-      .min(6, { error: "Telephone number is required" }),
-    skillLevel: z.enum(skillValues, { error: "Choose a skill level" }),
-    password: z
-      .string()
-      .min(6, { error: "Password must be at least 6 characters" }),
-    confirmPassword: z.string(),
-    privateProfile: z.boolean(),
-    agreed: z
-      .boolean()
-      .refine((v) => v, { error: "You must accept the Terms & Privacy Policy" }),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    error: "Passwords do not match",
-    path: ["confirmPassword"],
-  });
+// Factored out so the partner schema can reshape it. A refined schema (one
+// with .refine) can't be .omit()/.extend()-ed, so the base object and the
+// cross-field rule have to live separately.
+const registerBase = z.object({
+  fullName: z.string().trim().min(2, { error: "Full name is required" }),
+  playerName: z.string().trim().min(2, { error: "Player name is required" }),
+  email: z.email({ error: "Enter a valid email" }).trim().toLowerCase(),
+  phone: z.string().trim().min(6, { error: "Telephone number is required" }),
+  skillLevel: z.enum(skillValues, { error: "Choose a skill level" }),
+  password: z
+    .string()
+    .min(6, { error: "Password must be at least 6 characters" }),
+  confirmPassword: z.string(),
+  privateProfile: z.boolean(),
+  agreed: z
+    .boolean()
+    .refine((v) => v, { error: "You must accept the Terms & Privacy Policy" }),
+});
+
+const passwordsMatch = (d: { password: string; confirmPassword: string }) =>
+  d.password === d.confirmPassword;
+const passwordMismatch = {
+  error: "Passwords do not match",
+  path: ["confirmPassword"],
+};
+
+// Unchanged in shape and behaviour for the existing player form.
+export const RegisterSchema = registerBase.refine(
+  passwordsMatch,
+  passwordMismatch
+);
 
 export type LoginInput = z.infer<typeof LoginSchema>;
 export type RegisterInput = z.infer<typeof RegisterSchema>;
@@ -159,3 +167,62 @@ export const RescheduleBookingSchema = z.object({
 });
 
 export type CreateBookingInput = z.infer<typeof CreateBookingSchema>;
+
+// --- Partner registration & billing ---
+
+const planKeyValues = [...PLAN_KEY_VALUES] as [string, ...string[]];
+const methodValues = PAYMENT_METHODS.map((m) => m.value) as [
+  string,
+  ...string[],
+];
+
+// A venue has no player name, skill level or private-profile setting; it has a
+// business name, a plan and a way to pay.
+export const PartnerRegisterSchema = registerBase
+  .omit({ playerName: true, skillLevel: true, privateProfile: true })
+  .extend({
+    businessName: z
+      .string()
+      .trim()
+      .min(2, { error: "Business name is required" }),
+    planKey: z.enum(planKeyValues, { error: "Choose a plan" }),
+    paymentMethod: z.enum(methodValues, { error: "Choose a payment method" }),
+  })
+  .refine(passwordsMatch, passwordMismatch);
+
+// Card details are their OWN schema, never merged into one whose parsed output
+// gets echoed back into a form — a card number must not round-trip through
+// form state.
+export const CardSchema = z.object({
+  cardName: z.string().trim().min(2, { error: "Name on card is required" }),
+  cardNumber: z
+    .string()
+    .trim()
+    .transform((v) => v.replace(/[\s-]/g, ""))
+    .refine((v) => /^\d{13,19}$/.test(v), {
+      error: "Enter a valid card number",
+    }),
+  cardExpMonth: z.coerce
+    .number()
+    .int()
+    .min(1, { error: "Invalid month" })
+    .max(12, { error: "Invalid month" }),
+  cardExpYear: z.coerce
+    .number()
+    .int()
+    .min(new Date().getUTCFullYear(), { error: "That card has expired" }),
+  cardCvc: z
+    .string()
+    .trim()
+    .regex(/^\d{3,4}$/, { error: "Invalid security code" }),
+});
+
+export const ChangePlanSchema = z.object({
+  planKey: z.enum(planKeyValues, { error: "Choose a plan" }),
+});
+
+export const SetPaymentMethodSchema = z.object({
+  method: z.enum(methodValues, { error: "Choose a payment method" }),
+});
+
+export type PartnerRegisterInput = z.infer<typeof PartnerRegisterSchema>;

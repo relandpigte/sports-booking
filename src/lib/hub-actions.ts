@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requirePartner } from "@/lib/hubs";
 import { checkCourtLimit, partnerBillingGate } from "@/lib/billing";
+import { liveBookingWhere } from "@/lib/bookings";
 import { HubSchema } from "@/lib/validation";
 import { firstErrors } from "@/lib/zod-errors";
 import { normalizeAvatar, normalizeCoverPhotos } from "@/lib/avatar";
@@ -260,7 +261,9 @@ export async function updateHubAction(
     const blocked = await prisma.booking.findFirst({
       where: {
         courtId: { in: toDelete },
-        status: "CONFIRMED",
+        // A live unpaid hold blocks deletion too — there may be money in
+        // flight for it.
+        ...liveBookingWhere(),
         endsAt: { gte: new Date() },
       },
       select: { court: { select: { name: true } } },

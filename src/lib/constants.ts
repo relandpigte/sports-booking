@@ -90,10 +90,37 @@ export const MAX_BOOKING_HOURS = 24;
 // How far ahead players can book.
 export const BOOKING_WINDOW_DAYS = 30;
 
+// Exhaustive on purpose: adding a BookingStatus value breaks the build until
+// every renderer has been updated.
 export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
+  PENDING: "Awaiting payment",
   CONFIRMED: "Confirmed",
   CANCELLED: "Cancelled",
+  EXPIRED: "Expired",
 };
+
+// --- Players paying venues --------------------------------------------------
+
+// How long an unpaid booking holds its hours before they go back on the grid.
+export const BOOKING_HOLD_MINUTES = 15;
+
+// A booking is paid once, so these carry none of the auto-renew hints that the
+// subscription methods do — those would be wrong here.
+export const BOOKING_PAYMENT_METHODS = [
+  { value: "CARD", label: "Credit or debit card" },
+  { value: "GCASH", label: "GCash" },
+  { value: "MAYA", label: "Maya" },
+] as const;
+
+export const VENUE_GATEWAYS = [
+  {
+    value: "fake",
+    label: "Test gateway (simulated)",
+    hint: "Exercises the whole flow end to end. Takes no real money.",
+  },
+] as const;
+
+export const VENUE_GATEWAY_VALUES = VENUE_GATEWAYS.map((g) => g.value);
 
 // --- Billing ----------------------------------------------------------------
 

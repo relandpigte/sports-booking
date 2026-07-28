@@ -40,6 +40,10 @@ model User {
   subscription   Subscription?
   payments       Payment[]
   paymentMethods SavedPaymentMethod[]
+
+  partnerGateway  PartnerGateway?
+  bookingPayments BookingPayment[] @relation("PlayerBookingPayments")
+  venuePayments   BookingPayment[] @relation("PartnerBookingPayments")
 }
 
 // --- Billing -----------------------------------------------------------------
@@ -251,7 +255,115 @@ model Payment {
   @@index([status, subscriptionId])
 }
 
+// --- Players paying venues ---------------------------------------------------
+// A SECOND, separate money flow from the subscription above. There, partners pay
+// the platform. Here, players pay partners through the partner's OWN gateway
+// account, and the platform takes nothing and never touches the funds.
+
+// One row per PARTNER ACCOUNT, shared by every hub they own.
+model PartnerGateway {
+  id       String @id @default(cuid())
+  userId   String @unique
+  provider String @default("fake")
+
+  // Publishable key — not a secret, safe to render.
+  publicKey String
+
+  // AES-256-GCM ciphertext (src/lib/crypto.ts). NEVER selected into a view
+  // type, NEVER logged, NEVER echoed back into form state.
+  secretKeyEnc     String @db.Text
+  webhookSecretEnc String @db.Text
+  // Last few characters of the secret, so the UI can show "sk_test_…9f2a"
+  // without ever decrypting anything.
+  secretKeyHint    String
+
+  // The unguessable path segment of THIS partner's webhook URL. Random bytes,
+  // deliberately not the user id — this string gets pasted into a third
+  // party's dashboard.
+  webhookToken String @unique
+
+  accountLabel   String?
+  connectedAt    DateTime  @default(now())
+  // Disconnecting keeps the ciphertext, so refunds on already-paid bookings
+  // still work. "Connected" means disconnectedAt is null.
+  disconnectedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments BookingPayment[]
+}
+
+// A player's payment for court time. Deliberately NOT the Payment model above:
+// that one is bound to a subscription, a plan and a billing period, none of
+// which mean anything here, and it settles through the PLATFORM's webhook
+// secret rather than the partner's.
+model BookingPayment {
+  id String @id @default(cuid())
+
+  // Denormalized like Booking.hubId — the partner's list and the ownership
+  // check shouldn't need a join.
+  partnerId String
+  gatewayId String
+  userId    String // the player who paid
+  // A scalar with no relation ON PURPOSE: deleting a hub must not destroy a
+  // financial record.
+  hubId     String
+
+  amount   Decimal           @db.Decimal(10, 2)
+  currency String            @default("PHP")
+  method   PaymentMethodType
+  status   PaymentStatus     @default(PENDING)
+
+  // The hold this payment is racing — a snapshot of the bookings'
+  // holdExpiresAt, so the checkout page can render a countdown from one read.
+  expiresAt DateTime
+
+  // THE double-charge guard. Claimed with
+  //   updateMany({ where: { id, status: PENDING, chargeStartedAt: null } })
+  // asserting count === 1 BEFORE the gateway is called — the same idiom as
+  // the version guard in billing.ts. Cleared on a decline so the player can
+  // retry with another card while the hold is still alive.
+  chargeStartedAt DateTime?
+  attempt         Int       @default(0)
+
+  provider          String
+  providerPaymentId String?
+  providerClientKey String?
+  redirectUrl       String? @db.Text
+  providerRef       String?
+  failureCode       String?
+  failureMessage    String? @db.Text
+  raw               Json?
+
+  paidAt         DateTime?
+  refundedAt     DateTime?
+  refundedAmount Decimal?  @db.Decimal(10, 2)
+  refundRef      String?
+  refundReason   String?   @db.Text
+  refundedById   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  partner  User           @relation("PartnerBookingPayments", fields: [partnerId], references: [id], onDelete: Cascade)
+  user     User           @relation("PlayerBookingPayments", fields: [userId], references: [id], onDelete: Cascade)
+  gateway  PartnerGateway @relation(fields: [gatewayId], references: [id])
+  bookings Booking[]
+
+  @@index([partnerId, createdAt])
+  @@index([userId, createdAt])
+  @@index([hubId, createdAt])
+  @@index([providerPaymentId])
+  @@index([status, expiresAt])
+}
+
 // Webhook replay guard — real gateways retry deliveries.
+//
+// Venue payments reuse this table by namespacing `provider` as
+// `venue:<gatewayId>`, so one partner's gateway can never burn another's
+// eventId through the shared unique index.
 model ProviderEvent {
   id          String   @id @default(cuid())
   provider    String
@@ -303,9 +415,20 @@ model Court {
   @@index([hubId])
 }
 
+// PENDING   — holding its hours until holdExpiresAt while payment settles.
+// CONFIRMED — paid, OR a venue with no gateway connected (the original
+//             behaviour: confirm now, settle at the venue).
+// CANCELLED — the venue cancelled it.
+// EXPIRED   — the hold lapsed unpaid. Terminal, slots deleted.
+//
+// EXPIRED is separate from CANCELLED on purpose: a partner's cancellation list
+// must not fill with bookings that were never real, and the player needs to
+// read "payment wasn't completed", not "cancelled by the venue".
 enum BookingStatus {
+  PENDING
   CONFIRMED
   CANCELLED
+  EXPIRED
 }
 
 enum CancelledBy {
@@ -368,17 +491,28 @@ model Booking {
   prevEndHour      Int?
   prevTotalPrice   Decimal?       @db.Decimal(10, 2)
 
+  // --- Pay-to-confirm hold -----------------------------------------------
+  // Set ONLY while status is PENDING: the instant this booking stops holding
+  // its hours if payment doesn't land. Mirrored onto BookingSlot — see the
+  // comment there for why.
+  holdExpiresAt    DateTime?
+  // One payment can cover several bookings: a single submit of non-contiguous
+  // hours creates one Booking per run but charges once.
+  bookingPaymentId String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  court Court         @relation(fields: [courtId], references: [id], onDelete: Cascade)
-  hub   Hub           @relation(fields: [hubId], references: [id], onDelete: Cascade)
-  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  slots BookingSlot[]
+  court          Court           @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  hub            Hub             @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookingPayment BookingPayment? @relation(fields: [bookingPaymentId], references: [id])
+  slots          BookingSlot[]
 
   @@index([userId, startsAt])
   @@index([hubId, startsAt])
   @@index([courtId, date])
+  @@index([status, holdExpiresAt])
 }
 
 // Live occupancy of a single court-hour.
@@ -398,11 +532,29 @@ model BookingSlot {
   date      String
   hour      Int
 
+  // A MIRROR of Booking.holdExpiresAt. Denormalized deliberately:
+  //
+  //   1. This is the hottest read in the app — every open slot grid polls it
+  //      every 3 seconds — and the expiry predicate must be evaluable without
+  //      joining Booking.
+  //   2. It makes the reap in createBookingAction a plain
+  //      DELETE ... WHERE courtId=? AND date=? AND hour IN (...) AND holdExpiresAt < now().
+  //      As a relation subquery that becomes a lock-order hazard in the one
+  //      transaction that must never deadlock.
+  //
+  // The invariant (slot.holdExpiresAt === booking.holdExpiresAt) is written in
+  // exactly three transactional places: the claim in createBookingAction, the
+  // confirm in settleBookingPayment, and the delete in expireBookingHolds.
+  // Drift is self-healing anyway — a stale value only ever makes a row stop
+  // blocking EARLIER, and the sweep deletes it.
+  holdExpiresAt DateTime?
+
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
   @@unique([courtId, date, hour])
   @@index([bookingId])
   @@index([courtId, date])
+  @@index([courtId, date, holdExpiresAt])
 }
 
 model Account {

@@ -12,6 +12,7 @@ import {
   getBookedHours,
   getBookedHoursExcluding,
   getCourtForBooking,
+  liveBookingWhere,
 } from "@/lib/bookings";
 import {
   CreateBookingSchema,
@@ -117,7 +118,9 @@ export async function createBookingAction(
     const clash = await prisma.booking.findFirst({
       where: {
         userId: viewer.id,
-        status: "CONFIRMED",
+        // A live unpaid hold counts — otherwise a player could hold the same
+        // hour on two courts at once.
+        ...liveBookingWhere(),
         startsAt: { lt: manilaInstant(date, run.end + 1) },
         endsAt: { gt: manilaInstant(date, run.start) },
       },
@@ -456,7 +459,7 @@ export async function rescheduleHubBookingAction(
           where: {
             userId: booking.userId,
             id: { not: booking.id },
-            status: "CONFIRMED",
+            ...liveBookingWhere(),
             startsAt: { lt: manilaInstant(date, run.end + 1) },
             endsAt: { gt: manilaInstant(date, run.start) },
           },

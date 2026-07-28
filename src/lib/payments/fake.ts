@@ -25,12 +25,28 @@ import type {
 //   ...0001 -> requires_action (simulates 3DS), then succeeds on getCharge
 //   anything else -> succeeds
 
-const OUTCOME_BY_LAST4: Record<string, "ok" | "declined" | "funds" | "3ds"> = {
+export type FakeCardOutcome = "ok" | "declined" | "funds" | "3ds";
+
+const OUTCOME_BY_LAST4: Record<string, FakeCardOutcome> = {
   "4242": "ok",
   "0002": "declined",
   "0003": "funds",
   "0001": "3ds",
 };
+
+// Exported so the venue stub uses the SAME table — a test card must behave
+// identically whether it's paying the platform or a venue.
+export function cardOutcome(last4: string): FakeCardOutcome {
+  return OUTCOME_BY_LAST4[last4] ?? "ok";
+}
+
+export function luhnOk(pan: string): boolean {
+  return luhnValid(pan);
+}
+
+export function cardBrand(pan: string): string {
+  return brandOf(pan);
+}
 
 // Dev-only memory of issued charges so getCharge isn't a lie. The durable truth
 // is always the Payment row in the database; this is just the gateway's side.

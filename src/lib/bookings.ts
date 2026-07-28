@@ -33,6 +33,7 @@ export type BookingMove = {
 export type BookingView = {
   id: string;
   status: BookingStatus;
+  holdExpiresAt: Date | null;
   date: string;
   startHour: number;
   endHour: number;
@@ -60,6 +61,7 @@ export type BookingView = {
 const bookingSelect = {
   id: true,
   status: true,
+  holdExpiresAt: true,
   date: true,
   startHour: true,
   endHour: true,
@@ -89,6 +91,20 @@ const bookingSelect = {
 
 type BookingRow = Prisma.BookingGetPayload<{ select: typeof bookingSelect }>;
 
+// The status a booking really has right now. A lapsed hold is EXPIRED even
+// though the column still says PENDING, because the sweep is hygiene and may
+// not have run — same reasoning as the availability predicate above.
+function effectiveStatus(row: {
+  status: BookingStatus;
+  holdExpiresAt: Date | null;
+}): BookingStatus {
+  return row.status === "PENDING" &&
+    row.holdExpiresAt != null &&
+    row.holdExpiresAt <= new Date()
+    ? "EXPIRED"
+    : row.status;
+}
+
 // Prisma.Decimal isn't serializable across the RSC boundary — same reason
 // mapCourt exists in hubs.ts.
 function mapBooking(row: BookingRow): BookingView {
@@ -117,6 +133,9 @@ function mapBooking(row: BookingRow): BookingView {
 
   return {
     ...rest,
+    // A PENDING booking whose hold has lapsed IS expired, whether or not the
+    // sweep has run. Every renderer reads this, never the stored column.
+    status: effectiveStatus(row),
     hourlyRate: hourlyRate ? hourlyRate.toNumber() : null,
     totalPrice: totalPrice ? totalPrice.toNumber() : null,
     movedFrom: moved
@@ -135,15 +154,55 @@ function mapBooking(row: BookingRow): BookingView {
   };
 }
 
+// A slot row still holding its hour: either a settled booking (holdExpiresAt
+// null) or an unpaid hold that hasn't lapsed yet.
+//
+// The predicate is evaluated INSIDE THE QUERY against the clock, which is the
+// whole point: an expired hold stops blocking the grid the moment it lapses,
+// with ZERO writes and no scheduler. Nothing here waits on the sweep — the
+// sweep only deletes the dead rows afterwards.
+//
+// Same discipline as isEntitled() in billing.ts, and for the same reason: an
+// earlier version of this codebase made entitlement depend on a state
+// transition having run, and it was wrong for everyone who didn't sign in.
+function holdingHourWhere(now: Date): Prisma.BookingSlotWhereInput {
+  return { OR: [{ holdExpiresAt: null }, { holdExpiresAt: { gt: now } }] };
+}
+
+// A booking that is really holding court time right now: confirmed, or a live
+// unpaid hold. Time-based, so it needs no sweep either.
+export function liveBookingWhere(
+  now: Date = new Date()
+): Prisma.BookingWhereInput {
+  return {
+    OR: [
+      { status: "CONFIRMED" },
+      { status: "PENDING", holdExpiresAt: { gt: now } },
+    ],
+  };
+}
+
+// Bookings that belong in a "history" list: finished, cancelled, expired, or a
+// hold that lapsed but hasn't been swept yet.
+export function endedBookingWhere(
+  now: Date = new Date()
+): Prisma.BookingWhereInput {
+  return {
+    OR: [
+      { endsAt: { lt: now } },
+      { status: { in: ["CANCELLED", "EXPIRED"] } },
+      { status: "PENDING", holdExpiresAt: { lte: now } },
+    ],
+  };
+}
+
 // The hours already occupied on a court for one Manila date, sorted ascending.
-// Only live BookingSlot rows exist (cancelling deletes them), so no status
-// filter is needed here.
 export async function getBookedHours(
   courtId: string,
   date: string
 ): Promise<number[]> {
   const rows = await prisma.bookingSlot.findMany({
-    where: { courtId, date },
+    where: { courtId, date, ...holdingHourWhere(new Date()) },
     select: { hour: true },
     orderBy: { hour: "asc" },
   });
@@ -160,7 +219,12 @@ export async function getBookedHoursExcluding(
   excludeBookingId: string
 ): Promise<number[]> {
   const rows = await prisma.bookingSlot.findMany({
-    where: { courtId, date, bookingId: { not: excludeBookingId } },
+    where: {
+      courtId,
+      date,
+      bookingId: { not: excludeBookingId },
+      ...holdingHourWhere(new Date()),
+    },
     select: { hour: true },
     orderBy: { hour: "asc" },
   });
@@ -260,14 +324,14 @@ export async function listMyBookings(): Promise<{
   const now = new Date();
   const [upcoming, past] = await Promise.all([
     prisma.booking.findMany({
-      where: { userId: viewer.id, status: "CONFIRMED", endsAt: { gte: now } },
+      where: { userId: viewer.id, ...liveBookingWhere(now), endsAt: { gte: now } },
       orderBy: { startsAt: "asc" },
       select: bookingSelect,
     }),
     prisma.booking.findMany({
       where: {
         userId: viewer.id,
-        OR: [{ endsAt: { lt: now } }, { status: "CANCELLED" }],
+        ...endedBookingWhere(now),
       },
       orderBy: { startsAt: "desc" },
       take: 50,
@@ -284,7 +348,7 @@ export async function countMyUpcomingBookings(): Promise<number> {
   return prisma.booking.count({
     where: {
       userId: viewer.id,
-      status: "CONFIRMED",
+      ...liveBookingWhere(),
       endsAt: { gte: new Date() },
     },
   });
@@ -296,7 +360,7 @@ export async function getMyNextBooking(): Promise<BookingView | null> {
   const row = await prisma.booking.findFirst({
     where: {
       userId: viewer.id,
-      status: "CONFIRMED",
+      ...liveBookingWhere(),
       endsAt: { gte: new Date() },
     },
     orderBy: { startsAt: "asc" },
@@ -323,14 +387,14 @@ export async function listHubBookings(hubId: string): Promise<{
   const now = new Date();
   const [upcoming, past] = await Promise.all([
     prisma.booking.findMany({
-      where: { hubId, status: "CONFIRMED", endsAt: { gte: now } },
+      where: { hubId, ...liveBookingWhere(now), endsAt: { gte: now } },
       orderBy: { startsAt: "asc" },
       select: bookingSelect,
     }),
     prisma.booking.findMany({
       where: {
         hubId,
-        OR: [{ endsAt: { lt: now } }, { status: "CANCELLED" }],
+        ...endedBookingWhere(now),
       },
       orderBy: { startsAt: "desc" },
       take: 50,

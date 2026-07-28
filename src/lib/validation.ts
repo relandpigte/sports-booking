@@ -5,6 +5,7 @@ import {
   MAX_BOOKING_HOURS,
   PLAN_KEY_VALUES,
   PAYMENT_METHODS,
+  VENUE_GATEWAY_VALUES,
 } from "@/lib/constants";
 
 const skillValues = SKILL_LEVELS.map((s) => s.value) as [string, ...string[]];
@@ -140,6 +141,9 @@ export const PartnerCancelBookingSchema = z.object({
     .string()
     .trim()
     .min(3, { error: "Give the player a reason" }),
+  // Only meaningful when the booking was paid. .catch so an absent field —
+  // an unpaid booking's form doesn't render the choice — means "none".
+  refund: z.enum(["full", "none"]).catch("none"),
 });
 
 // The venue moving an existing booking to a new court / date / time.
@@ -221,3 +225,38 @@ export const SetPaymentMethodSchema = z.object({
 });
 
 export type PartnerRegisterInput = z.infer<typeof PartnerRegisterSchema>;
+
+// --- Players paying venues ---
+
+const venueGatewayValues = [...VENUE_GATEWAY_VALUES] as [string, ...string[]];
+
+// Like CardSchema, this schema's output NEVER goes back into form state — a
+// partner's secret key must not round-trip through a rendered page.
+export const ConnectGatewaySchema = z.object({
+  provider: z.enum(venueGatewayValues, { error: "Choose a gateway" }),
+  publicKey: z
+    .string()
+    .trim()
+    .min(8, { error: "Paste your publishable key" })
+    .max(255),
+  secretKey: z
+    .string()
+    .trim()
+    .min(8, { error: "Paste your secret key" })
+    .max(255),
+  webhookSecret: z
+    .string()
+    .trim()
+    .min(16, { error: "Paste your webhook signing secret" })
+    .max(255),
+});
+
+export const PayBookingSchema = z.object({
+  paymentId: z.string().min(1),
+  method: z.enum(["CARD", "GCASH", "MAYA"], { error: "Choose how to pay" }),
+});
+
+export const RefundBookingSchema = z.object({
+  id: z.string().min(1),
+  reason: optionalText,
+});

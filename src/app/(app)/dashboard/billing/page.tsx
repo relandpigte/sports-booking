@@ -8,7 +8,10 @@ import {
   PaymentMethodPanel,
   PayNowButton,
 } from "@/components/billing/BillingPanels";
+import { GatewayPanel } from "@/components/partner/GatewayPanel";
 import { getBillingOverview } from "@/lib/billing";
+import { getGatewayView } from "@/lib/partner-gateway";
+import { requirePartner } from "@/lib/dal";
 import { formatPHP } from "@/lib/currency";
 import { formatManilaDateLong } from "@/lib/time";
 import {
@@ -42,6 +45,10 @@ export default async function BillingPage() {
   if (!overview) redirect("/dashboard");
 
   const { subscription: sub, plan, plans, courtCount } = overview;
+
+  // requirePartner is memoized per render — getBillingOverview already called it.
+  const partner = await requirePartner();
+  const gateway = await getGatewayView(partner.id);
 
   const dateLine = (() => {
     if (sub.status === "TRIALING" && sub.trialEndsAt) {
@@ -183,6 +190,13 @@ export default async function BillingPage() {
 
       <div className="mt-6">
         <CancelResumePanel cancelAtPeriodEnd={sub.cancelAtPeriodEnd} />
+      </div>
+
+      {/* The other direction of money. Everything above is what this partner
+          pays Sports 360; everything below is what players pay the partner.
+          Kept visually apart on purpose — the two must not read as one thing. */}
+      <div className="mt-10 border-t border-gray-200 pt-8">
+        <GatewayPanel gateway={gateway} />
       </div>
     </div>
   );

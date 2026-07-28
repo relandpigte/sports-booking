@@ -124,21 +124,23 @@ export function RescheduleBookingPanel({
     runs[0].start === current.startHour &&
     runs[0].end + 1 === current.endHour;
 
-  // A move can lengthen a booking but never shorten it — the player reserved
-  // this much time, so the venue can't quietly take some back.
+  // A move keeps the booking the same length: the player reserved this much
+  // time, so the venue can neither take some back nor add time they didn't
+  // ask for. To change the length, cancel and let them rebook.
   const currentHours = current.endHour - current.startHour;
-  const tooShort = selectedHours > 0 && selectedHours < currentHours;
+  const hoursLabel = `${currentHours} ${currentHours === 1 ? "hour" : "hours"}`;
+  const wrongLength = selectedHours > 0 && selectedHours !== currentHours;
 
   // Say why the button is off rather than leaving it mysteriously dead.
   const blockedReason =
     selectedHours === 0
-      ? "Pick the new hours."
-      : tooShort
-        ? `Pick at least ${currentHours} ${currentHours === 1 ? "hour" : "hours"} — a move can't shorten the player's booking.`
+      ? `Pick ${hoursLabel} for the new time.`
+      : wrongLength
+        ? `${selectedHours} of ${currentHours} hours selected — a move keeps the booking the same length, so pick exactly ${hoursLabel}.`
         : unchanged
           ? "Pick a different court, date or time."
           : reason.trim().length < 3
-            ? "Add a reason for the player."
+            ? "Add a reason for the player before moving this booking."
             : null;
 
   function selectCourt(id: string) {
@@ -242,10 +244,16 @@ export function RescheduleBookingPanel({
       <div className="flex flex-col gap-2">
         <div className="flex items-baseline justify-between gap-3">
           <span className="text-sm font-medium text-gray-800">Time</span>
-          <span className="flex items-baseline gap-2 text-xs text-gray-400">
-            <span>
-              At least {currentHours} {currentHours === 1 ? "hr" : "hrs"} · gaps
-              split into separate sessions
+          <span className="flex items-baseline gap-2 text-xs">
+            <span
+              className={
+                selectedHours === currentHours
+                  ? "font-medium text-green-600"
+                  : "text-gray-400"
+              }
+            >
+              {selectedHours} of {currentHours}{" "}
+              {currentHours === 1 ? "hr" : "hrs"} selected
             </span>
             {selectedHours > 0 && (
               <button
@@ -346,6 +354,14 @@ export function RescheduleBookingPanel({
       </div>
 
       <div className="flex flex-col gap-2">
+        {/* Above the button, not below it — this is the one thing standing
+            between the partner and a working move, so it can't be a footnote
+            they have to scroll past. */}
+        {blockedReason && !pending && (
+          <p className="rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+            {blockedReason}
+          </p>
+        )}
         <div className="flex items-center gap-2">
           <Button
             type="submit"
@@ -362,9 +378,6 @@ export function RescheduleBookingPanel({
             Keep as is
           </button>
         </div>
-        {blockedReason && !pending && (
-          <p className="text-xs text-gray-500">{blockedReason}</p>
-        )}
       </div>
     </form>
   );

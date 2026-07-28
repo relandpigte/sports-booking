@@ -360,16 +360,16 @@ export async function rescheduleHubBookingAction(
     return { message: "That booking has already finished." };
   }
 
-  // A move can lengthen a booking but never shorten it: the player reserved
-  // this much time, so the venue can't quietly hand some of it back. To give
-  // them less, cancel instead — which tells them the booking is gone.
+  // A move keeps the booking the same length. The player reserved this much
+  // time, so the venue can neither hand some back nor bill them for time they
+  // didn't ask for. Changing the length means cancelling and rebooking.
   const currentHours = booking.endHour - booking.startHour;
-  if (hours.length < currentHours) {
+  if (hours.length !== currentHours) {
     return {
       errors: {
-        hours: `Pick at least ${currentHours} ${
+        hours: `Pick exactly ${currentHours} ${
           currentHours === 1 ? "hour" : "hours"
-        } — a move can't shorten the player's booking.`,
+        } — a move keeps the booking the same length.`,
       },
     };
   }

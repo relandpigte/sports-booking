@@ -73,6 +73,9 @@ export function RescheduleBookingPanel({
     )
   );
   const [reason, setReason] = useState("");
+  // The picker opens showing the booking's current hours. Until the partner
+  // touches the grid those are a starting point, not a choice they made.
+  const [touched, setTouched] = useState(false);
   const [state, formAction, pending] = useActionState(
     rescheduleHubBookingAction,
     initialState
@@ -141,11 +144,34 @@ export function RescheduleBookingPanel({
   function selectCourt(id: string) {
     setCourtId(id);
     setPicked([]);
+    setTouched(true);
   }
 
   function selectDate(next: string) {
     setDate(next);
     setPicked([]);
+    setTouched(true);
+  }
+
+  function clearHours() {
+    setPicked([]);
+    setTouched(true);
+  }
+
+  // This is a MOVE, so the first tap on an untouched grid means "put it here",
+  // replacing the hours the booking currently holds rather than adding to
+  // them. Without this, tapping the new time silently doubles the booking —
+  // and clearing the old hours by hand trips the minimum-length rule, leaving
+  // the partner stuck with no way to proceed.
+  function toggle(hour: number) {
+    if (!touched) {
+      setTouched(true);
+      if (!selected.includes(hour)) {
+        setPicked([hour]);
+        return;
+      }
+    }
+    setPicked(toggleHourIn(selected, hour));
   }
 
   // The success grid would still show the booking's brand-new hours as free
@@ -216,9 +242,20 @@ export function RescheduleBookingPanel({
       <div className="flex flex-col gap-2">
         <div className="flex items-baseline justify-between gap-3">
           <span className="text-sm font-medium text-gray-800">Time</span>
-          <span className="text-xs text-gray-400">
-            At least {currentHours} {currentHours === 1 ? "hr" : "hrs"} · gaps
-            split into separate sessions
+          <span className="flex items-baseline gap-2 text-xs text-gray-400">
+            <span>
+              At least {currentHours} {currentHours === 1 ? "hr" : "hrs"} · gaps
+              split into separate sessions
+            </span>
+            {selectedHours > 0 && (
+              <button
+                type="button"
+                onClick={clearHours}
+                className="font-medium text-primary hover:underline"
+              >
+                Clear
+              </button>
+            )}
           </span>
         </div>
         {closed ? (
@@ -229,7 +266,7 @@ export function RescheduleBookingPanel({
           <SlotGrid
             slots={slots}
             selected={selected}
-            onToggle={(hour) => setPicked(toggleHourIn(selected, hour))}
+            onToggle={toggle}
             loading={bookedHours == null}
             live={live}
           />

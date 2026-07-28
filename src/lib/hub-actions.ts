@@ -51,7 +51,24 @@ export type HubFormState = {
   errors?: Record<string, string>;
   message?: string;
   values?: Record<string, string>;
+  // Set when the block is a subscription limit rather than bad input, so the
+  // form can offer an upgrade instead of just an error.
+  upgrade?: boolean;
 };
+
+// React 19 resets a form after its action completes, so every failure path has
+// to echo the submitted text back or the partner loses what they typed.
+// (Courts, games, hours and photos are controlled React state and survive on
+// their own.)
+function formValues(formData: FormData): Record<string, string> {
+  return {
+    name: String(formData.get("name") ?? ""),
+    about: String(formData.get("about") ?? ""),
+    address: String(formData.get("address") ?? ""),
+    phone: String(formData.get("phone") ?? ""),
+    email: String(formData.get("email") ?? ""),
+  };
+}
 
 function parseOperatingHours(formData: FormData): OperatingHours {
   const out = {} as OperatingHours;
@@ -100,13 +117,7 @@ function parseGames(formData: FormData): string[] {
 function parseHubForm(
   formData: FormData
 ): { ok: true; hub: ParsedHub } | { ok: false; state: HubFormState } {
-  const values = {
-    name: String(formData.get("name") ?? ""),
-    about: String(formData.get("about") ?? ""),
-    address: String(formData.get("address") ?? ""),
-    phone: String(formData.get("phone") ?? ""),
-    email: String(formData.get("email") ?? ""),
-  };
+  const values = formValues(formData);
 
   const parsed = HubSchema.safeParse(values);
   if (!parsed.success) {
@@ -146,7 +157,8 @@ export async function createHubAction(
 ): Promise<HubFormState> {
   // Never redirects — a Server Action should hand the form a message.
   const gate = await partnerBillingGate();
-  if (!gate.ok) return { message: gate.message };
+  if (!gate.ok)
+    return { message: gate.message, values: formValues(formData), upgrade: true };
   const partner = gate.partner;
 
   const result = parseHubForm(formData);
@@ -160,7 +172,8 @@ export async function createHubAction(
     plan: gate.plan,
     adding: courts.length,
   });
-  if (!limit.ok) return { message: limit.message };
+  if (!limit.ok)
+    return { message: limit.message, values: formValues(formData), upgrade: true };
 
   await prisma.hub.create({
     data: {
@@ -195,7 +208,8 @@ export async function updateHubAction(
   formData: FormData
 ): Promise<HubFormState> {
   const gate = await partnerBillingGate();
-  if (!gate.ok) return { message: gate.message };
+  if (!gate.ok)
+    return { message: gate.message, values: formValues(formData), upgrade: true };
   const partner = gate.partner;
   const id = String(formData.get("id") ?? "");
 
@@ -204,7 +218,7 @@ export async function updateHubAction(
     select: { id: true },
   });
   if (!owned) {
-    return { message: "Hub not found." };
+    return { message: "Hub not found.", values: formValues(formData) };
   }
 
   const result = parseHubForm(formData);
@@ -237,7 +251,8 @@ export async function updateHubAction(
     excludeHubId: id,
     adding: courts.length,
   });
-  if (!limit.ok) return { message: limit.message };
+  if (!limit.ok)
+    return { message: limit.message, values: formValues(formData), upgrade: true };
 
   if (toDelete.length) {
     // Court deletion cascades to Booking, so removing a court would silently
@@ -253,6 +268,7 @@ export async function updateHubAction(
     if (blocked) {
       return {
         message: `“${blocked.court.name}” has upcoming bookings and can't be removed. Cancel them first.`,
+        values: formValues(formData),
       };
     }
   }

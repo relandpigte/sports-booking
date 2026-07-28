@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
 import { Input } from "@/components/ui/Input";
+import { Modal } from "@/components/ui/Modal";
 import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
 import { AvatarUpload } from "@/components/ui/AvatarUpload";
@@ -24,6 +25,10 @@ export function HubForm({ hub }: { hub?: Hub }) {
   const isEdit = Boolean(hub);
   const action = isEdit ? updateHubAction : createHubAction;
   const [state, formAction, pending] = useActionState(action, initialState);
+  // The dialog is dismissible, so its visibility can't be derived from state
+  // alone — it's keyed to the message so a NEW failure re-opens it.
+  const [dismissed, setDismissed] = useState<string | null>(null);
+  const showDialog = Boolean(state.message) && dismissed !== state.message;
 
   return (
     <form
@@ -33,6 +38,8 @@ export function HubForm({ hub }: { hub?: Hub }) {
     >
       {isEdit && <input type="hidden" name="id" value={hub!.id} />}
 
+      {/* Kept alongside the dialog: once the partner dismisses the popup they
+          still need to see why the save didn't go through. */}
       {state.message && (
         <p
           role="alert"
@@ -41,6 +48,40 @@ export function HubForm({ hub }: { hub?: Hub }) {
           {state.message}
         </p>
       )}
+
+      <Modal
+        open={showDialog}
+        onClose={() => setDismissed(state.message ?? null)}
+        title={state.upgrade ? "Your plan doesn't cover this" : "Couldn't save"}
+        tone="warn"
+        footer={
+          state.upgrade ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setDismissed(state.message ?? null)}
+                className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
+              >
+                Keep editing
+              </button>
+              <Link
+                href="/dashboard/billing"
+                className="rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover"
+              >
+                Upgrade plan
+              </Link>
+            </>
+          ) : undefined
+        }
+      >
+        <p>{state.message}</p>
+        {state.upgrade && (
+          <p className="mt-2 text-gray-500">
+            Nothing you&apos;ve entered is lost — upgrading opens in Billing, and
+            this form is still here when you come back.
+          </p>
+        )}
+      </Modal>
 
       <CoverPhotosUpload
         defaultValue={hub?.coverPhotos ?? []}

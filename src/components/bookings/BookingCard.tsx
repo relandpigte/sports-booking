@@ -39,7 +39,6 @@ export function BookingCard({
   };
 }) {
   const cancelled = booking.status === "CANCELLED";
-  const tooLateToCancel = view === "player" && booking.playerCancelCutoffPassed;
 
   return (
     <div className="rounded-2xl border border-gray-200 p-5 sm:p-6">
@@ -173,12 +172,15 @@ export function BookingCard({
               }}
             />
           )}
-          {tooLateToCancel ? (
-            <p className="text-xs text-gray-400">
-              Too close to the start time to cancel online — contact the venue.
-            </p>
+          {/* Players don't cancel their own confirmed bookings — the venue
+              holds the slot for them, so releasing it is the venue's call.
+              They're told who to ask instead of being left with a dead end. */}
+          {view === "partner" ? (
+            <CancelBookingButton bookingId={booking.id} />
           ) : (
-            <CancelBookingButton bookingId={booking.id} variant={view} />
+            <p className="text-xs text-gray-400">
+              Need to change or cancel? Contact the venue.
+            </p>
           )}
         </div>
       )}

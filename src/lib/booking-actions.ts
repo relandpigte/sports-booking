@@ -14,15 +14,11 @@ import {
   getCourtForBooking,
 } from "@/lib/bookings";
 import {
-  CancelBookingSchema,
   CreateBookingSchema,
   PartnerCancelBookingSchema,
   RescheduleBookingSchema,
 } from "@/lib/validation";
-import {
-  BOOKING_WINDOW_DAYS,
-  CANCEL_CUTOFF_HOURS,
-} from "@/lib/constants";
+import { BOOKING_WINDOW_DAYS } from "@/lib/constants";
 import {
   addDays,
   formatHourLabel,
@@ -112,8 +108,8 @@ export async function createBookingAction(
   }
 
   // The hours need not be contiguous, so a selection can span several
-  // sessions. Each run becomes its own booking the player can cancel on its
-  // own, while a single unbroken block still produces exactly one booking.
+  // sessions. Each run becomes its own booking, while a single unbroken block
+  // still produces exactly one.
   const runs = toRuns(hours);
 
   // Don't let a player double-book themselves across two courts.
@@ -231,40 +227,14 @@ async function cancelBooking(
   ]);
 }
 
-export async function cancelMyBookingAction(
-  _prev: BookingFormState,
-  formData: FormData
-): Promise<BookingFormState> {
-  const viewer = await getViewer();
-  if (!viewer) return { message: "Sign in to manage your bookings." };
-
-  const parsed = CancelBookingSchema.safeParse({
-    id: String(formData.get("id") ?? ""),
-    reason: String(formData.get("reason") ?? ""),
-  });
-  if (!parsed.success) return { errors: firstErrors(parsed.error) };
-
-  // Ownership is enforced in the where clause, like deleteHubAction.
-  const booking = await prisma.booking.findFirst({
-    where: { id: parsed.data.id, userId: viewer.id },
-    select: { id: true, hubId: true, status: true, startsAt: true },
-  });
-  if (!booking) return { message: "Booking not found." };
-  if (booking.status !== "CONFIRMED") {
-    return { message: "That booking is already cancelled." };
-  }
-
-  const cutoffMs = CANCEL_CUTOFF_HOURS * 3_600_000;
-  if (booking.startsAt.getTime() - Date.now() < cutoffMs) {
-    return {
-      message: `Bookings can only be cancelled at least ${CANCEL_CUTOFF_HOURS} hours before the start time.`,
-    };
-  }
-
-  await cancelBooking(booking.id, "PLAYER", parsed.data.reason ?? null);
-  revalidateBookingSurfaces(booking.hubId);
-  return { success: "Booking cancelled." };
-}
+// NOTE: there is deliberately no player-facing cancel action. A player cannot
+// cancel their own confirmed booking — the venue is holding the court for them,
+// so releasing it is the venue's call. Removing the button alone wouldn't be
+// enough: a Server Action is a public endpoint, so the capability is gone
+// rather than hidden. The player is told to contact the venue instead.
+//
+// CancelledBy.PLAYER stays in the schema for the historical rows that already
+// carry it.
 
 export async function cancelHubBookingAction(
   _prev: BookingFormState,

@@ -133,11 +133,6 @@ export const CreateBookingSchema = z.object({
   notes: optionalText,
 });
 
-export const CancelBookingSchema = z.object({
-  id: z.string().min(1),
-  reason: optionalText,
-});
-
 // The partner is declining someone else's reservation, so a reason is required.
 export const PartnerCancelBookingSchema = z.object({
   id: z.string().min(1),

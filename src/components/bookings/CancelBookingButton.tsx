@@ -5,24 +5,19 @@ import { useActionState, useState } from "react";
 import { Textarea } from "@/components/ui/Textarea";
 import {
   cancelHubBookingAction,
-  cancelMyBookingAction,
   type BookingFormState,
 } from "@/lib/booking-actions";
 
 const initialState: BookingFormState = {};
 
-// `player` cancels their own booking; `partner` declines someone else's and
-// must give a reason the player will see.
-export function CancelBookingButton({
-  bookingId,
-  variant,
-}: {
-  bookingId: string;
-  variant: "player" | "partner";
-}) {
-  const action =
-    variant === "player" ? cancelMyBookingAction : cancelHubBookingAction;
-  const [state, formAction, pending] = useActionState(action, initialState);
+// Venue-side cancellation. Players can't cancel their own bookings — the venue
+// is holding the court for them, so releasing it is the venue's decision.
+// A reason is required, since the player finds out after the fact.
+export function CancelBookingButton({ bookingId }: { bookingId: string }) {
+  const [state, formAction, pending] = useActionState(
+    cancelHubBookingAction,
+    initialState
+  );
   const [open, setOpen] = useState(false);
 
   if (state.success) {
@@ -33,7 +28,7 @@ export function CancelBookingButton({
     );
   }
 
-  if (variant === "partner" && !open) {
+  if (!open) {
     return (
       <button
         type="button"
@@ -46,31 +41,17 @@ export function CancelBookingButton({
   }
 
   return (
-    <form
-      action={formAction}
-      noValidate
-      className="flex flex-col items-end gap-2"
-      onSubmit={(e) => {
-        if (
-          variant === "player" &&
-          !window.confirm("Cancel this booking? This cannot be undone.")
-        ) {
-          e.preventDefault();
-        }
-      }}
-    >
+    <form action={formAction} noValidate className="flex flex-col items-end gap-2">
       <input type="hidden" name="id" value={bookingId} />
 
-      {variant === "partner" && (
-        <div className="w-full sm:w-72">
-          <Textarea
-            label="Reason for the player"
-            name="reason"
-            rows={2}
-            error={state.errors?.reason}
-          />
-        </div>
-      )}
+      <div className="w-full sm:w-72">
+        <Textarea
+          label="Reason for the player"
+          name="reason"
+          rows={2}
+          error={state.errors?.reason}
+        />
+      </div>
 
       {state.message && (
         <p role="alert" className="text-xs text-red-600">
@@ -79,15 +60,13 @@ export function CancelBookingButton({
       )}
 
       <div className="flex items-center gap-2">
-        {variant === "partner" && (
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            className="rounded-md px-2.5 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-50"
-          >
-            Keep
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="rounded-md px-2.5 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-50"
+        >
+          Keep
+        </button>
         <button
           type="submit"
           disabled={pending}

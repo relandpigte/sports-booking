@@ -5,6 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Role } from "@prisma/client";
 
+import { dashboardHomeFor } from "@/lib/dashboard";
+
 type Item = {
   href: string;
   label: string;
@@ -110,11 +112,19 @@ export function DashboardNav({ role }: { role?: Role }) {
         : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
     }`;
 
-  const visibleItems = items.filter(
-    (item) =>
-      (!item.playerOnly || role === "PLAYER") &&
-      (!item.partnerOnly || role === "PARTNER")
-  );
+  const visibleItems = items
+    .filter(
+      (item) =>
+        (!item.playerOnly || role === "PLAYER") &&
+        (!item.partnerOnly || role === "PARTNER")
+    )
+    // Home points straight at the role's own dashboard, so the link highlights
+    // when you're on it — /dashboard only ever redirects there anyway.
+    .map((item) =>
+      item.href === "/dashboard" && role
+        ? { ...item, href: dashboardHomeFor(role) }
+        : item
+    );
 
   return (
     <nav className="flex flex-row gap-1 overflow-x-auto md:flex-col md:overflow-visible">

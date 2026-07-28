@@ -90,9 +90,6 @@ export const MAX_BOOKING_HOURS = 24;
 // How far ahead players can book.
 export const BOOKING_WINDOW_DAYS = 30;
 
-// Players can't cancel within this many hours of the start time.
-export const CANCEL_CUTOFF_HOURS = 2;
-
 export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
   CONFIRMED: "Confirmed",
   CANCELLED: "Cancelled",

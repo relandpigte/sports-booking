@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { PublicTopBar } from "@/components/hubs/PublicTopBar";
+import { PageShell } from "@/components/PageShell";
 import { HubCard } from "@/components/hubs/HubCard";
 import { listPublicHubs } from "@/lib/hubs";
 import { GAMES, GAME_VALUES, GAME_LABELS, type Game } from "@/lib/constants";
@@ -24,10 +24,7 @@ export default async function HubsDirectoryPage({
   const hubs = await listPublicHubs({ game });
 
   return (
-    <div className="min-h-screen bg-white">
-      <PublicTopBar />
-
-      <main className="mx-auto w-full max-w-5xl px-4 pb-16 sm:px-6">
+    <PageShell maxWidth="max-w-5xl">
         <div className="mt-6">
           <h1 className="text-2xl font-bold text-gray-900">Find a Hub</h1>
           <p className="mt-1 text-sm text-gray-500">
@@ -78,7 +75,6 @@ export default async function HubsDirectoryPage({
             ))}
           </div>
         )}
-      </main>
-    </div>
+    </PageShell>
   );
 }

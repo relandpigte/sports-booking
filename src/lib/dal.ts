@@ -25,7 +25,16 @@ export const getViewer = cache(async () => {
   if (!session?.user?.id) return null;
   return prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { id: true, name: true, playerName: true, role: true },
+    // email/image are here so public pages can render the signed-in shell
+    // (sidebar + account footer) without a second query.
+    select: {
+      id: true,
+      name: true,
+      playerName: true,
+      email: true,
+      image: true,
+      role: true,
+    },
   });
 });
 

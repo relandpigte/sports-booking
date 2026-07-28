@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { PublicTopBar } from "@/components/hubs/PublicTopBar";
+import { PageShell } from "@/components/PageShell";
 import { BookCourtPanel } from "@/components/hubs/BookCourtPanel";
 import { Avatar } from "@/components/ui/Avatar";
 import { getPublicHub } from "@/lib/hubs";
@@ -62,10 +62,7 @@ export default async function PublicHubPage({
     : (hub.address ?? "");
 
   return (
-    <div className="min-h-screen bg-white">
-      <PublicTopBar />
-
-      <main className="mx-auto w-full max-w-3xl px-4 pb-16 sm:px-6">
+    <PageShell maxWidth="max-w-3xl">
         {/* Cover */}
         <div className="mt-4 aspect-video w-full overflow-hidden rounded-2xl bg-gray-100">
           {cover ? (
@@ -293,7 +290,6 @@ export default async function PublicHubPage({
             </div>
           </section>
         )}
-      </main>
-    </div>
+    </PageShell>
   );
 }

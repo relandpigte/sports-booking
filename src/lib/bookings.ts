@@ -14,7 +14,7 @@ import { requirePartner } from "@/lib/hubs";
 import { buildSlots, type Slot } from "@/lib/slots";
 import { isEntitled } from "@/lib/billing";
 import { manilaNowHour, manilaToday } from "@/lib/time";
-import { CANCEL_CUTOFF_HOURS, type OperatingHours } from "@/lib/constants";
+import type { OperatingHours } from "@/lib/constants";
 
 // Where a booking was before the venue moved it. Everything here is a
 // snapshot — the court may since have been renamed or deleted, and the player
@@ -47,10 +47,6 @@ export type BookingView = {
   // Where this booking was before the venue moved it, or null if it never
   // moved. Assembled here rather than at render time, like the flag below.
   movedFrom: BookingMove | null;
-  // Whether the player's self-cancel window has closed. Decided here rather
-  // than at render time so components stay pure — and so it matches the same
-  // cutoff cancelMyBookingAction enforces.
-  playerCancelCutoffPassed: boolean;
   court: { id: string; name: string; courtType: string };
   hub: { id: string; name: string; logo: string | null; address: string | null };
   player: {
@@ -135,8 +131,6 @@ function mapBooking(row: BookingRow): BookingView {
           count: rescheduleCount,
         }
       : null,
-    playerCancelCutoffPassed:
-      row.startsAt.getTime() - Date.now() < CANCEL_CUTOFF_HOURS * 3_600_000,
     player: user,
   };
 }

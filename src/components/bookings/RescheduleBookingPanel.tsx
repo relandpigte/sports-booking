@@ -37,9 +37,9 @@ type PanelCourt = {
 const initialState: BookingFormState = {};
 
 // Moves an existing booking. Structurally this is BookCourtPanel, with four
-// differences: it's seeded with the booking's own hours, the selection must
-// stay ONE contiguous block (a Booking is one range), the availability stream
-// ignores this booking's own slots, and a reason is required.
+// differences: it's seeded with the booking's own hours, the move must keep
+// the booking the same length, the availability stream ignores this booking's
+// own slots, and there's an optional reason shown to the player.
 export function RescheduleBookingPanel({
   bookingId,
   courts,
@@ -139,9 +139,7 @@ export function RescheduleBookingPanel({
         ? `${selectedHours} of ${currentHours} hours selected — a move keeps the booking the same length, so pick exactly ${hoursLabel}.`
         : unchanged
           ? "Pick a different court, date or time."
-          : reason.trim().length < 3
-            ? "Add a reason for the player before moving this booking."
-            : null;
+          : null;
 
   function selectCourt(id: string) {
     setCourtId(id);
@@ -285,12 +283,12 @@ export function RescheduleBookingPanel({
       </div>
 
       <Textarea
-        label="Why are you moving this booking?"
+        label="Why are you moving this booking? (optional)"
         name="reason"
         rows={2}
         value={reason}
         onChange={(e) => setReason(e.target.value)}
-        placeholder="The player will see this."
+        placeholder="The player will see this, if you add one."
         error={state.errors?.reason}
       />
 

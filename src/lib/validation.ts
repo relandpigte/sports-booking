@@ -151,9 +151,11 @@ export const RescheduleBookingSchema = z.object({
     .array(z.coerce.number().int().min(0).max(23))
     .min(1, { error: "Choose at least one hour" })
     .max(MAX_BOOKING_HOURS, { error: "That's too many hours" }),
-  // The venue is moving someone else's reservation, so this is required —
-  // same rule as PartnerCancelBookingSchema.
-  reason: z.string().trim().min(3, { error: "Give the player a reason" }),
+  // Optional: a venue often just shuffles courts with nothing to explain, and
+  // the move is shown to the player either way. Cancelling still requires a
+  // reason (PartnerCancelBookingSchema) — losing a booking outright is the
+  // case that always needs one.
+  reason: optionalText,
 });
 
 export type CreateBookingInput = z.infer<typeof CreateBookingSchema>;

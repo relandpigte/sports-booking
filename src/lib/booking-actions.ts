@@ -450,7 +450,9 @@ export async function rescheduleHubBookingAction(
     rescheduledBy: (viewer.role === "ADMIN" ? "ADMIN" : "PARTNER") as
       | "ADMIN"
       | "PARTNER",
-    rescheduleReason: reason,
+    // null rather than undefined, so a second move without a reason clears
+    // the previous one instead of leaving it attached to the new time.
+    rescheduleReason: reason ?? null,
   };
 
   const slotRows = (bookingId: string, run: { start: number; end: number }) =>

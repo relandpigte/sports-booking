@@ -345,6 +345,8 @@ export async function rescheduleHubBookingAction(
       status: true,
       endsAt: true,
       totalPrice: true,
+      notes: true,
+      rescheduleCount: true,
       court: { select: { name: true } },
     },
   });
@@ -399,26 +401,49 @@ export async function rescheduleHubBookingAction(
     };
   }
 
-  // The schema guarantees the hours are contiguous, so min/max is the run.
-  const startHour = Math.min(...hours);
-  const endHour = Math.max(...hours) + 1;
-  const newHours = endHour - startHour;
-  const startsAt = manilaInstant(date, startHour);
-  const endsAt = manilaInstant(date, endHour);
+  // Hours needn't be contiguous. A Booking is one range, so a gapped
+  // selection splits: the booking being moved takes the first run and each
+  // remaining run becomes its own booking, all recording the same move.
+  const runs = toRuns(hours);
+  const [firstRun] = runs;
 
   if (
+    runs.length === 1 &&
     courtId === booking.courtId &&
     date === booking.date &&
-    startHour === booking.startHour &&
-    endHour === booking.endHour
+    firstRun.start === booking.startHour &&
+    firstRun.end + 1 === booking.endHour
   ) {
     return { message: "Pick a different court, date or time." };
   }
 
   // Re-snapshot from the new court's current rate: the old snapshot may belong
   // to a different court entirely, and the length may have changed.
-  const totalPrice =
-    court.hourlyRate != null ? court.hourlyRate * newHours : null;
+  const priceFor = (length: number) =>
+    court.hourlyRate != null ? court.hourlyRate * length : null;
+
+  // Every booking that comes out of this move records the same origin, so the
+  // player can see where each piece came from.
+  const movedFrom = {
+    prevCourtName: booking.court.name,
+    prevDate: booking.date,
+    prevStartHour: booking.startHour,
+    prevEndHour: booking.endHour,
+    prevTotalPrice: booking.totalPrice,
+    rescheduledAt: new Date(),
+    rescheduledBy: (viewer.role === "ADMIN" ? "ADMIN" : "PARTNER") as
+      | "ADMIN"
+      | "PARTNER",
+    rescheduleReason: reason,
+  };
+
+  const slotRows = (bookingId: string, run: { start: number; end: number }) =>
+    Array.from({ length: runHours(run) }, (_, i) => ({
+      bookingId,
+      courtId,
+      date,
+      hour: run.start + i,
+    }));
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -432,17 +457,19 @@ export async function rescheduleHubBookingAction(
 
       // Don't leave the PLAYER double-booked — excluding the booking being
       // moved, or it would always clash with itself and no move could succeed.
-      const clash = await tx.booking.findFirst({
-        where: {
-          userId: booking.userId,
-          id: { not: booking.id },
-          status: "CONFIRMED",
-          startsAt: { lt: endsAt },
-          endsAt: { gt: startsAt },
-        },
-        select: { id: true },
-      });
-      if (clash) throw new PlayerClash();
+      for (const run of runs) {
+        const clash = await tx.booking.findFirst({
+          where: {
+            userId: booking.userId,
+            id: { not: booking.id },
+            status: "CONFIRMED",
+            startsAt: { lt: manilaInstant(date, run.end + 1) },
+            endsAt: { gt: manilaInstant(date, run.start) },
+          },
+          select: { id: true },
+        });
+        if (clash) throw new PlayerClash();
+      }
 
       // 1. Free this booking's OWN hours first.
       //
@@ -454,45 +481,60 @@ export async function rescheduleHubBookingAction(
       // was freed) or fails with P2002 if we roll back (it's still ours).
       await tx.bookingSlot.deleteMany({ where: { bookingId: booking.id } });
 
-      // 2. Claim the NEW hours. The unique index is the guard: a concurrent
-      //    transaction holding one of these keys makes this block, then fail
-      //    with P2002 — which rolls back the delete above too, so the booking
-      //    keeps its ORIGINAL hours. Nothing partial survives.
-      //
-      //    Deliberately NOT skipDuplicates: that would swallow the collision.
-      await tx.bookingSlot.createMany({
-        data: Array.from({ length: newHours }, (_, i) => ({
-          bookingId: booking.id,
-          courtId,
-          date,
-          hour: startHour + i,
-        })),
-      });
-
-      // 3. Move the booking and snapshot where it came from.
+      // 2. The booking being moved takes the first run.
       await tx.booking.update({
         where: { id: booking.id, status: "CONFIRMED" },
         data: {
           courtId,
           date,
-          startHour,
-          endHour,
-          hours: newHours,
-          startsAt,
-          endsAt,
+          startHour: firstRun.start,
+          endHour: firstRun.end + 1,
+          hours: runHours(firstRun),
+          startsAt: manilaInstant(date, firstRun.start),
+          endsAt: manilaInstant(date, firstRun.end + 1),
           hourlyRate: court.hourlyRate,
-          totalPrice,
-          prevCourtName: booking.court.name,
-          prevDate: booking.date,
-          prevStartHour: booking.startHour,
-          prevEndHour: booking.endHour,
-          prevTotalPrice: booking.totalPrice,
-          rescheduledAt: new Date(),
-          rescheduledBy: viewer.role === "ADMIN" ? "ADMIN" : "PARTNER",
-          rescheduleReason: reason,
+          totalPrice: priceFor(runHours(firstRun)),
+          ...movedFrom,
           rescheduleCount: { increment: 1 },
         },
       });
+
+      // 3. Claim the hours. The unique index is the guard: a concurrent
+      //    transaction holding one of these keys makes this block, then fail
+      //    with P2002 — which rolls back the delete above too, so the booking
+      //    keeps its ORIGINAL hours and no split booking survives. Nothing
+      //    partial can be left behind.
+      //
+      //    Deliberately NOT skipDuplicates: that would swallow the collision.
+      await tx.bookingSlot.createMany({
+        data: slotRows(booking.id, firstRun),
+      });
+
+      // 4. Each remaining run becomes its own booking, carrying the same
+      //    origin so the player sees where every piece came from.
+      for (const run of runs.slice(1)) {
+        const split = await tx.booking.create({
+          data: {
+            courtId,
+            hubId: booking.hubId,
+            userId: booking.userId,
+            date,
+            startHour: run.start,
+            endHour: run.end + 1,
+            hours: runHours(run),
+            startsAt: manilaInstant(date, run.start),
+            endsAt: manilaInstant(date, run.end + 1),
+            hourlyRate: court.hourlyRate,
+            totalPrice: priceFor(runHours(run)),
+            notes: booking.notes,
+            status: "CONFIRMED",
+            ...movedFrom,
+            rescheduleCount: booking.rescheduleCount + 1,
+          },
+          select: { id: true },
+        });
+        await tx.bookingSlot.createMany({ data: slotRows(split.id, run) });
+      }
     });
   } catch (error) {
     if (error instanceof StaleBooking) {
@@ -516,5 +558,10 @@ export async function rescheduleHubBookingAction(
   }
 
   revalidateBookingSurfaces(booking.hubId);
-  return { success: "Booking moved and the player notified." };
+  return {
+    success:
+      runs.length === 1
+        ? "Booking moved and the player notified."
+        : `Booking moved into ${runs.length} sessions and the player notified.`,
+  };
 }

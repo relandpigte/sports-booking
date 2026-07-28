@@ -121,58 +121,6 @@ export function clampSelection(slots: Slot[], selected: number[]): number[] {
   return selected.filter((hour) => isAvailable(slots, hour));
 }
 
-/**
- * Contiguous variant of toggleHourIn, for the reschedule picker.
- *
- * Rescheduling MOVES one booking, and a Booking is a single range, so the
- * selection has to stay one unbroken block:
- *
- * - nothing selected, or a tap away from the run -> start a new run there
- * - a tap directly before/after the run          -> extend it
- * - a tap on the only selected hour              -> clear
- * - a tap on either end                          -> shrink from that end
- * - a tap inside the run                         -> end the run there
- *
- * The create flow keeps toggleHourIn, where hours are independent — the two
- * pickers differ on purpose.
- */
-export function toggleContiguousHour(
-  selected: number[],
-  hour: number
-): number[] {
-  const range = (start: number, end: number) =>
-    Array.from({ length: end - start + 1 }, (_, i) => start + i);
-
-  if (selected.length === 0) return [hour];
-  const start = selected[0];
-  const end = selected[selected.length - 1];
-
-  if (hour < start - 1 || hour > end + 1) return [hour];
-  if (hour === start - 1) return range(hour, end);
-  if (hour === end + 1) return range(start, hour);
-
-  // Inside the run, so this tap is a deselect.
-  if (start === end) return [];
-  if (hour === start) return range(start + 1, end);
-  if (hour === end) return range(start, end - 1);
-  return range(start, hour);
-}
-
-// Contiguous variant of clampSelection: keeps the longest unbroken run from
-// the start that is still available, so an hour taken mid-edit shortens the
-// selection instead of punching a hole in it.
-export function clampContiguous(slots: Slot[], selected: number[]): number[] {
-  if (selected.length === 0) return [];
-  const start = selected[0];
-  if (!isAvailable(slots, start)) return [];
-  const out = [start];
-  for (const hour of selected.slice(1)) {
-    if (hour !== out[out.length - 1] + 1 || !isAvailable(slots, hour)) break;
-    out.push(hour);
-  }
-  return out;
-}
-
 // Groups selected hours into contiguous runs, each of which becomes its own
 // booking: [9, 18, 19, 20] -> [{9,9}, {18,20}].
 export function toRuns(selected: number[]): Run[] {

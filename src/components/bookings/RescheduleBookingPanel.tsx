@@ -12,7 +12,13 @@ import {
   rescheduleHubBookingAction,
   type BookingFormState,
 } from "@/lib/booking-actions";
-import { buildSlots, clampContiguous, toggleContiguousHour } from "@/lib/slots";
+import {
+  buildSlots,
+  clampSelection,
+  runHours,
+  toRuns,
+  toggleHourIn,
+} from "@/lib/slots";
 import { formatPHP } from "@/lib/currency";
 import {
   formatHourLabel,
@@ -95,23 +101,25 @@ export function RescheduleBookingPanel({
     [operatingHours, date, bookedHours, today, nowHour]
   );
 
-  // Trimmed during render, and kept to a single run.
+  // Trimmed during render, so hours taken mid-edit drop off on the next frame.
   const selected = useMemo(
-    () => clampContiguous(slots, picked),
+    () => clampSelection(slots, picked),
     [slots, picked]
   );
+  // Hours needn't be contiguous. Each unbroken run becomes its own booking —
+  // this one takes the first, the rest split off.
+  const runs = useMemo(() => toRuns(selected), [selected]);
   const selectedHours = selected.length;
-  const startHour = selected[0] ?? null;
-  const endHour = startHour != null ? startHour + selectedHours : null;
 
   const total =
     court?.hourlyRate != null ? court.hourlyRate * selectedHours : null;
 
   const unchanged =
+    runs.length === 1 &&
     courtId === current.courtId &&
     date === current.date &&
-    startHour === current.startHour &&
-    endHour === current.endHour;
+    runs[0].start === current.startHour &&
+    runs[0].end + 1 === current.endHour;
 
   function selectCourt(id: string) {
     setCourtId(id);
@@ -192,7 +200,7 @@ export function RescheduleBookingPanel({
         <div className="flex items-baseline justify-between gap-3">
           <span className="text-sm font-medium text-gray-800">Time</span>
           <span className="text-xs text-gray-400">
-            One continuous block — tapping away starts a new one
+            Any hours — gaps split it into separate sessions
           </span>
         </div>
         {closed ? (
@@ -203,7 +211,7 @@ export function RescheduleBookingPanel({
           <SlotGrid
             slots={slots}
             selected={selected}
-            onToggle={(hour) => setPicked(toggleContiguousHour(selected, hour))}
+            onToggle={(hour) => setPicked(toggleHourIn(selected, hour))}
             loading={bookedHours == null}
             live={live}
           />
@@ -237,22 +245,43 @@ export function RescheduleBookingPanel({
         </div>
         <div className="flex items-start justify-between gap-3">
           <span className="text-gray-400">To</span>
-          <span className="text-right font-medium text-gray-900">
-            {startHour != null && endHour != null ? (
-              <>
-                {court?.name ?? "—"} · {formatManilaDateLong(date)} ·{" "}
-                {formatHourLabel(startHour)} – {formatHourLabel(endHour)} (
-                {selectedHours}
-                {selectedHours === 1 ? " hr" : " hrs"})
-                {total != null ? ` · ${formatPHP(total)}` : ""}
-              </>
-            ) : (
-              <span className="font-normal text-gray-400">
-                Pick the new hours
-              </span>
-            )}
-          </span>
+          {runs.length === 0 ? (
+            <span className="text-right text-gray-400">Pick the new hours</span>
+          ) : (
+            <span className="text-right font-medium text-gray-900">
+              {court?.name ?? "—"} · {formatManilaDateLong(date)}
+            </span>
+          )}
         </div>
+
+        {/* A gap means separate sessions, so list each one — they become
+            separate bookings the player can cancel independently. */}
+        {runs.map((run) => (
+          <div
+            key={run.start}
+            className="flex items-center justify-between gap-3 pl-8"
+          >
+            <span className="text-gray-700">
+              {formatHourLabel(run.start)} – {formatHourLabel(run.end + 1)}
+            </span>
+            <span className="shrink-0 text-gray-500">
+              {runHours(run)} {runHours(run) === 1 ? "hr" : "hrs"}
+            </span>
+          </div>
+        ))}
+
+        {runs.length > 0 && (
+          <div className="flex items-center justify-between gap-3 pl-8">
+            <span className="text-gray-500">
+              {selectedHours} {selectedHours === 1 ? "hour" : "hours"}
+              {runs.length > 1 ? ` · ${runs.length} separate bookings` : ""}
+            </span>
+            <span className="shrink-0 font-semibold text-gray-900">
+              {total != null ? formatPHP(total) : "Rate on request"}
+            </span>
+          </div>
+        )}
+
         {court?.hourlyRate != null && (
           <p className="text-xs text-gray-400">
             Priced at {court.name}&apos;s current rate,{" "}

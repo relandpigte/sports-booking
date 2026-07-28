@@ -144,20 +144,13 @@ export const RescheduleBookingSchema = z.object({
   id: z.string().min(1),
   courtId: z.string().min(1, { error: "Choose a court" }),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { error: "Choose a date" }),
+  // Hours need not be contiguous. A Booking is one range, so a gapped
+  // selection splits: the original booking takes the first run and the rest
+  // become their own bookings, all recording the same move.
   hours: z
     .array(z.coerce.number().int().min(0).max(23))
     .min(1, { error: "Choose at least one hour" })
-    .max(MAX_BOOKING_HOURS, { error: "That's too many hours" })
-    // A Booking is ONE contiguous run. The picker enforces this, but the
-    // action is a public endpoint, so a gapped post is rejected outright
-    // rather than silently truncated.
-    .refine(
-      (hs) => {
-        const unique = [...new Set(hs)];
-        return Math.max(...unique) - Math.min(...unique) + 1 === unique.length;
-      },
-      { error: "Pick hours that run back to back — a booking is one block." }
-    ),
+    .max(MAX_BOOKING_HOURS, { error: "That's too many hours" }),
   // The venue is moving someone else's reservation, so this is required —
   // same rule as PartnerCancelBookingSchema.
   reason: z.string().trim().min(3, { error: "Give the player a reason" }),

@@ -121,6 +121,23 @@ export function RescheduleBookingPanel({
     runs[0].start === current.startHour &&
     runs[0].end + 1 === current.endHour;
 
+  // A move can lengthen a booking but never shorten it — the player reserved
+  // this much time, so the venue can't quietly take some back.
+  const currentHours = current.endHour - current.startHour;
+  const tooShort = selectedHours > 0 && selectedHours < currentHours;
+
+  // Say why the button is off rather than leaving it mysteriously dead.
+  const blockedReason =
+    selectedHours === 0
+      ? "Pick the new hours."
+      : tooShort
+        ? `Pick at least ${currentHours} ${currentHours === 1 ? "hour" : "hours"} — a move can't shorten the player's booking.`
+        : unchanged
+          ? "Pick a different court, date or time."
+          : reason.trim().length < 3
+            ? "Add a reason for the player."
+            : null;
+
   function selectCourt(id: string) {
     setCourtId(id);
     setPicked([]);
@@ -200,7 +217,8 @@ export function RescheduleBookingPanel({
         <div className="flex items-baseline justify-between gap-3">
           <span className="text-sm font-medium text-gray-800">Time</span>
           <span className="text-xs text-gray-400">
-            Any hours — gaps split it into separate sessions
+            At least {currentHours} {currentHours === 1 ? "hr" : "hrs"} · gaps
+            split into separate sessions
           </span>
         </div>
         {closed ? (
@@ -290,23 +308,26 @@ export function RescheduleBookingPanel({
         )}
       </div>
 
-      <div className="flex items-center gap-2">
-        <Button
-          type="submit"
-          disabled={
-            selectedHours === 0 || pending || unchanged || reason.trim().length < 3
-          }
-          className="flex-1"
-        >
-          {pending ? "Moving…" : "Move booking"}
-        </Button>
-        <button
-          type="button"
-          onClick={onDone}
-          className="rounded-lg border border-gray-300 px-4 py-3 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
-        >
-          Keep as is
-        </button>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <Button
+            type="submit"
+            disabled={pending || blockedReason !== null}
+            className="flex-1"
+          >
+            {pending ? "Moving…" : "Move booking"}
+          </Button>
+          <button
+            type="button"
+            onClick={onDone}
+            className="rounded-lg border border-gray-300 px-4 py-3 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
+          >
+            Keep as is
+          </button>
+        </div>
+        {blockedReason && !pending && (
+          <p className="text-xs text-gray-500">{blockedReason}</p>
+        )}
       </div>
     </form>
   );

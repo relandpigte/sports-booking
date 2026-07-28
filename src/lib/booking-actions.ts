@@ -328,7 +328,9 @@ export async function rescheduleHubBookingAction(
   });
   if (!parsed.success) return { errors: firstErrors(parsed.error) };
 
-  const { id, courtId, date, hours, reason } = parsed.data;
+  const { id, courtId, date, reason } = parsed.data;
+  // A crafted post could repeat an hour; the count has to be of distinct ones.
+  const hours = [...new Set(parsed.data.hours)].sort((a, b) => a - b);
 
   // Admins can move anything; partners only within hubs they own.
   const booking = await prisma.booking.findFirst({
@@ -356,6 +358,20 @@ export async function rescheduleHubBookingAction(
   }
   if (booking.endsAt.getTime() < Date.now()) {
     return { message: "That booking has already finished." };
+  }
+
+  // A move can lengthen a booking but never shorten it: the player reserved
+  // this much time, so the venue can't quietly hand some of it back. To give
+  // them less, cancel instead — which tells them the booking is gone.
+  const currentHours = booking.endHour - booking.startHour;
+  if (hours.length < currentHours) {
+    return {
+      errors: {
+        hours: `Pick at least ${currentHours} ${
+          currentHours === 1 ? "hour" : "hours"
+        } — a move can't shorten the player's booking.`,
+      },
+    };
   }
 
   const court = await getCourtForBooking(courtId);

@@ -39,7 +39,10 @@ export function Modal({
       onClick={(e) => {
         if (e.target === ref.current) onClose();
       }}
-      className="w-[calc(100%-2rem)] max-w-md rounded-2xl border border-gray-200 p-0 backdrop:bg-black/40 sm:w-full"
+      // m-auto is what centres it: the UA centres a modal <dialog> with
+      // `margin: auto`, and Tailwind's preflight resets margin to 0, which
+      // drops it into the top-left corner.
+      className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-2xl border border-gray-200 p-0 backdrop:bg-black/40 sm:w-full"
     >
       <div className="p-5 sm:p-6">
         <div className="flex items-start gap-3">

@@ -7,6 +7,7 @@ import {
   createAdminPaymentLink,
   recordOfflinePayment,
 } from "@/lib/admin-billing";
+import { qrSvg } from "@/lib/qr";
 
 export type AdminBillingFormState = {
   message?: string;
@@ -14,6 +15,9 @@ export type AdminBillingFormState = {
   // The checkout to send the partner. Rendered as a copyable field rather than
   // a redirect — the admin isn't the one paying.
   checkoutUrl?: string;
+  // The same URL as a scannable code, for a partner who is standing in front
+  // of you or on the phone. Generated on the server as plain SVG markup.
+  qrSvg?: string;
 };
 
 function revalidateAdminBilling(userId?: string) {
@@ -38,9 +42,10 @@ export async function createPaymentLinkAction(
   if (!result.ok) return { message: result.message };
   return {
     checkoutUrl: result.checkoutUrl,
+    qrSvg: qrSvg(result.checkoutUrl, { title: "Scan to pay this invoice" }),
     success: result.reused
       ? "A payment was already open for this period — here's the same link."
-      : "Send this to the partner. It settles the moment they pay.",
+      : "Send this to the partner, or have them scan it. Either way it settles the moment they pay.",
   };
 }
 

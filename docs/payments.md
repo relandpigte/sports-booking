@@ -82,8 +82,9 @@ command again — PayMongo will not show an existing one a second time.
 their plan, status, what they owe and when their access ends, with three
 actions:
 
-- **Payment link** — creates a PayMongo checkout and gives you a URL to send.
-  It settles by webhook the moment they pay. Pressing it twice, or the partner
+- **Payment link** — creates a PayMongo checkout and gives you a URL to send,
+  with a **QR** beside it for a partner who is in front of you or on a call.
+  Either way it settles by webhook the moment they pay. Pressing it twice, or the partner
   pressing "Pay now" at the same moment, reuses the same payment — you cannot
   accidentally charge for one month twice.
 - **Mark paid** — for a bank transfer, cash, or GCash to your own number. Takes
@@ -94,10 +95,31 @@ actions:
 
 All three write to the same ledger the partner sees on their own billing page.
 
-**PayMongo cannot auto-debit a saved card** outside its Subscriptions API, so
-nothing renews silently: a period ends, the subscription goes `PAST_DUE` with a
-seven-day grace window, and someone pays a link. That is why partner signup asks
-for no card details.
+**Nothing renews silently.** A period ends, the subscription goes `PAST_DUE`
+with a seven-day grace window, and someone pays a link. That is why partner
+signup asks for no card details.
+
+This is not a design preference — it is what the account can do. PayMongo gates
+both halves of automatic billing per merchant, and on this account both are off:
+
+```
+GET  /v1/subscriptions      403  no subscription payment methods are
+                                 configured for this organization
+POST /v1/payment_intents    400  On session payments are not yet supported.
+     + setup_future_usage   400  Off session payments are not yet supported.
+```
+
+So a card cannot be saved and a subscription cannot be created. To turn on
+automatic monthly charging, **ask PayMongo support to enable recurring payments
+and card vaulting**, then re-run:
+
+```bash
+npm run paymongo:probe
+```
+
+When that prints objects instead of 403s, the printed JSON is the shape the
+subscriptions adapter should be written against. Until then, collection is the
+three manual actions above.
 
 Trial length, grace window and retry cadence are constants in
 `src/lib/constants.ts` (`TRIAL_DAYS`, `GRACE_DAYS`). Every piece of copy reads
@@ -137,7 +159,7 @@ run. The sweeps only pull the writes forward.
 ## 7. Checking it works
 
 ```bash
-npm run check        # 40 assertions over the venue money path
+npm run check        # the venue money path, and the QR renderer
 ```
 
 PayMongo is mocked at the network boundary (`checks/paymongo-mock.ts`), so the

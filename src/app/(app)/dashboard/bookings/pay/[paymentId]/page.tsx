@@ -10,6 +10,7 @@ import {
 import { HoldCountdown } from "@/components/bookings/HoldCountdown";
 import { PayBookingPanel } from "@/components/bookings/PayBookingPanel";
 import { formatPHP } from "@/lib/currency";
+import { qrSvg } from "@/lib/qr";
 import { formatManilaDate, formatSlotRange } from "@/lib/time";
 
 export const metadata: Metadata = {
@@ -147,6 +148,24 @@ export default async function PayBookingPage({
                   >
                     Continue to PayMongo
                   </a>
+                  {/* For finishing on a phone when the hold started on a
+                      desktop — the same one-time checkout, so it settles
+                      against this booking either way. */}
+                  {payment.redirectUrl && (
+                    <div className="flex flex-col items-center gap-1">
+                      <div
+                        className="w-36"
+                        dangerouslySetInnerHTML={{
+                          __html: qrSvg(payment.redirectUrl, {
+                            title: "Scan to pay on your phone",
+                          }),
+                        }}
+                      />
+                      <p className="text-xs text-gray-400">
+                        or scan to pay on your phone
+                      </p>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex flex-col gap-4">

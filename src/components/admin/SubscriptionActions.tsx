@@ -11,9 +11,11 @@ import {
 
 const initial: AdminBillingFormState = {};
 
-function CopyLink({ url }: { url: string }) {
+function CopyLink({ url, qr }: { url: string; qr?: string }) {
   const [copied, setCopied] = useState(false);
+  const [showQr, setShowQr] = useState(false);
   return (
+    <div className="flex flex-col gap-2">
     <div className="flex items-center gap-2">
       <code className="min-w-0 flex-1 truncate rounded-lg bg-gray-50 px-2.5 py-2 text-xs text-gray-600">
         {url}
@@ -29,6 +31,30 @@ function CopyLink({ url }: { url: string }) {
       >
         {copied ? "Copied" : "Copy"}
       </button>
+      {qr && (
+        <button
+          type="button"
+          onClick={() => setShowQr((v) => !v)}
+          className="shrink-0 rounded-lg border border-gray-300 px-2.5 py-2 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
+        >
+          {showQr ? "Hide QR" : "QR"}
+        </button>
+      )}
+    </div>
+
+    {/* Server-rendered SVG: the markup is ours, built from the encoder's
+        matrix, so there is no untrusted HTML here. */}
+    {qr && showQr && (
+      <div className="flex flex-col items-center gap-1 rounded-xl border border-gray-200 bg-white p-3">
+        <div
+          className="w-40"
+          dangerouslySetInnerHTML={{ __html: qr }}
+        />
+        <p className="text-xs text-gray-400">
+          Scan to pay this invoice
+        </p>
+      </div>
+    )}
     </div>
   );
 }
@@ -71,6 +97,9 @@ export function SubscriptionActions({
         : linkState;
 
   const url = linkState.checkoutUrl ?? openCheckoutUrl;
+  // Only for a link created in this session — an older open checkout has a URL
+  // but no code, and generating one client-side would need a bundle.
+  const qr = linkState.qrSvg;
 
   return (
     <div className="flex flex-col gap-2">
@@ -172,7 +201,7 @@ export function SubscriptionActions({
         </p>
       )}
 
-      {url && <CopyLink url={url} />}
+      {url && <CopyLink url={url} qr={qr} />}
     </div>
   );
 }

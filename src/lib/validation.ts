@@ -238,22 +238,39 @@ export const ConnectGatewaySchema = z.object({
     .string()
     .trim()
     .min(8, { error: "Paste your publishable key" })
-    .max(255),
+    .max(255)
+    .refine((v) => v.startsWith("pk_"), {
+      error: "A publishable key starts with pk_",
+    }),
   secretKey: z
     .string()
     .trim()
     .min(8, { error: "Paste your secret key" })
-    .max(255),
+    .max(255)
+    .refine((v) => v.startsWith("sk_"), {
+      error: "A secret key starts with sk_",
+    }),
+  // Optional: we register the webhook in the partner's own account and keep
+  // the secret PayMongo hands back. This is the escape hatch for when that
+  // fails — an existing endpoint whose secret can't be read a second time, or
+  // an account at its webhook limit.
   webhookSecret: z
     .string()
     .trim()
-    .min(16, { error: "Paste your webhook signing secret" })
-    .max(255),
+    .max(255)
+    .optional()
+    .transform((v) => (v ? v : undefined))
+    .refine((v) => v == null || v.length >= 16, {
+      error: "That signing secret looks too short",
+    }),
 });
 
 export const PayBookingSchema = z.object({
   paymentId: z.string().min(1),
-  method: z.enum(["CARD", "GCASH", "MAYA"], { error: "Choose how to pay" }),
+  // Optional because a hosted checkout collects it on the gateway's own page.
+  // Whether it's actually required is a property of the gateway, so that check
+  // lives in chargeBookingPayment rather than here.
+  method: z.enum(["CARD", "GCASH", "MAYA"]).optional(),
 });
 
 export const RefundBookingSchema = z.object({

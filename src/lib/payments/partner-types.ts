@@ -51,7 +51,10 @@ export type VenueChargeSource =
 
 export type VenueChargeInput = {
   amount: Money;
-  source: VenueChargeSource;
+  // INLINE gateways only. A hosted gateway owns the payment form, so the payer
+  // chooses their method on the gateway's own page and there is nothing for us
+  // to pass — see VenueGateway.checkout.
+  source?: VenueChargeSource;
   // e.g. "Court 1 — 30 Jul, 6:00 PM – 8:00 PM"
   description: string;
   // `${paymentId}:${attempt}` — also sent as the gateway's idempotency header.
@@ -63,6 +66,16 @@ export type VenueChargeInput = {
 
 export interface VenueGateway {
   readonly id: VenueGatewayId;
+
+  // Where the payment form lives.
+  //
+  //   "hosted" — the gateway's own page. We never see a card number, the payer
+  //              picks their method there, and charge() ignores `source`.
+  //   "inline" — our form, our fields, our problem.
+  //
+  // The UI reads this to decide whether to render card inputs at all, so it is
+  // a property of the seam rather than a detail of one implementation.
+  readonly checkout: "hosted" | "inline";
 
   // Called when the partner connects, so a typo'd key fails the form rather
   // than silently failing a player's first payment. This is what makes

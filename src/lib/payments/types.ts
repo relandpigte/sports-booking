@@ -108,6 +108,10 @@ export type ProviderWebhookEvent = {
   reference: string | null;
   failureCode: string | null;
   failureMessage: string | null;
+  // How they actually paid, when the gateway tells us. Only a hosted checkout
+  // knows this — the payer chose it there — so it's optional and the platform
+  // provider never sets it.
+  methodType?: "CARD" | "GCASH" | "MAYA";
   raw: unknown;
 };
 

@@ -15,6 +15,8 @@ import {
   secretHint,
 } from "@/lib/crypto";
 import { getVenueGateway, type VenueGatewayId } from "@/lib/payments/venue";
+import { registerPaymongoWebhook } from "@/lib/payments/paymongo-venue";
+import { appUrl } from "@/lib/urls";
 
 // Deliberately NO `values` field: unlike a hub form, a gateway form's contents
 // must never round-trip through rendered state. Same rule as CardSchema.
@@ -22,6 +24,10 @@ export type GatewayFormState = {
   errors?: Record<string, string>;
   message?: string;
   success?: string;
+  // Set when automatic webhook registration failed and the partner needs to
+  // paste the signing secret themselves. The form reveals that field only in
+  // response to this — it isn't something to ask for up front.
+  needsWebhookSecret?: boolean;
 };
 
 async function revalidateGatewaySurfaces(partnerId: string) {
@@ -60,11 +66,25 @@ export async function connectGatewayAction(
   });
   if (!parsed.success) return { errors: firstErrors(parsed.error) };
 
+  const provider = parsed.data.provider as VenueGatewayId;
+
+  // The token is minted BEFORE anything is verified now, because the webhook
+  // URL it forms has to be registered with the gateway first. Reconnecting
+  // keeps the existing one, so a partner's URL never changes under them.
+  const existing = await prisma.partnerGateway.findUnique({
+    where: { userId: partner.id },
+    select: { webhookToken: true },
+  });
+  // Random, not the user id — this ends up in a third party's dashboard.
+  const webhookToken =
+    existing?.webhookToken ?? crypto.randomBytes(24).toString("base64url");
+
   const creds = {
-    provider: parsed.data.provider as VenueGatewayId,
+    provider,
     publicKey: parsed.data.publicKey,
     secretKey: parsed.data.secretKey,
-    webhookSecret: parsed.data.webhookSecret,
+    // Verification doesn't need the webhook secret; registration produces it.
+    webhookSecret: parsed.data.webhookSecret ?? "",
   };
 
   // Verify BEFORE storing, so a typo fails here rather than silently failing a
@@ -72,9 +92,30 @@ export async function connectGatewayAction(
   const check = await getVenueGateway(creds).verifyCredentials();
   if (!check.ok) return { errors: { secretKey: check.message } };
 
+  // Then the webhook. Without one, a payment would never settle — so if this
+  // can't be arranged, NOTHING is stored. Connected-but-deaf is the one state
+  // a partner must never be left in.
+  let webhookSecret = parsed.data.webhookSecret;
+  if (!webhookSecret && provider === "paymongo") {
+    const registered = await registerPaymongoWebhook(
+      creds.secretKey,
+      appUrl(`/api/venue-payments/webhook/${webhookToken}`)
+    );
+    if (!registered.ok) {
+      return { message: registered.message, needsWebhookSecret: true };
+    }
+    webhookSecret = registered.secret;
+  }
+  if (!webhookSecret) {
+    return {
+      errors: { webhookSecret: "Paste your webhook signing secret" },
+      needsWebhookSecret: true,
+    };
+  }
+
   const secretKeyEnc = encrypt(creds.secretKey, CRYPTO_PURPOSE.gatewaySecretKey);
   const webhookSecretEnc = encrypt(
-    creds.webhookSecret,
+    webhookSecret,
     CRYPTO_PURPOSE.gatewayWebhookSecret
   );
 
@@ -87,8 +128,7 @@ export async function connectGatewayAction(
       secretKeyEnc,
       webhookSecretEnc,
       secretKeyHint: secretHint(creds.secretKey),
-      // Random, not the user id — this ends up in a third party's dashboard.
-      webhookToken: crypto.randomBytes(24).toString("base64url"),
+      webhookToken,
       accountLabel: check.accountLabel,
     },
     update: {
@@ -106,8 +146,9 @@ export async function connectGatewayAction(
 
   await revalidateGatewaySurfaces(partner.id);
   return {
-    success:
-      "Connected. Players now pay online to confirm a booking, and the money goes straight to you.",
+    success: parsed.data.webhookSecret
+      ? "Connected. Players now pay online to confirm a booking, and the money goes straight to you."
+      : "Connected, and we've registered the webhook in your PayMongo account. Players now pay online to confirm a booking, and the money goes straight to you.",
   };
 }
 

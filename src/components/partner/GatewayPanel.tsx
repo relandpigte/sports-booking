@@ -94,8 +94,7 @@ export function GatewayPanel({ gateway }: { gateway: GatewayView | null }) {
             Getting paid by players
           </h2>
           <p className="mt-1 text-sm text-gray-500">
-            Connect your own payment account. Players pay you directly — Sports
-            360 takes no cut and never holds your money.
+            Connect your own payment account. Players pay you directly — Bunal PH takes no cut and never holds your money.
           </p>
         </div>
         {connected && <Badge tone="success">Connected</Badge>}
@@ -129,8 +128,8 @@ export function GatewayPanel({ gateway }: { gateway: GatewayView | null }) {
 
             <CopyField label="Your webhook URL" value={gateway.webhookUrl} />
             <p className="-mt-1 text-xs text-gray-400">
-              Paste this into your gateway&apos;s dashboard so it can tell us
-              when a payment succeeds.
+              Registered in your PayMongo account automatically — this is how
+              they tell us a payment succeeded. Shown here for reference only.
             </p>
 
             <div className="flex items-center gap-3">
@@ -187,18 +186,47 @@ export function GatewayPanel({ gateway }: { gateway: GatewayView | null }) {
               autoComplete="off"
               error={connectState.errors?.secretKey}
             />
-            <Input
-              label="Webhook signing secret"
-              name="webhookSecret"
-              type="password"
-              autoComplete="off"
-              error={connectState.errors?.webhookSecret}
-            />
+
+            {provider === "paymongo" && (
+              <p className="-mt-1 text-xs text-gray-400">
+                Both keys are in your PayMongo dashboard under{" "}
+                <span className="font-medium text-gray-500">
+                  Developers → API Keys
+                </span>
+                . Use the test keys until you&apos;re ready to take real money —
+                and make sure both come from the same mode.
+              </p>
+            )}
+
+            {/* Only asked for when we couldn't register the webhook ourselves.
+                Nothing was stored in that case, so this is a retry, not a
+                repair. */}
+            {(connectState.needsWebhookSecret ||
+              connectState.errors?.webhookSecret) && (
+              <div className="flex flex-col gap-1.5">
+                <Input
+                  label="Webhook signing secret"
+                  name="webhookSecret"
+                  type="password"
+                  placeholder="whsk_…"
+                  autoComplete="off"
+                  error={connectState.errors?.webhookSecret}
+                />
+                <p className="text-xs text-gray-400">
+                  Create a webhook in PayMongo pointing at the URL above for the{" "}
+                  <code className="text-gray-500">
+                    checkout_session.payment.paid
+                  </code>{" "}
+                  event, then paste the signing secret it shows you.
+                </p>
+              </div>
+            )}
 
             <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">
               Your keys are encrypted before they&apos;re stored and are never
-              shown again — only the last few characters. You can replace or
-              disconnect them at any time.
+              shown again — only the last few characters. We use them to take
+              payments on your behalf and to register the webhook that tells us
+              when one succeeds. You can replace or disconnect them at any time.
             </p>
 
             <Button

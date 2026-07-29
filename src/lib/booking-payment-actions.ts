@@ -36,9 +36,12 @@ export async function payForBookingAction(
   const viewer = await getViewer();
   if (!viewer) return { message: "Sign in to pay for your booking." };
 
+  // An empty method means a hosted checkout, where the gateway's own page
+  // asks. Normalized to undefined so the schema's optional branch takes it.
+  const submittedMethod = String(formData.get("method") ?? "").trim();
   const parsed = PayBookingSchema.safeParse({
     paymentId: String(formData.get("paymentId") ?? ""),
-    method: String(formData.get("method") ?? ""),
+    method: submittedMethod || undefined,
   });
   if (!parsed.success) return { errors: firstErrors(parsed.error) };
 

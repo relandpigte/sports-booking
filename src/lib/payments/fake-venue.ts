@@ -42,6 +42,7 @@ export function signVenueWebhookBody(
 export function fakeVenueGateway(creds: GatewayCredentials): VenueGateway {
   return {
     id: "fake",
+    checkout: "inline",
 
     async verifyCredentials() {
       // Genuinely failable, so "Connect" means something.
@@ -74,21 +75,34 @@ export function fakeVenueGateway(creds: GatewayCredentials): VenueGateway {
     async charge(input: VenueChargeInput): Promise<ChargeResult> {
       const paymentId = id("pi");
 
+      // This stub is an INLINE gateway, so a source is always supplied. The
+      // type allows it to be absent for hosted gateways only.
+      const source = input.source;
+      if (!source) {
+        return {
+          status: "failed",
+          paymentId,
+          code: "no_source",
+          message: "Choose how you'd like to pay.",
+          raw: { simulated: true },
+        };
+      }
+
       // Wallets ALWAYS need the payer to approve — the same promise the
       // platform stub makes. GCash and Maya are never a silent charge.
-      if (input.source.kind === "wallet") {
+      if (source.kind === "wallet") {
         const result: ChargeResult = {
           status: "requires_action",
           paymentId,
           redirectUrl: input.returnUrl,
           clientKey: id("key"),
-          raw: { simulated: true, method: input.source.type },
+          raw: { simulated: true, method: source.type },
         };
         charges.set(paymentId, result);
         return result;
       }
 
-      const pan = input.source.card.number.replace(/\D/g, "");
+      const pan = source.card.number.replace(/\D/g, "");
       if (pan.length < 13 || pan.length > 19 || !luhnOk(pan)) {
         return {
           status: "failed",
@@ -101,9 +115,9 @@ export function fakeVenueGateway(creds: GatewayCredentials): VenueGateway {
 
       const now = new Date();
       const expired =
-        input.source.card.expYear < now.getUTCFullYear() ||
-        (input.source.card.expYear === now.getUTCFullYear() &&
-          input.source.card.expMonth < now.getUTCMonth() + 1);
+        source.card.expYear < now.getUTCFullYear() ||
+        (source.card.expYear === now.getUTCFullYear() &&
+          source.card.expMonth < now.getUTCMonth() + 1);
       if (expired) {
         return {
           status: "failed",

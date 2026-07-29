@@ -77,6 +77,16 @@ export async function handleVenueEvent(args: {
       return { applied: false, reason: "already settled" };
     }
 
+    // With a hosted checkout this is the first moment we learn how they paid —
+    // the row was created before they had chosen. Written before settling so
+    // the confirmation the player sees names the right method.
+    if (event.methodType) {
+      await prisma.bookingPayment.update({
+        where: { id: payment.id },
+        data: { method: event.methodType },
+      });
+    }
+
     await recordBookingChargeResult(payment.id, {
       status: "succeeded",
       paymentId: event.providerPaymentId,

@@ -124,15 +124,37 @@ export const BOOKING_PAYMENT_METHODS = [
   { value: "MAYA", label: "Maya" },
 ] as const;
 
-export const VENUE_GATEWAYS = [
-  {
-    value: "fake",
-    label: "Test gateway (simulated)",
-    hint: "Exercises the whole flow end to end. Takes no real money.",
-  },
-] as const;
+type VenueGatewayOption = {
+  value: string;
+  label: string;
+  hint: string;
+};
 
-export const VENUE_GATEWAY_VALUES = VENUE_GATEWAYS.map((g) => g.value);
+// What a partner can actually pick. The simulated gateway is still a valid
+// provider — it's what the local flow and the verification scripts run on,
+// since PayMongo can't deliver a webhook to localhost — but it is never
+// offered in production. NODE_ENV is inlined at build time, so the string
+// doesn't even reach the production client bundle.
+export const VENUE_GATEWAYS: readonly VenueGatewayOption[] = [
+  {
+    value: "paymongo",
+    label: "PayMongo",
+    hint: "Cards, GCash and Maya. Players pay on PayMongo's secure page and the money lands in your account.",
+  },
+  ...(process.env.NODE_ENV === "production"
+    ? []
+    : [
+        {
+          value: "fake",
+          label: "Test gateway (simulated)",
+          hint: "Local development only. Exercises the whole flow end to end and takes no real money.",
+        },
+      ]),
+];
+
+// Both providers stay valid for parsing regardless of what's offered: a
+// gateway connected in development must still load in a preview build.
+export const VENUE_GATEWAY_VALUES = ["paymongo", "fake"] as const;
 
 // --- Billing ----------------------------------------------------------------
 

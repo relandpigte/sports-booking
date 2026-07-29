@@ -4,7 +4,7 @@ import { Prisma, type PaymentMethodType, type PaymentStatus } from "@prisma/clie
 
 import { prisma } from "@/lib/db";
 import { loadGatewayCredentials } from "@/lib/partner-gateway";
-import { getVenueGateway } from "@/lib/payments/venue";
+import { getVenueGateway, isHostedCheckout } from "@/lib/payments/venue";
 import type { VenueChargeSource } from "@/lib/payments/venue";
 import type { ChargeResult } from "@/lib/payments/types";
 import { appUrl } from "@/lib/urls";
@@ -57,6 +57,9 @@ export type BookingPaymentView = {
   refundedAmount: number | null;
   refundReason: string | null;
   hubId: string;
+  // The gateway owns the payment form, so this page must NOT collect card
+  // details — it sends the player to the gateway and waits for them back.
+  hosted: boolean;
   lines: BookingPaymentLine[];
 };
 
@@ -64,6 +67,7 @@ const paymentSelect = {
   id: true,
   status: true,
   method: true,
+  provider: true,
   amount: true,
   currency: true,
   expiresAt: true,
@@ -118,6 +122,7 @@ export function mapBookingPayment(row: PaymentRow): BookingPaymentView {
     refundedAmount: row.refundedAmount != null ? Number(row.refundedAmount) : null,
     refundReason: row.refundReason,
     hubId: row.hubId,
+    hosted: isHostedCheckout(row.provider),
     lines: row.bookings.map((b) => ({
       bookingId: b.id,
       courtName: b.court.name,
@@ -350,7 +355,9 @@ function describe(lines: BookingPaymentLine[]): string {
 export async function chargeBookingPayment(args: {
   paymentId: string;
   userId: string;
-  method: PaymentMethodType;
+  // Absent for a hosted checkout: the payer chooses on the gateway's page, and
+  // the webhook tells us afterwards what they picked.
+  method?: PaymentMethodType;
   card?: {
     number: string;
     expMonth: number;
@@ -359,7 +366,7 @@ export async function chargeBookingPayment(args: {
     name: string;
   };
 }): Promise<ChargeOutcome> {
-  const { paymentId, userId, method } = args;
+  const { paymentId, userId } = args;
 
   const payment = await prisma.bookingPayment.findFirst({
     where: { id: paymentId, userId },
@@ -376,9 +383,17 @@ export async function chargeBookingPayment(args: {
   // is a refund we'd have to make.
   if (payment.expiresAt <= now) return { status: "expired" };
 
+  const hosted = isHostedCheckout(payment.provider);
+  const method = args.method;
+
   // Checked before the claim, so a malformed request can't burn an attempt.
-  if (method === "CARD" && !args.card) {
-    return { status: "declined", message: "Enter your card details." };
+  if (!hosted) {
+    if (!method) {
+      return { status: "declined", message: "Choose how you'd like to pay." };
+    }
+    if (method === "CARD" && !args.card) {
+      return { status: "declined", message: "Enter your card details." };
+    }
   }
 
   // THE double-charge guard, and the same version-guard idiom as billing.ts:
@@ -392,15 +407,25 @@ export async function chargeBookingPayment(args: {
       chargeStartedAt: null,
       attempt: payment.attempt,
     },
-    data: { chargeStartedAt: now, attempt, method, redirectUrl: null },
+    data: {
+      chargeStartedAt: now,
+      attempt,
+      // Left alone for a hosted checkout — writing CARD here would put a
+      // method on the receipt that the player hasn't chosen yet.
+      ...(method ? { method } : {}),
+      redirectUrl: null,
+    },
   });
   if (claim.count !== 1) return { status: "in-flight" };
 
-  // Card details are only ever present for a CARD payment — the guard above
-  // rejected the malformed combination, so this is total.
-  const source: VenueChargeSource = args.card
-    ? { kind: "card", card: args.card }
-    : { kind: "wallet", type: method === "MAYA" ? "MAYA" : "GCASH" };
+  // Hosted gateways get no source at all: their page is the form. For inline
+  // ones, card details are only ever present for a CARD payment — the guard
+  // above rejected the malformed combination, so this is total.
+  const source: VenueChargeSource | undefined = hosted
+    ? undefined
+    : args.card
+      ? { kind: "card", card: args.card }
+      : { kind: "wallet", type: method === "MAYA" ? "MAYA" : "GCASH" };
 
   const creds = await loadGatewayCredentials(payment.gatewayId);
   const lines = payment.bookings.map((b) => ({

@@ -18,10 +18,14 @@ export function PayBookingPanel({
   paymentId,
   amount,
   venueName,
+  hosted,
 }: {
   paymentId: string;
   amount: number;
   venueName: string;
+  // The gateway owns the payment form. We collect nothing — not the method,
+  // and certainly not a card number — and just hand the player over.
+  hosted: boolean;
 }) {
   const [method, setMethod] = useState<string>("CARD");
   const [state, formAction, pending] = useActionState(
@@ -57,18 +61,29 @@ export function PayBookingPanel({
         </p>
       )}
 
-      <RadioCards
-        name="method"
-        value={method}
-        onChange={setMethod}
-        error={state.errors?.method}
-        options={BOOKING_PAYMENT_METHODS.map((m) => ({
-          value: m.value,
-          label: m.label,
-        }))}
-      />
+      {hosted ? (
+        <p className="rounded-xl border border-gray-200 px-3 py-3 text-sm text-gray-600">
+          Pay by{" "}
+          <span className="font-medium text-gray-900">
+            card, GCash or Maya
+          </span>{" "}
+          on the next screen. You&apos;ll come straight back here — your hours
+          stay held while you pay.
+        </p>
+      ) : (
+        <RadioCards
+          name="method"
+          value={method}
+          onChange={setMethod}
+          error={state.errors?.method}
+          options={BOOKING_PAYMENT_METHODS.map((m) => ({
+            value: m.value,
+            label: m.label,
+          }))}
+        />
+      )}
 
-      {method === "CARD" && (
+      {!hosted && method === "CARD" && (
         <div className="flex flex-col gap-4 rounded-xl border border-gray-200 p-4">
           <Input
             label="Name on card"
@@ -112,7 +127,11 @@ export function PayBookingPanel({
       )}
 
       <Button type="submit" disabled={pending}>
-        {pending ? "Paying…" : `Pay ${formatPHP(amount)}`}
+        {pending
+          ? hosted
+            ? "Taking you to PayMongo…"
+            : "Paying…"
+          : `Pay ${formatPHP(amount)}`}
       </Button>
 
       <p className="text-center text-xs text-gray-400">

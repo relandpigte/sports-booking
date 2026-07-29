@@ -136,12 +136,31 @@ export default async function PayBookingPage({
             payment.status !== "REFUNDED" &&
             (holdLive ? (
               awaitingApproval ? (
-                <BookingCheckoutApproval
-                  paymentId={payment.id}
-                  methodLabel={
-                    PAYMENT_METHOD_LABELS[payment.method] ?? payment.method
-                  }
-                />
+                payment.hosted ? (
+                  // They started paying and came back without finishing — a
+                  // closed tab, or the browser's back button. The checkout
+                  // session is still open, so send them to the same one rather
+                  // than creating a second.
+                  <div className="flex flex-col gap-3">
+                    <p className="rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-700">
+                      Your payment hasn&apos;t finished yet. Your hours are
+                      still held — pick up where you left off.
+                    </p>
+                    <a
+                      href={payment.redirectUrl ?? "#"}
+                      className="rounded-lg bg-primary px-4 py-3 text-center text-sm font-semibold text-white shadow-sm shadow-primary/20 transition-colors hover:bg-primary-hover"
+                    >
+                      Continue to PayMongo
+                    </a>
+                  </div>
+                ) : (
+                  <BookingCheckoutApproval
+                    paymentId={payment.id}
+                    methodLabel={
+                      PAYMENT_METHOD_LABELS[payment.method] ?? payment.method
+                    }
+                  />
+                )
               ) : (
                 <div className="flex flex-col gap-4">
                   {payment.failureMessage && (
@@ -157,6 +176,7 @@ export default async function PayBookingPage({
                     paymentId={payment.id}
                     amount={payment.amount}
                     venueName={venueName}
+                    hosted={payment.hosted}
                   />
                 </div>
               )

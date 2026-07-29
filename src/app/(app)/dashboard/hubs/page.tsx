@@ -3,13 +3,19 @@ import type { Metadata } from "next";
 import { Avatar } from "@/components/ui/Avatar";
 import { DeleteHubButton } from "@/components/dashboard/hubs/DeleteHubButton";
 import { listMyHubs } from "@/lib/hubs";
+import { requirePartner } from "@/lib/dal";
+import { getActivePartnerGateway } from "@/lib/partner-gateway";
 
 export const metadata: Metadata = {
   title: "My Hubs — Bunal.ph",
 };
 
 export default async function HubsPage() {
-  const hubs = await listMyHubs();
+  const partner = await requirePartner();
+  const [hubs, gateway] = await Promise.all([
+    listMyHubs(),
+    getActivePartnerGateway(partner.id),
+  ]);
 
   return (
     <div>
@@ -27,6 +33,29 @@ export default async function HubsPage() {
           + New hub
         </Link>
       </div>
+
+      {/* A hub with no gateway is invisible in the directory. Saying so here,
+          next to the hubs themselves, is the difference between a rule and a
+          mystery. */}
+      {!gateway && hubs.length > 0 && (
+        <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-sm font-semibold text-amber-800">
+            {hubs.length === 1 ? "Your hub isn't" : "Your hubs aren't"} listed
+            publicly yet
+          </p>
+          <p className="mt-0.5 text-sm text-amber-700">
+            Players can only find venues that can take a payment. Connect
+            PayMongo and {hubs.length === 1 ? "it appears" : "they appear"} in
+            the directory straight away.
+          </p>
+          <Link
+            href="/dashboard/billing"
+            className="mt-2 inline-block text-sm font-semibold text-amber-900 hover:underline"
+          >
+            Connect PayMongo →
+          </Link>
+        </div>
+      )}
 
       {hubs.length === 0 ? (
         <div className="mt-6 flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-gray-300 px-6 py-16 text-center">

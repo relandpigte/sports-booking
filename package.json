@@ -14,7 +14,8 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "check:money": "tsx --conditions=react-server --env-file=.env checks/money-path.check.ts",
-    "check": "npm run check:money"
+    "check": "npm run check:money",
+    "paymongo:webhook": "tsx --conditions=react-server --env-file=.env scripts/register-billing-webhook.ts"
   },
   "prisma": {
     "seed": "node prisma/seed.mjs"

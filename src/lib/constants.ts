@@ -156,7 +156,8 @@ export const VENUE_GATEWAY_VALUES = ["paymongo"] as const;
 // --- Billing ----------------------------------------------------------------
 
 // Free trial for a brand-new partner. No charge is taken at registration.
-export const TRIAL_DAYS = 14;
+// Every piece of copy reads this, so changing it here changes the product.
+export const TRIAL_DAYS = 7;
 
 // After a payment is missed, access survives this long before it's restricted.
 export const GRACE_DAYS = 7;

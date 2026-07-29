@@ -122,10 +122,14 @@ async function maybeSweep(): Promise<void> {
 
 // Public directory of all hubs, optionally filtered by game. No auth.
 //
-// Only hubs whose owner has an entitled subscription are listed. Note this is a
-// nested filter on a nullable to-one, which means "a subscription EXISTS and
-// matches" — so a partner with no subscription row at all is excluded. That is
-// exactly why existing partners are backfilled in prisma/seed.mjs.
+// A venue is listed publicly only when BOTH are true: the partner's
+// subscription entitles them, and they have a payment gateway connected. A hub
+// that can't take a payment isn't ready for players to find.
+//
+// Note these are nested filters on nullable to-ones, which mean "the row EXISTS
+// and matches" — so a partner with no subscription and no gateway is excluded
+// rather than defaulting in. That is exactly why existing partners are
+// backfilled in prisma/seed.mjs.
 export async function listPublicHubs(
   opts: { game?: Game } = {}
 ): Promise<Hub[]> {
@@ -133,7 +137,10 @@ export async function listPublicHubs(
   const rows = await prisma.hub.findMany({
     where: {
       ...(opts.game ? { games: { has: opts.game } } : {}),
-      owner: { subscription: entitledSubscriptionWhere(new Date()) },
+      owner: {
+        subscription: entitledSubscriptionWhere(new Date()),
+        partnerGateway: { disconnectedAt: null },
+      },
     },
     orderBy: { createdAt: "desc" },
     select: hubSelect,
@@ -143,6 +150,9 @@ export async function listPublicHubs(
 
 const publicHubSelect = {
   ...hubSelect,
+  // Just enough to tell the owner apart from a visitor, so the page can
+  // explain an unlisted hub to the one person who can fix it.
+  ownerId: true,
   owner: {
     select: {
       subscription: {
@@ -163,11 +173,18 @@ const publicHubSelect = {
 
 // A hub that isn't taking bookings still RENDERS — the requirement is "no new
 // bookings", not "vanish", and the partner's own View link must keep working.
+// It simply doesn't appear in the directory (see listPublicHubs) and its
+// booking panel is replaced by an explanation.
 export type PublicHub = Hub & {
   bookable: boolean;
-  // Whether booking here holds the hours pending payment, or confirms them
-  // outright as it always has.
+  // Whether booking here holds the hours pending payment. Now implied by
+  // bookable — a hub with no gateway takes no bookings at all — but kept
+  // separate because it answers a different question for the booking panel.
   paymentRequired: boolean;
+  // Why it isn't bookable, so the page can say something true rather than a
+  // vague "not right now".
+  blockedBy: "subscription" | "gateway" | null;
+  ownerId: string;
 };
 
 // Public hub profile (no auth, not owner-scoped). Memoized per request so the
@@ -181,11 +198,17 @@ export const getPublicHub = cache(
       select: publicHubSelect,
     });
     if (!row) return null;
-    const { owner, ...rest } = row;
+    const { owner, ownerId, ...rest } = row;
+    const entitled = isEntitled(owner.subscription);
+    const connected = owner.partnerGateway?.disconnectedAt === null;
     return {
       ...mapHub(rest),
-      bookable: isEntitled(owner.subscription),
-      paymentRequired: owner.partnerGateway?.disconnectedAt === null,
+      // Both, and in that order: an unpaid subscription is the more urgent
+      // thing to tell a partner about.
+      bookable: entitled && connected,
+      paymentRequired: connected,
+      blockedBy: !entitled ? "subscription" : !connected ? "gateway" : null,
+      ownerId,
     };
   }
 );

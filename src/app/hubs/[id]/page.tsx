@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageShell } from "@/components/PageShell";
 import { BookCourtPanel } from "@/components/hubs/BookCourtPanel";
@@ -54,6 +55,9 @@ export default async function PublicHubPage({
     // the availability stream connects.
     firstCourt ? getCourtAvailability(firstCourt.id, today) : null,
   ]);
+
+  // The partner previewing their own hub, or an admin looking at it.
+  const isOwner = viewer?.id === hub.ownerId || viewer?.role === "ADMIN";
 
   const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   const hasCoords = hub.latitude != null && hub.longitude != null;
@@ -250,6 +254,24 @@ export default async function PublicHubPage({
               This venue isn&apos;t taking online bookings right now. Contact
               them directly using the details above.
             </p>
+            {/* Said only to the owner, who arrived here from their dashboard
+                and needs to know which of the two things to fix. A visitor
+                doesn't need the venue's admin problems. */}
+            {isOwner && (
+              <p className="mt-3 text-sm">
+                <span className="text-gray-400">
+                  {hub.blockedBy === "gateway"
+                    ? "Your hub isn't listed publicly because no payment gateway is connected."
+                    : "Your hub isn't listed publicly because your subscription isn't active."}
+                </span>{" "}
+                <Link
+                  href="/dashboard/billing"
+                  className="font-semibold text-primary hover:underline"
+                >
+                  Fix this in Billing →
+                </Link>
+              </p>
+            )}
           </section>
         )}
 

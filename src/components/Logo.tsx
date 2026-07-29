@@ -36,9 +36,9 @@ export function Logo({
             tone === "light" ? "text-white" : "text-navy"
           }`}
         >
-          BUNAL
+          Bunal
           <span className={tone === "light" ? "text-accent" : "text-primary"}>
-            .PH
+            .Ph
           </span>
         </span>
       )}

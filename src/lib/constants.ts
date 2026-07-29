@@ -111,6 +111,23 @@ export const BOOKING_STATUS_TONES: Record<BookingStatus, BadgeTone> = {
   EXPIRED: "neutral",
 };
 
+// --- Reports ----------------------------------------------------------------
+
+export const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+] as const;
+
 // --- Players paying venues --------------------------------------------------
 
 // How long an unpaid booking holds its hours before they go back on the grid.

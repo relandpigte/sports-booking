@@ -33,6 +33,19 @@ export function manilaToday(): string {
   return dateFmt.format(new Date());
 }
 
+// The Manila civil date an instant falls on, e.g. a payment at 23:30 UTC is
+// already the NEXT day here. Reporting buckets by this rather than by the raw
+// timestamp — otherwise a late-evening payment lands in the wrong day and both
+// ends of every month total are wrong.
+export function manilaDateOf(instant: Date): string {
+  return dateFmt.format(instant);
+}
+
+// "2026-07-27" -> "2026-07". The month a civil date belongs to.
+export function manilaMonthOf(date: string): string {
+  return date.slice(0, 7);
+}
+
 // The current hour in Manila, 0..23.
 export function manilaNowHour(): number {
   return Number(hourFmt.format(new Date()));

@@ -52,6 +52,17 @@ const items: Item[] = [
     ),
   },
   {
+    href: "/dashboard/reports",
+    label: "Reports",
+    partnerOnly: true,
+    icon: (
+      <svg {...iconProps}>
+        <path d="M3 3v18h18" />
+        <path d="M7 15l4-5 3 3 5-7" />
+      </svg>
+    ),
+  },
+  {
     href: "/dashboard/billing",
     label: "Billing",
     partnerOnly: true,
@@ -142,15 +153,33 @@ export function DashboardNav({ role }: { role?: Role }) {
 
       {role === "ADMIN" && (
         <Link
+          href="/dashboard/admin/reports"
+          aria-current={
+            pathname.startsWith("/dashboard/admin/reports") ? "page" : undefined
+          }
+          className={`${linkClass(
+            pathname.startsWith("/dashboard/admin/reports")
+          )} md:mt-2 md:border-t md:border-gray-100 md:pt-3`}
+        >
+          <svg {...iconProps}>
+            <path d="M3 3v18h18" />
+            <path d="M7 15l4-5 3 3 5-7" />
+          </svg>
+          <span>Reports</span>
+        </Link>
+      )}
+
+      {role === "ADMIN" && (
+        <Link
           href="/dashboard/admin/subscriptions"
           aria-current={
             pathname.startsWith("/dashboard/admin/subscriptions")
               ? "page"
               : undefined
           }
-          className={`${linkClass(
+          className={linkClass(
             pathname.startsWith("/dashboard/admin/subscriptions")
-          )} md:mt-2 md:border-t md:border-gray-100 md:pt-3`}
+          )}
         >
           <svg {...iconProps}>
             <rect x="2" y="5" width="20" height="14" rx="2" />

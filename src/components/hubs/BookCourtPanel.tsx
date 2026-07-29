@@ -19,7 +19,11 @@ import {
 } from "@/lib/slots";
 import { formatPHP } from "@/lib/currency";
 import { formatHourLabel, formatManilaDateLong } from "@/lib/time";
-import { COURT_TYPE_LABELS, type OperatingHours } from "@/lib/constants";
+import {
+  BOOKING_HOLD_MINUTES,
+  COURT_TYPE_LABELS,
+  type OperatingHours,
+} from "@/lib/constants";
 
 type PanelCourt = {
   id: string;
@@ -37,6 +41,7 @@ export function BookCourtPanel({
   nowHour,
   initialAvailability,
   viewerRole,
+  paymentRequired,
 }: {
   courts: PanelCourt[];
   operatingHours: OperatingHours | null;
@@ -44,6 +49,10 @@ export function BookCourtPanel({
   nowHour: number;
   initialAvailability: { courtId: string; date: string; bookedHours: number[] } | null;
   viewerRole: Role | null;
+  // This venue has connected a gateway, so booking holds the hours rather than
+  // confirming them. False for every venue that hasn't — and then every word
+  // below is exactly what it was before payments existed.
+  paymentRequired: boolean;
 }) {
   const [courtId, setCourtId] = useState(courts[0]?.id ?? "");
   const [date, setDate] = useState(today);
@@ -244,15 +253,21 @@ export function BookCourtPanel({
           ) : (
             <Button type="submit" disabled={selected.length === 0 || pending}>
               {pending
-                ? "Booking…"
+                ? paymentRequired
+                  ? "Holding…"
+                  : "Booking…"
                 : selected.length === 0
                   ? "Pick your hours"
-                  : `Book ${selected.length} ${selected.length === 1 ? "hour" : "hours"}`}
+                  : paymentRequired
+                    ? `Hold ${selected.length} ${selected.length === 1 ? "hour" : "hours"}`
+                    : `Book ${selected.length} ${selected.length === 1 ? "hour" : "hours"}`}
             </Button>
           )}
 
           <p className="text-xs text-gray-400">
-            No payment needed — confirm here and settle at the venue.
+            {paymentRequired
+              ? `This venue takes payment online. We'll hold your hours for ${BOOKING_HOLD_MINUTES} minutes while you pay.`
+              : "No payment needed — confirm here and settle at the venue."}
           </p>
         </div>
       </form>

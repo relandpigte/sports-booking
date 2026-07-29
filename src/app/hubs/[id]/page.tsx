@@ -242,6 +242,7 @@ export default async function PublicHubPage({
                 : null
             }
             viewerRole={viewer?.role ?? null}
+            paymentRequired={hub.paymentRequired}
           />
         ) : (
           <section className="mt-8 rounded-2xl border border-dashed border-gray-300 px-6 py-10 text-center">

@@ -40,6 +40,10 @@ export type BookingPaymentView = {
   amount: number;
   currency: string;
   expiresAt: Date;
+  // How long the hold has left, read from the clock HERE rather than in the
+  // page: reading it during render is impure, and the countdown needs a
+  // server-computed first value anyway.
+  secondsLeft: number;
   attempt: number;
   // True while a charge is in flight. The UI uses it to keep the pay button
   // from firing a second one; the DB guard below is what actually enforces it.
@@ -51,6 +55,7 @@ export type BookingPaymentView = {
   paidAt: Date | null;
   refundedAt: Date | null;
   refundedAmount: number | null;
+  refundReason: string | null;
   hubId: string;
   lines: BookingPaymentLine[];
 };
@@ -71,6 +76,7 @@ const paymentSelect = {
   paidAt: true,
   refundedAt: true,
   refundedAmount: true,
+  refundReason: true,
   hubId: true,
   bookings: {
     select: {
@@ -97,6 +103,10 @@ export function mapBookingPayment(row: PaymentRow): BookingPaymentView {
     amount: Number(row.amount),
     currency: row.currency,
     expiresAt: row.expiresAt,
+    secondsLeft: Math.max(
+      0,
+      Math.round((row.expiresAt.getTime() - Date.now()) / 1000)
+    ),
     attempt: row.attempt,
     chargeInFlight: row.chargeStartedAt != null,
     redirectUrl: row.redirectUrl,
@@ -106,6 +116,7 @@ export function mapBookingPayment(row: PaymentRow): BookingPaymentView {
     paidAt: row.paidAt,
     refundedAt: row.refundedAt,
     refundedAmount: row.refundedAmount != null ? Number(row.refundedAmount) : null,
+    refundReason: row.refundReason,
     hubId: row.hubId,
     lines: row.bookings.map((b) => ({
       bookingId: b.id,
@@ -129,6 +140,23 @@ export async function getBookingPaymentForPlayer(
     select: paymentSelect,
   });
   return row ? mapBookingPayment(row) : null;
+}
+
+// Everything the checkout page renders, in one read. The venue's name needs a
+// second query because hubId is deliberately a scalar with no relation —
+// deleting a hub must not cascade away a financial record.
+export async function getBookingPaymentScreen(
+  paymentId: string,
+  userId: string
+): Promise<{ payment: BookingPaymentView; venueName: string } | null> {
+  const payment = await getBookingPaymentForPlayer(paymentId, userId);
+  if (!payment) return null;
+
+  const hub = await prisma.hub.findUnique({
+    where: { id: payment.hubId },
+    select: { name: true },
+  });
+  return { payment, venueName: hub?.name ?? "the venue" };
 }
 
 // ---------------------------------------------------------------------------
@@ -509,19 +537,41 @@ export async function refundBookingPayment(args: {
     };
   }
 
-  await prisma.bookingPayment.update({
-    where: { id: payment.id },
+  await markBookingPaymentRefunded({
+    paymentId: payment.id,
+    amount: result.amount.amount,
+    refundRef: result.refundId,
+    reason: args.reason,
+    refundedById: args.refundedById,
+  });
+
+  return { ok: true, alreadyRefunded: false };
+}
+
+// Writes the refund onto the ledger WITHOUT asking the gateway for one. Used
+// by refundBookingPayment once its call has succeeded, and by the webhook when
+// a partner refunds from their gateway's own dashboard — where asking again
+// would issue a second refund.
+export async function markBookingPaymentRefunded(args: {
+  paymentId: string;
+  amount: number;
+  refundRef: string | null;
+  reason?: string;
+  refundedById?: string;
+}): Promise<void> {
+  await prisma.bookingPayment.updateMany({
+    // Re-asserted: two legs can arrive at once, and the loser must not
+    // overwrite the winner's reference.
+    where: { id: args.paymentId, status: { not: "REFUNDED" } },
     data: {
       status: "REFUNDED",
       refundedAt: new Date(),
-      refundedAmount: new Prisma.Decimal(result.amount.amount),
-      refundRef: result.refundId,
+      refundedAmount: new Prisma.Decimal(args.amount),
+      refundRef: args.refundRef,
       refundReason: args.reason ?? null,
       refundedById: args.refundedById ?? null,
     },
   });
-
-  return { ok: true, alreadyRefunded: false };
 }
 
 // ---------------------------------------------------------------------------

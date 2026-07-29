@@ -5,6 +5,8 @@ import type {
   SubscriptionStatus,
 } from "@prisma/client";
 
+import type { BadgeTone } from "@/components/ui/Badge";
+
 export const SKILL_LEVELS = [
   { value: "beginner", label: "Beginner" },
   { value: "intermediate", label: "Intermediate" },
@@ -97,6 +99,16 @@ export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
   CONFIRMED: "Confirmed",
   CANCELLED: "Cancelled",
   EXPIRED: "Expired",
+};
+
+// EXPIRED is neutral, not red: nothing went wrong and nobody was charged — the
+// player simply didn't finish paying. Red is reserved for a booking the venue
+// took away.
+export const BOOKING_STATUS_TONES: Record<BookingStatus, BadgeTone> = {
+  PENDING: "warn",
+  CONFIRMED: "primary",
+  CANCELLED: "danger",
+  EXPIRED: "neutral",
 };
 
 // --- Players paying venues --------------------------------------------------

@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import type {
   BookingStatus,
   CancelledBy,
+  PaymentStatus,
   RescheduledBy,
 } from "@prisma/client";
 
@@ -48,6 +49,10 @@ export type BookingView = {
   // Where this booking was before the venue moved it, or null if it never
   // moved. Assembled here rather than at render time, like the flag below.
   movedFrom: BookingMove | null;
+  // Present only for a booking made at a venue that takes payment online.
+  // Deliberately just the id and the state — a card renders "Paid", it never
+  // needs the gateway's side of the story.
+  payment: { id: string; status: PaymentStatus } | null;
   court: { id: string; name: string; courtType: string };
   hub: { id: string; name: string; logo: string | null; address: string | null };
   player: {
@@ -82,6 +87,7 @@ const bookingSelect = {
   prevStartHour: true,
   prevEndHour: true,
   prevTotalPrice: true,
+  bookingPayment: { select: { id: true, status: true } },
   court: { select: { id: true, name: true, courtType: true } },
   hub: { select: { id: true, name: true, logo: true, address: true } },
   user: {
@@ -121,6 +127,7 @@ function mapBooking(row: BookingRow): BookingView {
     prevStartHour,
     prevEndHour,
     prevTotalPrice,
+    bookingPayment,
     ...rest
   } = row;
 
@@ -150,6 +157,7 @@ function mapBooking(row: BookingRow): BookingView {
           count: rescheduleCount,
         }
       : null,
+    payment: bookingPayment,
     player: user,
   };
 }
@@ -246,6 +254,9 @@ export const getCourtForBooking = cache(async (courtId: string) => {
           id: true,
           name: true,
           operatingHours: true,
+          // Whose gateway a payment would go to, if this venue has connected
+          // one — the booking action needs it before it writes anything.
+          ownerId: true,
           owner: {
             select: {
               subscription: {
@@ -272,6 +283,7 @@ export const getCourtForBooking = cache(async (courtId: string) => {
     hub: {
       id: row.hub.id,
       name: row.hub.name,
+      ownerId: row.hub.ownerId,
       operatingHours: (row.hub.operatingHours as OperatingHours | null) ?? null,
       // A venue whose subscription has lapsed keeps its data but stops taking
       // new bookings.

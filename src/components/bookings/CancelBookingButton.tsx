@@ -13,12 +13,23 @@ const initialState: BookingFormState = {};
 // Venue-side cancellation. Players can't cancel their own bookings — the venue
 // is holding the court for them, so releasing it is the venue's decision.
 // A reason is required, since the player finds out after the fact.
-export function CancelBookingButton({ bookingId }: { bookingId: string }) {
+export function CancelBookingButton({
+  bookingId,
+  // The player paid online, so cancelling is also a decision about their money.
+  // Nothing is refunded unless the venue says so.
+  paid = false,
+  amountLabel,
+}: {
+  bookingId: string;
+  paid?: boolean;
+  amountLabel?: string;
+}) {
   const [state, formAction, pending] = useActionState(
     cancelHubBookingAction,
     initialState
   );
   const [open, setOpen] = useState(false);
+  const [refund, setRefund] = useState(true);
 
   if (state.success) {
     return (
@@ -52,6 +63,23 @@ export function CancelBookingButton({ bookingId }: { bookingId: string }) {
           error={state.errors?.reason}
         />
       </div>
+
+      {paid && (
+        <label className="flex w-full items-start gap-2 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 sm:w-72">
+          <input
+            type="checkbox"
+            name="refund"
+            value="full"
+            checked={refund}
+            onChange={(e) => setRefund(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>
+            Refund {amountLabel ?? "the payment"} in full. The money goes back
+            from your gateway, not from Sports 360.
+          </span>
+        </label>
+      )}
 
       {state.message && (
         <p role="alert" className="text-xs text-red-600">

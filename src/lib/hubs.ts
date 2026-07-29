@@ -154,13 +154,21 @@ const publicHubSelect = {
           cancelAtPeriodEnd: true,
         },
       },
+      // Only whether one is connected. Nothing secret is selected — see the
+      // comment on GatewayView.
+      partnerGateway: { select: { disconnectedAt: true } },
     },
   },
 } as const;
 
 // A hub that isn't taking bookings still RENDERS — the requirement is "no new
 // bookings", not "vanish", and the partner's own View link must keep working.
-export type PublicHub = Hub & { bookable: boolean };
+export type PublicHub = Hub & {
+  bookable: boolean;
+  // Whether booking here holds the hours pending payment, or confirms them
+  // outright as it always has.
+  paymentRequired: boolean;
+};
 
 // Public hub profile (no auth, not owner-scoped). Memoized per request so the
 // page and its metadata share a single query. cache() here is React
@@ -174,7 +182,11 @@ export const getPublicHub = cache(
     });
     if (!row) return null;
     const { owner, ...rest } = row;
-    return { ...mapHub(rest), bookable: isEntitled(owner.subscription) };
+    return {
+      ...mapHub(rest),
+      bookable: isEntitled(owner.subscription),
+      paymentRequired: owner.partnerGateway?.disconnectedAt === null,
+    };
   }
 );
 

@@ -3,8 +3,10 @@
 import { Prisma } from "@prisma/client";
 import type { CancelledBy } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import { prisma } from "@/lib/db";
+import { getActivePartnerGateway } from "@/lib/partner-gateway";
 import { getViewer } from "@/lib/dal";
 import { firstErrors } from "@/lib/zod-errors";
 import { buildSlots, isAvailable, runHours, toRuns } from "@/lib/slots";
@@ -17,9 +19,11 @@ import {
 import {
   CreateBookingSchema,
   PartnerCancelBookingSchema,
+  RefundBookingSchema,
   RescheduleBookingSchema,
 } from "@/lib/validation";
-import { BOOKING_WINDOW_DAYS } from "@/lib/constants";
+import { refundBookingPayment } from "@/lib/booking-payments";
+import { BOOKING_HOLD_MINUTES, BOOKING_WINDOW_DAYS } from "@/lib/constants";
 import {
   addDays,
   formatHourLabel,
@@ -135,13 +139,68 @@ export async function createBookingAction(
     }
   }
 
+  // Does this venue take money online? A partner who hasn't connected a
+  // gateway keeps the original behaviour exactly: instant confirmation, settle
+  // at the venue. So does a court with no hourly rate — there's nothing to
+  // charge for, and a ₱0 checkout is a dead end, not a payment.
+  const gateway = await getActivePartnerGateway(court.hub.ownerId);
+  const total =
+    court.hourlyRate != null ? court.hourlyRate * hours.length : null;
+  const requiresPayment = gateway != null && total != null && total > 0;
+
+  const now = new Date();
+  const holdExpiresAt = requiresPayment
+    ? new Date(now.getTime() + BOOKING_HOLD_MINUTES * 60_000)
+    : null;
+
   let created: { id: string }[];
+  let paymentId: string | null = null;
   try {
     // One transaction for the whole selection: if any hour is taken while we
     // write, the player gets none of them rather than a partial set they
     // didn't ask for.
     created = await prisma.$transaction(async (tx) => {
       const out: { id: string }[] = [];
+
+      // Reap DEAD holds for exactly the keys we're about to claim. The unique
+      // index doesn't know about time: an expired hold's row is still
+      // physically present and would reject our insert even though the grid
+      // correctly showed the hour as free.
+      //
+      // Whoever locks the row first wins. If a settling payment nulls
+      // holdExpiresAt just before us, this matches nothing and our createMany
+      // fails with P2002 — which is correct, because that hour really was
+      // theirs.
+      await tx.bookingSlot.deleteMany({
+        where: {
+          courtId,
+          date,
+          hour: { in: hours },
+          holdExpiresAt: { lt: now },
+        },
+      });
+
+      if (requiresPayment) {
+        // The ledger row BEFORE any money moves, so a crash mid-charge leaves
+        // something the sweep can reconcile rather than a silent hole. The
+        // method is a placeholder until the player picks one on the pay page —
+        // chargeBookingPayment overwrites it as it claims the charge.
+        const payment = await tx.bookingPayment.create({
+          data: {
+            partnerId: court.hub.ownerId,
+            gatewayId: gateway!.id,
+            userId: viewer.id,
+            hubId: court.hub.id,
+            amount: new Prisma.Decimal(total!),
+            method: "CARD",
+            status: "PENDING",
+            expiresAt: holdExpiresAt!,
+            provider: gateway!.provider,
+          },
+          select: { id: true },
+        });
+        paymentId = payment.id;
+      }
 
       for (const run of runs) {
         const runLength = runHours(run);
@@ -160,7 +219,10 @@ export async function createBookingAction(
             totalPrice:
               court.hourlyRate != null ? court.hourlyRate * runLength : null,
             notes: notes ?? null,
-            status: "CONFIRMED",
+            // Pay-to-confirm only when there's a gateway to pay through.
+            status: requiresPayment ? "PENDING" : "CONFIRMED",
+            holdExpiresAt,
+            bookingPaymentId: paymentId,
           },
           select: { id: true },
         });
@@ -178,6 +240,9 @@ export async function createBookingAction(
             courtId,
             date,
             hour: run.start + i,
+            // Mirrors the booking's hold — see the schema comment for why the
+            // grid can't afford to join Booking to find this out.
+            holdExpiresAt,
           })),
         });
 
@@ -197,6 +262,10 @@ export async function createBookingAction(
   }
 
   revalidateBookingSurfaces(court.hub.id);
+
+  // The hours are held, not booked. Send the player straight to checkout —
+  // the clock is already running.
+  if (paymentId) redirect(`/dashboard/bookings/pay/${paymentId}`);
 
   // No redirect: the player stays on the hub page and watches the slots they
   // just took grey out.
@@ -252,6 +321,7 @@ export async function cancelHubBookingAction(
   const parsed = PartnerCancelBookingSchema.safeParse({
     id: String(formData.get("id") ?? ""),
     reason: String(formData.get("reason") ?? ""),
+    refund: String(formData.get("refund") ?? ""),
   });
   if (!parsed.success) return { errors: firstErrors(parsed.error) };
 
@@ -261,10 +331,26 @@ export async function cancelHubBookingAction(
       viewer.role === "ADMIN"
         ? { id: parsed.data.id }
         : { id: parsed.data.id, hub: { ownerId: viewer.id } },
-    select: { id: true, hubId: true, status: true, endsAt: true },
+    select: {
+      id: true,
+      hubId: true,
+      status: true,
+      endsAt: true,
+      holdExpiresAt: true,
+      bookingPaymentId: true,
+      bookingPayment: { select: { status: true } },
+    },
   });
   if (!booking) return { message: "Booking not found." };
-  if (booking.status !== "CONFIRMED") {
+
+  // A live hold can be cancelled too — that just releases the hours, and the
+  // player's payment (if any) never settles. A lapsed one is already gone.
+  const live =
+    booking.status === "CONFIRMED" ||
+    (booking.status === "PENDING" &&
+      booking.holdExpiresAt != null &&
+      booking.holdExpiresAt > new Date());
+  if (!live) {
     return { message: "That booking is already cancelled." };
   }
   // A venue can decline any time up until the booking has finished.
@@ -278,7 +364,71 @@ export async function cancelHubBookingAction(
     parsed.data.reason
   );
   revalidateBookingSurfaces(booking.hubId);
-  return { success: "Booking cancelled and the player notified." };
+
+  const wasPaid = booking.bookingPayment?.status === "SUCCEEDED";
+  if (!wasPaid || parsed.data.refund !== "full") {
+    return { success: "Booking cancelled and the player notified." };
+  }
+
+  // Cancel FIRST, refund second. If the gateway is down, the court is still
+  // released — the alternative leaves it blocked by a booking nobody wants.
+  const refund = await refundBookingPayment({
+    paymentId: booking.bookingPaymentId!,
+    reason: parsed.data.reason,
+    refundedById: viewer.id,
+  });
+  if (!refund.ok) {
+    return {
+      success: `Booking cancelled, but the refund failed: ${refund.message} You can retry the refund from the booking.`,
+    };
+  }
+  return { success: "Booking cancelled and refunded in full." };
+}
+
+// Refunding on its own — the retry when the refund leg of a cancellation
+// failed, and the way a venue gives money back for a booking it's keeping.
+export async function refundBookingAction(
+  _prev: BookingFormState,
+  formData: FormData
+): Promise<BookingFormState> {
+  const viewer = await getViewer();
+  if (!viewer) return { message: "Sign in to manage bookings." };
+  if (viewer.role !== "PARTNER" && viewer.role !== "ADMIN") {
+    return { message: "Only the venue can refund this booking." };
+  }
+
+  const parsed = RefundBookingSchema.safeParse({
+    id: String(formData.get("id") ?? ""),
+    reason: String(formData.get("reason") ?? ""),
+  });
+  if (!parsed.success) return { errors: firstErrors(parsed.error) };
+
+  // Ownership in the where clause, as everywhere else here.
+  const booking = await prisma.booking.findFirst({
+    where:
+      viewer.role === "ADMIN"
+        ? { id: parsed.data.id }
+        : { id: parsed.data.id, hub: { ownerId: viewer.id } },
+    select: { id: true, hubId: true, bookingPaymentId: true },
+  });
+  if (!booking) return { message: "Booking not found." };
+  if (!booking.bookingPaymentId) {
+    return { message: "That booking wasn't paid for online." };
+  }
+
+  const refund = await refundBookingPayment({
+    paymentId: booking.bookingPaymentId,
+    reason: parsed.data.reason,
+    refundedById: viewer.id,
+  });
+  if (!refund.ok) return { message: refund.message };
+
+  revalidateBookingSurfaces(booking.hubId);
+  return {
+    success: refund.alreadyRefunded
+      ? "That payment was already refunded."
+      : "Refunded in full.",
+  };
 }
 
 // An interactive transaction can only be aborted by throwing, so these carry

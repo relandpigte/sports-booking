@@ -128,8 +128,13 @@ export function ChangePlanPanel({
 export function PaymentMethodPanel({
   method,
   card,
+  hosted,
 }: {
   method: string;
+  // Cards can't be saved with a hosted gateway — the details never reach this
+  // server. The method chooser stays, because it still records how the partner
+  // intends to pay, which is what the admin sees when chasing an invoice.
+  hosted: boolean;
   card: {
     brand: string | null;
     last4: string | null;
@@ -150,6 +155,14 @@ export function PaymentMethodPanel({
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-gray-200 p-5 sm:p-6">
       <h2 className="text-base font-semibold text-gray-900">How you pay</h2>
+
+      {hosted && (
+        <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">
+          You&apos;ll pay each month through a secure PayMongo page — card,
+          GCash or Maya. Nothing is stored here, and nothing is ever charged
+          without you approving it.
+        </p>
+      )}
 
       {card && (
         <div className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2.5 text-sm">
@@ -187,7 +200,7 @@ export function PaymentMethodPanel({
           }))}
         />
 
-        {selected === "CARD" && (
+        {!hosted && selected === "CARD" && (
           <div className="flex flex-col gap-4 rounded-xl border border-gray-200 p-4">
             <Input
               label="Name on card"

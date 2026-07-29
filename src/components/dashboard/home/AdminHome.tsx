@@ -64,6 +64,12 @@ export function AdminHome({
           >
             + New user
           </Link>
+          <Link
+            href="/dashboard/admin/subscriptions"
+            className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+          >
+            Subscriptions
+          </Link>
         </div>
       </section>
     </div>

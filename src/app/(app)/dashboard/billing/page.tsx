@@ -10,6 +10,7 @@ import {
 } from "@/components/billing/BillingPanels";
 import { GatewayPanel } from "@/components/partner/GatewayPanel";
 import { getBillingOverview } from "@/lib/billing";
+import { getPaymentProvider } from "@/lib/payments";
 import { getGatewayView } from "@/lib/partner-gateway";
 import { requirePartner } from "@/lib/dal";
 import { formatPHP } from "@/lib/currency";
@@ -140,7 +141,11 @@ export default async function BillingPage() {
           currentPlanId={plan.id}
           courtCount={courtCount}
         />
-        <PaymentMethodPanel method={sub.method} card={overview.savedCard} />
+        <PaymentMethodPanel
+          method={sub.method}
+          card={overview.savedCard}
+          hosted={getPaymentProvider().checkout === "hosted"}
+        />
       </div>
 
       {/* History */}

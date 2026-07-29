@@ -108,6 +108,7 @@ export function signWebhookBody(rawBody: string): string {
 
 export const fakeProvider: PaymentProvider = {
   id: "fake",
+  checkout: "inline",
 
   // The real gateway needs the customer's details; the fake just mints an id.
   async createCustomer() {

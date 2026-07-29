@@ -118,6 +118,16 @@ export type ProviderWebhookEvent = {
 export interface PaymentProvider {
   readonly id: ProviderId;
 
+  // Where the payment form lives — the same distinction VenueGateway draws.
+  //
+  //   "hosted" — the gateway's own page. We never see a card number, which
+  //              also means we can never SAVE one: createPaymentMethod and
+  //              friends throw, and nothing auto-renews.
+  //   "inline" — our form, our fields, our problem.
+  //
+  // The UI reads this to decide whether to ask for card details at all.
+  readonly checkout: "hosted" | "inline";
+
   // --- customers -----------------------------------------------------------
   createCustomer(input: CustomerInput): Promise<{ customerId: string }>;
 

@@ -78,15 +78,24 @@ export async function payNowAction(
     savedPaymentMethodId: card?.id ?? null,
   });
 
+  const provider = getPaymentProvider();
+
+  // Where the payer actually has to go. A hosted gateway hands us its own URL
+  // and we send them there; the stub's checkout is a page in this app.
+  const checkoutFor = (row: { id: string; redirectUrl: string | null }) =>
+    provider.checkout === "hosted"
+      ? row.redirectUrl
+      : `/dashboard/billing/checkout/${row.id}`;
+
   // An in-flight payment for this period already exists — hand back its
   // checkout rather than creating a second one.
   if (payment.reused && payment.row.status === "PENDING") {
-    return payment.row.redirectUrl
-      ? { redirectUrl: `/dashboard/billing/checkout/${payment.row.id}` }
+    const url = checkoutFor(payment.row);
+    return url
+      ? { redirectUrl: url }
       : { message: "A payment is already being processed. Refresh in a moment." };
   }
 
-  const provider = getPaymentProvider();
   const result = await provider.charge({
     customerId: sub.providerCustomerId,
     amount: { amount: sub.plan.priceMonthly.toNumber(), currency: "PHP" },
@@ -96,7 +105,9 @@ export async function payNowAction(
         : { kind: "new", method: { type: sub.method as "GCASH" | "MAYA" } },
     description: `${sub.plan.name} — monthly subscription`,
     idempotencyKey: payment.row.idempotencyKey,
-    returnUrl: `/dashboard/billing/checkout/${payment.row.id}`,
+    // A hosted gateway sends the browser back here after the payment; the
+    // provider makes this absolute, since the trip leaves the site.
+    returnUrl: `/dashboard/billing`,
     metadata: { subscriptionId: sub.id, userId: partner.id },
   });
 
@@ -110,7 +121,11 @@ export async function payNowAction(
 
   if (result.status === "requires_action") {
     revalidateBilling();
-    return { redirectUrl: `/dashboard/billing/checkout/${payment.row.id}` };
+    const url =
+      provider.checkout === "hosted"
+        ? result.redirectUrl
+        : `/dashboard/billing/checkout/${payment.row.id}`;
+    return { redirectUrl: url };
   }
 
   if (result.status === "failed") {

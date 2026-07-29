@@ -170,9 +170,15 @@ export async function registerPartnerAction(
   const provider = getPaymentProvider();
   const method = data.paymentMethod as PaymentMethodType;
 
-  // Tokenize the card first — a decline must not cost us a half-created account.
+  // Tokenize the card first — a decline must not cost us a half-created
+  // account.
+  //
+  // Skipped entirely for a hosted gateway: there is no card to tokenize
+  // because the details never reach this server, and PayMongo can't hold one
+  // for later anyway. Nothing was ever charged during the trial, so this costs
+  // the partner nothing — they pay a link when the trial ends.
   let card: ProviderMethod | null = null;
-  if (method === "CARD") {
+  if (method === "CARD" && provider.checkout === "inline") {
     const cardParsed = CardSchema.safeParse({
       cardName: String(formData.get("cardName") ?? ""),
       cardNumber: String(formData.get("cardNumber") ?? ""),
@@ -232,9 +238,10 @@ export async function registerPartnerAction(
         planId: plan.id,
         status: "TRIALING",
         method,
-        // Only a stored card can auto-renew. E-wallets are never charged
-        // without the partner approving it.
-        autoRenew: method === "CARD",
+        // Only a stored card can auto-renew, and only an inline gateway can
+        // store one. With PayMongo nothing renews silently — every period is
+        // paid by opening a link, which is the path e-wallets already took.
+        autoRenew: method === "CARD" && provider.checkout === "inline",
         trialEndsAt,
         currentPeriodStart: now,
         currentPeriodEnd: trialEndsAt,

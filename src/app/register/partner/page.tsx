@@ -4,6 +4,7 @@ import Link from "next/link";
 import { AuthLayout } from "@/components/AuthLayout";
 import { PartnerRegisterForm } from "@/components/billing/PartnerRegisterForm";
 import { listPlans } from "@/lib/billing";
+import { getPaymentProvider } from "@/lib/payments";
 
 export const metadata: Metadata = {
   title: "Partner Registration — Bunal.ph",
@@ -21,7 +22,10 @@ export default async function PartnerRegisterPage() {
       width="max-w-2xl"
     >
       <>
-        <PartnerRegisterForm plans={plans} />
+        <PartnerRegisterForm
+          plans={plans}
+          hosted={getPaymentProvider().checkout === "hosted"}
+        />
 
         <p className="mt-5 text-center text-sm text-gray-500">
           Already have an account?{" "}

@@ -14,7 +14,15 @@ import type { PlanView } from "@/lib/billing";
 
 const initialState: AuthFormState = {};
 
-export function PartnerRegisterForm({ plans }: { plans: PlanView[] }) {
+export function PartnerRegisterForm({
+  plans,
+  hosted,
+}: {
+  plans: PlanView[];
+  // The gateway owns the payment form, so there is no card to take here — and
+  // nothing to take it for, since PayMongo can't hold a card for later.
+  hosted: boolean;
+}) {
   const [state, formAction, pending] = useActionState(
     registerPartnerAction,
     initialState
@@ -130,7 +138,16 @@ export function PartnerRegisterForm({ plans }: { plans: PlanView[] }) {
         />
       </div>
 
-      {method === "CARD" && (
+      {hosted && (
+        <p className="mt-4 rounded-xl border border-gray-200 px-3 py-3 text-xs text-gray-500">
+          No card needed today. When your {TRIAL_DAYS}-day trial ends
+          we&apos;ll give you a secure PayMongo link — card, GCash or Maya,
+          whichever suits — and your hubs stay listed for a week while you sort
+          it out.
+        </p>
+      )}
+
+      {!hosted && method === "CARD" && (
         <div className="mt-4 flex flex-col gap-4 rounded-xl border border-gray-200 p-4">
           <p className="text-xs text-gray-500">
             We&apos;ll save your card for future renewals. Nothing is charged

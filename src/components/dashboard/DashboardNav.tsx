@@ -142,15 +142,35 @@ export function DashboardNav({ role }: { role?: Role }) {
 
       {role === "ADMIN" && (
         <Link
+          href="/dashboard/admin/subscriptions"
+          aria-current={
+            pathname.startsWith("/dashboard/admin/subscriptions")
+              ? "page"
+              : undefined
+          }
+          className={`${linkClass(
+            pathname.startsWith("/dashboard/admin/subscriptions")
+          )} md:mt-2 md:border-t md:border-gray-100 md:pt-3`}
+        >
+          <svg {...iconProps}>
+            <rect x="2" y="5" width="20" height="14" rx="2" />
+            <path d="M2 10h20" />
+          </svg>
+          <span>Subscriptions</span>
+        </Link>
+      )}
+
+      {role === "ADMIN" && (
+        <Link
           href="/users"
           aria-current={
             pathname === "/users" || pathname.startsWith("/users/")
               ? "page"
               : undefined
           }
-          className={`${linkClass(
+          className={linkClass(
             pathname === "/users" || pathname.startsWith("/users/")
-          )} md:mt-2 md:border-t md:border-gray-100 md:pt-3`}
+          )}
         >
           <svg {...iconProps}>
             <path d="M12 3l8 4v5c0 4.5-3 7.5-8 9-5-1.5-8-4.5-8-9V7z" />

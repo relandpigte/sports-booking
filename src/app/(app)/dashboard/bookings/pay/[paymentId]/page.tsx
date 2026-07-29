@@ -7,12 +7,10 @@ import {
   getBookingPaymentScreen,
   pollBookingPayment,
 } from "@/lib/booking-payments";
-import { BookingCheckoutApproval } from "@/components/bookings/BookingCheckoutApproval";
 import { HoldCountdown } from "@/components/bookings/HoldCountdown";
 import { PayBookingPanel } from "@/components/bookings/PayBookingPanel";
 import { formatPHP } from "@/lib/currency";
 import { formatManilaDate, formatSlotRange } from "@/lib/time";
-import { PAYMENT_METHOD_LABELS } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "Complete payment — Bunal.ph",
@@ -47,8 +45,8 @@ export default async function PayBookingPage({
 
   const { payment, venueName } = screen;
   const holdLive = payment.status === "PENDING" && payment.secondsLeft > 0;
-  // A wallet charge that's waiting on the payer. With a real gateway the
-  // approval happens on the gateway's own page; the stub renders it here.
+  // They started paying and came back without finishing — a closed tab, or the
+  // back button. The checkout session is still open.
   const awaitingApproval =
     holdLive && payment.chargeInFlight && payment.redirectUrl != null;
 
@@ -136,31 +134,20 @@ export default async function PayBookingPage({
             payment.status !== "REFUNDED" &&
             (holdLive ? (
               awaitingApproval ? (
-                payment.hosted ? (
-                  // They started paying and came back without finishing — a
-                  // closed tab, or the browser's back button. The checkout
-                  // session is still open, so send them to the same one rather
-                  // than creating a second.
-                  <div className="flex flex-col gap-3">
-                    <p className="rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-700">
-                      Your payment hasn&apos;t finished yet. Your hours are
-                      still held — pick up where you left off.
-                    </p>
-                    <a
-                      href={payment.redirectUrl ?? "#"}
-                      className="rounded-lg bg-primary px-4 py-3 text-center text-sm font-semibold text-white shadow-sm shadow-primary/20 transition-colors hover:bg-primary-hover"
-                    >
-                      Continue to PayMongo
-                    </a>
-                  </div>
-                ) : (
-                  <BookingCheckoutApproval
-                    paymentId={payment.id}
-                    methodLabel={
-                      PAYMENT_METHOD_LABELS[payment.method] ?? payment.method
-                    }
-                  />
-                )
+                // Send them back to the SAME checkout session rather than
+                // opening a second one against the same hold.
+                <div className="flex flex-col gap-3">
+                  <p className="rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-700">
+                    Your payment hasn&apos;t finished yet. Your hours are still
+                    held — pick up where you left off.
+                  </p>
+                  <a
+                    href={payment.redirectUrl ?? "#"}
+                    className="rounded-lg bg-primary px-4 py-3 text-center text-sm font-semibold text-white shadow-sm shadow-primary/20 transition-colors hover:bg-primary-hover"
+                  >
+                    Continue to PayMongo
+                  </a>
+                </div>
               ) : (
                 <div className="flex flex-col gap-4">
                   {payment.failureMessage && (
@@ -176,7 +163,6 @@ export default async function PayBookingPage({
                     paymentId={payment.id}
                     amount={payment.amount}
                     venueName={venueName}
-                    hosted={payment.hosted}
                   />
                 </div>
               )

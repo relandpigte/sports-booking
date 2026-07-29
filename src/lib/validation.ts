@@ -265,12 +265,9 @@ export const ConnectGatewaySchema = z.object({
     }),
 });
 
+// Just the payment: PayMongo's own page collects the method and the card.
 export const PayBookingSchema = z.object({
   paymentId: z.string().min(1),
-  // Optional because a hosted checkout collects it on the gateway's own page.
-  // Whether it's actually required is a property of the gateway, so that check
-  // lives in chargeBookingPayment rather than here.
-  method: z.enum(["CARD", "GCASH", "MAYA"]).optional(),
 });
 
 export const RefundBookingSchema = z.object({

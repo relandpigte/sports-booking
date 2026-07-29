@@ -1,35 +1,31 @@
 import "server-only";
 
-import { fakeVenueGateway } from "./fake-venue";
 import { paymongoVenueGateway } from "./paymongo-venue";
-import type {
-  GatewayCredentials,
-  VenueGateway,
-  VenueGatewayId,
-} from "./partner-types";
+import type { GatewayCredentials, VenueGateway } from "./partner-types";
 
 // Credentials are passed at CONSTRUCTION, never as a method parameter — so a
 // secret can't end up in a log line or a serialised call argument.
 //
-// A real gateway is one new file implementing VenueGateway plus one case here.
+// PayMongo is the only gateway. Another one is a new file implementing
+// VenueGateway plus a case here.
 export function getVenueGateway(creds: GatewayCredentials): VenueGateway {
   switch (creds.provider) {
     case "paymongo":
       return paymongoVenueGateway(creds);
-    case "fake":
-      return fakeVenueGateway(creds);
     default:
-      throw new Error(`Unknown venue gateway: ${creds.provider}`);
+      // Reachable only for a row written by a gateway that has since been
+      // removed. Callers that touch old money — refunds especially — catch
+      // this and say so rather than 500ing.
+      throw new UnknownVenueGateway(creds.provider);
   }
 }
 
-// Whether the gateway owns the payment form. Answerable from the provider name
-// alone, so the pay page can decide what to render without constructing a
-// gateway — which would mean decrypting credentials just to draw a button.
-export function isHostedCheckout(provider: string): boolean {
-  return HOSTED.has(provider as VenueGatewayId);
+export class UnknownVenueGateway extends Error {
+  constructor(readonly provider: string) {
+    super(
+      `That payment was taken through "${provider}", which is no longer supported.`
+    );
+  }
 }
-
-const HOSTED = new Set<VenueGatewayId>(["paymongo"]);
 
 export * from "./partner-types";

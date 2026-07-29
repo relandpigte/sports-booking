@@ -4,8 +4,7 @@ import { Prisma, type PaymentMethodType, type PaymentStatus } from "@prisma/clie
 
 import { prisma } from "@/lib/db";
 import { loadGatewayCredentials } from "@/lib/partner-gateway";
-import { getVenueGateway, isHostedCheckout } from "@/lib/payments/venue";
-import type { VenueChargeSource } from "@/lib/payments/venue";
+import { getVenueGateway, UnknownVenueGateway } from "@/lib/payments/venue";
 import type { ChargeResult } from "@/lib/payments/types";
 import { appUrl } from "@/lib/urls";
 import { formatManilaDate, formatSlotRange } from "@/lib/time";
@@ -57,9 +56,6 @@ export type BookingPaymentView = {
   refundedAmount: number | null;
   refundReason: string | null;
   hubId: string;
-  // The gateway owns the payment form, so this page must NOT collect card
-  // details — it sends the player to the gateway and waits for them back.
-  hosted: boolean;
   lines: BookingPaymentLine[];
 };
 
@@ -122,7 +118,6 @@ export function mapBookingPayment(row: PaymentRow): BookingPaymentView {
     refundedAmount: row.refundedAmount != null ? Number(row.refundedAmount) : null,
     refundReason: row.refundReason,
     hubId: row.hubId,
-    hosted: isHostedCheckout(row.provider),
     lines: row.bookings.map((b) => ({
       bookingId: b.id,
       courtName: b.court.name,
@@ -355,16 +350,6 @@ function describe(lines: BookingPaymentLine[]): string {
 export async function chargeBookingPayment(args: {
   paymentId: string;
   userId: string;
-  // Absent for a hosted checkout: the payer chooses on the gateway's page, and
-  // the webhook tells us afterwards what they picked.
-  method?: PaymentMethodType;
-  card?: {
-    number: string;
-    expMonth: number;
-    expYear: number;
-    cvc: string;
-    name: string;
-  };
 }): Promise<ChargeOutcome> {
   const { paymentId, userId } = args;
 
@@ -383,19 +368,6 @@ export async function chargeBookingPayment(args: {
   // is a refund we'd have to make.
   if (payment.expiresAt <= now) return { status: "expired" };
 
-  const hosted = isHostedCheckout(payment.provider);
-  const method = args.method;
-
-  // Checked before the claim, so a malformed request can't burn an attempt.
-  if (!hosted) {
-    if (!method) {
-      return { status: "declined", message: "Choose how you'd like to pay." };
-    }
-    if (method === "CARD" && !args.card) {
-      return { status: "declined", message: "Enter your card details." };
-    }
-  }
-
   // THE double-charge guard, and the same version-guard idiom as billing.ts:
   // whoever flips chargeStartedAt from null wins, everyone else is told the
   // charge is already in flight. Cleared again by a decline.
@@ -407,25 +379,11 @@ export async function chargeBookingPayment(args: {
       chargeStartedAt: null,
       attempt: payment.attempt,
     },
-    data: {
-      chargeStartedAt: now,
-      attempt,
-      // Left alone for a hosted checkout — writing CARD here would put a
-      // method on the receipt that the player hasn't chosen yet.
-      ...(method ? { method } : {}),
-      redirectUrl: null,
-    },
+    // `method` is deliberately untouched: the player chooses card, GCash or
+    // Maya on PayMongo's page, and the webhook tells us which afterwards.
+    data: { chargeStartedAt: now, attempt, redirectUrl: null },
   });
   if (claim.count !== 1) return { status: "in-flight" };
-
-  // Hosted gateways get no source at all: their page is the form. For inline
-  // ones, card details are only ever present for a CARD payment — the guard
-  // above rejected the malformed combination, so this is total.
-  const source: VenueChargeSource | undefined = hosted
-    ? undefined
-    : args.card
-      ? { kind: "card", card: args.card }
-      : { kind: "wallet", type: method === "MAYA" ? "MAYA" : "GCASH" };
 
   const creds = await loadGatewayCredentials(payment.gatewayId);
   const lines = payment.bookings.map((b) => ({
@@ -441,7 +399,6 @@ export async function chargeBookingPayment(args: {
   try {
     result = await getVenueGateway(creds).charge({
       amount: { amount: Number(payment.amount), currency: "PHP" },
-      source,
       description: describe(lines),
       // The gateway's own idempotency header too, so a retried request after a
       // network blip doesn't become a second charge.
@@ -549,7 +506,23 @@ export async function refundBookingPayment(args: {
 
   const amount = Number(payment.amount);
   const creds = await loadGatewayCredentials(payment.gatewayId);
-  const result = await getVenueGateway(creds).refund(
+
+  let gateway;
+  try {
+    gateway = getVenueGateway(creds);
+  } catch (error) {
+    // A payment taken through a gateway this app no longer supports. There is
+    // nothing to call, and pretending otherwise would 500 a partner mid-refund.
+    if (error instanceof UnknownVenueGateway) {
+      return {
+        ok: false,
+        message: `${error.message} Refund it from that provider's own dashboard.`,
+      };
+    }
+    throw error;
+  }
+
+  const result = await gateway.refund(
     payment.providerPaymentId,
     { amount, currency: "PHP" },
     args.reason

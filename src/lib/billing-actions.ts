@@ -205,6 +205,23 @@ export async function setPaymentMethodAction(
     };
   }
 
+  const provider = getPaymentProvider();
+
+  // A hosted gateway can't store a card, and the form that used to collect one
+  // isn't rendered. Refused here too: a Server Action is a public endpoint, and
+  // letting it through would reach createPaymentMethod, which throws.
+  if (provider.checkout === "hosted") {
+    await prisma.subscription.update({
+      where: { id: sub.id },
+      data: { method: "CARD", autoRenew: false, version: { increment: 1 } },
+    });
+    revalidateBilling();
+    return {
+      success:
+        "Switched to card. We'll send you a secure PayMongo link each month — nothing is stored here and nothing is charged without you.",
+    };
+  }
+
   const cardParsed = CardSchema.safeParse({
     cardName: String(formData.get("cardName") ?? ""),
     cardNumber: String(formData.get("cardNumber") ?? ""),
@@ -214,7 +231,6 @@ export async function setPaymentMethodAction(
   });
   if (!cardParsed.success) return { errors: firstErrors(cardParsed.error) };
 
-  const provider = getPaymentProvider();
   let card;
   try {
     card = await provider.createPaymentMethod({
@@ -349,54 +365,4 @@ export async function resumeSubscriptionAction(
 
   revalidateBilling();
   return { success: "Subscription resumed." };
-}
-
-// The local stub checkout's Approve/Decline. Fake provider only — a real
-// gateway completes payments through its own hosted page and webhook.
-export async function simulateCheckoutAction(
-  _prev: BillingFormState,
-  formData: FormData
-): Promise<BillingFormState> {
-  const provider = getPaymentProvider();
-  if (provider.id !== "fake") return { message: "Not available." };
-
-  const partner = await requirePartner();
-  const paymentId = String(formData.get("paymentId") ?? "");
-  const approve = String(formData.get("outcome") ?? "") === "approve";
-
-  // Ownership in the where clause, like every other action here.
-  const payment = await prisma.payment.findFirst({
-    where: { id: paymentId, userId: partner.id },
-    select: { id: true, providerPaymentId: true, status: true },
-  });
-  if (!payment) return { message: "Payment not found." };
-  if (payment.status !== "PENDING") {
-    return { message: "That payment is already settled." };
-  }
-
-  // Go through the REAL webhook path so signature verification and replay
-  // protection are exercised, not bypassed.
-  const { signWebhookBody } = await import("@/lib/payments/fake");
-  const body = JSON.stringify({
-    eventId: `evt_${payment.id}_${approve ? "ok" : "fail"}`,
-    type: approve ? "payment.succeeded" : "payment.failed",
-    providerPaymentId: payment.providerPaymentId ?? `fake_pi_${payment.id}`,
-    reference: approve ? `fake_ref_${payment.id.slice(-8)}` : null,
-    failureCode: approve ? null : "declined_by_user",
-    failureMessage: approve ? null : "You declined the payment.",
-  });
-
-  const { handleProviderEvent } = await import("@/lib/billing-webhook");
-  const verified = await provider.verifyWebhook(
-    body,
-    new Headers({ "x-fake-signature": signWebhookBody(body) })
-  );
-  if (!verified) return { message: "Could not verify the payment." };
-
-  await handleProviderEvent("fake", verified, payment.id);
-
-  revalidateBilling();
-  return approve
-    ? { success: "Payment received. Your subscription is active." }
-    : { message: "Payment declined." };
 }

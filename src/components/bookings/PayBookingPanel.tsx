@@ -1,47 +1,40 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect } from "react";
 
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { RadioCards } from "@/components/ui/RadioCards";
 import {
   payForBookingAction,
   type PayBookingFormState,
 } from "@/lib/booking-payment-actions";
-import { BOOKING_PAYMENT_METHODS } from "@/lib/constants";
 import { formatPHP } from "@/lib/currency";
 
 const initial: PayBookingFormState = {};
 
+// One button. PayMongo hosts the form, so the player picks card, GCash or Maya
+// there — no method radio here, and no card fields anywhere in this app.
 export function PayBookingPanel({
   paymentId,
   amount,
   venueName,
-  hosted,
 }: {
   paymentId: string;
   amount: number;
   venueName: string;
-  // The gateway owns the payment form. We collect nothing — not the method,
-  // and certainly not a card number — and just hand the player over.
-  hosted: boolean;
 }) {
-  const [method, setMethod] = useState<string>("CARD");
   const [state, formAction, pending] = useActionState(
     payForBookingAction,
     initial
   );
 
-  // The gateway wants the payer to approve somewhere else. Sending the browser
-  // there is the whole point of the redirect leg — the hold keeps running
-  // while they're away, and the return URL comes straight back here.
+  // The hand-off. The hold keeps running while they're away, and PayMongo's
+  // return URL brings them straight back to this page.
   useEffect(() => {
     if (state.redirectUrl) window.location.href = state.redirectUrl;
   }, [state.redirectUrl]);
 
   return (
-    <form action={formAction} noValidate className="flex flex-col gap-4">
+    <form action={formAction} className="flex flex-col gap-4">
       <input type="hidden" name="paymentId" value={paymentId} />
 
       {state.message && (
@@ -61,77 +54,14 @@ export function PayBookingPanel({
         </p>
       )}
 
-      {hosted ? (
-        <p className="rounded-xl border border-gray-200 px-3 py-3 text-sm text-gray-600">
-          Pay by{" "}
-          <span className="font-medium text-gray-900">
-            card, GCash or Maya
-          </span>{" "}
-          on the next screen. You&apos;ll come straight back here — your hours
-          stay held while you pay.
-        </p>
-      ) : (
-        <RadioCards
-          name="method"
-          value={method}
-          onChange={setMethod}
-          error={state.errors?.method}
-          options={BOOKING_PAYMENT_METHODS.map((m) => ({
-            value: m.value,
-            label: m.label,
-          }))}
-        />
-      )}
-
-      {!hosted && method === "CARD" && (
-        <div className="flex flex-col gap-4 rounded-xl border border-gray-200 p-4">
-          <Input
-            label="Name on card"
-            name="cardName"
-            autoComplete="cc-name"
-            error={state.errors?.cardName}
-          />
-          <Input
-            label="Card number"
-            name="cardNumber"
-            inputMode="numeric"
-            autoComplete="cc-number"
-            placeholder="4242 4242 4242 4242"
-            error={state.errors?.cardNumber}
-          />
-          <div className="grid grid-cols-3 gap-3">
-            <Input
-              label="Month"
-              name="cardExpMonth"
-              inputMode="numeric"
-              placeholder="12"
-              error={state.errors?.cardExpMonth}
-            />
-            <Input
-              label="Year"
-              name="cardExpYear"
-              inputMode="numeric"
-              placeholder="2030"
-              error={state.errors?.cardExpYear}
-            />
-            <Input
-              label="CVC"
-              name="cardCvc"
-              inputMode="numeric"
-              autoComplete="cc-csc"
-              placeholder="123"
-              error={state.errors?.cardCvc}
-            />
-          </div>
-        </div>
-      )}
+      <p className="rounded-xl border border-gray-200 px-3 py-3 text-sm text-gray-600">
+        Pay by <span className="font-medium text-gray-900">card, GCash or
+        Maya</span> on the next screen. You&apos;ll come straight back here —
+        your hours stay held while you pay.
+      </p>
 
       <Button type="submit" disabled={pending}>
-        {pending
-          ? hosted
-            ? "Taking you to PayMongo…"
-            : "Paying…"
-          : `Pay ${formatPHP(amount)}`}
+        {pending ? "Taking you to PayMongo…" : `Pay ${formatPHP(amount)}`}
       </Button>
 
       <p className="text-center text-xs text-gray-400">

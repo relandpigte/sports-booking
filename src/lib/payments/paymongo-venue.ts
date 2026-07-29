@@ -53,7 +53,6 @@ export function paymongoVenueGateway(creds: GatewayCredentials): VenueGateway {
 
   return {
     id: "paymongo",
-    checkout: "hosted",
 
     async verifyCredentials() {
       // Shape first, because it costs nothing and catches the mistakes people

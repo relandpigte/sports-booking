@@ -141,37 +141,17 @@ export const BOOKING_PAYMENT_METHODS = [
   { value: "MAYA", label: "Maya" },
 ] as const;
 
-type VenueGatewayOption = {
-  value: string;
-  label: string;
-  hint: string;
-};
-
-// What a partner can actually pick. The simulated gateway is still a valid
-// provider — it's what the local flow and the verification scripts run on,
-// since PayMongo can't deliver a webhook to localhost — but it is never
-// offered in production. NODE_ENV is inlined at build time, so the string
-// doesn't even reach the production client bundle.
-export const VENUE_GATEWAYS: readonly VenueGatewayOption[] = [
+// The only gateway a partner can connect. There is no simulated option any
+// more: a payment either moves real money or fails honestly.
+export const VENUE_GATEWAYS = [
   {
     value: "paymongo",
     label: "PayMongo",
     hint: "Cards, GCash and Maya. Players pay on PayMongo's secure page and the money lands in your account.",
   },
-  ...(process.env.NODE_ENV === "production"
-    ? []
-    : [
-        {
-          value: "fake",
-          label: "Test gateway (simulated)",
-          hint: "Local development only. Exercises the whole flow end to end and takes no real money.",
-        },
-      ]),
-];
+] as const;
 
-// Both providers stay valid for parsing regardless of what's offered: a
-// gateway connected in development must still load in a preview build.
-export const VENUE_GATEWAY_VALUES = ["paymongo", "fake"] as const;
+export const VENUE_GATEWAY_VALUES = ["paymongo"] as const;
 
 // --- Billing ----------------------------------------------------------------
 
@@ -191,24 +171,25 @@ export const BILLING_NOTICE_DAYS = 3;
 
 export const PLAN_KEY_VALUES = ["STARTER", "PRO", "ELITE"] as const;
 
-// Only CARD auto-renews. The e-wallet hints below are shown to the partner
-// verbatim, because "we will never charge this automatically" is a promise the
-// product has to make out loud.
+// How the partner INTENDS to pay each month. Nothing renews automatically:
+// PayMongo can't auto-debit a saved card outside its Subscriptions API, so
+// every month is paid by opening a link. The hints say so out loud rather than
+// promising a convenience the product can't deliver.
 export const PAYMENT_METHODS = [
   {
     value: "CARD",
     label: "Credit or debit card",
-    hint: "Renews automatically each month. Cancel any time.",
+    hint: "We'll send you a secure link each month — nothing is charged without you.",
   },
   {
     value: "GCASH",
     label: "GCash",
-    hint: "We never charge your e-wallet automatically — we'll remind you to pay each month.",
+    hint: "We'll remind you to pay each month. Your wallet is never charged automatically.",
   },
   {
     value: "MAYA",
     label: "Maya",
-    hint: "We never charge your e-wallet automatically — we'll remind you to pay each month.",
+    hint: "We'll remind you to pay each month. Your wallet is never charged automatically.",
   },
 ] as const;
 

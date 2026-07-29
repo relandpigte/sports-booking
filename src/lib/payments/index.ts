@@ -1,23 +1,24 @@
 import "server-only";
 
-import { fakeProvider } from "./fake";
 import { paymongoProvider } from "./paymongo";
 import type { PaymentProvider } from "./types";
 
-// The gateway the PLATFORM bills through — partners paying Bunal.ph. Players
-// paying venues go through getVenueGateway instead, which is per-partner.
+// The gateway the PLATFORM bills through — partners paying Bunal.ph for their
+// monthly plan. Players paying venues go through getVenueGateway instead, which
+// uses each partner's own account.
 //
-// Still defaults to the stub: local development has no PayMongo keys and no
-// public URL for a webhook. Production sets PAYMENT_PROVIDER="paymongo".
+// PayMongo is the only implementation: there is no simulated provider any more,
+// so a payment either moves real money or fails honestly. Local development
+// therefore needs PAYMONGO_SECRET_KEY and a public https APP_URL for webhooks.
 export function getPaymentProvider(): PaymentProvider {
-  const id = process.env.PAYMENT_PROVIDER ?? "fake";
+  const id = process.env.PAYMENT_PROVIDER ?? "paymongo";
   switch (id) {
     case "paymongo":
       return paymongoProvider;
-    case "fake":
-      return fakeProvider;
     default:
-      throw new Error(`Unknown PAYMENT_PROVIDER: ${id}`);
+      throw new Error(
+        `Unknown PAYMENT_PROVIDER: ${id}. The only supported value is "paymongo".`
+      );
   }
 }
 

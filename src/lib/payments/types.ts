@@ -4,16 +4,17 @@
 // object to hang saved methods off, tokenize/attach/detach for card-on-file, a
 // charge that can come back succeeded / requires_action (3DS or an e-wallet
 // redirect) / pending, a poll for the return leg, a refund, and byte-exact
-// webhook verification. None of it is shaped around the fake implementation, so
-// dropping in PayMongo later is one new file plus one case in the registry.
+// webhook verification. Another gateway is one new file implementing this
+// interface plus one case in the registry.
 //
-// NOTE for that swap: with a real gateway, card data must be tokenized in the
-// BROWSER (e.g. PayMongo.js) so the PAN never reaches this server. The interface
-// already supports that — `createPaymentMethod` returns a ProviderMethod and
-// `charge` accepts `{ kind: "saved", methodId }` — so only the fake's
-// card-object branch goes away.
+// PayMongo is hosted, which makes three of these methods unimplementable:
+// card details never reach this server, so there is nothing to tokenize,
+// attach or detach. They throw rather than lying about it — see
+// UnsupportedByProvider — and every caller is behind a `checkout === "inline"`
+// branch that is currently unreachable. An inline gateway would light it up
+// again; the alternative was deleting the concept of card-on-file outright.
 
-export type ProviderId = "fake" | "paymongo";
+export type ProviderId = "paymongo";
 
 export type Money = { amount: number; currency: "PHP" };
 

@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { SubscriptionActions } from "@/components/admin/SubscriptionActions";
 import { listPartnerSubscriptions } from "@/lib/admin-billing";
-import { getPaymentProvider } from "@/lib/payments";
 import { formatPHP } from "@/lib/currency";
 import {
   PAYMENT_METHOD_LABELS,
@@ -36,7 +35,6 @@ export default async function AdminSubscriptionsPage() {
   // requireAdmin lives inside the DAL — this page has no guard of its own to
   // fall out of sync with.
   const { rows, summary } = await listPartnerSubscriptions();
-  const provider = getPaymentProvider();
 
   const stats = [
     { label: "Partners", value: String(summary.partners) },
@@ -62,14 +60,6 @@ export default async function AdminSubscriptionsPage() {
         </div>
       </div>
 
-      {provider.checkout !== "hosted" && (
-        <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-700">
-          Payment links are simulated: this server still has{" "}
-          <code>PAYMENT_PROVIDER=&quot;{provider.id}&quot;</code>. Set it to{" "}
-          <code>paymongo</code> to collect real money. Recording an offline
-          payment and comping work either way.
-        </p>
-      )}
 
       <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {stats.map((s) => (

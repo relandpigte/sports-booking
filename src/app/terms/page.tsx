@@ -2,16 +2,16 @@ import type { Metadata } from "next";
 import { LegalLayout, LegalSection } from "@/components/LegalLayout";
 
 export const metadata: Metadata = {
-  title: "Terms & Conditions — Sports 360",
-  description: "The terms and conditions for using the Sports 360 app.",
+  title: "Terms & Conditions — Bunal.ph",
+  description: "The terms and conditions for using the Bunal.ph app.",
 };
 
 export default function TermsPage() {
   return (
     <LegalLayout title="Terms & Conditions" updated="June 4, 2026">
       <p>
-        Welcome to Sports 360. These Terms &amp; Conditions (&quot;Terms&quot;)
-        govern your access to and use of the Sports 360 application and related
+        Welcome to Bunal.ph. These Terms &amp; Conditions (&quot;Terms&quot;)
+        govern your access to and use of the Bunal.ph application and related
         services (the &quot;Service&quot;). By creating an account or using the
         Service, you agree to be bound by these Terms.
       </p>
@@ -79,10 +79,10 @@ export default function TermsPage() {
         <p>
           Questions about these Terms? Reach us at{" "}
           <a
-            href="mailto:support@sports360.app"
+            href="mailto:support@bunal.ph"
             className="font-medium text-primary hover:underline"
           >
-            support@sports360.app
+            support@bunal.ph
           </a>
           .
         </p>

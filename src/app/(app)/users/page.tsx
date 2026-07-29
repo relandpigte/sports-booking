@@ -9,7 +9,7 @@ import { requireAdmin, listUsers, userCounts } from "@/lib/admin";
 import { ROLE_VALUES, ROLE_LABELS, SKILL_LEVELS } from "@/lib/constants";
 
 export const metadata: Metadata = {
-  title: "Manage Users — Sports 360",
+  title: "Manage Users — Bunal.ph",
 };
 
 const skillLabel = (value: string) =>
@@ -72,7 +72,7 @@ export default async function UsersPage({
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Manage Users</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Players and partners across Sports 360.
+            Players and partners across Bunal.ph.
           </p>
         </div>
         <Link

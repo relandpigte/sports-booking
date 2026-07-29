@@ -9,7 +9,7 @@ import { formatPHP } from "@/lib/currency";
 import { PAYMENT_METHOD_LABELS } from "@/lib/constants";
 
 export const metadata: Metadata = {
-  title: "Confirm payment — Sports 360",
+  title: "Confirm payment — Bunal.ph",
 };
 
 // Stands in for the gateway's hosted e-wallet page. Approving here posts a

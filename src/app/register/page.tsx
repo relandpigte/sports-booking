@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import Link from "next/link";
-import { Logo } from "@/components/Logo";
+import { AuthLayout } from "@/components/AuthLayout";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
@@ -22,31 +22,15 @@ export default function RegisterPage() {
   const [agreed, setAgreed] = useState(false);
 
   return (
-    <main className="min-h-screen bg-white px-4 py-8 sm:py-12">
-      <div className="mx-auto w-full max-w-md">
-        <div className="flex flex-col items-center gap-4 text-center">
-          <Logo />
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Player Registration
-            </h1>
-            <p className="mt-1 text-sm text-gray-500">
-              Play. Book. Connect. All in one app.
-            </p>
-          </div>
-        </div>
-
-        <Link href="/login" className="mt-6 block">
-          <Button type="button">Already have an account? Log In</Button>
-        </Link>
-        <p className="mt-3 text-center text-sm text-gray-400">
-          Or create an account here
-        </p>
-
+    <AuthLayout
+      title="Create your player account"
+      subtitle="Free to join. Book courts across Bohol in a few taps."
+    >
+      <>
         <form
           action={formAction}
           noValidate
-          className="mt-4 rounded-2xl border border-gray-200 p-5 sm:p-6"
+          className="rounded-2xl border border-gray-200 p-5 shadow-sm sm:p-6"
         >
           {state.message && (
             <p
@@ -183,16 +167,25 @@ export default function RegisterPage() {
           </div>
         </form>
 
-        <p className="mt-6 text-center text-sm text-gray-500">
+        <p className="mt-5 text-center text-sm text-gray-500">
+          Already have an account?{" "}
+          <Link
+            href="/login"
+            className="font-semibold text-primary hover:underline"
+          >
+            Log in
+          </Link>
+        </p>
+        <p className="mt-1.5 text-center text-sm text-gray-400">
           Running a venue or club?{" "}
           <Link
             href="/register/partner"
-            className="font-medium text-primary hover:underline"
+            className="font-medium text-navy hover:underline"
           >
             Register as a partner
           </Link>
         </p>
-      </div>
-    </main>
+      </>
+    </AuthLayout>
   );
 }

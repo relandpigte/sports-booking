@@ -109,7 +109,7 @@ export function PartnerRegisterForm({ plans }: { plans: PlanView[] }) {
           }))}
         />
         <p className="rounded-lg bg-green-50 px-3 py-2 text-xs text-green-700">
-          {TRIAL_DAYS} days free — you won&apos;t be charged today.
+          {`${TRIAL_DAYS} days free — you won't be charged today.`}
         </p>
       </div>
 

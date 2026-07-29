@@ -8,7 +8,7 @@ import { BookingCard } from "@/components/bookings/BookingCard";
 import { manilaNowHour, manilaToday } from "@/lib/time";
 
 export const metadata: Metadata = {
-  title: "Hub Bookings — Sports 360",
+  title: "Hub Bookings — Bunal.ph",
 };
 
 export default async function HubBookingsPage({

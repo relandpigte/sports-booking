@@ -7,7 +7,7 @@ import { userCounts } from "@/lib/admin";
 import { dashboardHomeFor } from "@/lib/dashboard";
 
 export const metadata: Metadata = {
-  title: "Admin Home — Sports 360",
+  title: "Admin Home — Bunal.ph",
 };
 
 export default async function AdminDashboardPage() {

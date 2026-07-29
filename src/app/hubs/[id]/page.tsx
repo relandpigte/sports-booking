@@ -24,7 +24,7 @@ export async function generateMetadata({
   const { id } = await params;
   const hub = await getPublicHub(id);
   return {
-    title: hub ? `${hub.name} — Sports 360` : "Hub — Sports 360",
+    title: hub ? `${hub.name} — Bunal.ph` : "Hub — Bunal.ph",
     description: hub?.about ?? undefined,
   };
 }
@@ -114,7 +114,7 @@ export default async function PublicHubPage({
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-gray-500">Sports 360 hub</p>
+              <p className="text-sm text-gray-500">Bunal.ph hub</p>
             )}
           </div>
         </div>

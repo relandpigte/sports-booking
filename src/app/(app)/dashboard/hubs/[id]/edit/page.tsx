@@ -6,7 +6,7 @@ import { getMyHub } from "@/lib/hubs";
 import { requireEntitledPartner } from "@/lib/billing";
 
 export const metadata: Metadata = {
-  title: "Edit Hub — Sports 360",
+  title: "Edit Hub — Bunal.ph",
 };
 
 export default async function EditHubPage({

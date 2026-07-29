@@ -5,7 +5,7 @@ import { EditUserForm } from "@/components/admin/EditUserForm";
 import { requireAdmin, getUserById } from "@/lib/admin";
 
 export const metadata: Metadata = {
-  title: "Edit User — Manage Users — Sports 360",
+  title: "Edit User — Manage Users — Bunal.ph",
 };
 
 export default async function EditUserPage({

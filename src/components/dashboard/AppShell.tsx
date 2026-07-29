@@ -33,14 +33,16 @@ export function AppShell({
 }) {
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
-      <aside className="flex flex-col gap-5 border-b border-gray-200 p-4 md:sticky md:top-0 md:h-screen md:w-64 md:shrink-0 md:border-b-0 md:border-r">
+      {/* Tinted rather than white, so the sidebar reads as chrome and the page
+          beside it reads as content. */}
+      <aside className="flex flex-col gap-5 border-b border-gray-200 bg-gray-50/70 p-4 md:sticky md:top-0 md:h-screen md:w-64 md:shrink-0 md:border-b-0 md:border-r">
         <Link href="/dashboard" aria-label="Home">
-          <Logo />
+          <Logo size={38} />
         </Link>
 
         <DashboardNav role={user.role} />
 
-        <div className="mt-auto flex items-center justify-between gap-2 border-t border-gray-100 pt-4">
+        <div className="mt-auto flex items-center justify-between gap-2 border-t border-gray-200 pt-4">
           <div className="flex min-w-0 items-center gap-2.5">
             <Avatar
               src={user.image}

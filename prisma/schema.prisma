@@ -1,4 +1,4 @@
-// Prisma schema for Sports 360
+// Prisma schema for Bunal.ph
 // Models follow the Auth.js (NextAuth) Prisma adapter conventions, extended
 // with the player-profile fields captured during registration.
 // Docs: https://authjs.dev/getting-started/adapters/prisma

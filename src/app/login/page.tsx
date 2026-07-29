@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import Link from "next/link";
-import { Logo } from "@/components/Logo";
+import { AuthLayout } from "@/components/AuthLayout";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { loginAction, type AuthFormState } from "@/lib/actions";
@@ -16,22 +16,15 @@ export default function LoginPage() {
   );
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-white px-4 py-8">
-      <div className="w-full max-w-md">
-        <div className="flex flex-col items-center gap-4 text-center">
-          <Logo />
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Welcome Back</h1>
-            <p className="mt-1 text-sm text-gray-500">
-              Play. Book. Connect. All in one app.
-            </p>
-          </div>
-        </div>
-
+    <AuthLayout
+      title="Welcome back"
+      subtitle="Log in to book a court or manage your venue."
+    >
+      <>
         <form
           action={formAction}
           noValidate
-          className="mt-6 rounded-2xl border border-gray-200 p-5 sm:p-6"
+          className="rounded-2xl border border-gray-200 p-5 shadow-sm sm:p-6"
         >
           <div className="flex flex-col gap-4">
             {state.message && (
@@ -75,11 +68,23 @@ export default function LoginPage() {
 
         <p className="mt-5 text-center text-sm text-gray-500">
           Don&apos;t have an account?{" "}
-          <Link href="/register" className="font-semibold text-primary hover:underline">
+          <Link
+            href="/register"
+            className="font-semibold text-primary hover:underline"
+          >
             Create one here
           </Link>
         </p>
-      </div>
-    </main>
+        <p className="mt-1.5 text-center text-sm text-gray-400">
+          Running a venue?{" "}
+          <Link
+            href="/register/partner"
+            className="font-medium text-navy hover:underline"
+          >
+            List it on Bunal.ph
+          </Link>
+        </p>
+      </>
+    </AuthLayout>
   );
 }

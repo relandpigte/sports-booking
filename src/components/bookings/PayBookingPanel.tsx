@@ -116,7 +116,7 @@ export function PayBookingPanel({
       </Button>
 
       <p className="text-center text-xs text-gray-400">
-        This payment goes directly to {venueName}. Sports 360 takes no cut.
+        This payment goes directly to {venueName}. Bunal.ph takes no cut.
       </p>
     </form>
   );

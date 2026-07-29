@@ -4,7 +4,7 @@ import { CreateUserForm } from "@/components/admin/CreateUserForm";
 import { requireAdmin } from "@/lib/admin";
 
 export const metadata: Metadata = {
-  title: "New User — Manage Users — Sports 360",
+  title: "New User — Manage Users — Bunal.ph",
 };
 
 export default async function NewUserPage() {

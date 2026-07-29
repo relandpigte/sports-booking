@@ -11,7 +11,7 @@ import { SUBSCRIPTION_STATUS_LABELS } from "@/lib/constants";
 import { dashboardHomeFor } from "@/lib/dashboard";
 
 export const metadata: Metadata = {
-  title: "Partner Home — Sports 360",
+  title: "Partner Home — Bunal.ph",
 };
 
 const STATUS_TONE: Record<SubscriptionStatus, BadgeTone> = {

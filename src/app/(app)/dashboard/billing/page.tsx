@@ -22,7 +22,7 @@ import {
 import type { SubscriptionStatus } from "@prisma/client";
 
 export const metadata: Metadata = {
-  title: "Billing — Sports 360",
+  title: "Billing — Bunal.ph",
 };
 
 const STATUS_TONE: Record<SubscriptionStatus, BadgeTone> = {
@@ -193,7 +193,7 @@ export default async function BillingPage() {
       </div>
 
       {/* The other direction of money. Everything above is what this partner
-          pays Sports 360; everything below is what players pay the partner.
+          pays Bunal.ph; everything below is what players pay the partner.
           Kept visually apart on purpose — the two must not read as one thing. */}
       <div className="mt-10 border-t border-gray-200 pt-8">
         <GatewayPanel gateway={gateway} />

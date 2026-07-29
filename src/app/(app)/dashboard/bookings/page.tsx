@@ -7,7 +7,7 @@ import { listMyBookings } from "@/lib/bookings";
 import { BookingCard } from "@/components/bookings/BookingCard";
 
 export const metadata: Metadata = {
-  title: "Bookings — Sports 360",
+  title: "Bookings — Bunal.ph",
 };
 
 export default async function BookingsPage() {

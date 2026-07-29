@@ -108,8 +108,8 @@ export function DashboardNav({ role }: { role?: Role }) {
   const linkClass = (active: boolean) =>
     `flex items-center gap-3 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
       active
-        ? "bg-primary-soft text-primary"
-        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+        ? "bg-primary-soft font-semibold text-primary"
+        : "text-gray-600 hover:bg-white hover:text-navy"
     }`;
 
   const visibleItems = items

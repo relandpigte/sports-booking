@@ -2,12 +2,29 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #1f2937;
+  --foreground: #14202c;
 
-  /* Brand */
-  --color-primary: #e97c3c;
-  --color-primary-hover: #dc6c28;
-  --color-primary-soft: #fdf2ea;
+  /* Brand — taken from the Bunal.ph badge: the navy shield, the pitch-green
+     rings, the lime ".PH", and the water behind the players. */
+  --color-primary: #16803c;
+  --color-primary-hover: #0f6330;
+  --color-primary-soft: #e9f5ec;
+
+  /* The lime. Bright enough to carry the energy of the badge and far too
+     bright to put text on white with — it is a surface and an accent, never a
+     text colour. */
+  --color-accent: #a3ce3c;
+  --color-accent-soft: #f3f9e3;
+
+  /* The shield. Dark surfaces and the wordmark. */
+  --color-navy: #10243a;
+  --color-navy-hover: #1b3a5c;
+  --color-navy-soft: #eaeff5;
+
+  /* The water. Informational rather than success states, so the green keeps
+     meaning "this worked". */
+  --color-ocean: #2b87b8;
+  --color-ocean-soft: #e8f4fa;
 }
 
 @theme inline {
@@ -16,6 +33,13 @@
   --color-primary: var(--color-primary);
   --color-primary-hover: var(--color-primary-hover);
   --color-primary-soft: var(--color-primary-soft);
+  --color-accent: var(--color-accent);
+  --color-accent-soft: var(--color-accent-soft);
+  --color-navy: var(--color-navy);
+  --color-navy-hover: var(--color-navy-hover);
+  --color-navy-soft: var(--color-navy-soft);
+  --color-ocean: var(--color-ocean);
+  --color-ocean-soft: var(--color-ocean-soft);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -24,4 +48,11 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+/* One focus ring for the whole app rather than each control inventing its own.
+   :focus-visible, not :focus — a mouse click shouldn't leave a ring behind. */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }

@@ -1,18 +1,37 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 
+// The signed-out header. Sticky, because the hub list is long and "log in" is
+// the one thing a visitor is most likely to want halfway down it.
 export function PublicTopBar() {
   return (
-    <header className="flex items-center justify-between border-b border-gray-100 px-4 py-3 sm:px-6">
-      <Link href="/hubs" aria-label="Browse hubs">
-        <Logo />
-      </Link>
-      <Link
-        href="/login"
-        className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-      >
-        Log in
-      </Link>
+    <header className="sticky top-0 z-30 border-b border-gray-100 bg-white/85 backdrop-blur-md">
+      <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        <Link href="/hubs" aria-label="Bunal.ph home">
+          <Logo size={38} />
+        </Link>
+
+        <div className="flex items-center gap-2">
+          <Link
+            href="/hubs"
+            className="hidden rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-navy sm:block"
+          >
+            Browse hubs
+          </Link>
+          <Link
+            href="/login"
+            className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-navy"
+          >
+            Log in
+          </Link>
+          <Link
+            href="/register"
+            className="rounded-lg bg-primary px-3.5 py-1.5 text-sm font-semibold text-white shadow-sm shadow-primary/20 transition-colors hover:bg-primary-hover"
+          >
+            Sign up
+          </Link>
+        </div>
+      </div>
     </header>
   );
 }

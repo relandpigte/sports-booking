@@ -13,8 +13,24 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Sports 360 — Play. Book. Connect.",
-  description: "Book pickleball courts and join games. All in one app.",
+  metadataBase: new URL("https://bunal.ph"),
+  title: {
+    default: "Bunal.ph — Play. Compete. Connect.",
+    // Every page already sets its own "X — Bunal.ph", so no template here.
+    template: "%s",
+  },
+  description:
+    "Book volleyball, badminton and pickleball courts across Bohol. Find a hub, pick your hours, and pay the venue directly.",
+  openGraph: {
+    title: "Bunal.ph — Play. Compete. Connect.",
+    description:
+      "Book volleyball, badminton and pickleball courts across Bohol.",
+    url: "https://bunal.ph",
+    siteName: "Bunal.ph",
+    images: ["/bunal-logo.png"],
+    locale: "en_PH",
+    type: "website",
+  },
 };
 
 export default function RootLayout({

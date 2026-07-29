@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/dal";
 import { PlaceholderSection } from "@/components/dashboard/PlaceholderSection";
 
 export const metadata: Metadata = {
-  title: "Tournaments — Sports 360",
+  title: "Tournaments — Bunal.ph",
 };
 
 export default async function TournamentsPage() {

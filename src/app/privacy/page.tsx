@@ -2,21 +2,21 @@ import type { Metadata } from "next";
 import { LegalLayout, LegalSection } from "@/components/LegalLayout";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — Sports 360",
-  description: "How Sports 360 collects, uses, and protects your data.",
+  title: "Privacy Policy — Bunal.ph",
+  description: "How Bunal.ph collects, uses, and protects your data.",
 };
 
 export default function PrivacyPage() {
   return (
     <LegalLayout title="Privacy Policy" updated="June 4, 2026">
       <p>
-        This Privacy Policy explains how Sports 360 (&quot;we&quot;,
+        This Privacy Policy explains how Bunal.ph (&quot;we&quot;,
         &quot;us&quot;) collects, uses, and protects your personal information
         when you use our application and services.
       </p>
 
       <LegalSection heading="1. Information we collect">
-        <p>When you register and use Sports 360, we collect:</p>
+        <p>When you register and use Bunal.ph, we collect:</p>
         <ul className="list-disc pl-5">
           <li>
             <span className="font-medium text-gray-800">Account details</span> —
@@ -82,10 +82,10 @@ export default function PrivacyPage() {
           export, or delete your personal data. To exercise these rights, contact
           us at{" "}
           <a
-            href="mailto:privacy@sports360.app"
+            href="mailto:privacy@bunal.ph"
             className="font-medium text-primary hover:underline"
           >
-            privacy@sports360.app
+            privacy@bunal.ph
           </a>
           .
         </p>

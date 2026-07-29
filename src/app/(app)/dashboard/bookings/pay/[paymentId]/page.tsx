@@ -15,7 +15,7 @@ import { formatManilaDate, formatSlotRange } from "@/lib/time";
 import { PAYMENT_METHOD_LABELS } from "@/lib/constants";
 
 export const metadata: Metadata = {
-  title: "Complete payment — Sports 360",
+  title: "Complete payment — Bunal.ph",
 };
 
 // One page, four states: pay, approve, paid, and the hold that ran out.

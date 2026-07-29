@@ -76,7 +76,7 @@ export function CancelBookingButton({
           />
           <span>
             Refund {amountLabel ?? "the payment"} in full. The money goes back
-            from your gateway, not from Sports 360.
+            from your gateway, not from Bunal.ph.
           </span>
         </label>
       )}

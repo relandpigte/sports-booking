@@ -4,7 +4,7 @@ import { HubForm } from "@/components/dashboard/hubs/HubForm";
 import { requireEntitledPartner } from "@/lib/billing";
 
 export const metadata: Metadata = {
-  title: "New Hub — Sports 360",
+  title: "New Hub — Bunal.ph",
 };
 
 export default async function NewHubPage() {

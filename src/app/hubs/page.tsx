@@ -6,7 +6,7 @@ import { listPublicHubs } from "@/lib/hubs";
 import { GAMES, GAME_VALUES, GAME_LABELS, type Game } from "@/lib/constants";
 
 export const metadata: Metadata = {
-  title: "Find a Hub — Sports 360",
+  title: "Find a Hub — Bunal.ph",
   description: "Browse pickleball, tennis, and other court-game hubs near you.",
 };
 
@@ -25,11 +25,25 @@ export default async function HubsDirectoryPage({
 
   return (
     <PageShell maxWidth="max-w-5xl">
-        <div className="mt-6">
-          <h1 className="text-2xl font-bold text-gray-900">Find a Hub</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Browse venues and clubs by court game.
-          </p>
+        {/* The badge's navy, used once at the top of the page rather than
+            everywhere — it frames the list without competing with it. */}
+        <div className="relative mt-6 overflow-hidden rounded-2xl bg-navy px-6 py-8 sm:px-8 sm:py-10">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-primary/30 blur-3xl"
+          />
+          <div className="relative">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent">
+              Bohol · Philippines
+            </p>
+            <h1 className="mt-2 text-2xl font-extrabold text-white sm:text-3xl">
+              Find a court, book it in seconds
+            </h1>
+            <p className="mt-2 max-w-lg text-sm text-white/70">
+              Volleyball, badminton and pickleball hubs near you — pick the
+              hours you want and they&apos;re yours.
+            </p>
+          </div>
         </div>
 
         {/* Category filters */}

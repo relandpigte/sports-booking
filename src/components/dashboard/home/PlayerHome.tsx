@@ -47,7 +47,7 @@ export function PlayerHome({
           Welcome back, {user.playerName ?? user.name ?? "Player"}
         </h1>
         <p className="mt-1 text-sm text-gray-500">
-          Play. Book. Connect. All in one app.
+          Play. Compete. Connect. Bohol’s courts, in one app.
         </p>
       </div>
 
@@ -56,9 +56,9 @@ export function PlayerHome({
           <Link
             key={s.label}
             href={s.href}
-            className="rounded-2xl border border-gray-200 p-4 transition-colors hover:border-gray-300"
+            className="rounded-2xl border border-gray-200 p-4 transition-all hover:border-primary/30 hover:shadow-md hover:shadow-navy/5"
           >
-            <p className="text-2xl font-bold text-gray-900">{s.value}</p>
+            <p className="text-2xl font-bold text-navy">{s.value}</p>
             <p className="mt-0.5 text-sm text-gray-500">{s.label}</p>
           </Link>
         ))}
@@ -66,14 +66,18 @@ export function PlayerHome({
 
       <Link
         href="/hubs"
-        className="mt-6 block rounded-2xl border border-gray-200 p-5 transition-colors hover:border-gray-300"
+        className="relative mt-6 block overflow-hidden rounded-2xl bg-navy p-5 transition-transform hover:-translate-y-0.5 sm:p-6"
       >
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-base font-semibold text-gray-900">Find a Hub</h2>
-          <span className="text-sm font-medium text-primary">Browse →</span>
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-primary/30 blur-3xl"
+        />
+        <div className="relative flex items-center justify-between gap-2">
+          <h2 className="text-base font-semibold text-white">Find a hub</h2>
+          <span className="text-sm font-medium text-accent">Browse →</span>
         </div>
-        <p className="mt-1 text-sm text-gray-500">
-          Discover pickleball, tennis, and other court-game venues near you.
+        <p className="relative mt-1 text-sm text-white/70">
+          Volleyball, badminton and pickleball venues across Bohol.
         </p>
       </Link>
 

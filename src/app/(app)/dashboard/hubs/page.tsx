@@ -5,7 +5,7 @@ import { DeleteHubButton } from "@/components/dashboard/hubs/DeleteHubButton";
 import { listMyHubs } from "@/lib/hubs";
 
 export const metadata: Metadata = {
-  title: "My Hubs — Sports 360",
+  title: "My Hubs — Bunal.ph",
 };
 
 export default async function HubsPage() {

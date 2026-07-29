@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/dal";
 import { AccountForm } from "@/components/dashboard/AccountForm";
 
 export const metadata: Metadata = {
-  title: "Account Settings — Sports 360",
+  title: "Account Settings — Bunal.ph",
 };
 
 export default async function AccountPage() {

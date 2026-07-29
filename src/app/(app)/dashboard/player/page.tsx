@@ -7,7 +7,7 @@ import { countMyUpcomingBookings, getMyNextBooking } from "@/lib/bookings";
 import { dashboardHomeFor } from "@/lib/dashboard";
 
 export const metadata: Metadata = {
-  title: "Home — Sports 360",
+  title: "Home — Bunal.ph",
 };
 
 export default async function PlayerDashboardPage() {

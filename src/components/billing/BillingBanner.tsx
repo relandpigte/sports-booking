@@ -44,9 +44,6 @@ export async function BillingBanner() {
     if (sub.status === "PAST_DUE" && endsAt) {
       return `Service fees are due. Your hubs stay listed until ${longDate(endsAt)}.`;
     }
-    if (sub.status === "TRIALING" && endsAt) {
-      return `Your free trial ends ${longDate(endsAt)}.`;
-    }
     if (sub.cancelAtPeriodEnd && endsAt) {
       return `Your subscription ends ${longDate(endsAt)}.`;
     }

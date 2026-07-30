@@ -121,9 +121,15 @@ When that prints objects instead of 403s, the printed JSON is the shape the
 subscriptions adapter should be written against. Until then, collection is the
 three manual actions above.
 
-Trial length, grace window and retry cadence are constants in
-`src/lib/constants.ts` (`TRIAL_DAYS`, `GRACE_DAYS`). Every piece of copy reads
-them, so changing the number changes the product.
+The fee rate and the grace window are constants in `src/lib/constants.ts`
+(`PLATFORM_FEE_RATE`, `GRACE_DAYS`). Every surface reads them — the booking
+grid, the pay page, the ledger and the invoice — so changing the number changes
+the product, and the quote a player sees can never disagree with the bill a
+venue gets.
+
+There is **no trial**: joining is free, so there is nothing to trial. A new
+partner starts ACTIVE with a one-month billing period, and most months that
+period closes with ₱0 accrued and no invoice raised at all.
 
 ## 5. What a partner has to do
 
@@ -147,7 +153,8 @@ curl -X POST -H "Authorization: Bearer $BILLING_SWEEP_SECRET" https://bunal.ph/a
 curl -X POST -H "Authorization: Bearer $BOOKING_SWEEP_SECRET" https://bunal.ph/api/bookings/sweep
 ```
 
-The first ends trials and moves lapsed subscriptions through grace. The second
+The first closes billing periods and moves lapsed subscriptions through grace,
+raising an invoice only when service fees actually accrued. The second
 tidies expired booking holds.
 
 Neither is load-bearing for correctness, and that is deliberate: entitlement and

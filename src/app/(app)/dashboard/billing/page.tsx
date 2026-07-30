@@ -52,19 +52,18 @@ export default async function BillingPage() {
   const gateway = await getGatewayView(partner.id);
 
   const dateLine = (() => {
-    if (sub.status === "TRIALING" && sub.trialEndsAt) {
-      return `Free trial ends ${longDate(sub.trialEndsAt)}`;
-    }
-    if (sub.status === "ACTIVE") {
+    // TRIALING can only be a row written before joining became free. Nothing
+    // creates one any more, and it reads as active because it is.
+    if (sub.status === "TRIALING" || sub.status === "ACTIVE") {
       return sub.cancelAtPeriodEnd
-        ? `Cancels ${longDate(sub.currentPeriodEnd)}`
-        : `${sub.autoRenew ? "Renews" : "Due"} ${longDate(sub.currentPeriodEnd)}`;
+        ? `Closes ${longDate(sub.currentPeriodEnd)}`
+        : `Next invoice ${longDate(sub.currentPeriodEnd)}`;
     }
     if (sub.status === "PAST_DUE" && sub.graceEndsAt) {
-      return `Access ends ${longDate(sub.graceEndsAt)} — pay to keep your hubs listed`;
+      return `Service fees due — your hubs stay listed until ${longDate(sub.graceEndsAt)}`;
     }
     if (sub.status === "UNPAID") return "Your hubs are unlisted until you pay";
-    return "Subscription ended";
+    return "Closed";
   })();
 
   const renewalLine = sub.autoRenew

@@ -12,10 +12,19 @@
 // Court limits disappear as a side effect, and deliberately: checkCourtLimit
 // already returns ok when maxCourts is null, so setting it null on the free
 // plan removes the cap without touching that code.
+//
+// The trial goes the same way. There is nothing to trial when joining is free,
+// so an existing TRIALING row becomes ACTIVE with a normal billing period. The
+// enum value survives — a historical row can still be read — but nothing
+// creates one again.
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 const apply = process.argv.includes("apply");
+
+const now = new Date();
+const monthFromNow = new Date(now);
+monthFromNow.setUTCMonth(monthFromNow.getUTCMonth() + 1);
 
 async function main() {
   const plans = await prisma.plan.findMany({ orderBy: { sortOrder: "asc" } });
@@ -36,6 +45,11 @@ async function main() {
     where: { venueAmount: 0, platformFee: 0 },
   });
 
+  const trialing = await prisma.subscription.findMany({
+    where: { status: "TRIALING" },
+    select: { id: true },
+  });
+
   console.log(`Free plan:      ${free.key} "${free.name}" → "Free", ₱0, unlimited courts`);
   console.log(`Retiring:       ${retired.map((p) => p.key).join(", ") || "none"}`);
   console.log(`Subscriptions:  ${moving.length} of ${subs.length} move onto the free plan`);
@@ -44,6 +58,9 @@ async function main() {
   );
   console.log(
     `Pre-fee splits: ${unsplit} booking payment(s) get venueAmount = amount, fee ₱0`
+  );
+  console.log(
+    `Trials:         ${trialing.length} TRIALING → ACTIVE, one month from now`
   );
 
   if (!apply) {
@@ -79,6 +96,17 @@ async function main() {
       SET "venueAmount" = "amount"
       WHERE "venueAmount" = 0 AND "platformFee" = 0
     `,
+    // Nobody loses anything: the trial was free and so is what replaces it.
+    prisma.subscription.updateMany({
+      where: { status: "TRIALING" },
+      data: {
+        status: "ACTIVE",
+        trialEndsAt: null,
+        currentPeriodStart: now,
+        currentPeriodEnd: monthFromNow,
+        graceEndsAt: null,
+      },
+    }),
   ]);
 
   console.log("\n✓ Applied.");

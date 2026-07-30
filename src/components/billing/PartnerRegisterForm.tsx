@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { AvatarUpload } from "@/components/ui/AvatarUpload";
 import { registerPartnerAction, type AuthFormState } from "@/lib/actions";
-import { PLATFORM_FEE_RATE, TRIAL_DAYS } from "@/lib/constants";
+import { PLATFORM_FEE_RATE } from "@/lib/constants";
 
 const initialState: AuthFormState = {};
 
@@ -122,7 +122,7 @@ export function PartnerRegisterForm() {
       )}
 
       <Button type="submit" disabled={pending} className="mt-6">
-        {pending ? "Creating account…" : `Start ${TRIAL_DAYS}-day free trial`}
+        {pending ? "Creating account…" : "Create partner account"}
       </Button>
     </form>
   );

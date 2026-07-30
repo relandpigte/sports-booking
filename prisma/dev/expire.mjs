@@ -1,10 +1,13 @@
 // Dev-only clock back-dater. Never imported by the app.
 //
-// Testing a 14-day trial or a monthly renewal shouldn't mean waiting — this
-// drags a subscription's deadlines into the past so the next page load runs the
+// Testing a monthly billing period shouldn't mean waiting — this drags a
+// subscription's deadlines into the past so the next page load runs the
 // transition you want to see.
 //
-//   node prisma/dev/expire.mjs <email> trial    # end the free trial now
+// There is no trial any more (joining is free), but the mode is kept for the
+// historical rows that still carry a trialEndsAt.
+//
+//   node prisma/dev/expire.mjs <email> trial    # end a legacy trial now
 //   node prisma/dev/expire.mjs <email> period   # end the paid period now
 //   node prisma/dev/expire.mjs <email> grace    # end the grace window now
 //   node prisma/dev/expire.mjs <email> retry    # make a card retry due now

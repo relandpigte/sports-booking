@@ -82,8 +82,9 @@ async function seedPlans() {
 // listing filter requires one to EXIST, so without this their hubs would vanish
 // from /hubs the moment this ships.
 //
-// They get a comped 12-month ACTIVE period rather than a trial: a trial would
-// silently unlist them in 14 days, which is the exact failure being prevented.
+// They get a comped 12-month ACTIVE period. Joining is free now and there is no
+// trial at all, but the long period is kept so a backfilled partner is never
+// the first to discover a billing edge.
 // autoRenew stays false so the state machine never tries to charge a card that
 // was never given.
 async function grandfatherExistingPartners() {

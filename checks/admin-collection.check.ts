@@ -86,7 +86,8 @@ async function main() {
           status: "PAST_DUE",
           method: "GCASH",
           autoRenew: false,
-          trialEndsAt: yesterday,
+          // No trial any more; the fixture is simply a period that has ended.
+          trialEndsAt: null,
           currentPeriodStart: new Date(Date.now() - 15 * 864e5),
           currentPeriodEnd: yesterday,
           graceEndsAt: new Date(Date.now() + 6 * 864e5),

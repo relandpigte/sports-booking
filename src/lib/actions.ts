@@ -16,8 +16,7 @@ import {
 } from "@/lib/validation";
 import { firstErrors } from "@/lib/zod-errors";
 import { freePlan } from "@/lib/billing";
-import { addDaysTo } from "@/lib/time";
-import { TRIAL_DAYS } from "@/lib/constants";
+import { addMonthsTo } from "@/lib/time";
 import type { PaymentMethodType } from "@prisma/client";
 
 export type AuthFormState = {
@@ -175,7 +174,10 @@ export async function registerPartnerAction(
   const method: PaymentMethodType = "GCASH";
 
   const now = new Date();
-  const trialEndsAt = addDaysTo(now, TRIAL_DAYS);
+  // No trial: there is nothing to trial. Joining is free, so a partner starts
+  // ACTIVE and their first billing period is simply the first month in which
+  // service fees might accrue.
+  const periodEnd = addMonthsTo(now, 1);
   const passwordHash = await bcrypt.hash(data.password, 10);
 
   const created = await prisma.$transaction(async (tx) => {
@@ -197,14 +199,14 @@ export async function registerPartnerAction(
       data: {
         userId: user.id,
         planId: plan.id,
-        status: "TRIALING",
+        status: "ACTIVE",
         method,
         // Nothing renews silently: an invoice is only raised when service fees
         // have actually accrued, and it is paid by opening a link.
         autoRenew: false,
-        trialEndsAt,
+        trialEndsAt: null,
         currentPeriodStart: now,
-        currentPeriodEnd: trialEndsAt,
+        currentPeriodEnd: periodEnd,
         provider: "paymongo",
       },
     });

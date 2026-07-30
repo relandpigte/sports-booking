@@ -176,10 +176,6 @@ export const VENUE_GATEWAY_VALUES = ["paymongo"] as const;
 
 // --- Billing ----------------------------------------------------------------
 
-// Free trial for a brand-new partner. No charge is taken at registration.
-// Every piece of copy reads this, so changing it here changes the product.
-export const TRIAL_DAYS = 7;
-
 // After a payment is missed, access survives this long before it's restricted.
 export const GRACE_DAYS = 7;
 
@@ -188,7 +184,7 @@ export const GRACE_DAYS = 7;
 export const RENEWAL_RETRY_DAYS = 3;
 export const MAX_RENEWAL_ATTEMPTS = 3;
 
-// Show the billing banner this many days before a renewal or trial end.
+// Show the billing banner this many days before a payment is due.
 export const BILLING_NOTICE_DAYS = 3;
 
 export const PLAN_KEY_VALUES = ["STARTER", "PRO", "ELITE"] as const;
@@ -222,6 +218,8 @@ export const PAYMENT_METHOD_LABELS: Record<string, string> = Object.fromEntries(
 );
 
 export const SUBSCRIPTION_STATUS_LABELS: Record<SubscriptionStatus, string> = {
+  // No new subscription is ever TRIALING — joining is free, so there is
+  // nothing to trial. The value survives for rows written before that changed.
   TRIALING: "Free trial",
   ACTIVE: "Active",
   PAST_DUE: "Payment due",

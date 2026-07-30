@@ -39,8 +39,8 @@ export default async function AdminSubscriptionsPage() {
   const stats = [
     { label: "Partners", value: String(summary.partners) },
     { label: "Active", value: String(summary.active) },
-    { label: "On trial", value: String(summary.trialing) },
-    { label: "Owing", value: String(summary.pastDue + summary.unpaid) },
+    { label: "Owing fees", value: String(summary.pastDue) },
+    { label: "Unlisted", value: String(summary.unpaid) },
   ];
 
   return (

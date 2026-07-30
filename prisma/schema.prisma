@@ -25,6 +25,11 @@ model User {
   email          String    @unique
   emailVerified  DateTime?
   phone          String?
+  // A venue's Facebook page, canonicalised to https://www.facebook.com/<page>
+  // by src/lib/social.ts. For most Philippine venues this is their whole web
+  // presence, so it is asked for at partner signup — optional, because
+  // requiring it would turn away a venue that hasn't made one.
+  facebookPage   String?
   image          String?
   passwordHash   String?
   role           Role      @default(PLAYER)

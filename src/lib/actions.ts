@@ -125,6 +125,7 @@ export async function registerPartnerAction(
     phone: String(formData.get("phone") ?? ""),
     password: String(formData.get("password") ?? ""),
     confirmPassword: String(formData.get("confirmPassword") ?? ""),
+    facebookPage: String(formData.get("facebookPage") ?? ""),
     agreed: formData.get("agreed") === "on",
   };
 
@@ -134,6 +135,9 @@ export async function registerPartnerAction(
     fullName: raw.fullName,
     email: raw.email,
     phone: raw.phone,
+    // The raw text, not the canonical URL: someone correcting a typo should see
+    // what they typed, not what we made of it.
+    facebookPage: raw.facebookPage,
   };
 
   const parsed = PartnerRegisterSchema.safeParse(raw);
@@ -189,6 +193,7 @@ export async function registerPartnerAction(
         playerName: data.fullName,
         email: data.email,
         phone: data.phone,
+        facebookPage: data.facebookPage ?? null,
         image: avatar.value,
         passwordHash,
       },
@@ -291,7 +296,9 @@ export async function updateProfileAction(
     name: String(formData.get("name") ?? ""),
     playerName: String(formData.get("playerName") ?? ""),
     phone: String(formData.get("phone") ?? ""),
+    facebookPage: String(formData.get("facebookPage") ?? ""),
     skillLevel: String(formData.get("skillLevel") ?? ""),
+
     privateProfile: formData.get("privateProfile") === "on",
   };
 
@@ -312,6 +319,12 @@ export async function updateProfileAction(
       name: data.name,
       playerName: data.playerName ?? null,
       phone: data.phone ?? null,
+      // Only written when the form actually carried the field. A player's
+      // account form has no Facebook input, and an absent field means "not
+      // submitted", never "cleared".
+      ...(formData.has("facebookPage")
+        ? { facebookPage: data.facebookPage ?? null }
+        : {}),
       skillLevel: data.skillLevel,
       privateProfile: data.privateProfile,
       image: avatar.value,

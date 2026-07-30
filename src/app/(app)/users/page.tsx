@@ -6,6 +6,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { RoleSelect } from "@/components/admin/RoleSelect";
 import { DeleteUserButton } from "@/components/admin/DeleteUserButton";
 import { requireAdmin, listUsers, userCounts } from "@/lib/admin";
+import { facebookPageLabel } from "@/lib/social";
 import { ROLE_VALUES, ROLE_LABELS, SKILL_LEVELS } from "@/lib/constants";
 
 export const metadata: Metadata = {
@@ -178,7 +179,21 @@ export default async function UsersPage({
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{u.email}</td>
+                  <td className="px-4 py-3 text-gray-600">
+                    {u.email}
+                    {/* A venue's Facebook page is how you check they are real
+                        before letting them take money. */}
+                    {u.facebookPage && (
+                      <a
+                        href={u.facebookPage}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-0.5 block truncate text-xs text-primary hover:underline"
+                      >
+                        {facebookPageLabel(u.facebookPage)}
+                      </a>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-gray-600">
                     {u.role === "PARTNER" ? "—" : skillLabel(u.skillLevel)}
                   </td>

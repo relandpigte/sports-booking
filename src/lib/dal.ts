@@ -49,6 +49,7 @@ export const getCurrentUser = cache(async () => {
       playerName: true,
       email: true,
       phone: true,
+      facebookPage: true,
       image: true,
       role: true,
       skillLevel: true,

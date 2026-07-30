@@ -25,6 +25,9 @@ export default function RegisterPage() {
     <AuthLayout
       title="Create your player account"
       subtitle="Free to join. Book courts across Bohol in a few taps."
+      // Same column as partner registration: both are long forms, and two
+      // sign-up pages that don't line up read as two different products.
+      width="max-w-2xl"
     >
       <>
         <form

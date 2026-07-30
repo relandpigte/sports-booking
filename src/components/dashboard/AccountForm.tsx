@@ -19,6 +19,7 @@ type ProfileUser = Pick<
   | "playerName"
   | "email"
   | "phone"
+  | "facebookPage"
   | "image"
   | "role"
   | "skillLevel"
@@ -86,6 +87,21 @@ export function AccountForm({ user }: { user: ProfileUser }) {
           defaultValue={user.skillLevel}
           options={[...SKILL_LEVELS]}
         />
+        {/* Only a venue has a page worth asking about. The action writes this
+            column only when the field was actually submitted, so a player's
+            form omitting it can never blank a stored value. */}
+        {user.role === "PARTNER" && (
+          <div className="sm:col-span-2">
+            <Input
+              label="Facebook page"
+              name="facebookPage"
+              placeholder="facebook.com/yourvenue"
+              defaultValue={user.facebookPage ?? ""}
+              autoComplete="off"
+              error={state.errors?.facebookPage}
+            />
+          </div>
+        )}
         <div className="flex flex-col gap-1.5">
           <span className="text-sm font-medium text-gray-800">Account type</span>
           <div className="flex h-[42px] items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-500">

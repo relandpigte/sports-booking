@@ -1,4 +1,6 @@
 import * as z from "zod";
+
+import { facebookPageUrl } from "@/lib/social";
 import {
   SKILL_LEVELS,
   ROLE_VALUES,
@@ -59,6 +61,19 @@ const optionalText = z
   .optional()
   .transform((v) => (v ? v : undefined));
 
+// A Facebook page in any of the shapes people actually paste, stored as one
+// canonical URL. Optional everywhere: a venue without a page is still a venue.
+const facebookPage = z
+  .string()
+  .trim()
+  .max(300)
+  .optional()
+  .transform((v) => (v ? facebookPageUrl(v) : undefined))
+  .refine((v) => v !== null, {
+    error: "Enter a Facebook page link, or leave it blank",
+  })
+  .transform((v) => v ?? undefined);
+
 export const AdminCreateUserSchema = z.object({
   name: z.string().trim().min(2, { error: "Name is required" }),
   email: z.email({ error: "Enter a valid email" }).trim().toLowerCase(),
@@ -90,6 +105,7 @@ export const ProfileSchema = z.object({
   name: z.string().trim().min(2, { error: "Name is required" }),
   playerName: optionalText,
   phone: optionalText,
+  facebookPage,
   skillLevel: z.enum(skillValues, { error: "Choose a skill level" }),
   privateProfile: z.boolean(),
 });
@@ -184,6 +200,7 @@ export const PartnerRegisterSchema = registerBase
       .string()
       .trim()
       .min(2, { error: "Business name is required" }),
+    facebookPage,
     // No plan and no payment method: joining is free, and the only money that
     // moves is the service fee a player pays on a booking. Both were dropped
     // rather than defaulted, so a stale form can't quietly pick a paid tier.

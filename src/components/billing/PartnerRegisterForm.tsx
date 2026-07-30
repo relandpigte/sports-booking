@@ -66,6 +66,21 @@ export function PartnerRegisterForm() {
           defaultValue={state.values?.phone ?? ""}
           error={state.errors?.phone}
         />
+        {/* Spans both columns: a URL in a half-width box is unreadable. */}
+        <div className="sm:col-span-2">
+          <Input
+            label="Facebook page (optional)"
+            name="facebookPage"
+            placeholder="facebook.com/yourvenue"
+            autoComplete="off"
+            defaultValue={state.values?.facebookPage ?? ""}
+            error={state.errors?.facebookPage}
+          />
+          <p className="mt-1 text-xs text-gray-400">
+            A link or just the page name — both work. Most players will look for
+            you here first.
+          </p>
+        </div>
         <Input
           label="Password"
           name="password"

@@ -16,6 +16,7 @@ const userListSelect = {
   playerName: true,
   email: true,
   phone: true,
+  facebookPage: true,
   image: true,
   role: true,
   skillLevel: true,
@@ -29,6 +30,7 @@ export type AdminUser = {
   playerName: string | null;
   email: string;
   phone: string | null;
+  facebookPage: string | null;
   image: string | null;
   role: Role;
   skillLevel: string;

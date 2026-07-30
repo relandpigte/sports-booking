@@ -13,14 +13,12 @@ import {
   RegisterSchema,
   ProfileSchema,
   PartnerRegisterSchema,
-  CardSchema,
 } from "@/lib/validation";
 import { firstErrors } from "@/lib/zod-errors";
-import { getPlanByKey } from "@/lib/billing";
-import { getPaymentProvider, type ProviderMethod } from "@/lib/payments";
+import { freePlan } from "@/lib/billing";
 import { addDaysTo } from "@/lib/time";
 import { TRIAL_DAYS } from "@/lib/constants";
-import type { PaymentMethodType, PlanKey } from "@prisma/client";
+import type { PaymentMethodType } from "@prisma/client";
 
 export type AuthFormState = {
   errors?: Record<string, string>;
@@ -128,20 +126,15 @@ export async function registerPartnerAction(
     phone: String(formData.get("phone") ?? ""),
     password: String(formData.get("password") ?? ""),
     confirmPassword: String(formData.get("confirmPassword") ?? ""),
-    planKey: String(formData.get("planKey") ?? ""),
-    paymentMethod: String(formData.get("paymentMethod") ?? ""),
     agreed: formData.get("agreed") === "on",
   };
 
-  // Echoed back so inputs survive a validation error. Card fields are
-  // deliberately absent — a card number must never round-trip through form state.
+  // Echoed back so inputs survive a validation error.
   const values = {
     businessName: raw.businessName,
     fullName: raw.fullName,
     email: raw.email,
     phone: raw.phone,
-    planKey: raw.planKey,
-    paymentMethod: raw.paymentMethod,
   };
 
   const parsed = PartnerRegisterSchema.safeParse(raw);
@@ -161,57 +154,25 @@ export async function registerPartnerAction(
     };
   }
 
-  const plan = await getPlanByKey(data.planKey as PlanKey);
-  if (!plan) return { errors: { planKey: "That plan is unavailable" }, values };
+  // Every partner lands on the single free plan. It exists so Subscription and
+  // Payment keep a valid planId and no history breaks — not because there is a
+  // choice to make.
+  const plan = await freePlan();
+  if (!plan) {
+    return {
+      message:
+        "Sign-ups are temporarily unavailable. Please try again in a few minutes.",
+      values,
+    };
+  }
 
   const avatar = normalizeAvatar(String(formData.get("image") ?? ""));
   if (avatar.error) return { errors: { image: avatar.error }, values };
 
-  const provider = getPaymentProvider();
-  const method = data.paymentMethod as PaymentMethodType;
-
-  // Tokenize the card first — a decline must not cost us a half-created
-  // account.
-  //
-  // Skipped entirely for a hosted gateway: there is no card to tokenize
-  // because the details never reach this server, and PayMongo can't hold one
-  // for later anyway. Nothing was ever charged during the trial, so this costs
-  // the partner nothing — they pay a link when the trial ends.
-  let card: ProviderMethod | null = null;
-  if (method === "CARD" && provider.checkout === "inline") {
-    const cardParsed = CardSchema.safeParse({
-      cardName: String(formData.get("cardName") ?? ""),
-      cardNumber: String(formData.get("cardNumber") ?? ""),
-      cardExpMonth: String(formData.get("cardExpMonth") ?? ""),
-      cardExpYear: String(formData.get("cardExpYear") ?? ""),
-      cardCvc: String(formData.get("cardCvc") ?? ""),
-    });
-    if (!cardParsed.success) {
-      return { errors: firstErrors(cardParsed.error), values };
-    }
-    try {
-      card = await provider.createPaymentMethod({
-        type: "CARD",
-        card: {
-          number: cardParsed.data.cardNumber,
-          expMonth: cardParsed.data.cardExpMonth,
-          expYear: cardParsed.data.cardExpYear,
-          cvc: cardParsed.data.cardCvc,
-          name: cardParsed.data.cardName,
-        },
-      });
-    } catch (error) {
-      return {
-        errors: {
-          cardNumber:
-            error instanceof Error
-              ? error.message
-              : "That card could not be verified.",
-        },
-        values,
-      };
-    }
-  }
+  // Nothing is collected at signup — joining is free, so there is no card to
+  // take and no method to choose. A partner picks how to settle a service-fee
+  // invoice in Billing, on the rare month they owe one.
+  const method: PaymentMethodType = "GCASH";
 
   const now = new Date();
   const trialEndsAt = addDaysTo(now, TRIAL_DAYS);
@@ -238,58 +199,22 @@ export async function registerPartnerAction(
         planId: plan.id,
         status: "TRIALING",
         method,
-        // Only a stored card can auto-renew, and only an inline gateway can
-        // store one. With PayMongo nothing renews silently — every period is
-        // paid by opening a link, which is the path e-wallets already took.
-        autoRenew: method === "CARD" && provider.checkout === "inline",
+        // Nothing renews silently: an invoice is only raised when service fees
+        // have actually accrued, and it is paid by opening a link.
+        autoRenew: false,
         trialEndsAt,
         currentPeriodStart: now,
         currentPeriodEnd: trialEndsAt,
-        provider: provider.id,
+        provider: "paymongo",
       },
     });
 
-    if (card) {
-      await tx.savedPaymentMethod.create({
-        data: {
-          userId: user.id,
-          type: "CARD",
-          isDefault: true,
-          brand: card.brand,
-          last4: card.last4,
-          expMonth: card.expMonth,
-          expYear: card.expYear,
-          provider: provider.id,
-          providerMethodId: card.methodId,
-        },
-      });
-    }
-
     return user;
   });
+  void created;
 
-  // Best effort: a gateway hiccup must never cost the partner their account.
-  // Without a customer id the billing page just asks them to finish setup.
-  try {
-    const customer = await provider.createCustomer({
-      appUserId: created.id,
-      email: data.email,
-      name: data.businessName,
-      phone: data.phone,
-    });
-    await prisma.subscription.update({
-      where: { userId: created.id },
-      data: { providerCustomerId: customer.customerId },
-    });
-    if (card) {
-      await provider.attachPaymentMethod(customer.customerId, card.methodId);
-    }
-  } catch {
-    // Non-fatal by design.
-  }
-
-  // No charge is taken during the trial. Land them on billing so the trial end
-  // date is the first thing they see.
+  // Nothing is charged at signup, and no gateway is called: the partner's first
+  // job is to connect their own PayMongo account so they can take bookings.
   try {
     await signIn("credentials", {
       email: data.email,

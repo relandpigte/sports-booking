@@ -224,6 +224,18 @@ export const listPlans = cache(async (): Promise<PlanView[]> => {
   return rows.map(mapPlan);
 });
 
+// The one plan there is. Joining is free, so a Plan row exists only to keep
+// Subscription.planId and Payment.planId valid — and so historical payments
+// still point at the tier that was actually bought.
+export async function freePlan(): Promise<PlanView | null> {
+  const row = await prisma.plan.findFirst({
+    where: { active: true },
+    orderBy: { sortOrder: "asc" },
+    select: planSelect,
+  });
+  return row ? mapPlan(row) : null;
+}
+
 export async function getPlanByKey(key: PlanKey): Promise<PlanView | null> {
   const row = await prisma.plan.findUnique({
     where: { key },
@@ -293,6 +305,7 @@ async function attemptRenewal(
     periodStart: opts.periodStart,
     periodEnd,
     kind: "SUBSCRIPTION",
+    amount: await accruedFees(sub.userId, opts.periodStart, periodEnd),
     savedPaymentMethodId: card.id,
   });
 
@@ -307,7 +320,7 @@ async function attemptRenewal(
   const provider = getPaymentProvider();
   const result = await provider.charge({
     customerId: sub.providerCustomerId,
-    amount: { amount: sub.plan.priceMonthly.toNumber(), currency: "PHP" },
+    amount: { amount: Number(payment.row.amount), currency: "PHP" },
     source: { kind: "saved", methodId: card.providerMethodId },
     description: `${sub.plan.name} — monthly subscription`,
     idempotencyKey: payment.row.idempotencyKey,
@@ -342,6 +355,30 @@ async function attemptRenewal(
   });
 }
 
+// What a partner owes us for a period: the service fees their own gateway
+// collected from players on our behalf.
+//
+// Joining is free, so this REPLACES the flat plan price as the amount of every
+// invoice. Refunded payments are excluded — the fee went back to the player
+// with the rest of it, so there is nothing to bill for.
+export async function accruedFees(
+  userId: string,
+  periodStart: Date,
+  periodEnd: Date
+): Promise<number> {
+  const result = await prisma.bookingPayment.aggregate({
+    where: {
+      partnerId: userId,
+      status: "SUCCEEDED",
+      // By the day the money MOVED, which is the only date a venue can
+      // reconcile against their own bank statement.
+      paidAt: { gte: periodStart, lt: periodEnd },
+    },
+    _sum: { platformFee: true },
+  });
+  return Number(result._sum.platformFee ?? 0);
+}
+
 // Creates the PENDING ledger row BEFORE any money moves, so a crash mid-charge
 // leaves a row the sweep can reconcile via getCharge rather than a silent hole.
 //
@@ -353,6 +390,9 @@ export async function createPaymentRow(args: {
   periodStart: Date;
   periodEnd: Date;
   kind: PaymentKind;
+  // The invoice total. Passed in rather than read from the plan, because it is
+  // now the accrued service fees for the period — see accruedFees.
+  amount: number;
   savedPaymentMethodId?: string | null;
   method?: PaymentMethodType;
 }): Promise<{
@@ -380,7 +420,7 @@ export async function createPaymentRow(args: {
         userId: sub.userId,
         planId: sub.planId,
         kind,
-        amount: sub.plan.priceMonthly,
+        amount: new Prisma.Decimal(args.amount),
         method: args.method ?? sub.method,
         status: "PENDING",
         periodStart,
@@ -512,26 +552,42 @@ async function evaluateOnce(sub: SubRow, now: Date): Promise<SubRow | null> {
     return transition(sub, { status: "CANCELLED", cancelledAt: now });
   }
 
-  // Trial ended.
-  if (sub.status === "TRIALING" && sub.trialEndsAt && now >= sub.trialEndsAt) {
-    const from = sub.trialEndsAt;
+  // A period ended — the trial's or a paid one's. What happens next depends on
+  // whether the partner owes anything, and since joining is free, most months
+  // they will not.
+  //
+  // A venue with no bookings owes ₱0, and marking THAT past due would unlist a
+  // hub over a bill for nothing. So a zero accrual rolls the period forward and
+  // leaves them active. This is the behaviour a flat-plan machine could never
+  // have: an invoice that simply isn't raised.
+  const endedAt =
+    sub.status === "TRIALING" && sub.trialEndsAt && now >= sub.trialEndsAt
+      ? sub.trialEndsAt
+      : sub.status === "ACTIVE" && now >= sub.currentPeriodEnd
+        ? sub.currentPeriodEnd
+        : null;
+
+  if (endedAt) {
+    const owed = await accruedFees(sub.userId, sub.currentPeriodStart, endedAt);
+
+    if (owed <= 0) {
+      return transition(sub, {
+        status: "ACTIVE",
+        currentPeriodStart: endedAt,
+        currentPeriodEnd: addMonthsTo(endedAt, 1),
+        trialEndsAt: null,
+        graceEndsAt: null,
+        renewalAttempts: 0,
+        nextRetryAt: null,
+      });
+    }
+
     return sub.autoRenew
-      ? attemptRenewal(sub, { periodStart: from, now })
-      : // E-wallet (or card removed): NO charge is attempted.
+      ? attemptRenewal(sub, { periodStart: endedAt, now })
+      : // Nothing is charged without the partner: they get a link and a week.
         transition(sub, {
           status: "PAST_DUE",
-          graceEndsAt: addDaysTo(from, GRACE_DAYS),
-        });
-  }
-
-  // Paid period ended.
-  if (sub.status === "ACTIVE" && now >= sub.currentPeriodEnd) {
-    const from = sub.currentPeriodEnd;
-    return sub.autoRenew
-      ? attemptRenewal(sub, { periodStart: from, now })
-      : transition(sub, {
-          status: "PAST_DUE",
-          graceEndsAt: addDaysTo(from, GRACE_DAYS),
+          graceEndsAt: addDaysTo(endedAt, GRACE_DAYS),
         });
   }
 

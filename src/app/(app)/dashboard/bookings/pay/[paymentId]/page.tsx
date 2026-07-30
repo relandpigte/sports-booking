@@ -94,7 +94,17 @@ export default async function PayBookingPage({
             </div>
           ))}
           <div className="mt-1 flex items-center justify-between border-t border-gray-100 pt-3">
-            <dt className="text-gray-500">Total</dt>
+            <dt className="text-gray-500">Court time</dt>
+            <dd className="text-gray-900">{formatPHP(payment.venueAmount)}</dd>
+          </div>
+          {payment.platformFee > 0 && (
+            <div className="flex items-center justify-between">
+              <dt className="text-gray-500">Service fee</dt>
+              <dd className="text-gray-900">{formatPHP(payment.platformFee)}</dd>
+            </div>
+          )}
+          <div className="flex items-center justify-between border-t border-gray-100 pt-2">
+            <dt className="font-medium text-gray-900">Total</dt>
             <dd className="text-base font-semibold text-gray-900">
               {formatPHP(payment.amount)}
             </dd>

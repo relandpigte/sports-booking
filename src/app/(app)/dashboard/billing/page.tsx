@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import {
   CancelResumePanel,
-  ChangePlanPanel,
   PaymentMethodPanel,
   PayNowButton,
 } from "@/components/billing/BillingPanels";
@@ -18,6 +17,7 @@ import { formatManilaDateLong } from "@/lib/time";
 import {
   PAYMENT_METHOD_LABELS,
   PAYMENT_STATUS_LABELS,
+  PLATFORM_FEE_RATE,
   SUBSCRIPTION_STATUS_LABELS,
 } from "@/lib/constants";
 import type { SubscriptionStatus } from "@prisma/client";
@@ -45,7 +45,7 @@ export default async function BillingPage() {
   // to /dashboard.
   if (!overview) redirect("/dashboard");
 
-  const { subscription: sub, plan, plans, courtCount } = overview;
+  const { subscription: sub, plan, courtCount } = overview;
 
   // requirePartner is memoized per render — getBillingOverview already called it.
   const partner = await requirePartner();
@@ -77,10 +77,6 @@ export default async function BillingPage() {
     plan.maxCourts == null
       ? `${courtCount} courts · unlimited`
       : `${courtCount} of ${plan.maxCourts} courts`;
-  const usagePct =
-    plan.maxCourts == null
-      ? 0
-      : Math.min(100, Math.round((courtCount / plan.maxCourts) * 100));
 
   return (
     <div>
@@ -105,27 +101,23 @@ export default async function BillingPage() {
             </div>
             <p className="mt-1 text-sm text-gray-500">{dateLine}</p>
           </div>
-          <p className="shrink-0 text-lg font-semibold text-gray-900">
-            {formatPHP(plan.priceMonthly)}
-            <span className="text-sm font-normal text-gray-400">/mo</span>
+          <p className="shrink-0 text-right">
+            <span className="text-lg font-semibold text-gray-900">
+              {overview.amountDue != null
+                ? formatPHP(overview.amountDue)
+                : "Nothing due"}
+            </span>
+            <span className="block text-xs text-gray-400">
+              {Math.round(PLATFORM_FEE_RATE * 100)}% service fees collected
+            </span>
           </p>
         </div>
 
         <p className="mt-3 text-sm text-gray-500">{renewalLine}</p>
 
-        <div className="mt-4">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-500">Court usage</span>
-            <span className="font-medium text-gray-900">{usage}</span>
-          </div>
-          {plan.maxCourts != null && (
-            <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-gray-100">
-              <div
-                className="h-full rounded-full bg-primary"
-                style={{ width: `${usagePct}%` }}
-              />
-            </div>
-          )}
+        <div className="mt-4 flex items-center justify-between text-sm">
+          <span className="text-gray-500">Courts</span>
+          <span className="font-medium text-gray-900">{usage}</span>
         </div>
 
         {overview.amountDue != null && (
@@ -136,11 +128,6 @@ export default async function BillingPage() {
       </section>
 
       <div className="mt-4 flex flex-col gap-4">
-        <ChangePlanPanel
-          plans={plans}
-          currentPlanId={plan.id}
-          courtCount={courtCount}
-        />
         <PaymentMethodPanel
           method={sub.method}
           card={overview.savedCard}

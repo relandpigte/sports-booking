@@ -23,7 +23,12 @@ import {
   RescheduleBookingSchema,
 } from "@/lib/validation";
 import { refundBookingPayment } from "@/lib/booking-payments";
-import { BOOKING_HOLD_MINUTES, BOOKING_WINDOW_DAYS } from "@/lib/constants";
+import {
+  BOOKING_HOLD_MINUTES,
+  BOOKING_WINDOW_DAYS,
+  grossFor,
+  platformFeeFor,
+} from "@/lib/constants";
 import {
   addDays,
   formatHourLabel,
@@ -191,7 +196,12 @@ export async function createBookingAction(
             gatewayId: gateway!.id,
             userId: viewer.id,
             hubId: court.hub.id,
-            amount: new Prisma.Decimal(total!),
+            // The GROSS is what PayMongo charges and what a refund reverses;
+            // the other two are the split, recorded now so a report written
+            // next year still reads the rate that was quoted today.
+            amount: new Prisma.Decimal(grossFor(total!)),
+            venueAmount: new Prisma.Decimal(total!),
+            platformFee: new Prisma.Decimal(platformFeeFor(total!)),
             method: "CARD",
             status: "PENDING",
             expiresAt: holdExpiresAt!,

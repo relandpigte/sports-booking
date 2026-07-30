@@ -311,10 +311,22 @@ model BookingPayment {
   // financial record.
   hubId     String
 
-  amount   Decimal           @db.Decimal(10, 2)
-  currency String            @default("PHP")
-  method   PaymentMethodType
-  status   PaymentStatus     @default(PENDING)
+  // THE GROSS the player was charged: court time plus the Bunal.ph service
+  // fee. This is what PayMongo actually took and what a refund has to reverse,
+  // so it stays the headline figure.
+  amount      Decimal           @db.Decimal(10, 2)
+  // The venue's share — the court time they advertised.
+  venueAmount Decimal           @default(0) @db.Decimal(10, 2)
+  // Bunal.ph's share. Collected by the venue's own gateway along with
+  // everything else, then invoiced back to us monthly (see accruedFees).
+  //
+  // All three are stored rather than derived on purpose: the rate will change,
+  // and a payment taken at 5% has to still read as 5% in a report written a
+  // year later.
+  platformFee Decimal           @default(0) @db.Decimal(10, 2)
+  currency    String            @default("PHP")
+  method      PaymentMethodType
+  status      PaymentStatus     @default(PENDING)
 
   // The hold this payment is racing — a snapshot of the bookings'
   // holdExpiresAt, so the checkout page can render a countdown from one read.

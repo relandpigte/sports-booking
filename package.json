@@ -14,7 +14,7 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "check:money": "tsx --conditions=react-server --env-file=.env checks/money-path.check.ts",
-    "check": "npm run check:money && npm run check:qr && npm run check:settle && npm run check:connect && npm run check:paymongo && npm run check:reap && npm run check:analytics && npm run check:chart && npm run check:admin-collection",
+    "check": "npm run check:money && npm run check:fee && npm run check:qr && npm run check:settle && npm run check:connect && npm run check:paymongo && npm run check:reap && npm run check:analytics && npm run check:chart && npm run check:admin-collection",
     "paymongo:webhook": "tsx --conditions=react-server --env-file=.env scripts/register-billing-webhook.ts",
     "paymongo:probe": "tsx --conditions=react-server --env-file=.env scripts/probe-subscriptions.ts",
     "check:qr": "tsx --conditions=react-server --env-file=.env checks/qr.check.ts",
@@ -24,7 +24,9 @@
     "check:reap": "tsx --conditions=react-server --env-file=.env checks/reap.check.ts",
     "check:analytics": "tsx --conditions=react-server --env-file=.env checks/analytics.check.ts",
     "check:chart": "tsx --env-file=.env checks/chart.check.ts",
-    "check:admin-collection": "tsx --conditions=react-server --env-file=.env checks/admin-collection.check.ts"
+    "check:admin-collection": "tsx --conditions=react-server --env-file=.env checks/admin-collection.check.ts",
+    "migrate:free-plan": "tsx --env-file=.env scripts/migrate-to-free-plan.ts",
+    "check:fee": "tsx --conditions=react-server --env-file=.env checks/platform-fee.check.ts"
   },
   "prisma": {
     "seed": "node prisma/seed.mjs"

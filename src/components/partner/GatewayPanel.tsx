@@ -11,7 +11,7 @@ import {
   disconnectGatewayAction,
   type GatewayFormState,
 } from "@/lib/gateway-actions";
-import { VENUE_GATEWAYS } from "@/lib/constants";
+import { PLATFORM_FEE_RATE, VENUE_GATEWAYS } from "@/lib/constants";
 import type { GatewayView } from "@/lib/partner-gateway";
 
 const initial: GatewayFormState = {};
@@ -94,7 +94,11 @@ export function GatewayPanel({ gateway }: { gateway: GatewayView | null }) {
             Getting paid by players
           </h2>
           <p className="mt-1 text-sm text-gray-500">
-            Connect your own payment account. Players pay you directly — Bunal PH takes no cut and never holds your money.
+            Connect your own payment account. Players pay you directly and you
+            keep your full court rate — Bunal.ph never holds your money. A{" "}
+            {Math.round(PLATFORM_FEE_RATE * 100)}% service fee is added on top
+            for the player, collected into your account with everything else,
+            and invoiced back to us once a month.
           </p>
         </div>
         {connected && <Badge tone="success">Connected</Badge>}

@@ -52,7 +52,14 @@ export type BookingView = {
   // Present only for a booking made at a venue that takes payment online.
   // Deliberately just the id and the state — a card renders "Paid", it never
   // needs the gateway's side of the story.
-  payment: { id: string; status: PaymentStatus } | null;
+  payment: {
+    id: string;
+    status: PaymentStatus;
+    // The gross paid, and our share of it — so a player can see why ₱525 left
+    // their account for a ₱500 court.
+    amount: number;
+    platformFee: number;
+  } | null;
   court: { id: string; name: string; courtType: string };
   hub: { id: string; name: string; logo: string | null; address: string | null };
   player: {
@@ -87,7 +94,9 @@ const bookingSelect = {
   prevStartHour: true,
   prevEndHour: true,
   prevTotalPrice: true,
-  bookingPayment: { select: { id: true, status: true } },
+  bookingPayment: {
+    select: { id: true, status: true, amount: true, platformFee: true },
+  },
   court: { select: { id: true, name: true, courtType: true } },
   hub: { select: { id: true, name: true, logo: true, address: true } },
   user: {
@@ -157,7 +166,14 @@ function mapBooking(row: BookingRow): BookingView {
           count: rescheduleCount,
         }
       : null,
-    payment: bookingPayment,
+    payment: bookingPayment
+      ? {
+          id: bookingPayment.id,
+          status: bookingPayment.status,
+          amount: Number(bookingPayment.amount),
+          platformFee: Number(bookingPayment.platformFee),
+        }
+      : null,
     player: user,
   };
 }

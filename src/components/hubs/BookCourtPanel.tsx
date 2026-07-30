@@ -22,6 +22,9 @@ import { formatHourLabel, formatManilaDateLong } from "@/lib/time";
 import {
   BOOKING_HOLD_MINUTES,
   COURT_TYPE_LABELS,
+  PLATFORM_FEE_RATE,
+  grossFor,
+  platformFeeFor,
   type OperatingHours,
 } from "@/lib/constants";
 
@@ -232,10 +235,32 @@ export function BookCourtPanel({
                   {selected.length} {selected.length === 1 ? "hour" : "hours"}
                   {runs.length > 1 ? ` · ${runs.length} sessions` : ""}
                 </span>
-                <span className="shrink-0 text-base font-semibold text-gray-900">
+                <span className="shrink-0 text-gray-700">
                   {total != null ? formatPHP(total) : "Rate on request"}
                 </span>
               </div>
+
+              {/* The service fee, shown BEFORE they commit rather than
+                  discovered at checkout. Only when there's something to add it
+                  to: a settle-at-venue hub takes no fee. */}
+              {paymentRequired && total != null && total > 0 && (
+                <>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-gray-500">
+                      Service fee ({Math.round(PLATFORM_FEE_RATE * 100)}%)
+                    </span>
+                    <span className="shrink-0 text-gray-700">
+                      {formatPHP(platformFeeFor(total))}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 border-t border-gray-100 pt-2">
+                    <span className="font-medium text-gray-900">Total</span>
+                    <span className="shrink-0 text-base font-semibold text-gray-900">
+                      {formatPHP(grossFor(total))}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -266,7 +291,7 @@ export function BookCourtPanel({
 
           <p className="text-xs text-gray-400">
             {paymentRequired
-              ? `This venue takes payment online. We'll hold your hours for ${BOOKING_HOLD_MINUTES} minutes while you pay.`
+              ? `This venue takes payment online. We'll hold your hours for ${BOOKING_HOLD_MINUTES} minutes while you pay. The service fee goes to Bunal.ph; the court fee goes to the venue.`
               : "No payment needed — confirm here and settle at the venue."}
           </p>
         </div>

@@ -96,7 +96,45 @@ async function main() {
     },
     select: { id: true },
   });
-  const price = plan.priceMonthly.toNumber();
+  // Service fees this fixture has collected for us: the thing an invoice is
+  // now made of. Without them there is nothing to record or collect.
+  const { grossFor, platformFeeFor } = await import("@/lib/constants");
+  const court = await prisma.court.findFirst({ select: { id: true, hubId: true } });
+  const anyPlayer = await prisma.user.findFirst({
+    where: { role: "PLAYER" },
+    select: { id: true },
+  });
+  const gateway = await prisma.partnerGateway.create({
+    data: {
+      userId: partner.id,
+      provider: "paymongo",
+      publicKey: "pk_test_abcdefgh",
+      secretKeyEnc: "x",
+      webhookSecretEnc: "x",
+      secretKeyHint: "…test",
+      webhookToken: Math.random().toString(36).slice(2) + Date.now(),
+    },
+    select: { id: true },
+  });
+  if (!court || !anyPlayer) throw new Error("need a court and a player");
+  await prisma.bookingPayment.create({
+    data: {
+      partnerId: partner.id,
+      gatewayId: gateway.id,
+      userId: anyPlayer.id,
+      hubId: court.hubId,
+      amount: grossFor(1000),
+      venueAmount: 1000,
+      platformFee: platformFeeFor(1000),
+      method: "GCASH",
+      status: "SUCCEEDED",
+      expiresAt: new Date(),
+      provider: "paymongo",
+      // Inside the period that just ended — which is what an invoice covers.
+      paidAt: new Date(Date.now() - 5 * 864e5),
+    },
+  });
+  const price = platformFeeFor(1000);
   // Whatever already exists must be exactly what exists at the end.
   const baselinePayments = await prisma.payment.count();
   const subOf = () =>
@@ -106,11 +144,13 @@ async function main() {
   const { rows, summary } = await listPartnerSubscriptions();
   const row = rows.find((r) => r.userId === partner.id);
   ok("the partner is listed", row != null);
-  ok("shown as owing the plan price", row?.amountDue === price);
+  // Owing nothing is now the normal state: joining is free, and this fixture
+  // has taken no bookings, so there are no service fees to bill.
+  ok("owes exactly the fees it collected", row?.amountDue === price);
   ok("their plan is named", row?.planName === plan.name);
   ok("no payments yet", row?.lastPayment === null);
   ok("counted as past due", summary.pastDue >= 1);
-  ok("not counted in MRR while unpaid", row?.status !== "ACTIVE");
+  ok("not yet active", row?.status !== "ACTIVE");
 
   // --- 2. Money that arrived by bank transfer ------------------------------
   const before = (await subOf())!;
@@ -132,7 +172,7 @@ async function main() {
   ok("exactly one payment row", payments.length === 1);
   ok("recorded as MANUAL", payments[0].kind === "MANUAL");
   ok("marked SUCCEEDED", payments[0].status === "SUCCEEDED");
-  ok("charged the plan price", Number(payments[0].amount) === price);
+  ok("recorded the accrued fees, not a plan price", Number(payments[0].amount) === price);
   ok("the trail names the admin", payments[0].providerRef === `offline:${admin.email}`);
   ok("the note survives", payments[0].failureMessage?.includes("BPI") === true);
 
@@ -175,8 +215,8 @@ async function main() {
   ok("last payment surfaced", relistedRow?.lastPayment?.kind === "COMP");
   ok("entitled again", relistedRow?.entitled === true);
   ok(
-    "and now counts toward MRR",
-    relisted.summary.mrr >= price && relistedRow?.status === "ACTIVE"
+    "and is active again",
+    relistedRow?.status === "ACTIVE"
   );
 
   // --- 6. Nothing was written outside this fixture --------------------------
@@ -186,6 +226,7 @@ async function main() {
       baselinePayments
   );
 
+  await prisma.bookingPayment.deleteMany({ where: { partnerId: partner.id } });
   await prisma.user.delete({ where: { id: partner.id } });
   ok(
     "cleaned up",

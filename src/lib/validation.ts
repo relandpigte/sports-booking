@@ -184,8 +184,9 @@ export const PartnerRegisterSchema = registerBase
       .string()
       .trim()
       .min(2, { error: "Business name is required" }),
-    planKey: z.enum(planKeyValues, { error: "Choose a plan" }),
-    paymentMethod: z.enum(methodValues, { error: "Choose a payment method" }),
+    // No plan and no payment method: joining is free, and the only money that
+    // moves is the service fee a player pays on a booking. Both were dropped
+    // rather than defaulted, so a stale form can't quietly pick a paid tier.
   })
   .refine(passwordsMatch, passwordMismatch);
 

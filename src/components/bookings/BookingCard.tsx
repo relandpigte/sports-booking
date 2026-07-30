@@ -111,12 +111,26 @@ export function BookingCard({
           </dd>
         </div>
         {booking.payment && (paid || refunded) && (
-          <div className="flex items-center justify-between gap-3">
-            <dt className="text-gray-500">Payment</dt>
-            <dd className="font-medium text-gray-900">
-              {refunded ? "Refunded" : "Paid online"}
-            </dd>
-          </div>
+          <>
+            {/* The player paid the court fee plus the service fee, so the
+                figure on their card has to reconcile with their bank. */}
+            {booking.payment.platformFee > 0 && (
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-gray-500">Service fee</dt>
+                <dd className="text-gray-500">
+                  {formatPHP(booking.payment.platformFee)}
+                </dd>
+              </div>
+            )}
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-gray-500">
+                {refunded ? "Refunded" : "Paid online"}
+              </dt>
+              <dd className="font-medium text-gray-900">
+                {formatPHP(booking.payment.amount)}
+              </dd>
+            </div>
+          </>
         )}
       </dl>
 

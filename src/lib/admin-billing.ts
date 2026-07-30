@@ -10,6 +10,7 @@ import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin";
 import {
   accessEndsAt,
+  accruedFees,
   applySuccessfulPayment,
   createPaymentRow,
   isEntitled,
@@ -43,6 +44,7 @@ export type PartnerSubscriptionRow = {
   currentPeriodEnd: Date;
   // Set when the partner owes for a period. Null while they're paid up.
   amountDue: number | null;
+  feesLifetime: number;
   courtCount: number;
   hubCount: number;
   lastPayment: {
@@ -62,9 +64,9 @@ export type SubscriptionSummary = {
   trialing: number;
   pastDue: number;
   unpaid: number;
-  // Monthly recurring revenue from partners who are actually entitled — the
-  // honest number, not the sum of every row ever created.
-  mrr: number;
+  // What partners currently owe us in service fees. Not "recurring revenue" any
+  // more — joining is free, so there is no subscription to recur.
+  outstanding: number;
 };
 
 export async function listPartnerSubscriptions(): Promise<{
@@ -104,18 +106,31 @@ export async function listPartnerSubscriptions(): Promise<{
 
   const now = new Date();
 
-  const rows: PartnerSubscriptionRow[] = subs.map((sub) => {
+  // The live accrual per partner: what they have collected for us since their
+  // period began, whether or not an invoice has been raised yet. One query for
+  // everyone rather than one each.
+  const accruals = await prisma.bookingPayment.groupBy({
+    by: ["partnerId"],
+    where: { status: "SUCCEEDED", paidAt: { not: null } },
+    _sum: { platformFee: true },
+  });
+  const feesSince = new Map(
+    accruals.map((a) => [a.partnerId, Number(a._sum.platformFee ?? 0)])
+  );
+
+  const rows: PartnerSubscriptionRow[] = await Promise.all(
+    subs.map(async (sub) => {
     const entitled = isEntitled(sub);
     const last = sub.payments[0] ?? null;
 
-    // Owed once the paid-for period has run out — which is exactly when the
-    // machine has moved them to PAST_DUE or UNPAID, or when a trial has ended.
-    const owes =
-      sub.status === "PAST_DUE" ||
-      sub.status === "UNPAID" ||
-      (sub.status === "TRIALING" &&
-        !!sub.trialEndsAt &&
-        now >= sub.trialEndsAt);
+    // What they have collected for us since this period began — live, so a
+    // bill is visible forming rather than only once it is late. Capped at the
+    // period end so it matches what an invoice would actually be for.
+    const due = await accruedFees(
+      sub.userId,
+      sub.currentPeriodStart,
+      sub.currentPeriodEnd < now ? sub.currentPeriodEnd : now
+    );
 
     return {
       userId: sub.userId,
@@ -129,7 +144,9 @@ export async function listPartnerSubscriptions(): Promise<{
       entitled,
       accessEndsAt: accessEndsAt(sub),
       currentPeriodEnd: sub.currentPeriodEnd,
-      amountDue: owes ? sub.plan.priceMonthly.toNumber() : null,
+      amountDue: due > 0 ? due : null,
+      // Everything they have ever collected for us, invoiced or not.
+      feesLifetime: feesSince.get(sub.userId) ?? 0,
       courtCount: sub.user.hubs.reduce((n, h) => n + h._count.courts, 0),
       hubCount: sub.user._count.hubs,
       lastPayment: last
@@ -144,7 +161,8 @@ export async function listPartnerSubscriptions(): Promise<{
       openCheckoutUrl:
         last && last.status === "PENDING" ? last.redirectUrl : null,
     };
-  });
+    })
+  );
 
   const summary: SubscriptionSummary = {
     partners: rows.length,
@@ -152,9 +170,7 @@ export async function listPartnerSubscriptions(): Promise<{
     trialing: rows.filter((r) => r.status === "TRIALING").length,
     pastDue: rows.filter((r) => r.status === "PAST_DUE").length,
     unpaid: rows.filter((r) => r.status === "UNPAID").length,
-    mrr: rows
-      .filter((r) => r.entitled && r.status === "ACTIVE")
-      .reduce((sum, r) => sum + r.priceMonthly, 0),
+    outstanding: rows.reduce((sum, r) => sum + (r.amountDue ?? 0), 0),
   };
 
   return { rows, summary };
@@ -219,11 +235,25 @@ export async function createAdminPaymentLink(
   const sub = await loadSubscription(userId);
   const { periodStart, periodEnd } = periodFor(sub);
 
+  // The elapsed period, not the one being bought — see recordOfflinePayment.
+  const owed = await accruedFees(
+    userId,
+    sub.currentPeriodStart,
+    sub.currentPeriodEnd
+  );
+  if (owed <= 0) {
+    return {
+      ok: false,
+      message: "Nothing to collect — this partner has accrued no service fees.",
+    };
+  }
+
   const payment = await createPaymentRow({
     sub,
     periodStart,
     periodEnd,
     kind: "MANUAL",
+    amount: owed,
   });
 
   // Someone already started this period's payment — the partner from their own
@@ -236,11 +266,11 @@ export async function createAdminPaymentLink(
   const provider = getPaymentProvider();
   const result = await provider.charge({
     customerId: sub.providerCustomerId,
-    amount: { amount: sub.plan.priceMonthly.toNumber(), currency: "PHP" },
+    amount: { amount: owed, currency: "PHP" },
     // No saved card is possible with a hosted gateway; the payer picks on the
     // gateway's page. The method here is only a hint for the stub.
     source: { kind: "new", method: { type: "GCASH" } },
-    description: `${sub.plan.name} — monthly subscription`,
+    description: `Bunal.ph service fees — ${periodStart.toISOString().slice(0, 10)} to ${periodEnd.toISOString().slice(0, 10)}`,
     idempotencyKey: payment.row.idempotencyKey,
     returnUrl: "/dashboard/billing",
     metadata: { subscriptionId: sub.id, userId },
@@ -286,6 +316,25 @@ export async function recordOfflinePayment(args: {
   }
   const { periodStart, periodEnd } = due;
 
+  // The amount is the service fees they collected, not a plan price — the free
+  // plan's price is ₱0, and recording ₱0 as "received" would be a lie in the
+  // ledger and would leave nothing for the reports to show.
+  //
+  // Billed over the period that just ENDED, not the one this payment buys.
+  // Those are different windows and the future one is empty by definition.
+  const owed = await accruedFees(
+    args.userId,
+    sub.currentPeriodStart,
+    sub.currentPeriodEnd
+  );
+  if (owed <= 0) {
+    return {
+      ok: false,
+      message:
+        "They have collected no service fees for this period, so there is nothing to record. Use Comp to extend it gratis.",
+    };
+  }
+
   // The unique idempotencyKey below is the real guard: two admins recording
   // the same transfer at once produce one row, not two months of credit.
   let payment;
@@ -296,7 +345,7 @@ export async function recordOfflinePayment(args: {
         userId: args.userId,
         planId: sub.planId,
         kind: "MANUAL",
-        amount: sub.plan.priceMonthly,
+        amount: new Prisma.Decimal(owed),
         method: sub.method,
         status: "SUCCEEDED",
         periodStart,

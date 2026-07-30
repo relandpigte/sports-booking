@@ -133,6 +133,27 @@ export const MONTHS = [
 // How long an unpaid booking holds its hours before they go back on the grid.
 export const BOOKING_HOLD_MINUTES = 15;
 
+// Bunal.ph's cut, added ON TOP of the venue's rate: a ₱500 booking is shown to
+// the player as ₱525, and the venue still receives their full ₱500. Joining is
+// free, so this is the platform's only revenue.
+export const PLATFORM_FEE_RATE = 0.05;
+
+// The fee on a court total, to the centavo.
+//
+// Every surface computes it through here — the booking grid, the pay page, the
+// ledger and the monthly invoice — because a fee the player was quoted and a
+// fee the venue is billed for must be the same number, and floating-point
+// pesos are exactly where that goes wrong. Rounded HALF UP on the centavo,
+// which is what a Philippine invoice does.
+export function platformFeeFor(courtTotal: number): number {
+  return Math.round(courtTotal * PLATFORM_FEE_RATE * 100) / 100;
+}
+
+// What the player pays: court time plus the fee.
+export function grossFor(courtTotal: number): number {
+  return Math.round((courtTotal + platformFeeFor(courtTotal)) * 100) / 100;
+}
+
 // A booking is paid once, so these carry none of the auto-renew hints that the
 // subscription methods do — those would be wrong here.
 export const BOOKING_PAYMENT_METHODS = [

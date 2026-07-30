@@ -9,6 +9,7 @@ import { firstErrors } from "@/lib/zod-errors";
 import { getPaymentProvider } from "@/lib/payments";
 import { addMonthsTo } from "@/lib/time";
 import {
+  accruedFees,
   applySuccessfulPayment,
   countPartnerCourts,
   createPaymentRow,
@@ -70,11 +71,23 @@ export async function payNowAction(
         })
       : null;
 
+  // What they owe is what they collected for us during the period that just
+  // ended — not the period this payment buys, which has no fees in it yet.
+  const owed = await accruedFees(
+    partner.id,
+    sub.currentPeriodStart,
+    sub.currentPeriodEnd
+  );
+  if (owed <= 0) {
+    return { message: "Nothing is due — no service fees have accrued yet." };
+  }
+
   const payment = await createPaymentRow({
     sub,
     periodStart,
     periodEnd,
     kind: "MANUAL",
+    amount: owed,
     savedPaymentMethodId: card?.id ?? null,
   });
 
@@ -98,12 +111,12 @@ export async function payNowAction(
 
   const result = await provider.charge({
     customerId: sub.providerCustomerId,
-    amount: { amount: sub.plan.priceMonthly.toNumber(), currency: "PHP" },
+    amount: { amount: Number(payment.row.amount), currency: "PHP" },
     source:
       card?.providerMethodId != null
         ? { kind: "saved", methodId: card.providerMethodId }
         : { kind: "new", method: { type: sub.method as "GCASH" | "MAYA" } },
-    description: `${sub.plan.name} — monthly subscription`,
+    description: `Bunal.ph service fees — ${periodStart.toISOString().slice(0, 10)} to ${periodEnd.toISOString().slice(0, 10)}`,
     idempotencyKey: payment.row.idempotencyKey,
     // A hosted gateway sends the browser back here after the payment; the
     // provider makes this absolute, since the trip leaves the site.

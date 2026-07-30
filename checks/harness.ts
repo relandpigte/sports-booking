@@ -9,6 +9,9 @@
 // fixtures on a far-future date, asserts the row counts return to where they
 // started, and refuses to run in production.
 
+import { createRequire } from "node:module";
+import path from "node:path";
+
 let passed = 0;
 const failures: string[] = [];
 
@@ -50,4 +53,50 @@ export async function run(
     if (cleanup) await cleanup();
     report();
   }
+}
+
+// Some of the code under test imports next/navigation at module scope — and
+// through it the client router, which needs a request context a plain script
+// has none of. The same goes for the session: requireAdmin reads a cookie.
+//
+// So those two modules are replaced in the require cache BEFORE anything
+// imports them. Nothing else is faked, and a check must still `await import()`
+// the module it is testing rather than importing it at the top, or the real one
+// is loaded first.
+export function stubRequestContext(actor: { id: string; email: string }): void {
+  const req = createRequire(import.meta.url);
+  const root = process.cwd();
+
+  const put = (id: string, exports: Record<string, unknown>) => {
+    req.cache[id] = {
+      id,
+      filename: id,
+      path: path.dirname(id),
+      loaded: true,
+      exports,
+      children: [],
+      paths: [],
+    } as unknown as NodeModule;
+  };
+
+  const nav = req.resolve("next/navigation");
+  put(nav, {
+    redirect: () => {
+      throw new Error("unexpected redirect() in a check");
+    },
+    notFound: () => {
+      throw new Error("unexpected notFound() in a check");
+    },
+  });
+
+  put(path.join(root, "src/lib/dal.ts"), {
+    requireRole: async () => actor,
+    requirePartner: async () => actor,
+    getViewer: async () => actor,
+    getCurrentUser: async () => actor,
+    verifySession: async () => ({ user: actor }),
+  });
+  put(path.join(root, "src/lib/admin.ts"), {
+    requireAdmin: async () => actor,
+  });
 }

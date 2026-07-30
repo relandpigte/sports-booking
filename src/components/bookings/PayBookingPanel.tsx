@@ -65,7 +65,7 @@ export function PayBookingPanel({
       </Button>
 
       <p className="text-center text-xs text-gray-400">
-        This payment goes directly to {venueName}. Bunal.ph takes no cut.
+        The court fee goes directly to {venueName}.
       </p>
     </form>
   );

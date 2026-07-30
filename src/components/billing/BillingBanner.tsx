@@ -1,7 +1,6 @@
 import Link from "next/link";
 
 import { getBillingOverview } from "@/lib/billing";
-import { formatPHP } from "@/lib/currency";
 import { formatManilaDateLong } from "@/lib/time";
 import { BILLING_NOTICE_DAYS } from "@/lib/constants";
 
@@ -11,7 +10,7 @@ export async function BillingBanner() {
   const overview = await getBillingOverview();
   if (!overview) return null;
 
-  const { subscription: sub, plan } = overview;
+  const { subscription: sub } = overview;
   const endsAt = overview.accessEndsAt;
   const daysLeft = overview.daysUntilAccessEnds;
 
@@ -43,7 +42,7 @@ export async function BillingBanner() {
       return "Your subscription has ended. Your hubs are unlisted until you resubscribe.";
     }
     if (sub.status === "PAST_DUE" && endsAt) {
-      return `Payment of ${formatPHP(plan.priceMonthly)} is due. Your hubs stay listed until ${longDate(endsAt)}.`;
+      return `Service fees are due. Your hubs stay listed until ${longDate(endsAt)}.`;
     }
     if (sub.status === "TRIALING" && endsAt) {
       return `Your free trial ends ${longDate(endsAt)}.`;

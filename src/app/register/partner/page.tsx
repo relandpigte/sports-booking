@@ -3,17 +3,12 @@ import Link from "next/link";
 
 import { AuthLayout } from "@/components/AuthLayout";
 import { PartnerRegisterForm } from "@/components/billing/PartnerRegisterForm";
-import { listPlans } from "@/lib/billing";
-import { getPaymentProvider } from "@/lib/payments";
 
 export const metadata: Metadata = {
   title: "Partner Registration — Bunal.ph",
 };
 
-// Server wrapper: the plans come from the database so pricing can change
-// without a deploy. The form itself is a Client Component.
 export default async function PartnerRegisterPage() {
-  const plans = await listPlans();
 
   return (
     <AuthLayout
@@ -22,10 +17,7 @@ export default async function PartnerRegisterPage() {
       width="max-w-2xl"
     >
       <>
-        <PartnerRegisterForm
-          plans={plans}
-          hosted={getPaymentProvider().checkout === "hosted"}
-        />
+        <PartnerRegisterForm />
 
         <p className="mt-5 text-center text-sm text-gray-500">
           Already have an account?{" "}

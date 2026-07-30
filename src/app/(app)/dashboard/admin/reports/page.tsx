@@ -10,7 +10,7 @@ import {
   platformRevenue,
 } from "@/lib/analytics";
 import { formatPHP } from "@/lib/currency";
-import { MONTHS } from "@/lib/constants";
+import { MONTHS, PLATFORM_FEE_RATE } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "Reports — Bunal.ph",
@@ -89,21 +89,22 @@ export default async function AdminReportsPage({
       ]
     : [
         {
-          label: "Court payments",
-          value: formatPHP(series.totals.gross),
-          hint: periodLabel,
+          // OUR revenue, emphasised. Everything else on this tab is other
+          // people's money passing through.
+          label: "Service fees",
+          value: formatPHP(marketplace!.serviceFees),
+          hint: `${Math.round(PLATFORM_FEE_RATE * 100)}% of court payments · ${periodLabel}`,
           emphasis: true,
         },
         {
-          label: "Refunded",
-          value:
-            series.totals.refunds > 0 ? `−${formatPHP(series.totals.refunds)}` : "—",
-          hint: "By venues, to players",
+          label: "Court payments",
+          value: formatPHP(series.totals.gross),
+          hint: "Gross, service fee included",
         },
         {
-          label: "Net to venues",
-          value: formatPHP(series.totals.net),
-          hint: "Bunal.ph takes no cut",
+          label: "To venues",
+          value: formatPHP(marketplace!.venueShare),
+          hint: "Straight into their own accounts",
         },
         {
           label: "Payments",

@@ -65,6 +65,10 @@ type LedgerRow = {
   refundedAmount: number | null;
 };
 
+// Which figure a series is about. A venue's report must never show the gross
+// with our service fee folded into it — that is money they never keep.
+export type RevenueBasis = "gross" | "venue" | "fee";
+
 const monthLabel = new Intl.DateTimeFormat("en-PH", {
   timeZone: "UTC",
   month: "short",
@@ -205,19 +209,23 @@ export async function venueRevenue(args: {
       ...ledgerWhere(args.range),
     },
     select: {
-      amount: true,
+      venueAmount: true,
       paidAt: true,
       refundedAt: true,
-      refundedAmount: true,
     },
   });
 
   return buildSeries(
     rows.map((r) => ({
-      amount: Number(r.amount),
+      // The COURT amount: what the venue actually keeps. The service fee the
+      // player also paid is Bunal.ph's, and showing it here would flatter
+      // every venue's numbers by 5%.
+      amount: Number(r.venueAmount),
       paidAt: r.paidAt,
       refundedAt: r.refundedAt,
-      refundedAmount: r.refundedAmount != null ? Number(r.refundedAmount) : null,
+      // A refund reverses the gross, so the venue's share of it is what comes
+      // back off their line.
+      refundedAmount: r.refundedAt ? Number(r.venueAmount) : null,
     })),
     args.range
   );
@@ -265,9 +273,17 @@ export async function platformRevenue(
 
 // --- Every venue, for the admin ---------------------------------------------
 
+export type MarketplaceSeries = RevenueSeries & {
+  // Bunal.ph's own take out of that gross — the number the business actually
+  // runs on, and the only part of a court payment we ever see.
+  serviceFees: number;
+  // What the venues kept.
+  venueShare: number;
+};
+
 export async function marketplaceRevenue(
   range: RevenueRange
-): Promise<RevenueSeries> {
+): Promise<MarketplaceSeries> {
   await requireAdmin();
 
   const rows = await prisma.bookingPayment.findMany({
@@ -277,13 +293,15 @@ export async function marketplaceRevenue(
     },
     select: {
       amount: true,
+      venueAmount: true,
+      platformFee: true,
       paidAt: true,
       refundedAt: true,
       refundedAmount: true,
     },
   });
 
-  return buildSeries(
+  const series = buildSeries(
     rows.map((r) => ({
       amount: Number(r.amount),
       paidAt: r.paidAt,
@@ -292,6 +310,14 @@ export async function marketplaceRevenue(
     })),
     range
   );
+
+  // Refunded payments earn us nothing: the fee went back with the rest.
+  const kept = rows.filter((r) => r.paidAt && !r.refundedAt);
+  return {
+    ...series,
+    serviceFees: kept.reduce((sum, r) => sum + Number(r.platformFee), 0),
+    venueShare: kept.reduce((sum, r) => sum + Number(r.venueAmount), 0),
+  };
 }
 
 // --- Ranges -----------------------------------------------------------------

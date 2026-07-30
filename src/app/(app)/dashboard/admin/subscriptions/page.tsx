@@ -49,13 +49,14 @@ export default async function AdminSubscriptionsPage() {
         <div>
           <h1 className="text-2xl font-bold text-navy">Subscriptions</h1>
           <p className="mt-1 text-sm text-gray-500">
-            What partners owe Bunal.ph, and how to collect it.
+            Service fees partners have collected for Bunal.ph, and how to get
+            them.
           </p>
         </div>
         <div className="rounded-xl bg-primary-soft px-4 py-2 text-right">
-          <p className="text-xs font-medium text-primary">Monthly recurring</p>
+          <p className="text-xs font-medium text-primary">Fees outstanding</p>
           <p className="text-lg font-bold text-primary">
-            {formatPHP(summary.mrr)}
+            {formatPHP(summary.outstanding)}
           </p>
         </div>
       </div>
@@ -102,7 +103,7 @@ export default async function AdminSubscriptionsPage() {
                   </div>
                   <p className="truncate text-sm text-gray-500">{row.email}</p>
                   <p className="mt-1 text-xs text-gray-400">
-                    {row.planName} · {formatPHP(row.priceMonthly)}/mo ·{" "}
+                    {row.hubCount} {row.hubCount === 1 ? "hub" : "hubs"} ·{" "}
                     {row.hubCount} {row.hubCount === 1 ? "hub" : "hubs"},{" "}
                     {row.courtCount}{" "}
                     {row.courtCount === 1 ? "court" : "courts"} ·{" "}
@@ -113,13 +114,13 @@ export default async function AdminSubscriptionsPage() {
                 <div className="text-right">
                   <p className="text-sm font-semibold text-gray-900">
                     {row.amountDue != null
-                      ? `${formatPHP(row.amountDue)} due`
-                      : "Paid up"}
+                      ? `${formatPHP(row.amountDue)} in fees`
+                      : "Nothing owed"}
                   </p>
                   <p className="text-xs text-gray-400">
                     {row.amountDue != null
-                      ? `Access ends ${fmtDate(row.accessEndsAt)}`
-                      : `Renews ${fmtDate(row.currentPeriodEnd)}`}
+                      ? `Billed ${fmtDate(row.currentPeriodEnd)}`
+                      : `Period ends ${fmtDate(row.currentPeriodEnd)}`}
                   </p>
                 </div>
               </div>

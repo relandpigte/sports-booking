@@ -36,7 +36,10 @@ export type BookingPaymentView = {
   id: string;
   status: PaymentStatus;
   method: PaymentMethodType;
+  // The gross the player pays. venueAmount + platformFee.
   amount: number;
+  venueAmount: number;
+  platformFee: number;
   currency: string;
   expiresAt: Date;
   // How long the hold has left, read from the clock HERE rather than in the
@@ -65,6 +68,8 @@ const paymentSelect = {
   method: true,
   provider: true,
   amount: true,
+  venueAmount: true,
+  platformFee: true,
   currency: true,
   expiresAt: true,
   attempt: true,
@@ -101,6 +106,8 @@ export function mapBookingPayment(row: PaymentRow): BookingPaymentView {
     status: row.status,
     method: row.method,
     amount: Number(row.amount),
+    venueAmount: Number(row.venueAmount),
+    platformFee: Number(row.platformFee),
     currency: row.currency,
     expiresAt: row.expiresAt,
     secondsLeft: Math.max(

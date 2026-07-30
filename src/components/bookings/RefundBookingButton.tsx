@@ -69,7 +69,9 @@ export function RefundBookingButton({
           disabled={pending}
           className="rounded-md px-2.5 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
         >
-          {pending ? "Refunding…" : `Refund ${amountLabel ?? "in full"}`}
+          {pending
+            ? "Refunding…"
+            : `Refund ${amountLabel ?? "booking subtotal"}`}
         </button>
       </div>
     </form>

@@ -15,9 +15,6 @@ import {
   PartnerRegisterSchema,
 } from "@/lib/validation";
 import { firstErrors } from "@/lib/zod-errors";
-import { freePlan } from "@/lib/billing";
-import { addMonthsTo } from "@/lib/time";
-import type { PaymentMethodType } from "@prisma/client";
 
 export type AuthFormState = {
   errors?: Record<string, string>;
@@ -108,12 +105,8 @@ export async function registerAction(
   return {};
 }
 
-// Partner signup. Distinct from registerAction because a venue has different
-// fields, gets role PARTNER, and starts a subscription.
-//
-// The ORDER here is the design: the card is validated with the gateway BEFORE
-// any account exists, so a decline is an inline form error rather than an
-// orphaned half-built partner.
+// Partner signup is separate because a venue has different fields and requires
+// an admin legitimacy review before partner capabilities are unlocked.
 export async function registerPartnerAction(
   _prev: AuthFormState,
   formData: FormData
@@ -157,76 +150,33 @@ export async function registerPartnerAction(
     };
   }
 
-  // Every partner lands on the single free plan. It exists so Subscription and
-  // Payment keep a valid planId and no history breaks — not because there is a
-  // choice to make.
-  const plan = await freePlan();
-  if (!plan) {
-    return {
-      message:
-        "Sign-ups are temporarily unavailable. Please try again in a few minutes.",
-      values,
-    };
-  }
-
   const avatar = normalizeAvatar(String(formData.get("image") ?? ""));
   if (avatar.error) return { errors: { image: avatar.error }, values };
 
-  // Nothing is collected at signup — joining is free, so there is no card to
-  // take and no method to choose. A partner picks how to settle a service-fee
-  // invoice in Billing, on the rare month they owe one.
-  const method: PaymentMethodType = "GCASH";
-
-  const now = new Date();
-  // No trial: there is nothing to trial. Joining is free, so a partner starts
-  // ACTIVE and their first billing period is simply the first month in which
-  // service fees might accrue.
-  const periodEnd = addMonthsTo(now, 1);
   const passwordHash = await bcrypt.hash(data.password, 10);
 
-  const created = await prisma.$transaction(async (tx) => {
-    const user = await tx.user.create({
-      data: {
-        // The ROUTE decides the role, never a form field.
-        role: "PARTNER",
-        name: data.businessName,
-        playerName: data.fullName,
-        email: data.email,
-        phone: data.phone,
-        facebookPage: data.facebookPage ?? null,
-        image: avatar.value,
-        passwordHash,
-      },
-      select: { id: true },
-    });
-
-    await tx.subscription.create({
-      data: {
-        userId: user.id,
-        planId: plan.id,
-        status: "ACTIVE",
-        method,
-        // Nothing renews silently: an invoice is only raised when service fees
-        // have actually accrued, and it is paid by opening a link.
-        autoRenew: false,
-        trialEndsAt: null,
-        currentPeriodStart: now,
-        currentPeriodEnd: periodEnd,
-        provider: "paymongo",
-      },
-    });
-
-    return user;
+  await prisma.user.create({
+    data: {
+      // The route decides the role and status, never a form field.
+      role: "PARTNER",
+      partnerStatus: "PENDING",
+      name: data.businessName,
+      playerName: data.fullName,
+      email: data.email,
+      phone: data.phone,
+      facebookPage: data.facebookPage ?? null,
+      image: avatar.value,
+      passwordHash,
+    },
   });
-  void created;
 
-  // Nothing is charged at signup, and no gateway is called: the partner's first
-  // job is to connect their own PayMongo account so they can take bookings.
+  // The partner can sign in immediately, but hub and payment features stay
+  // locked until an admin activates the account.
   try {
     await signIn("credentials", {
       email: data.email,
       password: data.password,
-      redirectTo: "/dashboard/billing",
+      redirectTo: "/dashboard/partner",
     });
   } catch (error) {
     if (error instanceof AuthError) {

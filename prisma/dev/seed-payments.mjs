@@ -8,8 +8,8 @@
 //   node prisma/dev/seed-payments.mjs seed [YYYY-MM]   # default: this month
 //   node prisma/dev/seed-payments.mjs clean            # remove them all
 //
-// Everything it writes is tagged — hubId "dev-seed-hub" and providerRef
-// "dev-seed" — so `clean` can take it back out without touching real money.
+// Everything it writes uses hubId "dev-seed-hub", so `clean` can take it back
+// out without touching real money.
 
 import { PrismaClient } from "@prisma/client";
 
@@ -17,32 +17,32 @@ const prisma = new PrismaClient();
 const [mode = "seed", monthArg] = process.argv.slice(2);
 
 const HUB = "dev-seed-hub";
-const TAG = "dev-seed";
-
 async function clean() {
   const courts = await prisma.bookingPayment.deleteMany({ where: { hubId: HUB } });
-  const subs = await prisma.payment.deleteMany({ where: { providerRef: TAG } });
-  console.log(
-    `✓ removed ${courts.count} court payment(s) and ${subs.count} subscription payment(s)`
-  );
+  console.log(`✓ removed ${courts.count} court payment(s)`);
 }
 
 async function seed() {
   const partner = await prisma.user.findFirst({
-    where: { role: "PARTNER" },
-    select: { id: true, subscription: { select: { id: true, planId: true } } },
+    where: { role: "PARTNER", partnerStatus: "ACTIVE" },
+    select: { id: true },
   });
   const player = await prisma.user.findFirst({
     where: { role: "PLAYER" },
     select: { id: true },
   });
-  const gateway = await prisma.partnerGateway.findFirst({ select: { id: true } });
+  const gateway = partner
+    ? await prisma.partnerGateway.findFirst({
+        where: { userId: partner.id, disconnectedAt: null },
+        select: { id: true },
+      })
+    : null;
 
   if (!partner) throw new Error("No partner account to attribute payments to.");
   if (!player) throw new Error("No player account to attribute payments to.");
   if (!gateway) {
     throw new Error(
-      "No connected gateway. Connect one on /dashboard/billing first — a BookingPayment has to belong to a gateway."
+      "No connected gateway. Connect one on /dashboard/payments first."
     );
   }
 
@@ -69,7 +69,10 @@ async function seed() {
     const bookings = weekend ? 3 : day % 3 === 0 ? 2 : day % 2 === 0 ? 1 : 0;
 
     for (let i = 0; i < bookings; i++) {
-      const amount = 250 * (1 + ((day + i) % 4));
+      const hours = 1 + ((day + i) % 4);
+      const venueAmount = 250 * hours;
+      const platformFee = hours === 1 ? 15 : 25;
+      const amount = venueAmount + platformFee;
       const paidAt = new Date(Date.UTC(year, month - 1, day, 2 + i * 5, 15));
       // One refund mid-month, so the chart has a dip that means something.
       const refunded = day === Math.floor(lastDay / 2) && i === 0;
@@ -79,6 +82,8 @@ async function seed() {
         userId: player.id,
         hubId: HUB,
         amount,
+        venueAmount,
+        platformFee,
         method: i % 3 === 0 ? "GCASH" : "CARD",
         status: refunded ? "REFUNDED" : "SUCCEEDED",
         expiresAt: paidAt,
@@ -91,38 +96,9 @@ async function seed() {
   }
   await prisma.bookingPayment.createMany({ data: rows });
 
-  // A couple of subscription payments so the admin's Platform tab has a line
-  // too. Written straight to the ledger — the subscription itself is NOT
-  // advanced, because that is applySuccessfulPayment's job and this is fodder,
-  // not a real collection.
-  let subs = 0;
-  if (partner.subscription) {
-    for (const day of [2, 17]) {
-      if (day > lastDay) continue;
-      const paidAt = new Date(Date.UTC(year, month - 1, day, 3, 0));
-      await prisma.payment.create({
-        data: {
-          subscriptionId: partner.subscription.id,
-          userId: partner.id,
-          planId: partner.subscription.planId,
-          kind: "MANUAL",
-          amount: 1499,
-          method: "CARD",
-          status: "SUCCEEDED",
-          periodStart: paidAt,
-          periodEnd: new Date(Date.UTC(year, month, day)),
-          paidAt,
-          providerRef: TAG,
-          idempotencyKey: `${TAG}:${year}-${month}-${day}`,
-        },
-      });
-      subs++;
-    }
-  }
-
   const total = rows.reduce((sum, r) => sum + r.amount, 0);
   console.log(
-    `✓ ${rows.length} court payment(s) across ${year}-${String(month).padStart(2, "0")}, ₱${total.toLocaleString()} gross, plus ${subs} subscription payment(s)`
+    `✓ ${rows.length} court payment(s) across ${year}-${String(month).padStart(2, "0")}, ₱${total.toLocaleString()} gross`
   );
   console.log("  Open /dashboard/reports, or /dashboard/admin/reports as an admin.");
   console.log("  Remove it all with: node prisma/dev/seed-payments.mjs clean");

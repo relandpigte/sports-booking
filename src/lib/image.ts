@@ -69,3 +69,15 @@ export async function fileToCoverDataUrl(
     bitmap.close();
   }
 }
+
+// Settlement receipts need to stay legible, but are still stored inline until
+// blob storage is configured. Resize without cropping and keep the result
+// comfortably below the Server Action body limit.
+export async function fileToReceiptDataUrl(
+  file: File,
+  maxWidth = 1400,
+  maxHeight = 1400,
+  quality = 0.78
+): Promise<string> {
+  return fileToCoverDataUrl(file, maxWidth, maxHeight, quality);
+}

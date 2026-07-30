@@ -4,11 +4,7 @@ import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin";
 import { addDays, manilaDateOf, manilaInstant, manilaMonthOf } from "@/lib/time";
 
-// Revenue over time, for whoever is allowed to see it.
-//
-// One shape, three sources — so the report component never learns where its
-// numbers came from, and the same panel serves a partner looking at their court
-// takings and an admin looking at platform income.
+// Revenue over time for venue booking payments.
 //
 // Deliberately reads the PAYMENT LEDGER, not the booking table: this answers
 // "what money actually moved", which is a different question from "what was
@@ -219,7 +215,7 @@ export async function venueRevenue(args: {
     rows.map((r) => ({
       // The COURT amount: what the venue actually keeps. The service fee the
       // player also paid is Bunal.ph's, and showing it here would flatter
-      // every venue's numbers by 5%.
+      // every venue's numbers by the service-fee rate.
       amount: Number(r.venueAmount),
       paidAt: r.paidAt,
       refundedAt: r.refundedAt,
@@ -229,46 +225,6 @@ export async function venueRevenue(args: {
     })),
     args.range
   );
-}
-
-// --- Partners paying Bunal.ph -----------------------------------------------
-
-export type PlatformRevenueSeries = RevenueSeries & {
-  // Comped periods are ₱0 by construction, so they can't inflate revenue — but
-  // a month given away is still an event worth seeing.
-  comped: number;
-};
-
-export async function platformRevenue(
-  range: RevenueRange
-): Promise<PlatformRevenueSeries> {
-  await requireAdmin();
-
-  const rows = await prisma.payment.findMany({
-    where: {
-      status: { in: ["SUCCEEDED", "REFUNDED"] },
-      ...ledgerWhere(range),
-    },
-    select: {
-      kind: true,
-      amount: true,
-      paidAt: true,
-      refundedAt: true,
-      refundedAmount: true,
-    },
-  });
-
-  const series = buildSeries(
-    rows.map((r) => ({
-      amount: Number(r.amount),
-      paidAt: r.paidAt,
-      refundedAt: r.refundedAt,
-      refundedAmount: r.refundedAmount != null ? Number(r.refundedAmount) : null,
-    })),
-    range
-  );
-
-  return { ...series, comped: rows.filter((r) => r.kind === "COMP").length };
 }
 
 // --- Every venue, for the admin ---------------------------------------------

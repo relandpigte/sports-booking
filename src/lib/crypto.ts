@@ -165,4 +165,6 @@ export function secretHint(value: string): string {
 export const CRYPTO_PURPOSE = {
   gatewaySecretKey: "partner-gateway.secretKey",
   gatewayWebhookSecret: "partner-gateway.webhookSecret",
+  platformGatewaySecretKey: "platform-gateway.secretKey",
+  platformGatewayWebhookSecret: "platform-gateway.webhookSecret",
 } as const;

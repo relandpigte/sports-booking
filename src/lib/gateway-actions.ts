@@ -4,8 +4,7 @@ import crypto from "node:crypto";
 import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/lib/db";
-import { requirePartner } from "@/lib/dal";
-import { partnerBillingGate } from "@/lib/billing";
+import { requireActivePartner } from "@/lib/dal";
 import { firstErrors } from "@/lib/zod-errors";
 import { ConnectGatewaySchema } from "@/lib/validation";
 import {
@@ -19,7 +18,7 @@ import { registerPaymongoWebhook } from "@/lib/payments/paymongo-venue";
 import { appUrl } from "@/lib/urls";
 
 // Deliberately NO `values` field: unlike a hub form, a gateway form's contents
-// must never round-trip through rendered state. Same rule as CardSchema.
+// must never round-trip through rendered state.
 export type GatewayFormState = {
   errors?: Record<string, string>;
   message?: string;
@@ -31,7 +30,7 @@ export type GatewayFormState = {
 };
 
 async function revalidateGatewaySurfaces(partnerId: string) {
-  revalidatePath("/dashboard/billing");
+  revalidatePath("/dashboard/payments");
   revalidatePath("/dashboard/hubs");
   revalidatePath("/hubs");
   const hubs = await prisma.hub.findMany({
@@ -45,10 +44,7 @@ export async function connectGatewayAction(
   _prev: GatewayFormState,
   formData: FormData
 ): Promise<GatewayFormState> {
-  // Gated like updateHubAction — a lapsed partner isn't configuring payouts.
-  const gate = await partnerBillingGate();
-  if (!gate.ok) return { message: gate.message };
-  const partner = gate.partner;
+  const partner = await requireActivePartner();
 
   // Refuse rather than ever storing a secret in plaintext.
   if (!isEncryptionConfigured()) {
@@ -147,8 +143,8 @@ export async function connectGatewayAction(
   await revalidateGatewaySurfaces(partner.id);
   return {
     success: parsed.data.webhookSecret
-      ? "Connected. Players now pay online to confirm a booking, and the money goes straight to you."
-      : "Connected, and we've registered the webhook in your PayMongo account. Players now pay online to confirm a booking, and the money goes straight to you.",
+      ? "Connected. Booking subtotals are deposited into your PayMongo account; remit Bunal.ph service fees from Payments."
+      : "Connected, and we've registered the webhook in your PayMongo account. Booking subtotals are deposited to you; remit Bunal.ph service fees from Payments.",
   };
 }
 
@@ -156,8 +152,8 @@ export async function disconnectGatewayAction(
   _prev: GatewayFormState,
   _formData: FormData
 ): Promise<GatewayFormState> {
-  // Never gated behind the subscription — you can always turn off taking money.
-  const partner = await requirePartner();
+  // Active partners can turn off taking money at any time.
+  const partner = await requireActivePartner();
 
   const existing = await prisma.partnerGateway.findUnique({
     where: { userId: partner.id },

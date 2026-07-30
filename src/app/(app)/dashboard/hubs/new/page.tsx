@@ -1,15 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { HubForm } from "@/components/dashboard/hubs/HubForm";
-import { requireEntitledPartner } from "@/lib/billing";
+import { requireActivePartner } from "@/lib/dal";
 
 export const metadata: Metadata = {
   title: "New Hub — Bunal.ph",
 };
 
 export default async function NewHubPage() {
-  // Sends a lapsed partner to /dashboard/billing rather than /login.
-  await requireEntitledPartner();
+  await requireActivePartner();
 
   return (
     <div className="mx-auto w-full max-w-3xl">

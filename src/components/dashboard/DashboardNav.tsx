@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { Role } from "@prisma/client";
+import type { PartnerStatus, Role } from "@prisma/client";
 
 import { dashboardHomeFor } from "@/lib/dashboard";
 
@@ -63,8 +63,20 @@ const items: Item[] = [
     ),
   },
   {
-    href: "/dashboard/billing",
-    label: "Billing",
+    href: "/dashboard/bookings",
+    label: "Bookings",
+    partnerOnly: true,
+    icon: (
+      <svg {...iconProps}>
+        <rect x="3" y="4" width="18" height="18" rx="2" />
+        <path d="M16 2v4M8 2v4M3 10h18" />
+        <path d="m9 16 2 2 4-4" />
+      </svg>
+    ),
+  },
+  {
+    href: "/dashboard/payments",
+    label: "Payments",
     partnerOnly: true,
     icon: (
       <svg {...iconProps}>
@@ -108,7 +120,13 @@ const items: Item[] = [
   },
 ];
 
-export function DashboardNav({ role }: { role?: Role }) {
+export function DashboardNav({
+  role,
+  partnerStatus,
+}: {
+  role?: Role;
+  partnerStatus?: PartnerStatus | null;
+}) {
   const pathname = usePathname();
 
   const isActive = (item: Item) =>
@@ -127,7 +145,8 @@ export function DashboardNav({ role }: { role?: Role }) {
     .filter(
       (item) =>
         (!item.playerOnly || role === "PLAYER") &&
-        (!item.partnerOnly || role === "PARTNER")
+        (!item.partnerOnly ||
+          (role === "PARTNER" && partnerStatus === "ACTIVE"))
     )
     // Home points straight at the role's own dashboard, so the link highlights
     // when you're on it — /dashboard only ever redirects there anyway.
@@ -153,13 +172,31 @@ export function DashboardNav({ role }: { role?: Role }) {
 
       {role === "ADMIN" && (
         <Link
+          href="/dashboard/admin/payments"
+          aria-current={
+            pathname.startsWith("/dashboard/admin/payments")
+              ? "page"
+              : undefined
+          }
+          className={`${linkClass(
+            pathname.startsWith("/dashboard/admin/payments")
+          )} md:mt-2 md:border-t md:border-gray-100 md:pt-3`}
+        >
+          <svg {...iconProps}>
+            <rect x="2" y="5" width="20" height="14" rx="2" />
+            <path d="M2 10h20M16 15h2" />
+          </svg>
+          <span>Payment setup</span>
+        </Link>
+      )}
+
+      {role === "ADMIN" && (
+        <Link
           href="/dashboard/admin/reports"
           aria-current={
             pathname.startsWith("/dashboard/admin/reports") ? "page" : undefined
           }
-          className={`${linkClass(
-            pathname.startsWith("/dashboard/admin/reports")
-          )} md:mt-2 md:border-t md:border-gray-100 md:pt-3`}
+          className={linkClass(pathname.startsWith("/dashboard/admin/reports"))}
         >
           <svg {...iconProps}>
             <path d="M3 3v18h18" />
@@ -171,21 +208,21 @@ export function DashboardNav({ role }: { role?: Role }) {
 
       {role === "ADMIN" && (
         <Link
-          href="/dashboard/admin/subscriptions"
+          href="/dashboard/admin/settlements"
           aria-current={
-            pathname.startsWith("/dashboard/admin/subscriptions")
+            pathname.startsWith("/dashboard/admin/settlements")
               ? "page"
               : undefined
           }
           className={linkClass(
-            pathname.startsWith("/dashboard/admin/subscriptions")
+            pathname.startsWith("/dashboard/admin/settlements")
           )}
         >
           <svg {...iconProps}>
-            <rect x="2" y="5" width="20" height="14" rx="2" />
-            <path d="M2 10h20" />
+            <path d="M4 4h16v16H4z" />
+            <path d="M8 9h8M8 13h5M8 17h3" />
           </svg>
-          <span>Subscriptions</span>
+          <span>Settlements</span>
         </Link>
       )}
 

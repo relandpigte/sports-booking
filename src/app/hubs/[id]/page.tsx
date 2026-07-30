@@ -228,8 +228,7 @@ export default async function PublicHubPage({
           </section>
         </div>
 
-        {/* The hub still renders when the venue's subscription has lapsed —
-            nothing is deleted, it just stops taking new bookings. */}
+        {/* Unlisted hubs still render by direct URL, but cannot take bookings. */}
         {hub.bookable ? (
           <BookCourtPanel
             courts={hub.courts}
@@ -254,22 +253,32 @@ export default async function PublicHubPage({
               This venue isn&apos;t taking online bookings right now. Contact
               them directly using the details above.
             </p>
-            {/* Said only to the owner, who arrived here from their dashboard
-                and needs to know which of the two things to fix. A visitor
-                doesn't need the venue's admin problems. */}
+            {/* Only the owner/admin needs the operational reason. */}
             {isOwner && (
               <p className="mt-3 text-sm">
                 <span className="text-gray-400">
                   {hub.blockedBy === "gateway"
                     ? "Your hub isn't listed publicly because no payment gateway is connected."
-                    : "Your hub isn't listed publicly because your subscription isn't active."}
+                    : hub.blockedBy === "settlement"
+                      ? "New bookings are paused because a service-fee settlement is overdue."
+                      : "This partner account is waiting for admin verification."}
                 </span>{" "}
-                <Link
-                  href="/dashboard/billing"
-                  className="font-semibold text-primary hover:underline"
-                >
-                  Fix this in Billing →
-                </Link>
+                {hub.blockedBy === "gateway" && (
+                  <Link
+                    href="/dashboard/payments"
+                    className="font-semibold text-primary hover:underline"
+                  >
+                    Connect PayMongo →
+                  </Link>
+                )}
+                {hub.blockedBy === "settlement" && (
+                  <Link
+                    href="/dashboard/payments"
+                    className="font-semibold text-primary hover:underline"
+                  >
+                    Submit settlement →
+                  </Link>
+                )}
               </p>
             )}
           </section>

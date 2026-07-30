@@ -81,7 +81,7 @@ export function isValidDateString(s: string): boolean {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
 }
 
-// --- Instant arithmetic (billing deadlines) ---------------------------------
+// --- Instant arithmetic ------------------------------------------------------
 // Deliberately named differently from addDays above, which shifts a civil-date
 // STRING. These shift a real instant, and confusing the two would be silent.
 

@@ -5,8 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { prisma } from "@/lib/db";
-import { requirePartner } from "@/lib/hubs";
-import { checkCourtLimit, partnerBillingGate } from "@/lib/billing";
+import { requireActivePartner } from "@/lib/hubs";
 import { liveBookingWhere } from "@/lib/bookings";
 import { HubSchema } from "@/lib/validation";
 import { firstErrors } from "@/lib/zod-errors";
@@ -52,9 +51,6 @@ export type HubFormState = {
   errors?: Record<string, string>;
   message?: string;
   values?: Record<string, string>;
-  // Set when the block is a subscription limit rather than bad input, so the
-  // form can offer an upgrade instead of just an error.
-  upgrade?: boolean;
 };
 
 // React 19 resets a form after its action completes, so every failure path has
@@ -156,25 +152,12 @@ export async function createHubAction(
   _prev: HubFormState,
   formData: FormData
 ): Promise<HubFormState> {
-  // Never redirects — a Server Action should hand the form a message.
-  const gate = await partnerBillingGate();
-  if (!gate.ok)
-    return { message: gate.message, values: formValues(formData), upgrade: true };
-  const partner = gate.partner;
+  const partner = await requireActivePartner();
 
   const result = parseHubForm(formData);
   if (!result.ok) return result.state;
   const { data, logo, coverPhotos, games, courts, latitude, longitude, operatingHours } =
     result.hub;
-
-  // Tiers cap the TOTAL courts across all of this partner's hubs.
-  const limit = await checkCourtLimit({
-    userId: partner.id,
-    plan: gate.plan,
-    adding: courts.length,
-  });
-  if (!limit.ok)
-    return { message: limit.message, values: formValues(formData), upgrade: true };
 
   await prisma.hub.create({
     data: {
@@ -208,10 +191,7 @@ export async function updateHubAction(
   _prev: HubFormState,
   formData: FormData
 ): Promise<HubFormState> {
-  const gate = await partnerBillingGate();
-  if (!gate.ok)
-    return { message: gate.message, values: formValues(formData), upgrade: true };
-  const partner = gate.partner;
+  const partner = await requireActivePartner();
   const id = String(formData.get("id") ?? "");
 
   const owned = await prisma.hub.findFirst({
@@ -242,18 +222,6 @@ export async function updateHubAction(
   const toDelete = existing
     .filter((e) => !keptIds.has(e.id))
     .map((e) => e.id);
-
-  // Checked here, beside the deletion guard and BEFORE any write — otherwise
-  // the hub's own fields would persist while the courts were rejected.
-  const limit = await checkCourtLimit({
-    userId: partner.id,
-    plan: gate.plan,
-    // This hub's current courts don't count; the submitted set replaces them.
-    excludeHubId: id,
-    adding: courts.length,
-  });
-  if (!limit.ok)
-    return { message: limit.message, values: formValues(formData), upgrade: true };
 
   if (toDelete.length) {
     // Court deletion cascades to Booking, so removing a court would silently
@@ -325,7 +293,7 @@ export async function updateHubAction(
 }
 
 export async function deleteHubAction(formData: FormData) {
-  const partner = await requirePartner();
+  const partner = await requireActivePartner();
   const id = String(formData.get("id") ?? "");
   if (!id) return;
 

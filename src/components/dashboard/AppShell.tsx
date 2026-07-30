@@ -1,11 +1,10 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import type { Role } from "@prisma/client";
+import type { PartnerStatus, Role } from "@prisma/client";
 
 import { Logo } from "@/components/Logo";
 import { Avatar } from "@/components/ui/Avatar";
 import { DashboardNav } from "@/components/dashboard/DashboardNav";
-import { BillingBanner } from "@/components/billing/BillingBanner";
 import { logoutAction } from "@/lib/actions";
 
 export type ShellUser = {
@@ -14,6 +13,7 @@ export type ShellUser = {
   email: string;
   image: string | null;
   role: Role;
+  partnerStatus: PartnerStatus | null;
 };
 
 // The signed-in chrome: sidebar, nav, account footer.
@@ -40,7 +40,7 @@ export function AppShell({
           <Logo size={38} />
         </Link>
 
-        <DashboardNav role={user.role} />
+        <DashboardNav role={user.role} partnerStatus={user.partnerStatus} />
 
         <div className="mt-auto flex items-center justify-between gap-2 border-t border-gray-200 pt-4">
           <div className="flex min-w-0 items-center gap-2.5">
@@ -85,7 +85,6 @@ export function AppShell({
 
       <main className="flex-1 px-4 py-8 sm:px-8">
         <div className={`mx-auto w-full ${maxWidth}`}>
-          {user.role === "PARTNER" && <BillingBanner />}
           {children}
         </div>
       </main>

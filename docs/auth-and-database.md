@@ -39,6 +39,7 @@ npm run dev
 ```
 
 - `/register` — create a player account (password is hashed with bcrypt).
+- `/register/partner` — apply for a partner account; an admin must activate it.
 - `/login` — sign in.
 - `/dashboard` — protected; redirects to `/login` when signed out.
 
@@ -60,6 +61,11 @@ npm run dev
 `User.role` is an enum with three values: **`ADMIN`**, **`PLAYER`**, **`PARTNER`**
 (defined in `prisma/schema.prisma`). New registrations default to `PLAYER`.
 
+Partner registrations also carry `User.partnerStatus`. Public signups start as
+`PENDING`; admins activate legitimate venues from `/users`. Use
+`requireActivePartner()` for every hub, gateway, booking-management, or report
+operation. `requirePartner()` is reserved for pages a pending partner may see.
+
 - The role is carried in the session JWT (`session.user.role`) via the callbacks
   in `src/lib/auth.ts`.
 - Gate a page or server action with `requireRole()` from `src/lib/dal.ts`:
@@ -70,12 +76,7 @@ npm run dev
   const user = await requireRole("ADMIN", "PARTNER");
   ```
 
-- Assign a non-default role manually for now (no admin UI yet), e.g. via
-  `npm run db:studio` or SQL:
-
-  ```sql
-  UPDATE "User" SET role = 'ADMIN' WHERE email = 'you@example.com';
-  ```
+- Admins can manage roles and partner activation from `/users`.
 
 > **Schema changed?** After editing `prisma/schema.prisma`, re-run
 > `npm run db:push` (and `npm run db:generate` is handled for you on install).

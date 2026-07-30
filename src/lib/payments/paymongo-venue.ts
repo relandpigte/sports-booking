@@ -27,7 +27,8 @@ import {
   verifyPaymongoSignature,
 } from "./paymongo-core";
 
-// PayMongo, using each partner's own account — the money goes straight to them
+// PayMongo, using each partner's own account. The checkout subtotal lands in
+// that account, and the partner remits Bunal.ph's accrued service fee later.
 // and this app never touches it.
 //
 // Hosted Checkout Sessions rather than Payment Intents with our own card form.
@@ -38,8 +39,7 @@ import {
 // the site for a moment; the hold keeps running while they're away and the
 // return URL brings them straight back.
 //
-// The API itself lives in paymongo-core, shared with the platform's own
-// subscription gateway.
+// The reusable PayMongo HTTP and signature helpers live in paymongo-core.
 
 // Re-exported so existing importers (and the connect action) don't have to
 // know the code moved.

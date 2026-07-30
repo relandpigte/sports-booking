@@ -5,9 +5,7 @@ import { loadGatewayCredentials } from "@/lib/partner-gateway";
 import { getVenueGateway } from "@/lib/payments/venue";
 import { handleVenueEvent } from "@/lib/booking-webhook";
 
-// Callbacks from a PARTNER's own gateway — players paying venues. Separate
-// from /api/billing/webhook, which is the platform's own subscription gateway
-// and verifies against a completely different secret.
+// Callbacks from a partner's own gateway for player booking payments.
 //
 // Unauthenticated by necessity: a gateway has no session. The token identifies
 // which partner is being paid; the SIGNATURE is the authorization. Nothing

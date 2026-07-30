@@ -52,35 +52,10 @@ export function HubForm({ hub }: { hub?: Hub }) {
       <Modal
         open={showDialog}
         onClose={() => setDismissed(state.message ?? null)}
-        title={state.upgrade ? "Your plan doesn't cover this" : "Couldn't save"}
+        title="Couldn't save"
         tone="warn"
-        footer={
-          state.upgrade ? (
-            <>
-              <button
-                type="button"
-                onClick={() => setDismissed(state.message ?? null)}
-                className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
-              >
-                Keep editing
-              </button>
-              <Link
-                href="/dashboard/billing"
-                className="rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover"
-              >
-                Upgrade plan
-              </Link>
-            </>
-          ) : undefined
-        }
       >
         <p>{state.message}</p>
-        {state.upgrade && (
-          <p className="mt-2 text-gray-500">
-            Nothing you&apos;ve entered is lost — upgrading opens in Billing, and
-            this form is still here when you come back.
-          </p>
-        )}
       </Modal>
 
       <CoverPhotosUpload

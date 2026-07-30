@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { PeriodPicker } from "@/components/reports/PeriodPicker";
 import { RevenueReport, type StatTile } from "@/components/reports/RevenueReport";
-import { requirePartner } from "@/lib/dal";
+import { requireActivePartner } from "@/lib/dal";
 import { listMyHubs } from "@/lib/hubs";
 import { getActivePartnerGateway } from "@/lib/partner-gateway";
 import { monthRange, monthsRange, venueRevenue } from "@/lib/analytics";
@@ -26,7 +26,7 @@ export default async function PartnerReportsPage({
     hub?: string;
   }>;
 }) {
-  const partner = await requirePartner();
+  const partner = await requireActivePartner();
   const sp = await searchParams;
 
   const now = new Date();
@@ -53,9 +53,9 @@ export default async function PartnerReportsPage({
 
   const tiles: StatTile[] = [
     {
-      label: "Collected",
+      label: "Court revenue",
       value: formatPHP(series.totals.gross),
-      hint: periodLabel,
+      hint: `After service-fee settlement · ${periodLabel}`,
       emphasis: true,
     },
     {
@@ -136,7 +136,7 @@ export default async function PartnerReportsPage({
                   to report.
                 </p>
                 <Link
-                  href="/dashboard/billing"
+                  href="/dashboard/payments"
                   className="text-sm font-semibold text-primary hover:underline"
                 >
                   Connect PayMongo to take payments online →

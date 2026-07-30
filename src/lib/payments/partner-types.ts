@@ -5,25 +5,8 @@ import type {
   RefundResult,
 } from "./types";
 
-// The seam for a PARTNER's own gateway — players paying venues.
-//
-// Deliberately separate from PaymentProvider (platform subscriptions), for
-// three reasons:
-//
-//   1. PaymentProvider is a singleton that reads process.env at call time.
-//      Per-partner credentials would force it to become a factory, breaking
-//      every existing call site in billing.ts that has no partner to pass.
-//   2. Players never save a card — they pay once, per booking. createCustomer,
-//      attachPaymentMethod and detachPaymentMethod would be three dead methods
-//      out of eight, and an interface where 40% is unreachable documents worse
-//      than two honest ones.
-//   3. verifyWebhook has an incompatible source of truth: the platform's env
-//      secret vs THIS partner's decrypted secret. Same name, different
-//      contract — exactly where sharing an interface breeds a bug.
-//
-// What IS shared, and imported above: Money, ChargeResult, RefundResult and
-// ProviderWebhookEvent. Those are result shapes dictated by how gateways
-// actually behave, and they're already right.
+// The seam for a partner's own gateway. Players pay once per booking; card
+// details stay on the provider's hosted checkout.
 
 export type VenueGatewayId = "paymongo";
 

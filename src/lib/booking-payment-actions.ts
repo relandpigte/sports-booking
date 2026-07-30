@@ -9,7 +9,7 @@ import { chargeBookingPayment } from "@/lib/booking-payments";
 
 // Starting a payment is now a single button: PayMongo hosts the form, so there
 // is no method to choose here and no card detail to collect — which is why this
-// file has no `values` echo and no CardSchema. Nothing sensitive passes
+// file has no `values` echo and no card fields. Nothing sensitive passes
 // through.
 export type PayBookingFormState = {
   errors?: Record<string, string>;

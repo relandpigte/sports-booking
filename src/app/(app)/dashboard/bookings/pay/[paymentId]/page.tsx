@@ -130,7 +130,7 @@ export default async function PayBookingPage({
             <div className="flex flex-col gap-3">
               <p className="rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-700">
                 {payment.refundReason ??
-                  "This payment was refunded in full."}
+                  "The booking subtotal was refunded."}
               </p>
               <Link
                 href="/hubs"

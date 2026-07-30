@@ -1,27 +1,20 @@
 import Link from "next/link";
 
-import { Badge, type BadgeTone } from "@/components/ui/Badge";
+import type { PartnerStatus } from "@prisma/client";
 
 type PartnerHomeUser = {
   name: string | null;
   playerName: string | null;
 };
 
-export type PartnerHomeBilling = {
-  planName: string;
-  statusLabel: string;
-  tone: BadgeTone;
-  detail: string;
-  usage: string;
-};
-
 export function PartnerHome({
   user,
-  billing,
+  partnerStatus,
 }: {
   user: PartnerHomeUser;
-  billing: PartnerHomeBilling | null;
+  partnerStatus: PartnerStatus | null;
 }) {
+  const active = partnerStatus === "ACTIVE";
   const comingSoon = [
     {
       label: "Booking requests",
@@ -45,6 +38,19 @@ export function PartnerHome({
         </span>
       </div>
 
+      {!active && (
+        <section className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5">
+          <h2 className="font-semibold text-amber-900">
+            Your partner account is under review
+          </h2>
+          <p className="mt-1 text-sm text-amber-800">
+            An admin will verify your business details before activating your
+            account. You can update your account information while you wait.
+          </p>
+        </section>
+      )}
+
+      {active && (
       <Link
         href="/dashboard/hubs"
         className="mt-6 block rounded-2xl border border-gray-200 p-5 transition-colors hover:border-gray-300"
@@ -58,21 +64,22 @@ export function PartnerHome({
           and operating hours.
         </p>
       </Link>
+      )}
 
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {billing && (
+        {active && (
           <Link
-            href="/dashboard/billing"
+            href="/dashboard/payments"
             className="rounded-2xl border border-gray-200 p-5 transition-colors hover:border-gray-300"
           >
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-base font-semibold text-gray-900">
-                {billing.planName}
+                Payments
               </h2>
-              <Badge tone={billing.tone}>{billing.statusLabel}</Badge>
             </div>
-            <p className="mt-1.5 text-sm text-gray-500">{billing.detail}</p>
-            <p className="mt-1 text-sm text-gray-400">{billing.usage}</p>
+            <p className="mt-1.5 text-sm text-gray-500">
+              Connect PayMongo to accept online court payments.
+            </p>
           </Link>
         )}
         {comingSoon.map((c) => (

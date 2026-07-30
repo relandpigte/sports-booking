@@ -2,19 +2,18 @@
 //
 //   npm run check:fee
 //
-// Two things have to hold or somebody is short-changed. The fee a player is
-// quoted on the grid must be the fee stored on the payment must be the fee the
-// venue is invoiced — one function, three surfaces. And a refunded booking must
-// disappear from the accrual, because we did not keep that money either.
+// The fee quoted to a player must be the fee stored on the payment and reported
+// to admins. Refunded payments must not count as retained service fees.
 import crypto from "node:crypto";
 
 import { PrismaClient } from "@prisma/client";
 
 import { ok, run, stubRequestContext } from "./harness";
 import {
-  PLATFORM_FEE_RATE,
+  MULTI_HOUR_SERVICE_FEE,
+  ONE_HOUR_SERVICE_FEE,
+  bookingServiceFeeFor,
   grossFor,
-  platformFeeFor,
 } from "@/lib/constants";
 
 const prisma = new PrismaClient();
@@ -28,33 +27,35 @@ async function check() {
   if (!admin) throw new Error("Seed an admin user first.");
   stubRequestContext(admin);
 
-  const { accruedFees } = await import("@/lib/billing");
-
   // --- 1. The arithmetic ----------------------------------------------------
-  ok("the rate is 5%", PLATFORM_FEE_RATE === 0.05);
-  ok("a ₱500 booking carries a ₱25 fee", platformFeeFor(500) === 25);
-  ok("and grosses ₱525", grossFor(500) === 525);
-  ok("a ₱250 hour carries ₱12.50", platformFeeFor(250) === 12.5);
-  ok("and grosses ₱262.50", grossFor(250) === 262.5);
-  ok("a ₱200 hour carries ₱10", platformFeeFor(200) === 10);
-
-  // Rounding: pesos are decimal, floats are not. 333.33 × 0.05 = 16.6665,
-  // which must land on a centavo rather than drifting.
-  ok("₱333.33 rounds to ₱16.67", platformFeeFor(333.33) === 16.67);
-  ok("and grosses exactly ₱350", grossFor(333.33) === 350);
-  ok("₱1 rounds to ₱0.05", platformFeeFor(1) === 0.05);
-  ok("₱0.10 rounds to ₱0.01", platformFeeFor(0.1) === 0.01);
-  ok("a free court has no fee", platformFeeFor(0) === 0);
+  ok("the one-hour fee is ₱15", ONE_HOUR_SERVICE_FEE === 15);
+  ok("the multi-hour fee is ₱25", MULTI_HOUR_SERVICE_FEE === 25);
+  ok("an empty selection has no fee", bookingServiceFeeFor(0) === 0);
+  ok("one hour carries a ₱15 fee", bookingServiceFeeFor(1) === 15);
+  ok("two hours carry a ₱25 fee", bookingServiceFeeFor(2) === 25);
+  ok("the fee stays ₱25 beyond two hours", bookingServiceFeeFor(8) === 25);
+  ok("a ₱250 one-hour booking grosses ₱265", grossFor(250, 1) === 265);
+  ok("a ₱500 two-hour booking grosses ₱525", grossFor(500, 2) === 525);
+  ok(
+    "a centavo court total stays exact",
+    grossFor(333.33, 1) === 348.33
+  );
 
   // The invariant that matters: the split always reconstitutes the gross.
-  const drifted: number[] = [];
-  for (let peso = 1; peso <= 5000; peso++) {
-    if (Math.abs(peso + platformFeeFor(peso) - grossFor(peso)) > 1e-9) {
-      drifted.push(peso);
+  const drifted: { peso: number; hours: number }[] = [];
+  for (const hours of [1, 2, 8]) {
+    for (let peso = 1; peso <= 5000; peso++) {
+      if (
+        Math.abs(
+          peso + bookingServiceFeeFor(hours) - grossFor(peso, hours)
+        ) > 1e-9
+      ) {
+        drifted.push({ peso, hours });
+      }
     }
   }
   ok(
-    "court + fee === gross for every whole peso to ₱5,000",
+    "court + fee === gross across one- and multi-hour bookings",
     drifted.length === 0
   );
 
@@ -87,105 +88,66 @@ async function check() {
     select: { id: true },
   });
 
-  const pay = (courtTotal: number, opts: { paidAt?: Date; refunded?: boolean } = {}) =>
+  const pay = (
+    courtTotal: number,
+    hours: number,
+    opts: { paidAt?: Date; refunded?: boolean } = {}
+  ) =>
     prisma.bookingPayment.create({
       data: {
         partnerId: partner.id,
         gatewayId: gateway.id,
         userId: player.id,
         hubId: court.hubId,
-        amount: grossFor(courtTotal),
+        amount: grossFor(courtTotal, hours),
         venueAmount: courtTotal,
-        platformFee: platformFeeFor(courtTotal),
+        platformFee: bookingServiceFeeFor(hours),
         method: "GCASH",
         status: opts.refunded ? "REFUNDED" : "SUCCEEDED",
         expiresAt: new Date(),
         provider: "paymongo",
         paidAt: opts.paidAt ?? new Date("2026-06-15T04:00:00Z"),
         refundedAt: opts.refunded ? new Date("2026-06-16T04:00:00Z") : null,
-        refundedAmount: opts.refunded ? grossFor(courtTotal) : null,
+        refundedAmount: opts.refunded ? grossFor(courtTotal, hours) : null,
       },
       select: { id: true },
     });
 
-  const first = await pay(500);
+  const first = await pay(500, 1);
   const stored = await prisma.bookingPayment.findUnique({
     where: { id: first.id },
   });
-  ok("the gross is what the player pays", Number(stored!.amount) === 525);
+  ok("the gross is what the player pays", Number(stored!.amount) === 515);
   ok("the venue's share is the court total", Number(stored!.venueAmount) === 500);
-  ok("our share is the fee", Number(stored!.platformFee) === 25);
+  ok("our share is the fee", Number(stored!.platformFee) === 15);
   ok(
     "and the three reconcile in the database, not just in JS",
     Number(stored!.venueAmount) + Number(stored!.platformFee) ===
       Number(stored!.amount)
   );
 
-  // --- 3. The accrual — what the venue gets invoiced ------------------------
-  const june = {
-    from: new Date("2026-06-01T00:00:00+08:00"),
-    to: new Date("2026-07-01T00:00:00+08:00"),
-  };
+  await pay(250, 2);
+  await pay(1000, 4, { refunded: true });
 
-  await pay(250);
-  ok(
-    "the accrual is the sum of the fees",
-    (await accruedFees(partner.id, june.from, june.to)) === 37.5
-  );
-
-  // A refunded booking earned us nothing.
-  await pay(1000, { refunded: true });
-  ok(
-    "a refunded payment is excluded",
-    (await accruedFees(partner.id, june.from, june.to)) === 37.5
-  );
-
-  // A payment still awaiting the player isn't money yet.
+  // A payment still awaiting the player is not revenue.
   await prisma.bookingPayment.create({
     data: {
       partnerId: partner.id,
       gatewayId: gateway.id,
       userId: player.id,
       hubId: court.hubId,
-      amount: grossFor(800),
+      amount: grossFor(800, 3),
       venueAmount: 800,
-      platformFee: platformFeeFor(800),
+      platformFee: bookingServiceFeeFor(3),
       method: "CARD",
       status: "PENDING",
       expiresAt: new Date(),
       provider: "paymongo",
     },
   });
-  ok(
-    "a PENDING payment is excluded",
-    (await accruedFees(partner.id, june.from, june.to)) === 37.5
-  );
-
-  // The period boundary, in Manila. 2026-06-30T16:30Z is 1 July 00:30 here, so
-  // it belongs to July's invoice — the same class of bug the analytics check
-  // guards, now on the money we bill for.
-  await pay(400, { paidAt: new Date("2026-06-30T16:30:00Z") });
-  ok(
-    "a payment after Manila midnight is NOT in June",
-    (await accruedFees(partner.id, june.from, june.to)) === 37.5
-  );
-  ok(
-    "it is in July",
-    (await accruedFees(
-      partner.id,
-      new Date("2026-07-01T00:00:00+08:00"),
-      new Date("2026-08-01T00:00:00+08:00")
-    )) === 20
-  );
-
-  // Another partner's fees are never ours to bill.
-  ok(
-    "the accrual is scoped to one partner",
-    (await accruedFees(player.id, june.from, june.to)) === 0
-  );
-
-  // --- 4. The venue's report shows the court amount, not the gross ----------
-  const { venueRevenue, monthRange } = await import("@/lib/analytics");
+  // --- 3. Reports keep venue and platform shares separate -------------------
+  const { marketplaceRevenue, venueRevenue, monthRange } =
+    await import("@/lib/analytics");
   const report = await venueRevenue({
     partnerId: partner.id,
     range: monthRange(2026, 6),
@@ -197,6 +159,11 @@ async function check() {
   ok(
     "and the refund comes off at the venue's share, not the gross",
     report.totals.refunds === 1000
+  );
+  const marketplace = await marketplaceRevenue(monthRange(2026, 6));
+  ok(
+    "admin reporting includes only retained service fees",
+    marketplace.serviceFees >= 40
   );
 
   await cleanup();

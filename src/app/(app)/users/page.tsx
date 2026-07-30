@@ -5,6 +5,8 @@ import type { Role } from "@prisma/client";
 import { Avatar } from "@/components/ui/Avatar";
 import { RoleSelect } from "@/components/admin/RoleSelect";
 import { DeleteUserButton } from "@/components/admin/DeleteUserButton";
+import { PartnerActivationButton } from "@/components/admin/PartnerActivationButton";
+import { Badge } from "@/components/ui/Badge";
 import { requireAdmin, listUsers, userCounts } from "@/lib/admin";
 import { facebookPageLabel } from "@/lib/social";
 import { ROLE_VALUES, ROLE_LABELS, SKILL_LEVELS } from "@/lib/constants";
@@ -198,13 +200,32 @@ export default async function UsersPage({
                     {u.role === "PARTNER" ? "—" : skillLabel(u.skillLevel)}
                   </td>
                   <td className="px-4 py-3">
-                    <RoleSelect userId={u.id} role={u.role} disabled={isSelf} />
+                    <div className="flex flex-col items-start gap-1.5">
+                      <RoleSelect userId={u.id} role={u.role} disabled={isSelf} />
+                      {u.role === "PARTNER" && (
+                        <Badge
+                          tone={
+                            u.partnerStatus === "ACTIVE" ? "success" : "warn"
+                          }
+                        >
+                          {u.partnerStatus === "ACTIVE"
+                            ? "Verified"
+                            : "Pending review"}
+                        </Badge>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-gray-500">
                     {fmtDate(u.createdAt)}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
+                      {u.role === "PARTNER" && (
+                        <PartnerActivationButton
+                          userId={u.id}
+                          active={u.partnerStatus === "ACTIVE"}
+                        />
+                      )}
                       <Link
                         href={`/users/${u.id}/edit`}
                         className="rounded-md px-2 py-1 text-xs font-medium text-primary hover:bg-primary-soft"

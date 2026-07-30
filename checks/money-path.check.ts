@@ -13,6 +13,7 @@ import { PrismaClient } from "@prisma/client";
 
 import { ok, run } from "./harness";
 import { installPaymongoMock, mockPaidEvent, payMockSession } from "./paymongo-mock";
+import { bookingServiceFeeFor, grossFor } from "@/lib/constants";
 
 const prisma = new PrismaClient();
 
@@ -77,13 +78,16 @@ async function check() {
   // A booking holding its hours, with a payment waiting on it.
   async function scaffold(hours: number[], owner = a) {
     const expiresAt = new Date(Date.now() + 15 * 60_000);
+    const venueAmount = 250 * hours.length;
     const payment = await prisma.bookingPayment.create({
       data: {
         partnerId: owner.userId,
         gatewayId: owner.gatewayId,
         userId: player!.id,
         hubId: court!.hubId,
-        amount: 250 * hours.length,
+        amount: grossFor(venueAmount, hours.length),
+        venueAmount,
+        platformFee: bookingServiceFeeFor(hours.length),
         method: "CARD",
         status: "PENDING",
         expiresAt,
@@ -133,6 +137,7 @@ async function check() {
 
   const created = mock.requests.find((r) => r.url.endsWith("/checkout_sessions"));
   ok("PayMongo was actually called", created != null);
+  ok("checkout uses PayMongo V2", created!.url.includes("/v2/checkout_sessions"));
   ok(
     "with the partner's own secret key",
     Buffer.from(created!.auth.replace("Basic ", ""), "base64")
@@ -141,13 +146,14 @@ async function check() {
   );
   const attrs = (created!.body as { data: { attributes: Record<string, unknown> } })
     .data.attributes;
-  ok("in centavos", (attrs.line_items as { amount: number }[])[0].amount === 50000);
+  ok("in centavos", (attrs.line_items as { amount: number }[])[0].amount === 52500);
   ok(
     "offering card, GCash and Maya",
     JSON.stringify(attrs.payment_method_types) ===
       JSON.stringify(["card", "gcash", "paymaya"])
   );
   ok("tagged with our payment id", attrs.reference_number === one.payment.id);
+  ok("PayMongo processing fees pass through", attrs.pass_on_fees === true);
 
   const row = await prisma.bookingPayment.findUnique({
     where: { id: one.payment.id },
@@ -206,6 +212,12 @@ async function check() {
   ok("the pay_ id is kept, which is what a refund needs", paid!.providerRef === payId);
   ok("the method the payer actually chose is recorded", paid!.method === "GCASH");
   ok(
+    "the successful booking accrues one service fee",
+    (await prisma.serviceFeeEntry.count({
+      where: { bookingPaymentId: one.payment.id, type: "CHARGE" },
+    })) === 1
+  );
+  ok(
     "the hold is released on every slot",
     (await prisma.bookingSlot.findMany({ where: { bookingId: one.booking.id } })).every(
       (s) => s.holdExpiresAt === null
@@ -214,6 +226,12 @@ async function check() {
 
   const replay = await handleVenueEvent({ gatewayId: a.gatewayId, event: event! });
   ok("a replayed delivery changes nothing", !replay.applied && replay.reason === "duplicate");
+  ok(
+    "a replay cannot duplicate the service fee",
+    (await prisma.serviceFeeEntry.count({
+      where: { bookingPaymentId: one.payment.id, type: "CHARGE" },
+    })) === 1
+  );
 
   ok(
     "another partner's secret cannot verify it",
@@ -295,7 +313,13 @@ async function check() {
     where: { id: one.payment.id },
   });
   ok("recorded as REFUNDED", refunded!.status === "REFUNDED");
-  ok("for the full amount", Number(refunded!.refundedAmount) === 500);
+  ok("for the full booking subtotal", Number(refunded!.refundedAmount) === 525);
+  ok(
+    "the refund reverses the service fee",
+    (await prisma.serviceFeeEntry.count({
+      where: { bookingPaymentId: one.payment.id, type: "REFUND" },
+    })) === 1
+  );
   ok(
     "and refunding twice does not refund twice",
     (await refundBookingPayment({ paymentId: one.payment.id })).ok === true &&

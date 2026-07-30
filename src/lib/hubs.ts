@@ -5,12 +5,8 @@ import { Prisma } from "@prisma/client";
 import type { OperatingHours, Game } from "@/lib/constants";
 
 import { prisma } from "@/lib/db";
-import { requirePartner } from "@/lib/dal";
-import {
-  entitledSubscriptionWhere,
-  isEntitled,
-  sweepDueSubscriptions,
-} from "@/lib/billing";
+import { requireActivePartner, requirePartner } from "@/lib/dal";
+import { isServiceFeeOverdue } from "@/lib/service-fees";
 
 export type Court = {
   id: string;
@@ -35,10 +31,8 @@ function mapCourt(c: CourtRow): Court {
   };
 }
 
-// Hubs are a partner-only feature. The guard itself lives in dal.ts (so
-// billing.ts can use it without an import cycle) and is re-exported here for
-// every existing caller.
-export { requirePartner };
+// Re-export the guards for existing domain callers.
+export { requireActivePartner, requirePartner };
 
 export type Hub = {
   id: string;
@@ -95,7 +89,7 @@ function mapHub<
 }
 
 export async function listMyHubs(): Promise<Hub[]> {
-  const partner = await requirePartner();
+  const partner = await requireActivePartner();
   const rows = await prisma.hub.findMany({
     where: { ownerId: partner.id },
     orderBy: { createdAt: "desc" },
@@ -104,48 +98,36 @@ export async function listMyHubs(): Promise<Hub[]> {
   return rows.map(mapHub);
 }
 
-// Pulls forward card renewals so they happen without anyone signing in.
-// Throttled per server instance, never allowed to break the page, and
-// deliberately NOT load-bearing: listing correctness comes from the time-based
-// entitlement filter below, not from this. Delete it once a real cron calls
-// /api/billing/sweep.
-let lastSweepAt = 0;
-async function maybeSweep(): Promise<void> {
-  if (Date.now() - lastSweepAt < 60_000) return;
-  lastSweepAt = Date.now();
-  try {
-    await sweepDueSubscriptions({ limit: 25 });
-  } catch {
-    // Never break a public page over billing housekeeping.
-  }
-}
-
 // Public directory of all hubs, optionally filtered by game. No auth.
 //
-// A venue is listed publicly only when BOTH are true: the partner's
-// subscription entitles them, and they have a payment gateway connected. A hub
-// that can't take a payment isn't ready for players to find.
-//
-// Note these are nested filters on nullable to-ones, which mean "the row EXISTS
-// and matches" — so a partner with no subscription and no gateway is excluded
-// rather than defaulting in. That is exactly why existing partners are
-// backfilled in prisma/seed.mjs.
+// A venue is listed only after the partner is admin-approved and has connected
+// a payment gateway. There is no plan or subscription gate.
 export async function listPublicHubs(
   opts: { game?: Game } = {}
 ): Promise<Hub[]> {
-  await maybeSweep();
   const rows = await prisma.hub.findMany({
     where: {
       ...(opts.game ? { games: { has: opts.game } } : {}),
       owner: {
-        subscription: entitledSubscriptionWhere(new Date()),
+        role: "PARTNER",
+        partnerStatus: "ACTIVE",
         partnerGateway: { disconnectedAt: null },
       },
     },
     orderBy: { createdAt: "desc" },
-    select: hubSelect,
+    select: { ...hubSelect, ownerId: true },
   });
-  return rows.map(mapHub);
+  const overdueByOwner = new Map(
+    await Promise.all(
+      [...new Set(rows.map((row) => row.ownerId))].map(
+        async (ownerId) =>
+          [ownerId, await isServiceFeeOverdue(ownerId)] as const
+      )
+    )
+  );
+  return rows
+    .filter((row) => !overdueByOwner.get(row.ownerId))
+    .map(({ ownerId: _ownerId, ...row }) => mapHub(row));
 }
 
 const publicHubSelect = {
@@ -155,15 +137,7 @@ const publicHubSelect = {
   ownerId: true,
   owner: {
     select: {
-      subscription: {
-        select: {
-          status: true,
-          trialEndsAt: true,
-          currentPeriodEnd: true,
-          graceEndsAt: true,
-          cancelAtPeriodEnd: true,
-        },
-      },
+      partnerStatus: true,
       // Only whether one is connected. Nothing secret is selected — see the
       // comment on GatewayView.
       partnerGateway: { select: { disconnectedAt: true } },
@@ -183,7 +157,7 @@ export type PublicHub = Hub & {
   paymentRequired: boolean;
   // Why it isn't bookable, so the page can say something true rather than a
   // vague "not right now".
-  blockedBy: "subscription" | "gateway" | null;
+  blockedBy: "approval" | "gateway" | "settlement" | null;
   ownerId: string;
 };
 
@@ -199,15 +173,21 @@ export const getPublicHub = cache(
     });
     if (!row) return null;
     const { owner, ownerId, ...rest } = row;
-    const entitled = isEntitled(owner.subscription);
+    const approved = owner.partnerStatus === "ACTIVE";
     const connected = owner.partnerGateway?.disconnectedAt === null;
+    const overdue =
+      approved && connected ? await isServiceFeeOverdue(ownerId) : false;
     return {
       ...mapHub(rest),
-      // Both, and in that order: an unpaid subscription is the more urgent
-      // thing to tell a partner about.
-      bookable: entitled && connected,
-      paymentRequired: connected,
-      blockedBy: !entitled ? "subscription" : !connected ? "gateway" : null,
+      bookable: approved && connected && !overdue,
+      paymentRequired: approved && connected && !overdue,
+      blockedBy: !approved
+        ? "approval"
+        : !connected
+          ? "gateway"
+          : overdue
+            ? "settlement"
+            : null,
       ownerId,
     };
   }
@@ -215,7 +195,7 @@ export const getPublicHub = cache(
 
 // Fetches one hub, scoped to the current partner (ownership enforced).
 export async function getMyHub(id: string): Promise<Hub | null> {
-  const partner = await requirePartner();
+  const partner = await requireActivePartner();
   const row = await prisma.hub.findFirst({
     where: { id, ownerId: partner.id },
     select: hubSelect,

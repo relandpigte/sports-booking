@@ -7,7 +7,6 @@ import {
   paymongoVenueGateway,
   signPaymongoBody,
 } from "@/lib/payments/paymongo-venue";
-import { paymongoProvider, UnsupportedByProvider } from "@/lib/payments/paymongo";
 
 import { ok, run } from "./harness";
 
@@ -204,51 +203,6 @@ async function main() {
     "and says why",
     tooSmall.status === "failed" && tooSmall.code === "amount_too_small"
   );
-
-  // --- 7. The PLATFORM gateway (partners paying Bunal.ph) -------------------
-  // Same core, different account and a different direction of money.
-  process.env.BILLING_WEBHOOK_SECRET = WEBHOOK;
-
-  ok("the platform gateway is hosted too", paymongoProvider.checkout === "hosted");
-
-  const platformOk = await paymongoProvider.verifyWebhook(
-    body,
-    new Headers({ "paymongo-signature": signPaymongoBody(WEBHOOK, body, now()) })
-  );
-  ok("a valid platform signature verifies", platformOk !== null);
-  ok(
-    "and keys off the session id",
-    platformOk?.providerPaymentId === "cs_testsession"
-  );
-  ok(
-    "a platform body signed with the wrong secret is refused",
-    (await paymongoProvider.verifyWebhook(
-      body,
-      new Headers({ "paymongo-signature": signPaymongoBody(OTHER, body, now()) })
-    )) === null
-  );
-  ok(
-    "a stale platform delivery is refused",
-    (await paymongoProvider.verifyWebhook(
-      body,
-      new Headers({
-        "paymongo-signature": signPaymongoBody(WEBHOOK, body, now() - 3600),
-      })
-    )) === null
-  );
-
-  // Card storage must FAIL loudly rather than pretend: with hosted checkout
-  // there is no card to store, and anything still calling this is a bug.
-  let threw = false;
-  try {
-    await paymongoProvider.createPaymentMethod({
-      type: "CARD",
-      card: { number: "4242424242424242", expMonth: 12, expYear: 2099, cvc: "123", name: "X" },
-    });
-  } catch (error) {
-    threw = error instanceof UnsupportedByProvider;
-  }
-  ok("saving a card throws rather than silently succeeding", threw);
 
 }
 

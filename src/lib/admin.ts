@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { Role } from "@prisma/client";
+import type { PartnerStatus, Role } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/dal";
@@ -19,6 +19,9 @@ const userListSelect = {
   facebookPage: true,
   image: true,
   role: true,
+  partnerStatus: true,
+  partnerActivatedAt: true,
+  partnerActivatedById: true,
   skillLevel: true,
   privateProfile: true,
   createdAt: true,
@@ -33,6 +36,9 @@ export type AdminUser = {
   facebookPage: string | null;
   image: string | null;
   role: Role;
+  partnerStatus: PartnerStatus | null;
+  partnerActivatedAt: Date | null;
+  partnerActivatedById: string | null;
   skillLevel: string;
   privateProfile: boolean;
   createdAt: Date;
@@ -75,6 +81,13 @@ export async function userCounts(): Promise<Record<Role, number>> {
     counts[row.role] = row._count._all;
   }
   return counts;
+}
+
+export async function pendingPartnerCount(): Promise<number> {
+  await requireAdmin();
+  return prisma.user.count({
+    where: { role: "PARTNER", partnerStatus: "PENDING" },
+  });
 }
 
 export async function getUserById(id: string): Promise<AdminUser | null> {

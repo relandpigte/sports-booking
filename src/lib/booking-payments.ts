@@ -8,9 +8,9 @@ import { getVenueGateway, UnknownVenueGateway } from "@/lib/payments/venue";
 import type { ChargeResult } from "@/lib/payments/types";
 import { appUrl } from "@/lib/urls";
 import { formatManilaDate, formatSlotRange } from "@/lib/time";
+import { ensureServiceFeeCharge } from "@/lib/service-fees";
 
-// Players paying venues. The counterpart of billing.ts, which is partners
-// paying us — the two never share a row, a gateway, or a webhook secret.
+// Players paying venues through each partner's own gateway.
 //
 // The rule this whole file is built around: a BookingPayment stays PENDING for
 // as long as its hold is alive, however many cards get declined against it.
@@ -20,7 +20,7 @@ import { formatManilaDate, formatSlotRange } from "@/lib/time";
 // second payment row — and without the court being released underneath them.
 
 // ---------------------------------------------------------------------------
-// Views (Decimal isn't RSC-serializable — it stops here, as in billing.ts)
+// Views (Decimal isn't RSC-serializable, so it stops here.)
 // ---------------------------------------------------------------------------
 
 export type BookingPaymentLine = {
@@ -36,7 +36,8 @@ export type BookingPaymentView = {
   id: string;
   status: PaymentStatus;
   method: PaymentMethodType;
-  // The gross the player pays. venueAmount + platformFee.
+  // Checkout subtotal: venueAmount + platformFee. PayMongo's processing fee is
+  // calculated and added on its hosted page.
   amount: number;
   venueAmount: number;
   platformFee: number;
@@ -272,6 +273,9 @@ export async function settleBookingPayment(
     select: {
       id: true,
       status: true,
+      partnerId: true,
+      platformFee: true,
+      paidAt: true,
       bookings: { select: { id: true, status: true, hours: true } },
     },
   });
@@ -280,7 +284,12 @@ export async function settleBookingPayment(
   if (payment.status !== "SUCCEEDED") return { status: "not-paid" };
 
   const pending = payment.bookings.filter((b) => b.status === "PENDING");
-  if (pending.length === 0) return { status: "already" };
+  if (pending.length === 0) {
+    // Repairs the narrow crash window where confirmation committed but fee
+    // accrual did not. The unique ledger key keeps this retry idempotent.
+    await prisma.$transaction((tx) => ensureServiceFeeCharge(tx, payment));
+    return { status: "already" };
+  }
 
   const ids = pending.map((b) => b.id);
   // One slot row per hour — that's the invariant createBookingAction writes.
@@ -306,6 +315,8 @@ export async function settleBookingPayment(
         where: { id: { in: ids }, status: "PENDING" },
         data: { status: "CONFIRMED", holdExpiresAt: null },
       });
+
+      await ensureServiceFeeCharge(tx, payment);
     });
   } catch (error) {
     if (!(error instanceof LostHold)) throw error;
@@ -375,7 +386,7 @@ export async function chargeBookingPayment(args: {
   // is a refund we'd have to make.
   if (payment.expiresAt <= now) return { status: "expired" };
 
-  // THE double-charge guard, and the same version-guard idiom as billing.ts:
+  // THE double-charge guard:
   // whoever flips chargeStartedAt from null wins, everyone else is told the
   // charge is already in flight. Cleared again by a decline.
   const attempt = payment.attempt + 1;
@@ -440,7 +451,7 @@ export async function chargeBookingPayment(args: {
       return {
         status: "declined",
         message: settled.refunded
-          ? "Someone else took those hours before your payment finished, so we've refunded you in full."
+          ? "Someone else took those hours before your payment finished, so we've refunded the booking subtotal."
           : "Someone else took those hours before your payment finished. Your refund is being processed.",
       };
     }
@@ -564,18 +575,50 @@ export async function markBookingPaymentRefunded(args: {
   reason?: string;
   refundedById?: string;
 }): Promise<void> {
-  await prisma.bookingPayment.updateMany({
-    // Re-asserted: two legs can arrive at once, and the loser must not
-    // overwrite the winner's reference.
-    where: { id: args.paymentId, status: { not: "REFUNDED" } },
-    data: {
-      status: "REFUNDED",
-      refundedAt: new Date(),
-      refundedAmount: new Prisma.Decimal(args.amount),
-      refundRef: args.refundRef,
-      refundReason: args.reason ?? null,
-      refundedById: args.refundedById ?? null,
-    },
+  await prisma.$transaction(async (tx) => {
+    const updated = await tx.bookingPayment.updateMany({
+      // Re-asserted: two legs can arrive at once, and the loser must not
+      // overwrite the winner's reference or reverse the fee twice.
+      where: { id: args.paymentId, status: { not: "REFUNDED" } },
+      data: {
+        status: "REFUNDED",
+        refundedAt: new Date(),
+        refundedAmount: new Prisma.Decimal(args.amount),
+        refundRef: args.refundRef,
+        refundReason: args.reason ?? null,
+        refundedById: args.refundedById ?? null,
+      },
+    });
+    if (updated.count !== 1) return;
+
+    const charge = await tx.serviceFeeEntry.findUnique({
+      where: {
+        bookingPaymentId_type: {
+          bookingPaymentId: args.paymentId,
+          type: "CHARGE",
+        },
+      },
+      select: { partnerId: true, amount: true },
+    });
+    // A paid checkout whose court hold was lost is refunded before it ever
+    // earns a service fee, so it has no charge to reverse.
+    if (!charge) return;
+
+    await tx.serviceFeeEntry.upsert({
+      where: {
+        bookingPaymentId_type: {
+          bookingPaymentId: args.paymentId,
+          type: "REFUND",
+        },
+      },
+      create: {
+        partnerId: charge.partnerId,
+        bookingPaymentId: args.paymentId,
+        type: "REFUND",
+        amount: charge.amount.negated(),
+      },
+      update: {},
+    });
   });
 }
 

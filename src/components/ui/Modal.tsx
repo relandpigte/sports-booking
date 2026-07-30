@@ -2,8 +2,8 @@
 
 import { useEffect, useRef } from "react";
 
-// A small dialog for things the partner must acknowledge — a plan limit, a
-// blocked save. Built on <dialog> so focus trapping, Escape and the backdrop
+// A small dialog for a blocked save. Built on <dialog> so focus trapping,
+// Escape and the backdrop
 // come from the platform rather than hand-rolled key handlers.
 export function Modal({
   open,

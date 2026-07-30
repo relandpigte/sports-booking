@@ -7,7 +7,11 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { AvatarUpload } from "@/components/ui/AvatarUpload";
 import { registerPartnerAction, type AuthFormState } from "@/lib/actions";
-import { PLATFORM_FEE_RATE } from "@/lib/constants";
+import {
+  MULTI_HOUR_SERVICE_FEE,
+  ONE_HOUR_SERVICE_FEE,
+} from "@/lib/constants";
+import { formatPHP } from "@/lib/currency";
 
 const initialState: AuthFormState = {};
 
@@ -105,10 +109,18 @@ export function PartnerRegisterForm() {
           Free to join. No monthly fee.
         </p>
         <p className="mt-1 text-sm text-gray-500">
-          Players pay a {Math.round(PLATFORM_FEE_RATE * 100)}% service fee on
-          top of your court rate, and you keep every peso you charge. We invoice
-          those fees back once a month — so you only pay us once you have been
-          paid.
+          Players pay a {formatPHP(ONE_HOUR_SERVICE_FEE)} service fee for a
+          one-hour booking or {formatPHP(MULTI_HOUR_SERVICE_FEE)} for more than
+          one hour. You keep every peso of the court rate you set. There are no
+          plans, subscriptions, or monthly charges.
+        </p>
+      </div>
+
+      <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+        <p className="text-sm font-semibold text-amber-900">Admin verification</p>
+        <p className="mt-1 text-sm text-amber-800">
+          After signup, an admin reviews your business details before activating
+          hub and payment features.
         </p>
       </div>
 
@@ -142,4 +154,3 @@ export function PartnerRegisterForm() {
     </form>
   );
 }
-

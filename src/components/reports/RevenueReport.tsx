@@ -15,9 +15,8 @@ export type StatTile = {
 
 // The whole report panel: KPI row, chart, and the table underneath.
 //
-// Deliberately knows nothing about roles, hubs or subscriptions — it takes a
-// series and some tiles. That is what lets the partner's court takings and the
-// admin's platform income be the same component with different data.
+// Deliberately knows nothing about roles or hubs; callers supply the series and
+// tiles.
 export function RevenueReport({
   title,
   subtitle,

@@ -1,9 +1,4 @@
-import type {
-  BookingStatus,
-  PaymentStatus,
-  Role,
-  SubscriptionStatus,
-} from "@prisma/client";
+import type { BookingStatus, Role } from "@prisma/client";
 
 import type { BadgeTone } from "@/components/ui/Badge";
 
@@ -133,34 +128,23 @@ export const MONTHS = [
 // How long an unpaid booking holds its hours before they go back on the grid.
 export const BOOKING_HOLD_MINUTES = 15;
 
-// Bunal.ph's cut, added ON TOP of the venue's rate: a ₱500 booking is shown to
-// the player as ₱525, and the venue still receives their full ₱500. Joining is
-// free, so this is the platform's only revenue.
-export const PLATFORM_FEE_RATE = 0.05;
+// Bunal.ph's fixed fee, added ON TOP of the venue's court total. It is charged
+// once per checkout based on all selected hours, even when gaps split those
+// hours into separate Booking rows. Joining is free.
+export const ONE_HOUR_SERVICE_FEE = 15;
+export const MULTI_HOUR_SERVICE_FEE = 25;
 
-// The fee on a court total, to the centavo.
-//
-// Every surface computes it through here — the booking grid, the pay page, the
-// ledger and the monthly invoice — because a fee the player was quoted and a
-// fee the venue is billed for must be the same number, and floating-point
-// pesos are exactly where that goes wrong. Rounded HALF UP on the centavo,
-// which is what a Philippine invoice does.
-export function platformFeeFor(courtTotal: number): number {
-  return Math.round(courtTotal * PLATFORM_FEE_RATE * 100) / 100;
+// Every surface computes the fee through here so the quote and payment ledger
+// agree. Zero hours is useful for an empty, not-yet-bookable selection.
+export function bookingServiceFeeFor(hours: number): number {
+  if (hours <= 0) return 0;
+  return hours === 1 ? ONE_HOUR_SERVICE_FEE : MULTI_HOUR_SERVICE_FEE;
 }
 
-// What the player pays: court time plus the fee.
-export function grossFor(courtTotal: number): number {
-  return Math.round((courtTotal + platformFeeFor(courtTotal)) * 100) / 100;
+// The booking subtotal. PayMongo may add its processing fee at hosted checkout.
+export function grossFor(courtTotal: number, hours: number): number {
+  return Math.round((courtTotal + bookingServiceFeeFor(hours)) * 100) / 100;
 }
-
-// A booking is paid once, so these carry none of the auto-renew hints that the
-// subscription methods do — those would be wrong here.
-export const BOOKING_PAYMENT_METHODS = [
-  { value: "CARD", label: "Credit or debit card" },
-  { value: "GCASH", label: "GCash" },
-  { value: "MAYA", label: "Maya" },
-] as const;
 
 // The only gateway a partner can connect. There is no simulated option any
 // more: a payment either moves real money or fails honestly.
@@ -168,68 +152,8 @@ export const VENUE_GATEWAYS = [
   {
     value: "paymongo",
     label: "PayMongo",
-    hint: "Cards, GCash and Maya. Players pay on PayMongo's secure page and the money lands in your account.",
+    hint: "Cards, GCash and Maya. Booking subtotals land in your account; remit Bunal.ph service fees from Payments.",
   },
 ] as const;
 
 export const VENUE_GATEWAY_VALUES = ["paymongo"] as const;
-
-// --- Billing ----------------------------------------------------------------
-
-// After a payment is missed, access survives this long before it's restricted.
-export const GRACE_DAYS = 7;
-
-// Card dunning: how long between automatic retries, and how many to attempt
-// before falling back to "Pay now" only.
-export const RENEWAL_RETRY_DAYS = 3;
-export const MAX_RENEWAL_ATTEMPTS = 3;
-
-// Show the billing banner this many days before a payment is due.
-export const BILLING_NOTICE_DAYS = 3;
-
-export const PLAN_KEY_VALUES = ["STARTER", "PRO", "ELITE"] as const;
-
-// How the partner INTENDS to pay each month. Nothing renews automatically:
-// PayMongo can't auto-debit a saved card outside its Subscriptions API, so
-// every month is paid by opening a link. The hints say so out loud rather than
-// promising a convenience the product can't deliver.
-export const PAYMENT_METHODS = [
-  {
-    value: "CARD",
-    label: "Credit or debit card",
-    hint: "We'll send you a secure link each month — nothing is charged without you.",
-  },
-  {
-    value: "GCASH",
-    label: "GCash",
-    hint: "We'll remind you to pay each month. Your wallet is never charged automatically.",
-  },
-  {
-    value: "MAYA",
-    label: "Maya",
-    hint: "We'll remind you to pay each month. Your wallet is never charged automatically.",
-  },
-] as const;
-
-export type PaymentMethodValue = (typeof PAYMENT_METHODS)[number]["value"];
-
-export const PAYMENT_METHOD_LABELS: Record<string, string> = Object.fromEntries(
-  PAYMENT_METHODS.map((m) => [m.value, m.label])
-);
-
-export const SUBSCRIPTION_STATUS_LABELS: Record<SubscriptionStatus, string> = {
-  // No new subscription is ever TRIALING — joining is free, so there is
-  // nothing to trial. The value survives for rows written before that changed.
-  TRIALING: "Free trial",
-  ACTIVE: "Active",
-  PAST_DUE: "Payment due",
-  UNPAID: "Unpaid",
-  CANCELLED: "Cancelled",
-};
-
-export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
-  PENDING: "Pending",
-  SUCCEEDED: "Paid",
-  FAILED: "Failed",
-  REFUNDED: "Refunded",
-};

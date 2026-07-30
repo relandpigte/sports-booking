@@ -5,8 +5,6 @@ import {
   SKILL_LEVELS,
   ROLE_VALUES,
   MAX_BOOKING_HOURS,
-  PLAN_KEY_VALUES,
-  PAYMENT_METHODS,
   VENUE_GATEWAY_VALUES,
 } from "@/lib/constants";
 
@@ -183,16 +181,10 @@ export const RescheduleBookingSchema = z.object({
 
 export type CreateBookingInput = z.infer<typeof CreateBookingSchema>;
 
-// --- Partner registration & billing ---
-
-const planKeyValues = [...PLAN_KEY_VALUES] as [string, ...string[]];
-const methodValues = PAYMENT_METHODS.map((m) => m.value) as [
-  string,
-  ...string[],
-];
+// --- Partner registration ---
 
 // A venue has no player name, skill level or private-profile setting; it has a
-// business name, a plan and a way to pay.
+// business name and legitimacy details for admin review.
 export const PartnerRegisterSchema = registerBase
   .omit({ playerName: true, skillLevel: true, privateProfile: true })
   .extend({
@@ -201,46 +193,8 @@ export const PartnerRegisterSchema = registerBase
       .trim()
       .min(2, { error: "Business name is required" }),
     facebookPage,
-    // No plan and no payment method: joining is free, and the only money that
-    // moves is the service fee a player pays on a booking. Both were dropped
-    // rather than defaulted, so a stale form can't quietly pick a paid tier.
   })
   .refine(passwordsMatch, passwordMismatch);
-
-// Card details are their OWN schema, never merged into one whose parsed output
-// gets echoed back into a form — a card number must not round-trip through
-// form state.
-export const CardSchema = z.object({
-  cardName: z.string().trim().min(2, { error: "Name on card is required" }),
-  cardNumber: z
-    .string()
-    .trim()
-    .transform((v) => v.replace(/[\s-]/g, ""))
-    .refine((v) => /^\d{13,19}$/.test(v), {
-      error: "Enter a valid card number",
-    }),
-  cardExpMonth: z.coerce
-    .number()
-    .int()
-    .min(1, { error: "Invalid month" })
-    .max(12, { error: "Invalid month" }),
-  cardExpYear: z.coerce
-    .number()
-    .int()
-    .min(new Date().getUTCFullYear(), { error: "That card has expired" }),
-  cardCvc: z
-    .string()
-    .trim()
-    .regex(/^\d{3,4}$/, { error: "Invalid security code" }),
-});
-
-export const ChangePlanSchema = z.object({
-  planKey: z.enum(planKeyValues, { error: "Choose a plan" }),
-});
-
-export const SetPaymentMethodSchema = z.object({
-  method: z.enum(methodValues, { error: "Choose a payment method" }),
-});
 
 export type PartnerRegisterInput = z.infer<typeof PartnerRegisterSchema>;
 
@@ -248,8 +202,8 @@ export type PartnerRegisterInput = z.infer<typeof PartnerRegisterSchema>;
 
 const venueGatewayValues = [...VENUE_GATEWAY_VALUES] as [string, ...string[]];
 
-// Like CardSchema, this schema's output NEVER goes back into form state — a
-// partner's secret key must not round-trip through a rendered page.
+// This schema's output never goes back into form state; a partner's secret key
+// must not round-trip through a rendered page.
 export const ConnectGatewaySchema = z.object({
   provider: z.enum(venueGatewayValues, { error: "Choose a gateway" }),
   publicKey: z
@@ -272,6 +226,28 @@ export const ConnectGatewaySchema = z.object({
   // the secret PayMongo hands back. This is the escape hatch for when that
   // fails — an existing endpoint whose secret can't be read a second time, or
   // an account at its webhook limit.
+  webhookSecret: z
+    .string()
+    .trim()
+    .max(255)
+    .optional()
+    .transform((v) => (v ? v : undefined))
+    .refine((v) => v == null || v.length >= 16, {
+      error: "That signing secret looks too short",
+    }),
+});
+
+// The platform account only needs a secret key: Bunal.ph creates server-side
+// hosted checkouts and never exposes a PayMongo SDK in the browser.
+export const ConnectPlatformGatewaySchema = z.object({
+  secretKey: z
+    .string()
+    .trim()
+    .min(8, { error: "Paste your PayMongo secret key" })
+    .max(255)
+    .refine((v) => /^sk_(test|live)_/.test(v), {
+      error: "Use a PayMongo secret key starting with sk_test_ or sk_live_",
+    }),
   webhookSecret: z
     .string()
     .trim()

@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { verifyPlatformPaymongoWebhook } from "@/lib/payments/paymongo-platform";
 import { handleServiceFeeProviderEvent } from "@/lib/service-fee-payments";
 
-// Signed callbacks from Bunal.ph's own PayMongo account for partner-to-admin
+// Signed callbacks from Bunal.club's own PayMongo account for partner-to-admin
 // service-fee settlements. The legacy /billing path is kept because existing
 // PayMongo webhook registrations already point here.
 export const dynamic = "force-dynamic";

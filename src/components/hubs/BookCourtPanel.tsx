@@ -245,11 +245,9 @@ export function BookCourtPanel({
               {paymentRequired && total != null && total > 0 && (
                 <>
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-gray-500">
-                      Service fee ({selected.length === 1 ? "1 hour" : "2+ hours"})
-                    </span>
+                    <span className="text-gray-500">Service fee (3%)</span>
                     <span className="shrink-0 text-gray-700">
-                      {formatPHP(bookingServiceFeeFor(selected.length))}
+                      {formatPHP(bookingServiceFeeFor(total))}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-3 border-t border-gray-100 pt-2">
@@ -257,7 +255,7 @@ export function BookCourtPanel({
                       Booking subtotal
                     </span>
                     <span className="shrink-0 text-base font-semibold text-gray-900">
-                      {formatPHP(grossFor(total, selected.length))}
+                      {formatPHP(grossFor(total))}
                     </span>
                   </div>
                 </>

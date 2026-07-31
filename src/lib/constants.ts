@@ -126,22 +126,25 @@ export const MONTHS = [
 // How long an unpaid booking holds its hours before they go back on the grid.
 export const BOOKING_HOLD_MINUTES = 15;
 
-// Bunal.ph's fixed fee, added ON TOP of the venue's court total. It is charged
-// once per checkout based on all selected hours, even when gaps split those
-// hours into separate Booking rows. Joining is free.
-export const ONE_HOUR_SERVICE_FEE = 15;
-export const MULTI_HOUR_SERVICE_FEE = 25;
+// Bunal.club's percentage fee, added ON TOP of the venue's court total. It is
+// charged once per checkout even when gaps split the selected hours into
+// separate Booking rows. Joining is free.
+export const SERVICE_FEE_RATE = 0.03;
+export const SERVICE_FEE_PERCENT = SERVICE_FEE_RATE * 100;
 
 // Every surface computes the fee through here so the quote and payment ledger
-// agree. Zero hours is useful for an empty, not-yet-bookable selection.
-export function bookingServiceFeeFor(hours: number): number {
-  if (hours <= 0) return 0;
-  return hours === 1 ? ONE_HOUR_SERVICE_FEE : MULTI_HOUR_SERVICE_FEE;
+// agree. Money is rounded once to centavos at the quote boundary.
+export function bookingServiceFeeFor(courtTotal: number): number {
+  if (courtTotal <= 0) return 0;
+  const courtCentavos = Math.round(courtTotal * 100);
+  return Math.round(courtCentavos * SERVICE_FEE_RATE) / 100;
 }
 
 // The booking subtotal. PayMongo may add its processing fee at hosted checkout.
-export function grossFor(courtTotal: number, hours: number): number {
-  return Math.round((courtTotal + bookingServiceFeeFor(hours)) * 100) / 100;
+export function grossFor(courtTotal: number): number {
+  const courtCentavos = Math.round(courtTotal * 100);
+  const feeCentavos = Math.round(bookingServiceFeeFor(courtTotal) * 100);
+  return (courtCentavos + feeCentavos) / 100;
 }
 
 // The only gateway a partner can connect. There is no simulated option any
@@ -150,7 +153,7 @@ export const VENUE_GATEWAYS = [
   {
     value: "paymongo",
     label: "PayMongo",
-    hint: "QR Ph, cards, GCash and Maya. Booking subtotals land in your account; remit Bunal.ph service fees from Payments.",
+    hint: "QR Ph, cards, GCash and Maya. Booking subtotals land in your account; remit Bunal.club service fees from Payments.",
   },
 ] as const;
 

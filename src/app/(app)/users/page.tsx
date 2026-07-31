@@ -12,7 +12,7 @@ import { facebookPageLabel } from "@/lib/social";
 import { ROLE_VALUES, ROLE_LABELS, SKILL_LEVELS } from "@/lib/constants";
 
 export const metadata: Metadata = {
-  title: "Manage Users — Bunal.ph",
+  title: "Manage Users — Bunal.club",
 };
 
 const skillLabel = (value: string) =>
@@ -75,7 +75,7 @@ export default async function UsersPage({
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Manage Users</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Players and partners across Bunal.ph.
+            Players and partners across Bunal.club.
           </p>
         </div>
         <Link

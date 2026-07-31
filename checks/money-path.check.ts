@@ -85,9 +85,9 @@ async function check() {
         gatewayId: owner.gatewayId,
         userId: player!.id,
         hubId: court!.hubId,
-        amount: grossFor(venueAmount, hours.length),
+        amount: grossFor(venueAmount),
         venueAmount,
-        platformFee: bookingServiceFeeFor(hours.length),
+        platformFee: bookingServiceFeeFor(venueAmount),
         method: "CARD",
         status: "PENDING",
         expiresAt,
@@ -146,7 +146,7 @@ async function check() {
   );
   const attrs = (created!.body as { data: { attributes: Record<string, unknown> } })
     .data.attributes;
-  ok("in centavos", (attrs.line_items as { amount: number }[])[0].amount === 52500);
+  ok("in centavos", (attrs.line_items as { amount: number }[])[0].amount === 51500);
   ok(
     "offering card, GCash, Maya and QR Ph",
     JSON.stringify(attrs.payment_method_types) ===
@@ -313,7 +313,7 @@ async function check() {
     where: { id: one.payment.id },
   });
   ok("recorded as REFUNDED", refunded!.status === "REFUNDED");
-  ok("for the full booking subtotal", Number(refunded!.refundedAmount) === 525);
+  ok("for the full booking subtotal", Number(refunded!.refundedAmount) === 515);
   ok(
     "the refund reverses the service fee",
     (await prisma.serviceFeeEntry.count({

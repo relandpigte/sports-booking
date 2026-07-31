@@ -1,94 +1,115 @@
-import Link from "next/link";
 import type { Metadata } from "next";
+
 import { PageShell } from "@/components/PageShell";
-import { HubCard } from "@/components/hubs/HubCard";
-import { listPublicHubs } from "@/lib/hubs";
-import { GAMES, GAME_VALUES, GAME_LABELS, type Game } from "@/lib/constants";
+import {
+  HubDirectory,
+  type DirectoryHubView,
+} from "@/components/hubs/HubDirectory";
+import {
+  COURT_TYPE_VALUES,
+  GAME_VALUES,
+  type CourtType,
+  type Game,
+} from "@/lib/constants";
+import { listPublicHubDirectory } from "@/lib/hubs";
+import { isValidDateString, manilaToday } from "@/lib/time";
 
 export const metadata: Metadata = {
-  title: "Find a Hub — Bunal.ph",
-  description: "Browse pickleball, tennis, and other court-game hubs near you.",
+  title: "Find a Hub — Bunal.club",
+  description:
+    "Search and filter bookable pickleball, tennis, badminton, and volleyball courts across Bohol.",
 };
 
-function isGame(value: string | undefined): value is Game {
-  return !!value && (GAME_VALUES as readonly string[]).includes(value);
+function first(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
+}
+
+function isGame(value: string): value is Game {
+  return (GAME_VALUES as readonly string[]).includes(value);
+}
+
+function isCourtType(value: string): value is CourtType {
+  return (COURT_TYPE_VALUES as readonly string[]).includes(value);
+}
+
+function hourFromTime(value: string): number | undefined {
+  if (!/^\d{2}:00$/.test(value)) return undefined;
+  const hour = Number(value.slice(0, 2));
+  return Number.isInteger(hour) && hour >= 0 && hour <= 23
+    ? hour
+    : undefined;
+}
+
+function isSort(
+  value: string
+): value is "name" | "price" | "newest" | "distance" {
+  return ["name", "price", "newest", "distance"].includes(value);
 }
 
 export default async function HubsDirectoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ game?: string }>;
+  searchParams: Promise<
+    Record<string, string | string[] | undefined>
+  >;
 }) {
   const sp = await searchParams;
-  const game = isGame(sp.game) ? sp.game : undefined;
-  const hubs = await listPublicHubs({ game });
+  const query = first(sp.q);
+  const gameValue = first(sp.game);
+  const courtTypeValue = first(sp.courtType);
+  const requestedDate = first(sp.date);
+  const from = first(sp.from);
+  const to = first(sp.to);
+  const sortValue = first(sp.sort);
+
+  const game = isGame(gameValue) ? gameValue : undefined;
+  const courtType = isCourtType(courtTypeValue)
+    ? courtTypeValue
+    : undefined;
+  const fromHour = hourFromTime(from);
+  const toHour = hourFromTime(to);
+  const validRange =
+    fromHour != null && toHour != null && fromHour < toHour;
+  const date =
+    requestedDate && isValidDateString(requestedDate)
+      ? requestedDate
+      : validRange
+        ? manilaToday()
+        : undefined;
+
+  const hubs = await listPublicHubDirectory({
+    game,
+    courtType,
+    date,
+    fromHour: validRange ? fromHour : undefined,
+    toHour: validRange ? toHour : undefined,
+  });
+  const view: DirectoryHubView[] = hubs.map((hub) => ({
+    ...hub,
+    createdAt: hub.createdAt.toISOString(),
+  }));
 
   return (
-    <PageShell maxWidth="max-w-5xl">
-        {/* The badge's navy, used once at the top of the page rather than
-            everywhere — it frames the list without competing with it. */}
-        <div className="relative mt-6 overflow-hidden rounded-2xl bg-navy px-6 py-8 sm:px-8 sm:py-10">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-primary/30 blur-3xl"
-          />
-          <div className="relative">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent">
-              Bohol · Philippines
-            </p>
-            <h1 className="mt-2 text-2xl font-extrabold text-white sm:text-3xl">
-              Find a court, book it in seconds
-            </h1>
-            <p className="mt-2 max-w-lg text-sm text-white/70">
-              Volleyball, badminton and pickleball hubs near you — pick the
-              hours you want and they&apos;re yours.
-            </p>
-          </div>
-        </div>
-
-        {/* Category filters */}
-        <div className="mt-5 flex flex-wrap gap-2">
-          <Link
-            href="/hubs"
-            className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
-              !game
-                ? "border-primary bg-primary text-white"
-                : "border-gray-300 text-gray-700 hover:bg-gray-50"
-            }`}
-          >
-            All
-          </Link>
-          {GAMES.map((g) => {
-            const active = game === g.value;
-            return (
-              <Link
-                key={g.value}
-                href={`/hubs?game=${g.value}`}
-                className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
-                  active
-                    ? "border-primary bg-primary text-white"
-                    : "border-gray-300 text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                {g.label}
-              </Link>
-            );
-          })}
-        </div>
-
-        {hubs.length === 0 ? (
-          <div className="mt-8 rounded-2xl border border-dashed border-gray-300 px-6 py-16 text-center text-sm text-gray-500">
-            {game
-              ? `No hubs offer ${GAME_LABELS[game]} yet.`
-              : "No hubs available yet. Check back soon."}
-          </div>
-        ) : (
-          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {hubs.map((hub) => (
-              <HubCard key={hub.id} hub={hub} />
-            ))}
-          </div>
-        )}
+    <PageShell
+      maxWidth="max-w-7xl"
+      backgroundClass="bg-[#f7faf8]"
+    >
+      <HubDirectory
+        hubs={view}
+        today={manilaToday()}
+        initial={{
+          query,
+          game: game ?? "",
+          courtType: courtType ?? "",
+          date: date ?? "",
+          from,
+          to,
+          sort:
+            isSort(sortValue) && sortValue !== "distance"
+              ? sortValue
+              : "name",
+        }}
+      />
     </PageShell>
   );
 }

@@ -145,8 +145,8 @@ export async function connectGatewayAction(
   await revalidateGatewaySurfaces(partner.id);
   return {
     success: parsed.data.webhookSecret
-      ? "Connected. Booking subtotals are deposited into your PayMongo account; remit Bunal.ph service fees from Payments."
-      : "Connected, and we've registered the webhook in your PayMongo account. Booking subtotals are deposited to you; remit Bunal.ph service fees from Payments.",
+      ? "Connected. Booking subtotals are deposited into your PayMongo account; remit Bunal.club service fees from Payments."
+      : "Connected, and we've registered the webhook in your PayMongo account. Booking subtotals are deposited to you; remit Bunal.club service fees from Payments.",
   };
 }
 

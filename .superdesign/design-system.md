@@ -103,8 +103,8 @@ hierarchy.
    reports, payment security, and social links. Do not expose owner/admin
    workflows, approvals, reports, or settlement controls on public pages.
 7. Partner section: no plans/subscriptions/monthly charges; proceeds go to the
-   venue's own PayMongo account; venue retains advertised court rate; fixed
-   Bunal.club service fee is ₱15 for one hour and ₱25 for more than one hour;
+   venue's own PayMongo account; venue retains advertised court rate; the
+   Bunal.club service fee is 3% of the court booking total;
    PayMongo connection and webhook setup is guided in-dashboard and must be
    completed before a partner can create a hub.
 8. Final dual CTA and legal/footer links.
@@ -150,3 +150,31 @@ page composition consistent.
 - Navigation labels and page content must use “Bunal.club”, not `Bunal.ph`.
 - Do not expose owner/admin functionality, approval tools, reports, or
   settlement information in the public homepage or other signed-out content.
+
+## Public hub directory
+
+The `/hubs` directory is the practical discovery surface between the marketing
+homepage and a venue profile. It should borrow the reference facility
+directory's information architecture while remaining unmistakably
+Bunal.club.
+
+- Use an off-white page background with a compact title and supporting copy.
+- Place the primary search, nearest-first action, filter toggle, and sort
+  control in one responsive toolbar. Controls stack cleanly on mobile.
+- Expanded filters include booking date, sport, court type, start time, and end
+  time. Make active filter count and clear-all behavior obvious.
+- Nearest-first requests browser location only after the user acts. Show
+  distance only for hubs with valid coordinates and explain unavailable or
+  denied location access without blocking search.
+- Hub cards use a landscape cover photo, venue name, address, sport chips,
+  court count, starting hourly rate, distance when available, and a direct
+  Google Maps navigation action. The whole card still links to the hub detail.
+- Use actual availability data for the selected date/time range; never display
+  invented slot counts. When no time range is selected, describe the venue as
+  available for online booking without fabricating inventory.
+- Desktop uses a three-column card grid within a 1180–1240px work area. Tablet
+  uses two columns and mobile uses one.
+- Keep the signed-out public top bar and the authenticated app shell behavior.
+- Only show supported sports: pickleball, tennis, badminton, and volleyball.
+- Preserve white cards, `#dfe7e2` borders, navy headings, green actions, lime
+  highlights, Geist typography, and 12–20px radii.

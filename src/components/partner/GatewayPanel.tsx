@@ -12,11 +12,9 @@ import {
   type GatewayFormState,
 } from "@/lib/gateway-actions";
 import {
-  MULTI_HOUR_SERVICE_FEE,
-  ONE_HOUR_SERVICE_FEE,
+  SERVICE_FEE_PERCENT,
   VENUE_GATEWAYS,
 } from "@/lib/constants";
-import { formatPHP } from "@/lib/currency";
 import type { GatewayView } from "@/lib/partner-gateway";
 
 const initial: GatewayFormState = {};
@@ -205,10 +203,9 @@ export function GatewayPanel({ gateway }: { gateway: GatewayView | null }) {
           </h2>
           <p className="mt-1 text-sm text-gray-500">
             Connect your own payment account. Players pay you directly and you
-            keep your full court rate. A {formatPHP(ONE_HOUR_SERVICE_FEE)} fee
-            for one hour or {formatPHP(MULTI_HOUR_SERVICE_FEE)} for two or more
-            hours is deposited alongside it and remitted to Bunal.ph through
-            the settlement panel below.
+            keep your full court rate. A {SERVICE_FEE_PERCENT}% service fee is
+            deposited alongside it and remitted to Bunal.club through the
+            settlement panel below.
           </p>
         </div>
         {connected && <Badge tone="success">Connected</Badge>}

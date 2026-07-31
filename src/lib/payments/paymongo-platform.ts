@@ -31,7 +31,7 @@ export async function createServiceFeeCheckout(input: {
   const { secretKey } = await loadPlatformGatewayCredentials();
   const session = await createCheckoutSession(secretKey, {
     amountPesos: input.amount,
-    description: "Bunal.ph service-fee settlement",
+    description: "Bunal.club service-fee settlement",
     referenceNumber: input.settlementId,
     returnUrl: appUrl(
       `/dashboard/payments?settlement=${encodeURIComponent(input.settlementId)}`

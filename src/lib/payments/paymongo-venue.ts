@@ -28,7 +28,7 @@ import {
 } from "./paymongo-core";
 
 // PayMongo, using each partner's own account. The checkout subtotal lands in
-// that account, and the partner remits Bunal.ph's accrued service fee later.
+// that account, and the partner remits Bunal.club's accrued service fee later.
 // and this app never touches it.
 //
 // Hosted Checkout Sessions rather than Payment Intents with our own card form.

@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 
 // The PayMongo API itself, with no opinion about whose account it is.
 //
-// Two things use this: the PLATFORM's own account (partners paying Bunal.ph)
+// Two things use this: the PLATFORM's own account (partners paying Bunal.club)
 // and each PARTNER's account (players paying that venue). Same endpoints, same
 // signature scheme, different keys — so the HTTP, the checkout session, the
 // refund and the signature verification all live here once, and the two

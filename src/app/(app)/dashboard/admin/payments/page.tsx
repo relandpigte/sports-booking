@@ -9,7 +9,7 @@ import {
 import { appUrl } from "@/lib/urls";
 
 export const metadata: Metadata = {
-  title: "Payment Collection — Bunal.ph",
+  title: "Payment Collection — Bunal.club",
 };
 
 export default async function AdminPaymentsPage() {
@@ -26,7 +26,7 @@ export default async function AdminPaymentsPage() {
           Payment collection
         </h1>
         <p className="mt-1 text-sm text-gray-500">
-          Connect the Bunal.ph PayMongo account used to collect partner
+          Connect the Bunal.club PayMongo account used to collect partner
           service-fee settlements.
         </p>
       </div>

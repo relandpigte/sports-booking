@@ -2,11 +2,17 @@ import "server-only";
 
 import { cache } from "react";
 import { Prisma } from "@prisma/client";
-import type { OperatingHours, Game } from "@/lib/constants";
+import type {
+  CourtType,
+  Game,
+  OperatingHours,
+} from "@/lib/constants";
 
 import { prisma } from "@/lib/db";
 import { requireActivePartner, requirePartner } from "@/lib/dal";
 import { isServiceFeeOverdue } from "@/lib/service-fees";
+import { buildSlots } from "@/lib/slots";
+import { manilaNowHour, manilaToday } from "@/lib/time";
 
 export type Court = {
   id: string;
@@ -128,6 +134,101 @@ export async function listPublicHubs(
   return rows
     .filter((row) => !overdueByOwner.get(row.ownerId))
     .map(({ ownerId: _ownerId, ...row }) => mapHub(row));
+}
+
+export type DirectoryHub = Hub & {
+  availableSlots: number | null;
+};
+
+// The public directory can narrow venues to a real bookable window. It starts
+// from the same approved/connected/current hub list as the normal directory,
+// then evaluates each court with the exact slot math used by the booking page.
+export async function listPublicHubDirectory({
+  game,
+  courtType,
+  date,
+  fromHour,
+  toHour,
+}: {
+  game?: Game;
+  courtType?: CourtType;
+  date?: string;
+  fromHour?: number;
+  toHour?: number;
+} = {}): Promise<DirectoryHub[]> {
+  const hubs = await listPublicHubs({ game });
+  const typed = hubs
+    .map((hub) => ({
+      ...hub,
+      courts: courtType
+        ? hub.courts.filter((court) => court.courtType === courtType)
+        : hub.courts,
+    }))
+    .filter((hub) => hub.courts.length > 0);
+
+  if (!date) {
+    return typed.map((hub) => ({ ...hub, availableSlots: null }));
+  }
+
+  const courtIds = typed.flatMap((hub) =>
+    hub.courts.map((court) => court.id)
+  );
+  const now = new Date();
+  const occupied = courtIds.length
+    ? await prisma.bookingSlot.findMany({
+        where: {
+          courtId: { in: courtIds },
+          date,
+          OR: [{ holdExpiresAt: null }, { holdExpiresAt: { gt: now } }],
+        },
+        select: { courtId: true, hour: true },
+      })
+    : [];
+  const bookedByCourt = new Map<string, number[]>();
+  for (const slot of occupied) {
+    const hours = bookedByCourt.get(slot.courtId) ?? [];
+    hours.push(slot.hour);
+    bookedByCourt.set(slot.courtId, hours);
+  }
+
+  const today = manilaToday();
+  const nowHour = manilaNowHour();
+
+  return typed
+    .map((hub) => {
+      let availableSlots = 0;
+      const matchingCourts = hub.courts.filter((court) => {
+        const { slots } = buildSlots({
+          operatingHours: hub.operatingHours,
+          date,
+          bookedHours: bookedByCourt.get(court.id) ?? [],
+          today,
+          nowHour,
+        });
+        const courtAvailableSlots = slots.filter(
+          (slot) => slot.available
+        ).length;
+
+        if (fromHour == null || toHour == null) {
+          if (courtAvailableSlots > 0) {
+            availableSlots += courtAvailableSlots;
+            return true;
+          }
+          return false;
+        }
+
+        for (let hour = fromHour; hour < toHour; hour++) {
+          if (!slots.some((slot) => slot.hour === hour && slot.available)) {
+            return false;
+          }
+        }
+        availableSlots += courtAvailableSlots;
+        return true;
+      });
+
+      return { ...hub, courts: matchingCourts, availableSlots };
+    })
+    .filter((hub) => hub.courts.length > 0 && hub.availableSlots > 0);
 }
 
 const publicHubSelect = {

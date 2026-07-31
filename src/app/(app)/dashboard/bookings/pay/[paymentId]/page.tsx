@@ -14,7 +14,7 @@ import { formatPHP } from "@/lib/currency";
 import { formatManilaDate, formatSlotRange } from "@/lib/time";
 
 export const metadata: Metadata = {
-  title: "Complete payment — Bunal.ph",
+  title: "Complete payment — Bunal.club",
 };
 
 // One page, four states: pay, approve, paid, and the hold that ran out.

@@ -2,16 +2,16 @@ import type { Metadata } from "next";
 import { LegalLayout, LegalSection } from "@/components/LegalLayout";
 
 export const metadata: Metadata = {
-  title: "Terms & Conditions — Bunal.ph",
-  description: "The terms and conditions for using the Bunal.ph app.",
+  title: "Terms & Conditions — Bunal.club",
+  description: "The terms and conditions for using the Bunal.club app.",
 };
 
 export default function TermsPage() {
   return (
     <LegalLayout title="Terms & Conditions" updated="June 4, 2026">
       <p>
-        Welcome to Bunal.ph. These Terms &amp; Conditions (&quot;Terms&quot;)
-        govern your access to and use of the Bunal.ph application and related
+        Welcome to Bunal.club. These Terms &amp; Conditions (&quot;Terms&quot;)
+        govern your access to and use of the Bunal.club application and related
         services (the &quot;Service&quot;). By creating an account or using the
         Service, you agree to be bound by these Terms.
       </p>

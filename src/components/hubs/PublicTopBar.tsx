@@ -6,9 +6,9 @@ import { Logo } from "@/components/Logo";
 export function PublicTopBar() {
   return (
     <header className="sticky top-0 z-30 border-b border-gray-100 bg-white/85 backdrop-blur-md">
-      <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
         <Link href="/" aria-label="Bunal.club home">
-          <Logo />
+          <Logo className="max-w-[160px] sm:max-w-[220px]" />
         </Link>
 
         <div className="flex items-center gap-2">
@@ -20,13 +20,13 @@ export function PublicTopBar() {
           </Link>
           <Link
             href="/login"
-            className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-navy"
+            className="whitespace-nowrap rounded-lg px-2 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-navy sm:px-3"
           >
             Log in
           </Link>
           <Link
             href="/register"
-            className="rounded-lg bg-primary px-3.5 py-1.5 text-sm font-semibold text-white shadow-sm shadow-primary/20 transition-colors hover:bg-primary-hover"
+            className="whitespace-nowrap rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-white shadow-sm shadow-primary/20 transition-colors hover:bg-primary-hover sm:px-3.5"
           >
             Sign up
           </Link>

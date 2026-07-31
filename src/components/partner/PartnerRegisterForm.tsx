@@ -7,11 +7,7 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { AvatarUpload } from "@/components/ui/AvatarUpload";
 import { registerPartnerAction, type AuthFormState } from "@/lib/actions";
-import {
-  MULTI_HOUR_SERVICE_FEE,
-  ONE_HOUR_SERVICE_FEE,
-} from "@/lib/constants";
-import { formatPHP } from "@/lib/currency";
+import { SERVICE_FEE_PERCENT } from "@/lib/constants";
 
 const initialState: AuthFormState = {};
 
@@ -109,9 +105,8 @@ export function PartnerRegisterForm() {
           Free to join. No monthly fee.
         </p>
         <p className="mt-1 text-sm text-gray-500">
-          Players pay a {formatPHP(ONE_HOUR_SERVICE_FEE)} service fee for a
-          one-hour booking or {formatPHP(MULTI_HOUR_SERVICE_FEE)} for more than
-          one hour. You keep every peso of the court rate you set. There are no
+          Players pay a {SERVICE_FEE_PERCENT}% service fee on top of the court
+          total. You keep every peso of the court rate you set. There are no
           plans, subscriptions, or monthly charges.
         </p>
       </div>

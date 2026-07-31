@@ -81,9 +81,9 @@ async function main() {
         // A venue's report is about the COURT amount, so the fixture carries
         // the split a real payment now has: the player paid the gross, the
         // venue keeps `amount`.
-        amount: grossFor(args.amount, 1),
+        amount: grossFor(args.amount),
         venueAmount: args.amount,
-        platformFee: bookingServiceFeeFor(1),
+        platformFee: bookingServiceFeeFor(args.amount),
         method: "CARD",
         status: args.refundedAt ? "REFUNDED" : "SUCCEEDED",
         expiresAt: new Date(),
@@ -91,7 +91,7 @@ async function main() {
         paidAt: args.paidAt,
         refundedAt: args.refundedAt ?? null,
         refundedAmount:
-          args.refundedAmount != null ? grossFor(args.refundedAmount, 1) : null,
+          args.refundedAmount != null ? grossFor(args.refundedAmount) : null,
       },
       select: { id: true },
     });

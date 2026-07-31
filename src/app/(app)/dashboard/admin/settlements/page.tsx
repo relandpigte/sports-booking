@@ -10,7 +10,7 @@ import {
 } from "@/lib/service-fees";
 
 export const metadata: Metadata = {
-  title: "Service Fee Settlements — Bunal.ph",
+  title: "Service Fee Settlements — Bunal.club",
 };
 
 const formatDate = (date: Date) =>
@@ -33,7 +33,7 @@ export default async function AdminSettlementsPage() {
           Service-fee settlements
         </h1>
         <p className="mt-1 text-sm text-gray-500">
-          Verify partner remittances before crediting their fixed service-fee
+          Verify partner remittances before crediting their 3% service-fee
           balance.
         </p>
       </div>

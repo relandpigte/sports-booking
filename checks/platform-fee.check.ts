@@ -10,8 +10,8 @@ import { PrismaClient } from "@prisma/client";
 
 import { ok, run, stubRequestContext } from "./harness";
 import {
-  MULTI_HOUR_SERVICE_FEE,
-  ONE_HOUR_SERVICE_FEE,
+  SERVICE_FEE_PERCENT,
+  SERVICE_FEE_RATE,
   bookingServiceFeeFor,
   grossFor,
 } from "@/lib/constants";
@@ -28,34 +28,35 @@ async function check() {
   stubRequestContext(admin);
 
   // --- 1. The arithmetic ----------------------------------------------------
-  ok("the one-hour fee is ₱15", ONE_HOUR_SERVICE_FEE === 15);
-  ok("the multi-hour fee is ₱25", MULTI_HOUR_SERVICE_FEE === 25);
-  ok("an empty selection has no fee", bookingServiceFeeFor(0) === 0);
-  ok("one hour carries a ₱15 fee", bookingServiceFeeFor(1) === 15);
-  ok("two hours carry a ₱25 fee", bookingServiceFeeFor(2) === 25);
-  ok("the fee stays ₱25 beyond two hours", bookingServiceFeeFor(8) === 25);
-  ok("a ₱250 one-hour booking grosses ₱265", grossFor(250, 1) === 265);
-  ok("a ₱500 two-hour booking grosses ₱525", grossFor(500, 2) === 525);
+  ok("the service-fee rate is 3%", SERVICE_FEE_RATE === 0.03);
+  ok("the display percentage is 3", SERVICE_FEE_PERCENT === 3);
+  ok("an empty court total has no fee", bookingServiceFeeFor(0) === 0);
+  ok("a ₱250 court total carries a ₱7.50 fee", bookingServiceFeeFor(250) === 7.5);
+  ok("a ₱500 court total carries a ₱15 fee", bookingServiceFeeFor(500) === 15);
+  ok(
+    "half-cent percentage results round to the nearest centavo",
+    bookingServiceFeeFor(33.5) === 1.01
+  );
+  ok("a ₱250 booking grosses ₱257.50", grossFor(250) === 257.5);
+  ok("a ₱500 booking grosses ₱515", grossFor(500) === 515);
   ok(
     "a centavo court total stays exact",
-    grossFor(333.33, 1) === 348.33
+    grossFor(333.33) === 343.33
   );
 
   // The invariant that matters: the split always reconstitutes the gross.
-  const drifted: { peso: number; hours: number }[] = [];
-  for (const hours of [1, 2, 8]) {
-    for (let peso = 1; peso <= 5000; peso++) {
-      if (
-        Math.abs(
-          peso + bookingServiceFeeFor(hours) - grossFor(peso, hours)
-        ) > 1e-9
-      ) {
-        drifted.push({ peso, hours });
-      }
+  const drifted: number[] = [];
+  for (let peso = 1; peso <= 5000; peso++) {
+    if (
+      Math.abs(
+        peso + bookingServiceFeeFor(peso) - grossFor(peso)
+      ) > 1e-9
+    ) {
+      drifted.push(peso);
     }
   }
   ok(
-    "court + fee === gross across one- and multi-hour bookings",
+    "court + 3% fee === gross across booking totals",
     drifted.length === 0
   );
 
@@ -99,16 +100,16 @@ async function check() {
         gatewayId: gateway.id,
         userId: player.id,
         hubId: court.hubId,
-        amount: grossFor(courtTotal, hours),
+        amount: grossFor(courtTotal),
         venueAmount: courtTotal,
-        platformFee: bookingServiceFeeFor(hours),
+        platformFee: bookingServiceFeeFor(courtTotal),
         method: "GCASH",
         status: opts.refunded ? "REFUNDED" : "SUCCEEDED",
         expiresAt: new Date(),
         provider: "paymongo",
         paidAt: opts.paidAt ?? new Date("2026-06-15T04:00:00Z"),
         refundedAt: opts.refunded ? new Date("2026-06-16T04:00:00Z") : null,
-        refundedAmount: opts.refunded ? grossFor(courtTotal, hours) : null,
+        refundedAmount: opts.refunded ? grossFor(courtTotal) : null,
       },
       select: { id: true },
     });
@@ -136,9 +137,9 @@ async function check() {
       gatewayId: gateway.id,
       userId: player.id,
       hubId: court.hubId,
-      amount: grossFor(800, 3),
+      amount: grossFor(800),
       venueAmount: 800,
-      platformFee: bookingServiceFeeFor(3),
+      platformFee: bookingServiceFeeFor(800),
       method: "CARD",
       status: "PENDING",
       expiresAt: new Date(),
@@ -163,7 +164,7 @@ async function check() {
   const marketplace = await marketplaceRevenue(monthRange(2026, 6));
   ok(
     "admin reporting includes only retained service fees",
-    marketplace.serviceFees >= 40
+    marketplace.serviceFees >= 22.5
   );
 
   await cleanup();

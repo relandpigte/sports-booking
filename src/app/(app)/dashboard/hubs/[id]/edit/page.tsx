@@ -6,7 +6,7 @@ import { getMyHub } from "@/lib/hubs";
 import { requireActivePartner } from "@/lib/dal";
 
 export const metadata: Metadata = {
-  title: "Edit Hub — Bunal.ph",
+  title: "Edit Hub — Bunal.club",
 };
 
 export default async function EditHubPage({

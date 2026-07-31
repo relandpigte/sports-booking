@@ -1,4 +1,4 @@
-// Prisma schema for Bunal.ph
+// Prisma schema for Bunal.club
 // Models follow the Auth.js (NextAuth) Prisma adapter conventions, extended
 // with the player-profile fields captured during registration.
 // Docs: https://authjs.dev/getting-started/adapters/prisma
@@ -87,7 +87,7 @@ enum ServiceFeeSettlementStatus {
 }
 
 // --- Players paying venues ---------------------------------------------------
-// Players pay partners through the partner's own gateway account. Bunal.ph has
+// Players pay partners through the partner's own gateway account. Bunal.club has
 // no subscription plans; each booking fee accrues for later remittance.
 
 // One row per PARTNER ACCOUNT, shared by every hub they own.
@@ -125,7 +125,7 @@ model PartnerGateway {
   payments BookingPayment[]
 }
 
-// Bunal.ph's own PayMongo account, configured by an admin. This is a
+// Bunal.club's own PayMongo account, configured by an admin. This is a
 // singleton in practice (`provider` is unique), separate from partner-owned
 // gateways because it receives service-fee remittances rather than booking
 // revenue.
@@ -160,12 +160,12 @@ model BookingPayment {
   // financial record.
   hubId     String
 
-  // The checkout subtotal: court time plus the Bunal.ph service fee. PayMongo's
+  // The checkout subtotal: court time plus the Bunal.club service fee. PayMongo's
   // method-specific pass-on processing fee is calculated on its hosted page.
   amount      Decimal           @db.Decimal(10, 2)
   // The venue's share — the court time they advertised.
   venueAmount Decimal           @default(0) @db.Decimal(10, 2)
-  // Bunal.ph's per-booking service fee.
+  // Bunal.club's per-booking service fee.
   //
   // All three are stored rather than derived on purpose: the fee schedule can
   // change, and an older payment must keep the fee quoted at checkout.
@@ -235,7 +235,7 @@ model ServiceFeeEntry {
   @@index([partnerId, createdAt])
 }
 
-// A partner's remittance of accumulated service fees to Bunal.ph. The amount
+// A partner's remittance of accumulated service fees to Bunal.club. The amount
 // is snapshotted before either a PayMongo checkout or manual proof submission.
 model ServiceFeeSettlement {
   id               String                     @id @default(cuid())

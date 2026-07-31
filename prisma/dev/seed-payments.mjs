@@ -71,7 +71,7 @@ async function seed() {
     for (let i = 0; i < bookings; i++) {
       const hours = 1 + ((day + i) % 4);
       const venueAmount = 250 * hours;
-      const platformFee = hours === 1 ? 15 : 25;
+      const platformFee = Math.round(venueAmount * 3) / 100;
       const amount = venueAmount + platformFee;
       const paidAt = new Date(Date.UTC(year, month - 1, day, 2 + i * 5, 15));
       // One refund mid-month, so the chart has a dip that means something.

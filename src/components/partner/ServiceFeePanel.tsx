@@ -69,12 +69,12 @@ export function ServiceFeePanel({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-gray-900">
-            Bunal.ph service-fee settlement
+            Bunal.club service-fee settlement
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-gray-500">
             PayMongo deposits the booking subtotal into your account. Remit the
-            fixed booking service fees shown here; after settlement, you
-            retain exactly your advertised court rates.
+            3% booking service fees shown here; after settlement, you retain
+            exactly your advertised court rates.
           </p>
         </div>
         {balance.blocked ? (

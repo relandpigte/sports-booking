@@ -11,7 +11,7 @@ import { formatPHP } from "@/lib/currency";
 import { MONTHS } from "@/lib/constants";
 
 export const metadata: Metadata = {
-  title: "Reports — Bunal.ph",
+  title: "Reports — Bunal.club",
 };
 
 export default async function AdminReportsPage({

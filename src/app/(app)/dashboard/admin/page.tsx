@@ -8,7 +8,7 @@ import { dashboardHomeFor } from "@/lib/dashboard";
 import { pendingServiceFeeSettlementCount } from "@/lib/service-fees";
 
 export const metadata: Metadata = {
-  title: "Admin Home — Bunal.ph",
+  title: "Admin Home — Bunal.club",
 };
 
 export default async function AdminDashboardPage() {

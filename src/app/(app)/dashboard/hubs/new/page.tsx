@@ -7,7 +7,7 @@ import { requireActivePartner } from "@/lib/dal";
 import { getActivePartnerGateway } from "@/lib/partner-gateway";
 
 export const metadata: Metadata = {
-  title: "New Hub — Bunal.ph",
+  title: "New Hub — Bunal.club",
 };
 
 export default async function NewHubPage() {

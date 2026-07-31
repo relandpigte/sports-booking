@@ -7,7 +7,7 @@ import { dashboardHomeFor } from "@/lib/dashboard";
 import { getActivePartnerGateway } from "@/lib/partner-gateway";
 
 export const metadata: Metadata = {
-  title: "Partner Home — Bunal.ph",
+  title: "Partner Home — Bunal.club",
 };
 
 export default async function PartnerDashboardPage() {

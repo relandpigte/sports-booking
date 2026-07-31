@@ -214,7 +214,7 @@ export async function venueRevenue(args: {
   return buildSeries(
     rows.map((r) => ({
       // The COURT amount: what the venue actually keeps. The service fee the
-      // player also paid is Bunal.ph's, and showing it here would flatter
+      // player also paid is Bunal.club's, and showing it here would flatter
       // every venue's numbers by the service-fee rate.
       amount: Number(r.venueAmount),
       paidAt: r.paidAt,
@@ -230,7 +230,7 @@ export async function venueRevenue(args: {
 // --- Every venue, for the admin ---------------------------------------------
 
 export type MarketplaceSeries = RevenueSeries & {
-  // Bunal.ph's own take out of that gross — the number the business actually
+  // Bunal.club's own take out of that gross — the number the business actually
   // runs on, and the only part of a court payment we ever see.
   serviceFees: number;
   // What the venues kept.

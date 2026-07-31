@@ -68,12 +68,12 @@ const FAQS = [
   {
     question: "Does Bunal.club charge partners a monthly fee?",
     answer:
-      "No. There are no plans, subscriptions, or monthly charges. Bunal.club uses a fixed service fee per paid booking.",
+      "No. There are no plans, subscriptions, or monthly charges. Bunal.club uses a 3% service fee per paid booking.",
   },
   {
     question: "How much is the booking service fee?",
     answer:
-      "The fixed Bunal.club service fee is ₱15 for a one-hour booking and ₱25 when a checkout covers more than one hour.",
+      "The Bunal.club service fee is 3% of the court booking total.",
   },
   {
     question: "Where does the player's court payment go?",
@@ -290,9 +290,7 @@ function BookingPreview() {
           <div className="mt-5 flex items-end justify-between gap-4 border-t border-slate-100 pt-5">
             <div>
               <p className="text-xs text-slate-500">Service fee</p>
-              <p className="mt-0.5 text-sm font-bold text-navy">
-                ₱15 / ₱25 fixed
-              </p>
+              <p className="mt-0.5 text-sm font-bold text-navy">3%</p>
             </div>
             <div className="text-right">
               <p className="text-xs text-slate-500">Pay securely with</p>
@@ -818,28 +816,19 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                 </h3>
                 <p className="mt-3 text-sm leading-6 text-slate-600">
                   Player booking proceeds go to your PayMongo account.
-                  Bunal.club&apos;s fixed service fee is recorded clearly for
+                  Bunal.club&apos;s 3% service fee is recorded clearly for
                   settlement.
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 divide-x divide-slate-100">
-                <div className="p-6 sm:p-7">
-                  <p className="text-sm font-medium text-slate-500">1 hour</p>
-                  <p className="mt-2 text-3xl font-black text-primary">₱15</p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    fixed service fee
-                  </p>
-                </div>
-                <div className="p-6 sm:p-7">
-                  <p className="text-sm font-medium text-slate-500">
-                    More than 1 hour
-                  </p>
-                  <p className="mt-2 text-3xl font-black text-primary">₱25</p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    fixed service fee
-                  </p>
-                </div>
+              <div className="p-6 sm:p-7">
+                <p className="text-sm font-medium text-slate-500">
+                  Every paid booking
+                </p>
+                <p className="mt-2 text-4xl font-black text-primary">3%</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  of the court booking total
+                </p>
               </div>
 
               <div className="flex items-center gap-3 bg-navy px-6 py-5 text-white sm:px-7">

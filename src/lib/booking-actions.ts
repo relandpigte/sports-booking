@@ -199,11 +199,9 @@ export async function createBookingAction(
             // The checkout subtotal before PayMongo's method-specific pass-on
             // processing fee. The other two are snapshotted so a report next
             // year still reads the rate that was quoted today.
-            amount: new Prisma.Decimal(grossFor(total!, hours.length)),
+            amount: new Prisma.Decimal(grossFor(total!)),
             venueAmount: new Prisma.Decimal(total!),
-            platformFee: new Prisma.Decimal(
-              bookingServiceFeeFor(hours.length)
-            ),
+            platformFee: new Prisma.Decimal(bookingServiceFeeFor(total!)),
             method: "CARD",
             status: "PENDING",
             expiresAt: holdExpiresAt!,

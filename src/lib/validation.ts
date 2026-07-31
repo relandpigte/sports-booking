@@ -237,7 +237,7 @@ export const ConnectGatewaySchema = z.object({
     }),
 });
 
-// The platform account only needs a secret key: Bunal.ph creates server-side
+// The platform account only needs a secret key: Bunal.club creates server-side
 // hosted checkouts and never exposes a PayMongo SDK in the browser.
 export const ConnectPlatformGatewaySchema = z.object({
   secretKey: z

@@ -1,6 +1,6 @@
 # Payments
 
-Bunal.ph has no partner plans, subscriptions, or monthly charges. Partners use
+Bunal.club has no partner plans, subscriptions, or monthly charges. Partners use
 the application for free. The only payment flow is a player paying a venue for
 a court booking through that partner's own PayMongo account.
 
@@ -14,10 +14,10 @@ and manage venue bookings and reports.
 
 ## Pricing
 
-The player pays the venue's court rate plus a fixed service fee: ₱15 for a
-one-hour checkout and ₱25 when the checkout covers more than one hour. The fee
-is charged once across the player's whole selection, including selections that
-contain gaps and create separate booking sessions. Each `BookingPayment`
+The player pays the venue's court rate plus a 3% service fee. The fee is
+calculated from the complete court total and charged once across the player's
+whole selection, including selections that contain gaps and create separate
+booking sessions. Each `BookingPayment`
 snapshots:
 
 - `venueAmount` — the advertised court total.
@@ -78,7 +78,7 @@ The required environment variables are:
 | `ENCRYPTION_KEYS_PREVIOUS` | Optional old keys used during rotation. |
 | `APP_URL` | Public HTTPS origin used for redirects and webhook URLs. |
 | `BOOKING_SWEEP_SECRET` | Bearer token for the expired-hold sweep. |
-| `PAYMONGO_SECRET_KEY` | Optional legacy fallback for Bunal.ph's service-fee PayMongo account. |
+| `PAYMONGO_SECRET_KEY` | Optional legacy fallback for Bunal.club's service-fee PayMongo account. |
 | `BILLING_WEBHOOK_SECRET` | Optional webhook secret paired with the environment fallback. |
 | `SERVICE_FEE_PAYMENT_INSTRUCTIONS` | Fallback manual remittance details shown to partners. |
 
@@ -89,9 +89,9 @@ Cloudflare Tunnel or ngrok for local webhook testing.
 
 The partner's PayMongo account initially receives the court subtotal. After a
 successful booking is confirmed, an immutable `ServiceFeeEntry` records the
-fixed fee owed to Bunal.ph; a full refund creates an equal negative entry.
+3% fee owed to Bunal.club; a full refund creates an equal negative entry.
 Partners remit the outstanding balance from `/dashboard/payments`. The primary
-flow opens an exact-amount PayMongo hosted checkout in Bunal.ph's own account
+flow opens an exact-amount PayMongo hosted checkout in Bunal.club's own account
 with QR Ph, credit/debit card, GCash, and Maya. A signed
 `checkout_session.payment.paid` webhook marks the settlement paid
 automatically; the browser return leg also checks PayMongo in case it arrives
@@ -99,7 +99,7 @@ before the webhook. Manual transfer reference and receipt submission remains
 available as a fallback, with admins reviewing those submissions in
 `/dashboard/admin/settlements`.
 
-An admin connects Bunal.ph's collection account under
+An admin connects Bunal.club's collection account under
 `/dashboard/admin/payments`. The action validates the secret key, registers the
 signed settlement webhook, and stores both credentials encrypted at rest. Once
 that dashboard record exists it is authoritative, including when disconnected;

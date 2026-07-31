@@ -81,7 +81,7 @@ export default function LoginPage() {
             href="/register/partner"
             className="font-medium text-navy hover:underline"
           >
-            List it on Bunal.ph
+            List it on Bunal.club
           </Link>
         </p>
       </>

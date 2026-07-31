@@ -4,7 +4,7 @@
   --background: #ffffff;
   --foreground: #14202c;
 
-  /* Brand — taken from the Bunal.ph badge: the navy shield, the pitch-green
+  /* Brand — taken from the Bunal.club badge: the navy shield, the pitch-green
      rings, the lime ".PH", and the water behind the players. */
   --color-primary: #16803c;
   --color-primary-hover: #0f6330;
@@ -65,4 +65,20 @@ body {
 :focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
+}
+
+.filter-control {
+  min-height: 44px;
+  width: 100%;
+  border: 1px solid var(--color-navy-soft);
+  border-radius: 0.75rem;
+  background: #f8fafc;
+  padding: 0.625rem 0.75rem;
+  color: var(--color-navy);
+  font-size: 0.875rem;
+}
+
+.filter-control:focus {
+  border-color: var(--color-primary);
+  outline: none;
 }

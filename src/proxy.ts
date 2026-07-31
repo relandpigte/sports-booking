@@ -5,16 +5,6 @@ import { NextResponse, type NextRequest } from "next/server";
 // authoritative check lives in the Data Access Layer (`src/lib/dal.ts`) which
 // reads and validates the session on the server.
 
-const AUTH_PAGES = ["/login", "/register"];
-
-// Matches the page itself and anything beneath it, so /register/partner is
-// treated as an auth page too.
-function isAuthPage(pathname: string): boolean {
-  return AUTH_PAGES.some(
-    (page) => pathname === page || pathname.startsWith(`${page}/`)
-  );
-}
-
 // Auth.js stores the session JWT under one of these cookie names
 // (the `__Secure-` prefix is used when served over HTTPS).
 function hasSessionCookie(req: NextRequest): boolean {
@@ -28,13 +18,11 @@ export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const isAuthed = hasSessionCookie(req);
 
-  // Logged-in users shouldn't see the login/register screens.
-  if (isAuthed && isAuthPage(pathname)) {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
-  }
-
   // Guard protected areas. (Role enforcement for /users happens in the page
-  // via requireAdmin — this is just an optimistic signed-in check.)
+  // via requireAdmin — this is just an optimistic signed-in check.) Auth
+  // pages deliberately do not use this cookie-presence shortcut: an expired
+  // cookie is not proof of a valid session and previously caused a redirect
+  // loop between /dashboard and /login or /register.
   if (
     !isAuthed &&
     (pathname.startsWith("/dashboard") || pathname.startsWith("/users"))
@@ -46,11 +34,5 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    "/dashboard/:path*",
-    "/users/:path*",
-    "/login",
-    "/register",
-    "/register/:path*",
-  ],
+  matcher: ["/dashboard/:path*", "/users/:path*"],
 };

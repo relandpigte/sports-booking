@@ -7,7 +7,7 @@ import path from "node:path";
 import { PrismaClient } from "@prisma/client";
 
 import { ok, run } from "./harness";
-import { grossFor, platformFeeFor } from "@/lib/constants";
+import { bookingServiceFeeFor, grossFor } from "@/lib/constants";
 
 const prisma = new PrismaClient();
 
@@ -81,16 +81,17 @@ async function main() {
         // A venue's report is about the COURT amount, so the fixture carries
         // the split a real payment now has: the player paid the gross, the
         // venue keeps `amount`.
-        amount: grossFor(args.amount),
+        amount: grossFor(args.amount, 1),
         venueAmount: args.amount,
-        platformFee: platformFeeFor(args.amount),
+        platformFee: bookingServiceFeeFor(1),
         method: "CARD",
         status: args.refundedAt ? "REFUNDED" : "SUCCEEDED",
         expiresAt: new Date(),
         provider: "paymongo",
         paidAt: args.paidAt,
         refundedAt: args.refundedAt ?? null,
-        refundedAmount: args.refundedAmount != null ? grossFor(args.refundedAmount) : null,
+        refundedAmount:
+          args.refundedAmount != null ? grossFor(args.refundedAmount, 1) : null,
       },
       select: { id: true },
     });

@@ -18,65 +18,47 @@ enum Role {
   PARTNER
 }
 
+enum PartnerStatus {
+  PENDING
+  ACTIVE
+}
+
 model User {
-  id             String    @id @default(cuid())
-  name           String?
-  playerName     String?
-  email          String    @unique
-  emailVerified  DateTime?
-  phone          String?
+  id                   String         @id @default(cuid())
+  name                 String?
+  playerName           String?
+  email                String         @unique
+  emailVerified        DateTime?
+  phone                String?
   // A venue's Facebook page, canonicalised to https://www.facebook.com/<page>
   // by src/lib/social.ts. For most Philippine venues this is their whole web
   // presence, so it is asked for at partner signup — optional, because
   // requiring it would turn away a venue that hasn't made one.
-  facebookPage   String?
-  image          String?
-  passwordHash   String?
-  role           Role      @default(PLAYER)
-  skillLevel     String    @default("intermediate")
-  privateProfile Boolean   @default(false)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  facebookPage         String?
+  image                String?
+  passwordHash         String?
+  role                 Role           @default(PLAYER)
+  skillLevel           String         @default("intermediate")
+  privateProfile       Boolean        @default(false)
+  // Only meaningful when role=PARTNER. Public signups start PENDING and an
+  // admin activates them after reviewing their business details.
+  partnerStatus        PartnerStatus?
+  partnerActivatedAt   DateTime?
+  // Scalar by design: deleting an admin must not erase who approved a partner.
+  partnerActivatedById String?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
 
-  accounts       Account[]
-  sessions       Session[]
-  hubs           Hub[]
-  bookings       Booking[]
-  subscription   Subscription?
-  payments       Payment[]
-  paymentMethods SavedPaymentMethod[]
+  accounts Account[]
+  sessions Session[]
+  hubs     Hub[]
+  bookings Booking[]
 
-  partnerGateway  PartnerGateway?
-  bookingPayments BookingPayment[] @relation("PlayerBookingPayments")
-  venuePayments   BookingPayment[] @relation("PartnerBookingPayments")
-}
-
-// --- Billing -----------------------------------------------------------------
-// Partners pay monthly to keep their hubs listed and taking bookings. Tiers are
-// gated on the TOTAL number of courts across all of a partner's hubs; hubs
-// themselves are unlimited on every tier.
-
-enum PlanKey {
-  STARTER
-  PRO
-  ELITE
-}
-
-// TRIALING  — free trial running, no charge taken.
-// ACTIVE    — paid through currentPeriodEnd.
-// PAST_DUE  — payment owed; access survives until graceEndsAt.
-// UNPAID    — grace elapsed. No access. Nothing deleted.
-// CANCELLED — cancelled and the period ran out. No access.
-//
-// Cancelling mid-period leaves the row ACTIVE with cancelAtPeriodEnd=true, so
-// CANCELLED always means "no access" and the entitlement predicate never has to
-// special-case it.
-enum SubscriptionStatus {
-  TRIALING
-  ACTIVE
-  PAST_DUE
-  UNPAID
-  CANCELLED
+  partnerGateway        PartnerGateway?
+  bookingPayments       BookingPayment[]       @relation("PlayerBookingPayments")
+  venuePayments         BookingPayment[]       @relation("PartnerBookingPayments")
+  serviceFeeEntries     ServiceFeeEntry[]      @relation("PartnerServiceFeeEntries")
+  serviceFeeSettlements ServiceFeeSettlement[] @relation("PartnerServiceFeeSettlements")
 }
 
 enum PaymentMethodType {
@@ -92,178 +74,21 @@ enum PaymentStatus {
   REFUNDED
 }
 
-enum PaymentKind {
-  SUBSCRIPTION // an automatic renewal charge
-  MANUAL // the partner pressed "Pay now"
-  COMP // comped/backfilled period, amount 0
+enum ServiceFeeEntryType {
+  CHARGE
+  REFUND
 }
 
-// Plans live in the database rather than in constants so pricing can change
-// without a deploy, and so a Payment can reference the plan it actually bought.
-model Plan {
-  id           String  @id @default(cuid())
-  key          PlanKey @unique
-  name         String
-  blurb        String?
-  priceMonthly Decimal @db.Decimal(10, 2)
-  currency     String  @default("PHP")
-  // null = unlimited. Counted across ALL of the partner's hubs.
-  maxCourts    Int?
-  sortOrder    Int     @default(0)
-  active       Boolean @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  subscriptions Subscription[]
-  payments      Payment[]
-}
-
-// One row per partner, mutated through its lifecycle. History lives in Payment.
-//
-// There is deliberately NO price column here: the amount is always read from
-// plan.priceMonthly at charge time and snapshotted onto Payment.amount. A copy
-// here could only ever drift out of sync with the plan.
-model Subscription {
-  id     String @id @default(cuid())
-  userId String @unique
-  planId String
-
-  status    SubscriptionStatus @default(TRIALING)
-  // How the partner intends to pay. CARD is the only method that auto-renews.
-  method    PaymentMethodType
-  // True only when method=CARD AND a live SavedPaymentMethod exists. This flag
-  // is the mechanical guarantee that GCash/Maya are never silently re-charged:
-  // the renewal path is a no-op unless it is set.
-  autoRenew Boolean            @default(false)
-
-  trialEndsAt        DateTime?
-  currentPeriodStart DateTime
-  currentPeriodEnd   DateTime
-  // Set when entering PAST_DUE. Access survives until this instant.
-  graceEndsAt        DateTime?
-  cancelAtPeriodEnd  Boolean   @default(false)
-  cancelledAt        DateTime?
-
-  // Card dunning. Reset on every successful charge.
-  renewalAttempts Int       @default(0)
-  nextRetryAt     DateTime?
-
-  // Optimistic-concurrency guard for the lazy state machine. Every transition is
-  // updateMany({ where: { id, version } }) asserting count === 1, so two requests
-  // crossing the same deadline can't both apply it.
-  version Int @default(0)
-
-  // Diagnostic only — never used as a correctness guard.
-  lastEvaluatedAt DateTime?
-
-  // --- gateway seam (nullable now, filled by a real provider later) ---------
-  provider               String  @default("fake")
-  providerCustomerId     String?
-  providerSubscriptionId String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  plan     Plan      @relation(fields: [planId], references: [id])
-  payments Payment[]
-
-  @@index([status, currentPeriodEnd])
-  @@index([status, trialEndsAt])
-  @@index([status, graceEndsAt])
-}
-
-// A saved card. Separate from Subscription because a card has its own lifecycle
-// (added, replaced, expires, detached) and e-wallets have no token at all —
-// folding it in would mean nullable card columns that apply to one method of three.
-model SavedPaymentMethod {
-  id        String            @id @default(cuid())
-  userId    String
-  type      PaymentMethodType
-  isDefault Boolean           @default(false)
-
-  // Display only. The card number and CVC are never persisted, never logged,
-  // and never echoed back into a form's values.
-  brand    String?
-  last4    String?
-  expMonth Int?
-  expYear  Int?
-
-  // --- gateway seam ---------------------------------------------------------
-  provider           String  @default("fake")
-  providerCustomerId String?
-  providerMethodId   String?
-
-  createdAt DateTime  @default(now())
-  // Soft delete: a historical Payment may still reference this row.
-  deletedAt DateTime?
-
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  payments Payment[]
-
-  @@index([userId, deletedAt])
-}
-
-model Payment {
-  id             String @id @default(cuid())
-  subscriptionId String
-  // Denormalized like Booking.hubId — the history list and the ownership check
-  // shouldn't need a join.
-  userId         String
-  planId         String
-
-  kind     PaymentKind       @default(SUBSCRIPTION)
-  amount   Decimal           @db.Decimal(10, 2)
-  currency String            @default("PHP")
-  method   PaymentMethodType
-  status   PaymentStatus     @default(PENDING)
-
-  // The period this payment buys, set at creation so a SUCCEEDED payment can
-  // extend the subscription idempotently even if success arrives by webhook
-  // minutes later.
-  periodStart DateTime
-  periodEnd   DateTime
-
-  // THE double-charge guard: `${subscriptionId}:${periodEnd.toISOString()}:${attempt}`.
-  // Two requests crossing the same renewal deadline compute the same key; the
-  // loser gets P2002 and applies the winner's outcome instead of charging twice.
-  // A retry after a FAILED payment increments attempt, so real retries still work.
-  // Same idea as BookingSlot's unique index.
-  idempotencyKey String @unique
-
-  savedPaymentMethodId String?
-
-  // --- gateway seam ---------------------------------------------------------
-  providerPaymentId String?
-  providerClientKey String?
-  redirectUrl       String? @db.Text
-  providerRef       String?
-  failureCode       String?
-  failureMessage    String? @db.Text
-  raw               Json?
-
-  paidAt         DateTime?
-  refundedAt     DateTime?
-  refundedAmount Decimal?  @db.Decimal(10, 2)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  subscription       Subscription        @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
-  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  plan               Plan                @relation(fields: [planId], references: [id])
-  savedPaymentMethod SavedPaymentMethod? @relation(fields: [savedPaymentMethodId], references: [id])
-
-  @@index([subscriptionId, createdAt])
-  @@index([userId, createdAt])
-  @@index([status, subscriptionId])
+enum ServiceFeeSettlementStatus {
+  AWAITING_PAYMENT
+  SUBMITTED
+  PAID
+  REJECTED
 }
 
 // --- Players paying venues ---------------------------------------------------
-// A SECOND, separate money flow from the subscription above. There, partners pay
-// the platform. Here, players pay partners through the partner's OWN gateway
-// account, and the platform takes nothing and never touches the funds.
+// Players pay partners through the partner's own gateway account. Bunal.ph has
+// no subscription plans; each booking fee accrues for later remittance.
 
 // One row per PARTNER ACCOUNT, shared by every hub they own.
 model PartnerGateway {
@@ -300,10 +125,29 @@ model PartnerGateway {
   payments BookingPayment[]
 }
 
-// A player's payment for court time. Deliberately NOT the Payment model above:
-// that one is bound to a subscription, a plan and a billing period, none of
-// which mean anything here, and it settles through the PLATFORM's webhook
-// secret rather than the partner's.
+// Bunal.ph's own PayMongo account, configured by an admin. This is a
+// singleton in practice (`provider` is unique), separate from partner-owned
+// gateways because it receives service-fee remittances rather than booking
+// revenue.
+model PlatformGateway {
+  id       String @id @default(cuid())
+  provider String @unique @default("paymongo")
+
+  // AES-256-GCM ciphertext. Neither value is ever selected into a client view.
+  secretKeyEnc     String  @db.Text
+  webhookSecretEnc String  @db.Text
+  secretKeyHint    String
+  webhookUrl       String? @db.Text
+
+  accountLabel   String?
+  connectedById  String?
+  connectedAt    DateTime  @default(now())
+  disconnectedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+// A player's payment for court time.
 model BookingPayment {
   id String @id @default(cuid())
 
@@ -316,18 +160,15 @@ model BookingPayment {
   // financial record.
   hubId     String
 
-  // THE GROSS the player was charged: court time plus the Bunal.ph service
-  // fee. This is what PayMongo actually took and what a refund has to reverse,
-  // so it stays the headline figure.
+  // The checkout subtotal: court time plus the Bunal.ph service fee. PayMongo's
+  // method-specific pass-on processing fee is calculated on its hosted page.
   amount      Decimal           @db.Decimal(10, 2)
   // The venue's share — the court time they advertised.
   venueAmount Decimal           @default(0) @db.Decimal(10, 2)
-  // Bunal.ph's share. Collected by the venue's own gateway along with
-  // everything else, then invoiced back to us monthly (see accruedFees).
+  // Bunal.ph's per-booking service fee.
   //
-  // All three are stored rather than derived on purpose: the rate will change,
-  // and a payment taken at 5% has to still read as 5% in a report written a
-  // year later.
+  // All three are stored rather than derived on purpose: the fee schedule can
+  // change, and an older payment must keep the fee quoted at checkout.
   platformFee Decimal           @default(0) @db.Decimal(10, 2)
   currency    String            @default("PHP")
   method      PaymentMethodType
@@ -339,9 +180,8 @@ model BookingPayment {
 
   // THE double-charge guard. Claimed with
   //   updateMany({ where: { id, status: PENDING, chargeStartedAt: null } })
-  // asserting count === 1 BEFORE the gateway is called — the same idiom as
-  // the version guard in billing.ts. Cleared on a decline so the player can
-  // retry with another card while the hold is still alive.
+  // asserting count === 1 BEFORE the gateway is called. Cleared on a decline
+  // so the player can retry with another card while the hold is still alive.
   chargeStartedAt DateTime?
   attempt         Int       @default(0)
 
@@ -364,16 +204,69 @@ model BookingPayment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  partner  User           @relation("PartnerBookingPayments", fields: [partnerId], references: [id], onDelete: Cascade)
-  user     User           @relation("PlayerBookingPayments", fields: [userId], references: [id], onDelete: Cascade)
-  gateway  PartnerGateway @relation(fields: [gatewayId], references: [id])
-  bookings Booking[]
+  partner           User              @relation("PartnerBookingPayments", fields: [partnerId], references: [id], onDelete: Cascade)
+  user              User              @relation("PlayerBookingPayments", fields: [userId], references: [id], onDelete: Cascade)
+  gateway           PartnerGateway    @relation(fields: [gatewayId], references: [id])
+  bookings          Booking[]
+  serviceFeeEntries ServiceFeeEntry[]
 
   @@index([partnerId, createdAt])
   @@index([userId, createdAt])
   @@index([hubId, createdAt])
   @@index([providerPaymentId])
   @@index([status, expiresAt])
+}
+
+// Immutable service-fee ledger. A successful booking adds a positive charge;
+// a later full refund adds an equal negative entry. The unique key makes both
+// webhook retries and return-leg races harmless.
+model ServiceFeeEntry {
+  id               String              @id @default(cuid())
+  partnerId        String
+  bookingPaymentId String
+  type             ServiceFeeEntryType
+  amount           Decimal             @db.Decimal(10, 2)
+  createdAt        DateTime            @default(now())
+
+  partner        User           @relation("PartnerServiceFeeEntries", fields: [partnerId], references: [id], onDelete: Cascade)
+  bookingPayment BookingPayment @relation(fields: [bookingPaymentId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingPaymentId, type])
+  @@index([partnerId, createdAt])
+}
+
+// A partner's remittance of accumulated service fees to Bunal.ph. The amount
+// is snapshotted before either a PayMongo checkout or manual proof submission.
+model ServiceFeeSettlement {
+  id               String                     @id @default(cuid())
+  partnerId        String
+  periodStart      DateTime
+  periodEnd        DateTime
+  amount           Decimal                    @db.Decimal(10, 2)
+  currency         String                     @default("PHP")
+  status           ServiceFeeSettlementStatus @default(SUBMITTED)
+  paymentReference String?
+  receiptImage     String?                    @db.Text
+
+  // Present for PayMongo QR Ph settlements. Manual proof submissions leave
+  // these null and continue through admin review.
+  provider          String?
+  providerPaymentId String? @unique
+  providerRef       String?
+  redirectUrl       String? @db.Text
+  raw               Json?
+
+  submittedAt  DateTime  @default(now())
+  reviewedAt   DateTime?
+  reviewedById String?
+  reviewNote   String?   @db.Text
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  partner User @relation("PartnerServiceFeeSettlements", fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId, submittedAt])
+  @@index([status, submittedAt])
 }
 
 // Webhook replay guard — real gateways retry deliveries.

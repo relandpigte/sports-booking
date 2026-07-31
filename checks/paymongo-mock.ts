@@ -16,12 +16,18 @@ export type MockState = {
   // Checkout sessions by id, and whether each has been paid.
   sessions: Map<
     string,
-    { paid: boolean; paymentId?: string; expired?: boolean }
+    { paid: boolean; paymentId?: string; expired?: boolean; amount?: number }
   >;
   // pay_… ids we were asked to refund.
   refunds: string[];
   // Every call made, so a check can assert what was actually sent.
-  requests: { method: string; url: string; auth: string; body: unknown }[];
+  requests: {
+    method: string;
+    url: string;
+    auth: string;
+    idempotencyKey: string;
+    body: unknown;
+  }[];
   // Make the next call fail, to exercise the error paths.
   failNext?: { status: number; code: string; detail: string };
 };
@@ -41,8 +47,13 @@ export function installPaymongoMock(): MockState {
     const auth = String(
       (init?.headers as Record<string, string> | undefined)?.Authorization ?? ""
     );
+    const idempotencyKey = String(
+      (init?.headers as Record<string, string> | undefined)?.[
+        "Idempotency-Key"
+      ] ?? ""
+    );
     const body = init?.body ? JSON.parse(String(init.body)) : undefined;
-    state.requests.push({ method, url, auth, body });
+    state.requests.push({ method, url, auth, idempotencyKey, body });
 
     const json = (status: number, payload: unknown) =>
       new Response(JSON.stringify(payload), {
@@ -79,7 +90,10 @@ export function installPaymongoMock(): MockState {
 
     if (url.endsWith("/checkout_sessions") && method === "POST") {
       const sessionId = id("cs");
-      state.sessions.set(sessionId, { paid: false });
+      state.sessions.set(sessionId, {
+        paid: false,
+        amount: body?.data?.attributes?.line_items?.[0]?.amount,
+      });
       return json(200, {
         data: {
           id: sessionId,
@@ -106,7 +120,11 @@ export function installPaymongoMock(): MockState {
               ? [
                   {
                     id: found.paymentId,
-                    attributes: { status: "paid", source: { type: "gcash" } },
+                    attributes: {
+                      amount: found.amount,
+                      status: "paid",
+                      source: { type: "gcash" },
+                    },
                   },
                 ]
               : [],
@@ -139,12 +157,21 @@ export function installPaymongoMock(): MockState {
 // Marks a session paid, the way PayMongo would once the payer finishes.
 export function payMockSession(state: MockState, sessionId: string): string {
   const paymentId = id("pay");
-  state.sessions.set(sessionId, { paid: true, paymentId });
+  const existing = state.sessions.get(sessionId);
+  state.sessions.set(sessionId, {
+    ...existing,
+    paid: true,
+    paymentId,
+  });
   return paymentId;
 }
 
 // The webhook body PayMongo posts for a completed checkout.
-export function mockPaidEvent(sessionId: string, paymentId: string): string {
+export function mockPaidEvent(
+  sessionId: string,
+  paymentId: string,
+  amount?: number
+): string {
   return JSON.stringify({
     data: {
       id: `evt_${sessionId}`,
@@ -157,7 +184,11 @@ export function mockPaidEvent(sessionId: string, paymentId: string): string {
             payments: [
               {
                 id: paymentId,
-                attributes: { status: "paid", source: { type: "gcash" } },
+                attributes: {
+                  amount,
+                  status: "paid",
+                  source: { type: "gcash" },
+                },
               },
             ],
           },

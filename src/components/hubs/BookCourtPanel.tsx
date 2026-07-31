@@ -22,9 +22,8 @@ import { formatHourLabel, formatManilaDateLong } from "@/lib/time";
 import {
   BOOKING_HOLD_MINUTES,
   COURT_TYPE_LABELS,
-  PLATFORM_FEE_RATE,
+  bookingServiceFeeFor,
   grossFor,
-  platformFeeFor,
   type OperatingHours,
 } from "@/lib/constants";
 
@@ -247,16 +246,18 @@ export function BookCourtPanel({
                 <>
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-gray-500">
-                      Service fee ({Math.round(PLATFORM_FEE_RATE * 100)}%)
+                      Service fee ({selected.length === 1 ? "1 hour" : "2+ hours"})
                     </span>
                     <span className="shrink-0 text-gray-700">
-                      {formatPHP(platformFeeFor(total))}
+                      {formatPHP(bookingServiceFeeFor(selected.length))}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-3 border-t border-gray-100 pt-2">
-                    <span className="font-medium text-gray-900">Total</span>
+                    <span className="font-medium text-gray-900">
+                      Booking subtotal
+                    </span>
                     <span className="shrink-0 text-base font-semibold text-gray-900">
-                      {formatPHP(grossFor(total))}
+                      {formatPHP(grossFor(total, selected.length))}
                     </span>
                   </div>
                 </>
@@ -291,7 +292,7 @@ export function BookCourtPanel({
 
           <p className="text-xs text-gray-400">
             {paymentRequired
-              ? `This venue takes payment online. We'll hold your hours for ${BOOKING_HOLD_MINUTES} minutes while you pay. The service fee goes to Bunal.ph; the court fee goes to the venue.`
+              ? `This venue takes payment online. We'll hold your hours for ${BOOKING_HOLD_MINUTES} minutes while you pay. PayMongo adds its processing fee after you choose a payment method.`
               : "No payment needed — confirm here and settle at the venue."}
           </p>
         </div>

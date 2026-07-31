@@ -11,7 +11,12 @@ import {
   disconnectGatewayAction,
   type GatewayFormState,
 } from "@/lib/gateway-actions";
-import { PLATFORM_FEE_RATE, VENUE_GATEWAYS } from "@/lib/constants";
+import {
+  MULTI_HOUR_SERVICE_FEE,
+  ONE_HOUR_SERVICE_FEE,
+  VENUE_GATEWAYS,
+} from "@/lib/constants";
+import { formatPHP } from "@/lib/currency";
 import type { GatewayView } from "@/lib/partner-gateway";
 
 const initial: GatewayFormState = {};
@@ -95,10 +100,10 @@ export function GatewayPanel({ gateway }: { gateway: GatewayView | null }) {
           </h2>
           <p className="mt-1 text-sm text-gray-500">
             Connect your own payment account. Players pay you directly and you
-            keep your full court rate — Bunal.ph never holds your money. A{" "}
-            {Math.round(PLATFORM_FEE_RATE * 100)}% service fee is added on top
-            for the player, collected into your account with everything else,
-            and invoiced back to us once a month.
+            keep your full court rate. A {formatPHP(ONE_HOUR_SERVICE_FEE)} fee
+            for one hour or {formatPHP(MULTI_HOUR_SERVICE_FEE)} for two or more
+            hours is deposited alongside it and remitted to Bunal.ph through
+            the settlement panel below.
           </p>
         </div>
         {connected && <Badge tone="success">Connected</Badge>}
@@ -230,7 +235,8 @@ export function GatewayPanel({ gateway }: { gateway: GatewayView | null }) {
               Your keys are encrypted before they&apos;re stored and are never
               shown again — only the last few characters. We use them to take
               payments on your behalf and to register the webhook that tells us
-              when one succeeds. You can replace or disconnect them at any time.
+              when one succeeds. PayMongo&apos;s processing fee is added at
+              checkout so it does not reduce your court revenue.
             </p>
 
             <Button

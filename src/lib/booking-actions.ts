@@ -26,8 +26,8 @@ import { refundBookingPayment } from "@/lib/booking-payments";
 import {
   BOOKING_HOLD_MINUTES,
   BOOKING_WINDOW_DAYS,
+  bookingServiceFeeFor,
   grossFor,
-  platformFeeFor,
 } from "@/lib/constants";
 import {
   addDays,
@@ -77,7 +77,7 @@ export async function createBookingAction(
   const court = await getCourtForBooking(courtId);
   if (!court) return { message: "Court not found." };
 
-  // The hub page hides the panel when a venue's subscription has lapsed, but a
+  // The hub page hides the panel when a venue cannot accept bookings, but a
   // Server Action is a public endpoint and has to enforce it too.
   if (!court.hub.bookable) {
     return { message: "This venue isn't taking online bookings right now." };
@@ -196,12 +196,14 @@ export async function createBookingAction(
             gatewayId: gateway!.id,
             userId: viewer.id,
             hubId: court.hub.id,
-            // The GROSS is what PayMongo charges and what a refund reverses;
-            // the other two are the split, recorded now so a report written
-            // next year still reads the rate that was quoted today.
-            amount: new Prisma.Decimal(grossFor(total!)),
+            // The checkout subtotal before PayMongo's method-specific pass-on
+            // processing fee. The other two are snapshotted so a report next
+            // year still reads the rate that was quoted today.
+            amount: new Prisma.Decimal(grossFor(total!, hours.length)),
             venueAmount: new Prisma.Decimal(total!),
-            platformFee: new Prisma.Decimal(platformFeeFor(total!)),
+            platformFee: new Prisma.Decimal(
+              bookingServiceFeeFor(hours.length)
+            ),
             method: "CARD",
             status: "PENDING",
             expiresAt: holdExpiresAt!,
@@ -327,6 +329,9 @@ export async function cancelHubBookingAction(
   if (viewer.role !== "PARTNER" && viewer.role !== "ADMIN") {
     return { message: "Only the hub owner can cancel this booking." };
   }
+  if (viewer.role === "PARTNER" && viewer.partnerStatus !== "ACTIVE") {
+    return { message: "Your partner account is waiting for admin verification." };
+  }
 
   const parsed = PartnerCancelBookingSchema.safeParse({
     id: String(formData.get("id") ?? ""),
@@ -392,7 +397,7 @@ export async function cancelHubBookingAction(
       success: `Booking cancelled, but the refund failed: ${refund.message} You can retry the refund from the booking.`,
     };
   }
-  return { success: "Booking cancelled and refunded in full." };
+  return { success: "Booking cancelled and its subtotal was refunded." };
 }
 
 // Refunding on its own — the retry when the refund leg of a cancellation
@@ -405,6 +410,9 @@ export async function refundBookingAction(
   if (!viewer) return { message: "Sign in to manage bookings." };
   if (viewer.role !== "PARTNER" && viewer.role !== "ADMIN") {
     return { message: "Only the venue can refund this booking." };
+  }
+  if (viewer.role === "PARTNER" && viewer.partnerStatus !== "ACTIVE") {
+    return { message: "Your partner account is waiting for admin verification." };
   }
 
   const parsed = RefundBookingSchema.safeParse({
@@ -437,7 +445,7 @@ export async function refundBookingAction(
   return {
     success: refund.alreadyRefunded
       ? "That payment was already refunded."
-      : "Refunded in full.",
+      : "The booking subtotal was refunded.",
   };
 }
 
@@ -456,6 +464,9 @@ export async function rescheduleHubBookingAction(
   if (!viewer) return { message: "Sign in to manage bookings." };
   if (viewer.role !== "PARTNER" && viewer.role !== "ADMIN") {
     return { message: "Only the hub owner can move this booking." };
+  }
+  if (viewer.role === "PARTNER" && viewer.partnerStatus !== "ACTIVE") {
+    return { message: "Your partner account is waiting for admin verification." };
   }
 
   const parsed = RescheduleBookingSchema.safeParse({

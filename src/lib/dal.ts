@@ -34,6 +34,7 @@ export const getViewer = cache(async () => {
       email: true,
       image: true,
       role: true,
+      partnerStatus: true,
     },
   });
 });
@@ -52,6 +53,7 @@ export const getCurrentUser = cache(async () => {
       facebookPage: true,
       image: true,
       role: true,
+      partnerStatus: true,
       skillLevel: true,
       privateProfile: true,
     },
@@ -68,16 +70,22 @@ export const requireRole = cache(async (...allowed: Role[]) => {
   return user;
 });
 
-// Partner-only guard. Lives here rather than in hubs.ts so billing.ts can use
-// it without a cycle (hubs.ts imports billing.ts for the listing filter);
-// hubs.ts re-exports it, so existing importers are unaffected.
-//
 // Redirects to /dashboard rather than /login: the visitor is signed in, they
 // just aren't a partner.
 export async function requirePartner() {
   const user = await getCurrentUser();
   if (!user || user.role !== "PARTNER") {
     redirect("/dashboard");
+  }
+  return user;
+}
+
+// Partner capabilities stay locked until an admin has verified the business.
+// Pending partners can still sign in and view their dashboard/account.
+export async function requireActivePartner() {
+  const user = await requirePartner();
+  if (user.partnerStatus !== "ACTIVE") {
+    redirect("/dashboard/partner");
   }
   return user;
 }

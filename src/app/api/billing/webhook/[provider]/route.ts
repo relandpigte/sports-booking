@@ -1,37 +1,27 @@
 import type { NextRequest } from "next/server";
 
-import { getPaymentProvider } from "@/lib/payments";
-import { handleProviderEvent } from "@/lib/billing-webhook";
+import { verifyPlatformPaymongoWebhook } from "@/lib/payments/paymongo-platform";
+import { handleServiceFeeProviderEvent } from "@/lib/service-fee-payments";
 
-// Payment gateway callbacks. Unauthenticated by necessity — the gateway has no
-// session — so the SIGNATURE is the authorization. Nothing here trusts the body
-// until verifyWebhook has confirmed it.
+// Signed callbacks from Bunal.ph's own PayMongo account for partner-to-admin
+// service-fee settlements. The legacy /billing path is kept because existing
+// PayMongo webhook registrations already point here.
 export const dynamic = "force-dynamic";
 
 export async function POST(
   request: NextRequest,
   ctx: { params: Promise<{ provider: string }> }
 ) {
-  // Next 16: params is a Promise.
-  const { provider: providerId } = await ctx.params;
-
-  const provider = getPaymentProvider();
-  if (providerId !== provider.id) {
+  const { provider } = await ctx.params;
+  if (provider !== "paymongo") {
     return new Response("Unknown provider", { status: 404 });
   }
 
-  // Signature verification is byte-exact, so read the RAW body — parsing first
-  // would re-serialize it and change the bytes.
+  // Signature verification is byte-exact.
   const rawBody = await request.text();
+  const event = await verifyPlatformPaymongoWebhook(rawBody, request.headers);
+  if (!event) return new Response("Invalid signature", { status: 400 });
 
-  const event = await provider.verifyWebhook(rawBody, request.headers);
-  if (!event) {
-    return new Response("Invalid signature", { status: 400 });
-  }
-
-  const result = await handleProviderEvent(providerId, event);
-
-  // A duplicate delivery is a success from the gateway's point of view —
-  // returning an error would make it retry forever.
+  const result = await handleServiceFeeProviderEvent(event);
   return Response.json({ ok: true, ...result });
 }

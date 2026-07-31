@@ -11,11 +11,11 @@ import type {
 
 import { prisma } from "@/lib/db";
 import { getViewer } from "@/lib/dal";
-import { requirePartner } from "@/lib/hubs";
+import { requireActivePartner } from "@/lib/hubs";
 import { buildSlots, type Slot } from "@/lib/slots";
-import { isEntitled } from "@/lib/billing";
 import { manilaNowHour, manilaToday } from "@/lib/time";
 import type { OperatingHours } from "@/lib/constants";
+import { isServiceFeeOverdue } from "@/lib/service-fees";
 
 // Where a booking was before the venue moved it. Everything here is a
 // snapshot — the court may since have been renamed or deleted, and the player
@@ -55,8 +55,8 @@ export type BookingView = {
   payment: {
     id: string;
     status: PaymentStatus;
-    // The gross paid, and our share of it — so a player can see why ₱525 left
-    // their account for a ₱500 court.
+    // The checkout subtotal and our share of it. PayMongo's method-specific
+    // pass-on processing fee is not known until the player chooses a method.
     amount: number;
     platformFee: number;
   } | null;
@@ -186,9 +186,6 @@ function mapBooking(row: BookingRow): BookingView {
 // with ZERO writes and no scheduler. Nothing here waits on the sweep — the
 // sweep only deletes the dead rows afterwards.
 //
-// Same discipline as isEntitled() in billing.ts, and for the same reason: an
-// earlier version of this codebase made entitlement depend on a state
-// transition having run, and it was wrong for everyone who didn't sign in.
 function holdingHourWhere(now: Date): Prisma.BookingSlotWhereInput {
   return { OR: [{ holdExpiresAt: null }, { holdExpiresAt: { gt: now } }] };
 }
@@ -275,15 +272,8 @@ export const getCourtForBooking = cache(async (courtId: string) => {
           ownerId: true,
           owner: {
             select: {
-              subscription: {
-                select: {
-                  status: true,
-                  trialEndsAt: true,
-                  currentPeriodEnd: true,
-                  graceEndsAt: true,
-                  cancelAtPeriodEnd: true,
-                },
-              },
+              partnerStatus: true,
+              partnerGateway: { select: { disconnectedAt: true } },
             },
           },
         },
@@ -291,6 +281,12 @@ export const getCourtForBooking = cache(async (courtId: string) => {
     },
   });
   if (!row) return null;
+  const approved = row.hub.owner.partnerStatus === "ACTIVE";
+  const connected = row.hub.owner.partnerGateway?.disconnectedAt === null;
+  const overdue =
+    approved && connected
+      ? await isServiceFeeOverdue(row.hub.ownerId)
+      : false;
   return {
     id: row.id,
     name: row.name,
@@ -301,9 +297,7 @@ export const getCourtForBooking = cache(async (courtId: string) => {
       name: row.hub.name,
       ownerId: row.hub.ownerId,
       operatingHours: (row.hub.operatingHours as OperatingHours | null) ?? null,
-      // A venue whose subscription has lapsed keeps its data but stops taking
-      // new bookings.
-      bookable: isEntitled(row.hub.owner.subscription),
+      bookable: approved && connected && !overdue,
     },
   };
 });
@@ -405,7 +399,7 @@ export async function listHubBookings(hubId: string): Promise<{
   upcoming: BookingView[];
   past: BookingView[];
 } | null> {
-  const partner = await requirePartner();
+  const partner = await requireActivePartner();
   const owned = await prisma.hub.findFirst({
     where: { id: hubId, ownerId: partner.id },
     select: { id: true },
@@ -430,5 +424,37 @@ export async function listHubBookings(hubId: string): Promise<{
     }),
   ]);
 
+  return { upcoming: upcoming.map(mapBooking), past: past.map(mapBooking) };
+}
+
+// Consolidated partner inbox across every owned hub. Ownership is expressed in
+// the query itself, so adding a hub filter later cannot expose another venue.
+export async function listPartnerBookings(): Promise<{
+  upcoming: BookingView[];
+  past: BookingView[];
+}> {
+  const partner = await requireActivePartner();
+  const now = new Date();
+  const owned = { hub: { ownerId: partner.id } };
+  const [upcoming, past] = await Promise.all([
+    prisma.booking.findMany({
+      where: {
+        ...owned,
+        ...liveBookingWhere(now),
+        endsAt: { gte: now },
+      },
+      orderBy: { startsAt: "asc" },
+      select: bookingSelect,
+    }),
+    prisma.booking.findMany({
+      where: {
+        ...owned,
+        ...endedBookingWhere(now),
+      },
+      orderBy: { startsAt: "desc" },
+      take: 100,
+      select: bookingSelect,
+    }),
+  ]);
   return { upcoming: upcoming.map(mapBooking), past: past.map(mapBooking) };
 }

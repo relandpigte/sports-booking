@@ -2,14 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AuthLayout } from "@/components/AuthLayout";
-import { PartnerRegisterForm } from "@/components/billing/PartnerRegisterForm";
+import { PartnerRegisterForm } from "@/components/partner/PartnerRegisterForm";
 
 export const metadata: Metadata = {
   title: "Partner Registration — Bunal.ph",
 };
 
 export default async function PartnerRegisterPage() {
-
   return (
     <AuthLayout
       title="List your venue"

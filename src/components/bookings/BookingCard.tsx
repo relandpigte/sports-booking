@@ -75,7 +75,7 @@ export function BookingCard({
                 {booking.player.playerName ?? booking.player.name ?? "Player"}
               </p>
               <p className="truncate text-sm text-gray-500">
-                {booking.court.name}
+                {booking.hub.name} · {booking.court.name}
                 {booking.player.phone ? ` · ${booking.player.phone}` : ""}
               </p>
             </div>
@@ -112,8 +112,8 @@ export function BookingCard({
         </div>
         {booking.payment && (paid || refunded) && (
           <>
-            {/* The player paid the court fee plus the service fee, so the
-                figure on their card has to reconcile with their bank. */}
+            {/* The booking subtotal excludes PayMongo's method-specific
+                pass-on processing fee, which is shown on hosted checkout. */}
             {booking.payment.platformFee > 0 && (
               <div className="flex items-center justify-between gap-3">
                 <dt className="text-gray-500">Service fee</dt>
@@ -124,7 +124,7 @@ export function BookingCard({
             )}
             <div className="flex items-center justify-between gap-3">
               <dt className="text-gray-500">
-                {refunded ? "Refunded" : "Paid online"}
+                {refunded ? "Refunded" : "Booking subtotal"}
               </dt>
               <dd className="font-medium text-gray-900">
                 {formatPHP(booking.payment.amount)}
@@ -203,8 +203,8 @@ export function BookingCard({
           <RefundBookingButton
             bookingId={booking.id}
             amountLabel={
-              booking.totalPrice != null
-                ? formatPHP(booking.totalPrice)
+              booking.payment
+                ? formatPHP(booking.payment.amount)
                 : undefined
             }
           />
@@ -240,8 +240,8 @@ export function BookingCard({
               bookingId={booking.id}
               paid={paid}
               amountLabel={
-                booking.totalPrice != null
-                  ? formatPHP(booking.totalPrice)
+                booking.payment
+                  ? formatPHP(booking.payment.amount)
                   : undefined
               }
             />

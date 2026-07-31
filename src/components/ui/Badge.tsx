@@ -1,5 +1,4 @@
-// The status pill this codebase already inlines in several places. Extracted
-// now that subscription status has five values that each need a different tone.
+// Shared status pill tones.
 
 export type BadgeTone = "neutral" | "primary" | "warn" | "danger" | "success";
 

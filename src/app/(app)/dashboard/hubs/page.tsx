@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { Avatar } from "@/components/ui/Avatar";
 import { DeleteHubButton } from "@/components/dashboard/hubs/DeleteHubButton";
 import { listMyHubs } from "@/lib/hubs";
-import { requirePartner } from "@/lib/dal";
+import { requireActivePartner } from "@/lib/dal";
 import { getActivePartnerGateway } from "@/lib/partner-gateway";
 
 export const metadata: Metadata = {
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 export default async function HubsPage() {
-  const partner = await requirePartner();
+  const partner = await requireActivePartner();
   const [hubs, gateway] = await Promise.all([
     listMyHubs(),
     getActivePartnerGateway(partner.id),
@@ -49,7 +49,7 @@ export default async function HubsPage() {
             the directory straight away.
           </p>
           <Link
-            href="/dashboard/billing"
+            href="/dashboard/payments"
             className="mt-2 inline-block text-sm font-semibold text-amber-900 hover:underline"
           >
             Connect PayMongo →

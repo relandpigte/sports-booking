@@ -10,7 +10,7 @@ import crypto from "node:crypto";
 // refund and the signature verification all live here once, and the two
 // adapters above are thin.
 
-const API = "https://api.paymongo.com/v1";
+const API = "https://api.paymongo.com";
 
 // PayMongo works in centavos. Everything above this line is pesos, so this is
 // the ONLY place the two meet.
@@ -42,11 +42,15 @@ export async function paymongoRequest<T = PayMongoResource>(
   secretKey: string,
   method: "GET" | "POST",
   path: string,
-  body?: unknown
+  body?: unknown,
+  options: {
+    version?: "v1" | "v2";
+    idempotencyKey?: string;
+  } = {}
 ): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`${API}${path}`, {
+    response = await fetch(`${API}/${options.version ?? "v1"}${path}`, {
       method,
       headers: {
         // Basic auth with the secret key as the username and no password —
@@ -54,6 +58,9 @@ export async function paymongoRequest<T = PayMongoResource>(
         Authorization: `Basic ${Buffer.from(`${secretKey}:`).toString("base64")}`,
         "Content-Type": "application/json",
         Accept: "application/json",
+        ...(options.idempotencyKey
+          ? { "Idempotency-Key": options.idempotencyKey }
+          : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
       // A gateway that hangs must not hang a Server Action holding a court.
@@ -110,6 +117,7 @@ export function keyMode(key: string): KeyMode | null {
 export type PayMongoPayment = {
   id?: string;
   attributes?: {
+    amount?: number;
     status?: string;
     source?: { type?: string };
   };
@@ -146,31 +154,48 @@ export async function createCheckoutSession(
     referenceNumber: string;
     returnUrl: string;
     metadata: Record<string, string>;
+    paymentMethodTypes?: ("card" | "gcash" | "paymaya" | "qrph")[];
+    passOnFees?: boolean;
+    idempotencyKey?: string;
   }
 ): Promise<{ id: string; attributes: CheckoutSession }> {
-  const data = await paymongoRequest(secretKey, "POST", "/checkout_sessions", {
-    data: {
-      attributes: {
-        line_items: [
-          {
-            name: input.description,
-            amount: toCentavos(input.amountPesos),
-            currency: "PHP",
-            quantity: 1,
-          },
-        ],
-        payment_method_types: ["card", "gcash", "paymaya"],
-        description: input.description,
-        // Our own id, so a payment in the PayMongo dashboard can be traced
-        // back without asking us.
-        reference_number: input.referenceNumber,
-        metadata: input.metadata,
-        success_url: input.returnUrl,
-        cancel_url: input.returnUrl,
-        send_email_receipt: false,
+  const data = await paymongoRequest(
+    secretKey,
+    "POST",
+    "/checkout_sessions",
+    {
+      data: {
+        attributes: {
+          line_items: [
+            {
+              name: input.description,
+              amount: toCentavos(input.amountPesos),
+              currency: "PHP",
+              quantity: 1,
+            },
+          ],
+          payment_method_types: input.paymentMethodTypes ?? [
+            "card",
+            "gcash",
+            "paymaya",
+          ],
+          description: input.description,
+          // Our own id, so a payment in the PayMongo dashboard can be traced
+          // back without asking us.
+          reference_number: input.referenceNumber,
+          metadata: input.metadata,
+          success_url: input.returnUrl,
+          cancel_url: input.returnUrl,
+          send_email_receipt: false,
+          // The hub must receive the complete court amount plus the service fee
+          // it later remits. PayMongo adds its method-specific processing fee
+          // to the player's checkout total instead of deducting it here.
+          pass_on_fees: input.passOnFees ?? true,
+        },
       },
     },
-  });
+    { version: "v2", idempotencyKey: input.idempotencyKey }
+  );
   return { id: data.id, attributes: data.attributes as CheckoutSession };
 }
 

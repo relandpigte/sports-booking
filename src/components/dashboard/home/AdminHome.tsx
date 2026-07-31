@@ -4,9 +4,13 @@ import type { Role } from "@prisma/client";
 export function AdminHome({
   name,
   counts,
+  pendingPartners,
+  pendingSettlements,
 }: {
   name: string | null;
   counts: Record<Role, number>;
+  pendingPartners: number;
+  pendingSettlements: number;
 }) {
   const total = counts.ADMIN + counts.PLAYER + counts.PARTNER;
 
@@ -46,6 +50,43 @@ export function AdminHome({
         ))}
       </div>
 
+      {pendingPartners > 0 && (
+        <Link
+          href="/users?role=PARTNER"
+          className="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900"
+        >
+          <div>
+            <p className="font-semibold">
+              {pendingPartners} partner{" "}
+              {pendingPartners === 1 ? "application" : "applications"} to review
+            </p>
+            <p className="mt-0.5 text-sm text-amber-800">
+              Verify the venue details before activating access.
+            </p>
+          </div>
+          <span className="shrink-0 text-sm font-semibold">Review →</span>
+        </Link>
+      )}
+
+      {pendingSettlements > 0 && (
+        <Link
+          href="/dashboard/admin/settlements"
+          className="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900"
+        >
+          <div>
+            <p className="font-semibold">
+              {pendingSettlements} service-fee{" "}
+              {pendingSettlements === 1 ? "settlement" : "settlements"} to
+              review
+            </p>
+            <p className="mt-0.5 text-sm text-amber-800">
+              Verify the payment reference and receipt before marking it paid.
+            </p>
+          </div>
+          <span className="shrink-0 text-sm font-semibold">Review →</span>
+        </Link>
+      )}
+
       <section className="mt-6 rounded-2xl border border-gray-200 p-5">
         <h2 className="text-base font-semibold text-gray-900">Manage</h2>
         <p className="mt-1 text-sm text-gray-500">
@@ -65,10 +106,10 @@ export function AdminHome({
             + New user
           </Link>
           <Link
-            href="/dashboard/admin/subscriptions"
+            href="/dashboard/admin/payments"
             className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
           >
-            Subscriptions
+            Payment collection
           </Link>
         </div>
       </section>

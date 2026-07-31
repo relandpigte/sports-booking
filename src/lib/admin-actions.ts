@@ -29,7 +29,7 @@ export async function createUserAction(
   _prev: AdminFormState,
   formData: FormData
 ): Promise<AdminFormState> {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   const raw = {
     name: String(formData.get("name") ?? ""),
@@ -77,6 +77,9 @@ export async function createUserAction(
       name: data.name,
       email: data.email,
       role: data.role as Role,
+      partnerStatus: data.role === "PARTNER" ? "ACTIVE" : null,
+      partnerActivatedAt: data.role === "PARTNER" ? new Date() : null,
+      partnerActivatedById: data.role === "PARTNER" ? admin.id : null,
       playerName: data.playerName,
       phone: data.phone,
       skillLevel: data.skillLevel,
@@ -118,6 +121,11 @@ export async function updateUserAction(
   }
 
   const data = parsed.data;
+  const existingUser = await prisma.user.findUnique({
+    where: { id: data.id },
+    select: { role: true },
+  });
+  if (!existingUser) return { message: "User not found.", values };
 
   // Prevent an admin from demoting their own account (avoids self lock-out).
   if (data.id === admin?.id && data.role !== "ADMIN") {
@@ -137,6 +145,19 @@ export async function updateUserAction(
     data: {
       name: data.name,
       role: data.role as Role,
+      ...(data.role === "PARTNER" && existingUser.role !== "PARTNER"
+        ? {
+            partnerStatus: "PENDING",
+            partnerActivatedAt: null,
+            partnerActivatedById: null,
+          }
+        : data.role === "PARTNER"
+          ? {}
+        : {
+            partnerStatus: null,
+            partnerActivatedAt: null,
+            partnerActivatedById: null,
+          }),
       playerName: data.playerName ?? null,
       phone: data.phone ?? null,
       skillLevel: data.skillLevel,
@@ -158,8 +179,60 @@ export async function setUserRoleAction(formData: FormData) {
   // Don't let an admin change their own role from the list.
   if (id === admin?.id) return;
 
-  await prisma.user.update({ where: { id }, data: { role } });
+  const current = await prisma.user.findUnique({
+    where: { id },
+    select: { role: true },
+  });
+  if (!current) return;
+
+  await prisma.user.update({
+    where: { id },
+    data: {
+      role,
+      ...(role === "PARTNER" && current.role !== "PARTNER"
+        ? { partnerStatus: "PENDING" }
+        : role !== "PARTNER"
+          ? {
+            partnerStatus: null,
+            partnerActivatedAt: null,
+            partnerActivatedById: null,
+            }
+          : {}),
+    },
+  });
   revalidatePath("/users");
+}
+
+export async function setPartnerActiveAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const id = String(formData.get("userId") ?? "");
+  const active = formData.get("active") === "true";
+  if (!id) return;
+
+  const partner = await prisma.user.findFirst({
+    where: { id, role: "PARTNER" },
+    select: { id: true },
+  });
+  if (!partner) return;
+
+  await prisma.user.update({
+    where: { id },
+    data: active
+      ? {
+          partnerStatus: "ACTIVE",
+          partnerActivatedAt: new Date(),
+          partnerActivatedById: admin.id,
+        }
+      : {
+          partnerStatus: "PENDING",
+          partnerActivatedAt: null,
+          partnerActivatedById: null,
+        },
+  });
+
+  revalidatePath("/users");
+  revalidatePath(`/users/${id}/edit`);
+  revalidatePath("/hubs");
 }
 
 export async function deleteUserAction(formData: FormData) {

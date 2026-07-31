@@ -75,8 +75,9 @@ export function CancelBookingButton({
             className="mt-0.5"
           />
           <span>
-            Refund {amountLabel ?? "the payment"} in full. The money goes back
-            from your gateway, not from Bunal.ph.
+            Refund the {amountLabel ?? "payment"} booking subtotal. The money
+            goes back from your gateway; PayMongo controls its processing-fee
+            treatment.
           </span>
         </label>
       )}

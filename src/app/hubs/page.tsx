@@ -70,17 +70,17 @@ export default async function HubsDirectoryPage({
   const toHour = hourFromTime(to);
   const validRange =
     fromHour != null && toHour != null && fromHour < toHour;
-  const date =
+  const today = manilaToday();
+  const selectedDate =
     requestedDate && isValidDateString(requestedDate)
       ? requestedDate
-      : validRange
-        ? manilaToday()
-        : undefined;
+      : undefined;
+  const availabilityDate = selectedDate ?? today;
 
   const hubs = await listPublicHubDirectory({
     game,
     courtType,
-    date,
+    date: availabilityDate,
     fromHour: validRange ? fromHour : undefined,
     toHour: validRange ? toHour : undefined,
   });
@@ -96,12 +96,12 @@ export default async function HubsDirectoryPage({
     >
       <HubDirectory
         hubs={view}
-        today={manilaToday()}
+        today={today}
         initial={{
           query,
           game: game ?? "",
           courtType: courtType ?? "",
-          date: date ?? "",
+          date: selectedDate ?? "",
           from,
           to,
           sort:

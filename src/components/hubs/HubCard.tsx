@@ -8,11 +8,13 @@ export function HubCard({
   distanceKm,
   availableSlots,
   availabilityDate,
+  today,
 }: {
   hub: Hub;
   distanceKm?: number;
   availableSlots?: number | null;
   availabilityDate?: string;
+  today?: string;
 }) {
   const startingRate = hub.courts.reduce<number | null>(
     (lowest, court) =>
@@ -87,9 +89,24 @@ export function HubCard({
         )}
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs font-semibold text-slate-500">
-          <span>
+          <span className="flex flex-col gap-0.5">
             {availableSlots != null && availabilityDate
-              ? `${availableSlots} ${availableSlots === 1 ? "slot" : "slots"} available`
+              ? (
+                  <>
+                    <span className="font-bold text-primary">
+                      {availableSlots}{" "}
+                      {availableSlots === 1 ? "slot" : "slots"} available
+                    </span>
+                    <time
+                      dateTime={availabilityDate}
+                      className="text-[11px] font-medium text-slate-400"
+                    >
+                      {availabilityDate === today
+                        ? `Today · ${formatAvailabilityDate(availabilityDate)}`
+                        : formatAvailabilityDate(availabilityDate)}
+                    </time>
+                  </>
+                )
               : `${hub.courts.length} ${hub.courts.length === 1 ? "court" : "courts"}`}
           </span>
           {mapsHref && (
@@ -125,4 +142,25 @@ export function HubCard({
       </div>
     </article>
   );
+}
+
+function formatAvailabilityDate(date: string): string {
+  const [year, month, day] = date.split("-").map(Number);
+  const monthName = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ][month - 1];
+
+  if (!monthName || !year || !day) return date;
+  return `${monthName} ${day}, ${year}`;
 }

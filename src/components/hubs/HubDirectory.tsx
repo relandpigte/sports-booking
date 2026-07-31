@@ -356,7 +356,8 @@ export function HubDirectory({
                     : undefined
                 }
                 availableSlots={hub.availableSlots}
-                availabilityDate={initial.date || undefined}
+                availabilityDate={initial.date || today}
+                today={today}
               />
             ))}
           </div>

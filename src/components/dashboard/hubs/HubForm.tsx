@@ -114,7 +114,7 @@ export function HubForm({ hub }: { hub?: Hub }) {
         />
       </div>
 
-      <GamesSelect defaultValue={hub?.games ?? []} />
+      <GamesSelect defaultValue={hub?.games ?? ["pickleball"]} />
 
       <OperatingHoursEditor defaultValue={hub?.operatingHours ?? null} />
 

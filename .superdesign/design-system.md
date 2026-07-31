@@ -170,8 +170,8 @@ Bunal.club.
   court count, starting hourly rate, distance when available, and a direct
   Google Maps navigation action. The whole card still links to the hub detail.
 - Use actual availability data for the selected date/time range; never display
-  invented slot counts. When no time range is selected, describe the venue as
-  available for online booking without fabricating inventory.
+  invented slot counts. When no date is selected, query today's availability
+  in the Manila timezone and label the card count as today's inventory.
 - Desktop uses a three-column card grid within a 1180–1240px work area. Tablet
   uses two columns and mobile uses one.
 - Keep the signed-out public top bar and the authenticated app shell behavior.

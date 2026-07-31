@@ -15,20 +15,20 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://bunal.ph"),
+  metadataBase: new URL("https://bunal.club"),
   title: {
-    default: "Bunal.ph — Play. Compete. Connect.",
-    // Every page already sets its own "X — Bunal.ph", so no template here.
+    default: "Bunal.club — Play. Compete. Connect.",
+    // Every page already sets its own complete title, so no template here.
     template: "%s",
   },
   description:
     "Book volleyball, badminton and pickleball courts across Bohol. Find a hub, pick your hours, and pay the venue directly.",
   openGraph: {
-    title: "Bunal.ph — Play. Compete. Connect.",
+    title: "Bunal.club — Play. Compete. Connect.",
     description:
       "Book volleyball, badminton and pickleball courts across Bohol.",
-    url: "https://bunal.ph",
-    siteName: "Bunal.ph",
+    url: "https://bunal.club",
+    siteName: "Bunal.club",
     images: ["/bunal-logo.png"],
     locale: "en_PH",
     type: "website",

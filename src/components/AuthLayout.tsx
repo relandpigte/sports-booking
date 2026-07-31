@@ -39,8 +39,8 @@ export function AuthLayout({
         />
 
         <div className="relative">
-          <Link href="/hubs" aria-label="Bunal.ph home">
-            <Logo tone="light" size={44} />
+          <Link href="/hubs" aria-label="Bunal.club home">
+            <Logo size={64} />
           </Link>
 
           <div className="mt-10 hidden lg:block">

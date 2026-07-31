@@ -7,8 +7,8 @@ export function PublicTopBar() {
   return (
     <header className="sticky top-0 z-30 border-b border-gray-100 bg-white/85 backdrop-blur-md">
       <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-        <Link href="/hubs" aria-label="Bunal.ph home">
-          <Logo size={38} />
+        <Link href="/hubs" aria-label="Bunal.club home">
+          <Logo size={48} />
         </Link>
 
         <div className="flex items-center gap-2">

@@ -183,3 +183,8 @@ Bunal.club.
 - Preserve white cards, `#dfe7e2` borders, navy headings, green actions, lime
   highlights, Geist typography, and 12–20px radii. Present date-aware
   availability in a calm soft-green status panel and keep shadows restrained.
+- Never fill an empty live directory with invented venues. For a genuinely
+  empty marketplace, show a polished player message beside a navy partner CTA
+  explaining PayMongo-first venue onboarding. When active search or filters
+  have no matches, use a smaller no-results state with clear-filter and partner
+  actions instead.

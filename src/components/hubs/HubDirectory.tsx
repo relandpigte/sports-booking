@@ -96,6 +96,7 @@ export function HubDirectory({
     initial.from,
     initial.to,
   ].filter(Boolean).length;
+  const hasActiveDiscovery = Boolean(query.trim() || activeFilterCount);
 
   const visibleHubs = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -380,22 +381,153 @@ export function HubDirectory({
               />
             ))}
           </div>
+        ) : hasActiveDiscovery ? (
+          <FilteredEmptyState />
         ) : (
-          <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
-            <p className="font-bold text-navy">No matching hubs found</p>
-            <p className="mt-2 text-sm text-slate-500">
-              Try a different search, date, time, or court filter.
-            </p>
-            <Link
-              href="/hubs"
-              className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-primary px-4 text-sm font-bold text-white"
-            >
-              Clear all filters
-            </Link>
-          </div>
+          <EmptyDirectoryState />
         )}
       </section>
     </div>
+  );
+}
+
+function EmptyDirectoryState() {
+  const sports = ["Pickleball", "Badminton", "Volleyball", "Tennis"];
+
+  return (
+    <div className="mt-8 overflow-hidden rounded-[28px] border border-[#dfe7e2] bg-white shadow-sm shadow-navy/5">
+      <div className="grid lg:grid-cols-2">
+        <div className="p-7 sm:p-10 lg:p-12">
+          <div className="max-w-lg">
+            <span className="inline-flex items-center gap-2 rounded-full bg-primary-soft px-3 py-1.5 text-xs font-bold text-primary">
+              <span className="h-2 w-2 rounded-full bg-accent" />
+              Growing across Bohol
+            </span>
+            <h3 className="mt-6 text-3xl font-black tracking-[-0.035em] text-navy sm:text-4xl">
+              Local hubs are joining the club.
+            </h3>
+            <p className="mt-5 max-w-md text-base leading-7 text-slate-500">
+              We&apos;re onboarding venue partners so players can discover live
+              schedules, reserve court time, and pay online in one place.
+            </p>
+
+            <div className="mt-7 flex flex-wrap gap-2">
+              {sports.map((sport) => (
+                <span
+                  key={sport}
+                  className="rounded-full border border-[#dfe7e2] bg-[#f7faf8] px-3.5 py-1.5 text-xs font-bold text-navy"
+                >
+                  {sport}
+                </span>
+              ))}
+            </div>
+
+            <Link
+              href="/#how-it-works"
+              className="mt-9 inline-flex min-h-11 items-center gap-2 text-sm font-bold text-ocean transition-colors hover:text-navy"
+            >
+              See how booking works <span aria-hidden="true">→</span>
+            </Link>
+          </div>
+        </div>
+
+        <aside className="relative overflow-hidden bg-navy p-7 text-white sm:p-10 lg:p-12">
+          <div
+            aria-hidden="true"
+            className="absolute -right-24 -top-24 h-64 w-64 rounded-full bg-primary/20 blur-3xl"
+          />
+          <div className="relative max-w-lg">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">
+              For venue partners
+            </p>
+            <h3 className="mt-4 text-2xl font-black tracking-[-0.025em] sm:text-3xl">
+              Put your courts where players can find them.
+            </h3>
+            <p className="mt-4 text-sm leading-6 text-white/65">
+              Set up your venue, receive bookings online, and have player
+              payments sent to your connected PayMongo account.
+            </p>
+
+            <ol className="mt-8 space-y-5">
+              <PartnerStep number="1" text="Connect your PayMongo account" />
+              <PartnerStep number="2" text="Add your hub, courts, and rates" />
+              <PartnerStep
+                number="3"
+                text="Publish availability and accept bookings"
+              />
+            </ol>
+
+            <Link
+              href="/register/partner"
+              className="mt-9 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-primary px-5 text-sm font-bold text-white transition-colors hover:bg-primary-hover sm:w-auto"
+            >
+              List your venue
+            </Link>
+            <p className="mt-4 text-xs text-white/45">
+              No monthly subscription. Bunal.club charges a 3% service fee.
+            </p>
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function FilteredEmptyState() {
+  return (
+    <div className="mt-8 rounded-[24px] border border-dashed border-slate-300 bg-white px-6 py-14 text-center sm:py-16">
+      <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-navy-soft text-navy">
+        <SearchEmptyIcon />
+      </span>
+      <h3 className="mt-5 text-xl font-black text-navy">
+        No matching hubs found
+      </h3>
+      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
+        Try adjusting your search, date, time, sport, or court type. Venue
+        owners can also be among the first to list in this area.
+      </p>
+      <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
+        <Link
+          href="/hubs"
+          className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-[#dfe7e2] bg-white px-5 text-sm font-bold text-navy transition-colors hover:bg-[#f7faf8] sm:w-auto"
+        >
+          Clear all filters
+        </Link>
+        <Link
+          href="/register/partner"
+          className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-navy px-5 text-sm font-bold text-white transition-colors hover:bg-navy-hover sm:w-auto"
+        >
+          List your venue
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function PartnerStep({ number, text }: { number: string; text: string }) {
+  return (
+    <li className="flex items-center gap-4">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-black text-accent">
+        {number}
+      </span>
+      <span className="text-sm font-semibold text-white/80">{text}</span>
+    </li>
+  );
+}
+
+function SearchEmptyIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className="h-6 w-6"
+      aria-hidden="true"
+    >
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="m16 16 5 5M8.5 8.5l4 4m0-4-4 4" />
+    </svg>
   );
 }
 

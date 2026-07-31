@@ -197,6 +197,25 @@ export async function listPublicHubDirectory({
   return typed
     .map((hub) => {
       let availableSlots = 0;
+
+      if (fromHour == null || toHour == null) {
+        for (const court of hub.courts) {
+          const { slots } = buildSlots({
+            operatingHours: hub.operatingHours,
+            date,
+            bookedHours: bookedByCourt.get(court.id) ?? [],
+            today,
+            nowHour,
+          });
+          availableSlots += slots.filter((slot) => slot.available).length;
+        }
+
+        // Keep otherwise bookable venues discoverable even when today's
+        // inventory is already full. The card truthfully displays zero slots
+        // instead of making the marketplace look empty.
+        return { ...hub, availableSlots };
+      }
+
       const matchingCourts = hub.courts.filter((court) => {
         const { slots } = buildSlots({
           operatingHours: hub.operatingHours,
@@ -209,14 +228,6 @@ export async function listPublicHubDirectory({
           (slot) => slot.available
         ).length;
 
-        if (fromHour == null || toHour == null) {
-          if (courtAvailableSlots > 0) {
-            availableSlots += courtAvailableSlots;
-            return true;
-          }
-          return false;
-        }
-
         for (let hour = fromHour; hour < toHour; hour++) {
           if (!slots.some((slot) => slot.hour === hour && slot.available)) {
             return false;
@@ -228,7 +239,11 @@ export async function listPublicHubDirectory({
 
       return { ...hub, courts: matchingCourts, availableSlots };
     })
-    .filter((hub) => hub.courts.length > 0 && hub.availableSlots > 0);
+    .filter((hub) =>
+      fromHour == null || toHour == null
+        ? hub.courts.length > 0
+        : hub.courts.length > 0 && hub.availableSlots > 0
+    );
 }
 
 const publicHubSelect = {

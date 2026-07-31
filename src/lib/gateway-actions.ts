@@ -32,6 +32,8 @@ export type GatewayFormState = {
 async function revalidateGatewaySurfaces(partnerId: string) {
   revalidatePath("/dashboard/payments");
   revalidatePath("/dashboard/hubs");
+  revalidatePath("/dashboard/hubs/new");
+  revalidatePath("/dashboard/partner");
   revalidatePath("/hubs");
   const hubs = await prisma.hub.findMany({
     where: { ownerId: partnerId },
@@ -172,6 +174,6 @@ export async function disconnectGatewayAction(
   await revalidateGatewaySurfaces(partner.id);
   return {
     success:
-      "Disconnected. New bookings confirm instantly again and are settled at the venue. Refunds on existing paid bookings still work.",
+      "Disconnected. Your hubs are hidden from the public directory and new hub creation is paused until you reconnect. Refunds on existing paid bookings still work.",
   };
 }

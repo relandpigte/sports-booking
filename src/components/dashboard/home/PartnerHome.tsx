@@ -10,9 +10,11 @@ type PartnerHomeUser = {
 export function PartnerHome({
   user,
   partnerStatus,
+  isGatewayConnected,
 }: {
   user: PartnerHomeUser;
   partnerStatus: PartnerStatus | null;
+  isGatewayConnected: boolean;
 }) {
   const active = partnerStatus === "ACTIVE";
   const comingSoon = [
@@ -51,23 +53,92 @@ export function PartnerHome({
       )}
 
       {active && (
-      <Link
-        href="/dashboard/hubs"
-        className="mt-6 block rounded-2xl border border-gray-200 p-5 transition-colors hover:border-gray-300"
-      >
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-base font-semibold text-gray-900">My Hubs</h2>
-          <span className="text-sm font-medium text-primary">Manage →</span>
-        </div>
-        <p className="mt-1 text-sm text-gray-500">
-          Create and manage your venues — cover photos, logo, about, contact,
-          and operating hours.
-        </p>
-      </Link>
+        <section className="mt-6 rounded-2xl border border-gray-200 p-5">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">
+              Set up your venue
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Connect the account that receives player payments, then add your
+              first hub.
+            </p>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Link
+              href="/dashboard/payments?setup=hub"
+              className={`rounded-xl border p-4 transition-colors ${
+                isGatewayConnected
+                  ? "border-green-200 bg-green-50 hover:border-green-300"
+                  : "border-primary/30 bg-primary-soft hover:border-primary/50"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-bold uppercase tracking-[0.14em] text-gray-500">
+                  Step 1
+                </span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                    isGatewayConnected
+                      ? "bg-green-100 text-green-700"
+                      : "bg-white text-primary"
+                  }`}
+                >
+                  {isGatewayConnected ? "Connected" : "Required"}
+                </span>
+              </div>
+              <h3 className="mt-4 font-semibold text-gray-900">
+                Connect PayMongo
+              </h3>
+              <p className="mt-1 text-sm text-gray-600">
+                Booking proceeds land in your own payment account.
+              </p>
+            </Link>
+
+            {isGatewayConnected ? (
+              <Link
+                href="/dashboard/hubs"
+                className="rounded-xl border border-gray-200 p-4 transition-colors hover:border-gray-300"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-bold uppercase tracking-[0.14em] text-gray-500">
+                    Step 2
+                  </span>
+                  <span className="rounded-full bg-primary-soft px-2 py-0.5 text-[11px] font-semibold text-primary">
+                    Ready
+                  </span>
+                </div>
+                <h3 className="mt-4 font-semibold text-gray-900">
+                  Add and manage hubs
+                </h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Publish your venue, courts, rates, and operating hours.
+                </p>
+              </Link>
+            ) : (
+              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-bold uppercase tracking-[0.14em] text-gray-400">
+                    Step 2
+                  </span>
+                  <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-semibold text-gray-500">
+                    Locked
+                  </span>
+                </div>
+                <h3 className="mt-4 font-semibold text-gray-500">
+                  Add your hub
+                </h3>
+                <p className="mt-1 text-sm text-gray-400">
+                  Available after PayMongo is connected.
+                </p>
+              </div>
+            )}
+          </div>
+        </section>
       )}
 
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {active && (
+        {active && isGatewayConnected && (
           <Link
             href="/dashboard/payments"
             className="rounded-2xl border border-gray-200 p-5 transition-colors hover:border-gray-300"
@@ -76,9 +147,10 @@ export function PartnerHome({
               <h2 className="text-base font-semibold text-gray-900">
                 Payments
               </h2>
+              <span className="text-sm font-medium text-primary">Manage →</span>
             </div>
             <p className="mt-1.5 text-sm text-gray-500">
-              Connect PayMongo to accept online court payments.
+              Manage PayMongo and settle Bunal.club service fees.
             </p>
           </Link>
         )}

@@ -91,9 +91,12 @@ hierarchy.
 3. Fast benefit rail: live availability, flexible hour selection, instant
    PayMongo confirmation, player/partner dashboards.
 4. Player flow: browse hub, choose court/hours, pay, play.
-5. Payment section: PayMongo-hosted checkout with QR Ph, GCash, Maya, and
-   credit/debit cards; 15-minute booking hold; automatic confirmation; no card
-   details stored by Bunal.club.
+5. Payment section: a prominent trust section for PayMongo-hosted checkout
+   with QR Ph, GCash, Maya, and credit/debit cards; participating QR Ph bank
+   and e-wallet apps; 15-minute booking hold; automatic confirmation; no card
+   details stored by Bunal.club; and a three-step visual showing player
+   payment, PayMongo verification, and proceeds landing in the venue's own
+   connected PayMongo account.
 6. Feature grid with only existing functionality: venue profiles and maps,
    court/rate/hours management, live availability, booking management,
    rescheduling/cancellation/refund support, player booking dashboard, partner
@@ -101,7 +104,8 @@ hierarchy.
 7. Partner section: no plans/subscriptions/monthly charges; proceeds go to the
    venue's own PayMongo account; venue retains advertised court rate; fixed
    Bunal.club service fee is ₱15 for one hour and ₱25 for more than one hour;
-   PayMongo connection and webhook setup is guided in-dashboard.
+   PayMongo connection and webhook setup is guided in-dashboard and must be
+   completed before a partner can create a hub.
 8. Final dual CTA and legal/footer links.
 
 ## Motion and accessibility

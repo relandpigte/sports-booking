@@ -93,6 +93,44 @@ const FAQS = [
   },
 ];
 
+const PAYMENT_METHODS = [
+  {
+    name: "GCash",
+    detail: "E-wallet",
+    mark: "G",
+    markClassName: "bg-ocean-soft text-ocean",
+  },
+  {
+    name: "Maya",
+    detail: "E-wallet",
+    mark: "M",
+    markClassName: "bg-primary-soft text-primary",
+  },
+  {
+    name: "QR Ph",
+    detail: "Scan to pay",
+    mark: "QR",
+    markClassName: "bg-accent-soft text-primary",
+  },
+  {
+    name: "Visa · Mastercard",
+    detail: "Credit or debit card",
+    mark: "••••",
+    markClassName: "bg-navy-soft text-navy",
+  },
+];
+
+const QR_PH_APPS = [
+  "BDO Pay",
+  "BPI",
+  "Metrobank",
+  "UnionBank",
+  "LANDBANK",
+  "RCBC",
+  "GoTyme",
+  "SeaBank",
+];
+
 function Icon({
   name,
   className = "h-6 w-6",
@@ -502,74 +540,199 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
           id="payments"
           className="scroll-mt-24 bg-slate-50 px-5 py-20 sm:px-6 sm:py-24 lg:px-8"
         >
-          <div className="mx-auto grid max-w-7xl items-center gap-14 lg:grid-cols-[0.9fr_1.1fr]">
-            <div>
-              <SectionHeading
-                eyebrow="Easy payments"
-                title="Secure checkout. Less follow-up."
-                description="Players choose the payment method that works for them on PayMongo's hosted checkout. Bunal.club verifies successful payment and confirms the booking."
-              />
-
-              <div className="mt-7 flex flex-wrap gap-2">
-                {["QR Ph", "GCash", "Maya", "Credit card", "Debit card"].map(
-                  (method) => (
-                    <span
-                      key={method}
-                      className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-navy"
-                    >
-                      {method}
-                    </span>
-                  )
-                )}
-              </div>
-
-              <p className="mt-6 max-w-xl text-sm leading-6 text-slate-500">
-                Payment channels depend on the venue&apos;s activated PayMongo
-                account. Card details stay on PayMongo&apos;s hosted checkout
-                and are not collected by Bunal.club.
+          <div className="mx-auto max-w-7xl">
+            <div className="mx-auto max-w-4xl text-center">
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-primary">
+                Payment gateway
+              </p>
+              <h2 className="mt-4 text-3xl font-black tracking-[-0.04em] text-navy sm:text-5xl">
+                Pay securely. Get confirmed in seconds.
+              </h2>
+              <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-slate-600 sm:text-lg">
+                Choose a familiar payment method on PayMongo&apos;s hosted
+                checkout. Bunal.club verifies successful payment automatically
+                and confirms your booking without receipt screenshots or manual
+                follow-up.
               </p>
             </div>
 
-            <div className="rounded-[32px] bg-navy p-6 shadow-2xl shadow-navy/15 sm:p-8">
-              <div className="grid gap-4 sm:grid-cols-2">
-                {[
-                  {
-                    icon: "clock" as const,
-                    label: "15-minute hold",
-                    copy: "Your selected hours stay reserved while you finish payment.",
-                  },
-                  {
-                    icon: "shield" as const,
-                    label: "Hosted securely",
-                    copy: "PayMongo handles the payment method and checkout details.",
-                  },
-                  {
-                    icon: "check" as const,
-                    label: "Verified automatically",
-                    copy: "Signed payment updates confirm successful bookings.",
-                  },
-                  {
-                    icon: "card" as const,
-                    label: "One clear checkout",
-                    copy: "Court amount and fixed Bunal.club service fee are shown together.",
-                  },
-                ].map((item) => (
-                  <div
-                    key={item.label}
-                    className="rounded-2xl border border-white/10 bg-white/5 p-5"
-                  >
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/15 text-accent">
-                      <Icon name={item.icon} className="h-5 w-5" />
-                    </span>
-                    <h3 className="mt-4 font-extrabold text-white">
-                      {item.label}
-                    </h3>
-                    <p className="mt-2 text-sm leading-6 text-white/60">
+            <div className="mt-12 grid gap-4 md:grid-cols-3">
+              {[
+                {
+                  icon: "check" as const,
+                  label: "Automatic verification",
+                  copy: "Signed payment updates remove the need to send a receipt screenshot.",
+                },
+                {
+                  icon: "calendar" as const,
+                  label: "Fast confirmation",
+                  copy: "Successful payment confirms the held booking automatically.",
+                },
+                {
+                  icon: "shield" as const,
+                  label: "Secure hosted checkout",
+                  copy: "Payment and card details are handled by PayMongo, not Bunal.club.",
+                },
+              ].map((item) => (
+                <article
+                  key={item.label}
+                  className="flex gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-navy/5"
+                >
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
+                    <Icon name={item.icon} className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <h3 className="font-extrabold text-navy">{item.label}</h3>
+                    <p className="mt-1 text-sm leading-6 text-slate-500">
                       {item.copy}
                     </p>
                   </div>
-                ))}
+                </article>
+              ))}
+            </div>
+
+            <div className="mt-12 grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
+              <div className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-7">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-ocean">
+                      Pay with
+                    </p>
+                    <h3 className="mt-2 text-2xl font-black text-navy">
+                      One checkout. Familiar options.
+                    </h3>
+                  </div>
+                  <p className="max-w-xs text-sm leading-6 text-slate-500">
+                    Available channels depend on the venue&apos;s activated
+                    PayMongo account.
+                  </p>
+                </div>
+
+                <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {PAYMENT_METHODS.map((method) => (
+                    <div
+                      key={method.name}
+                      className="flex min-h-32 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-3 text-center"
+                    >
+                      <span
+                        className={`flex h-11 min-w-11 items-center justify-center rounded-xl px-2 text-sm font-black ${method.markClassName}`}
+                      >
+                        {method.mark}
+                      </span>
+                      <p className="mt-3 text-sm font-black text-navy">
+                        {method.name}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {method.detail}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </div>
+
+              <aside className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-7">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-soft text-xs font-black text-primary">
+                    QR
+                  </span>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">
+                      QR Ph
+                    </p>
+                    <h3 className="font-black text-navy">
+                      Scan from your preferred app
+                    </h3>
+                  </div>
+                </div>
+                <p className="mt-4 text-sm leading-6 text-slate-500">
+                  One dynamic QR can be paid through participating Philippine
+                  banking and e-wallet apps.
+                </p>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {QR_PH_APPS.map((app) => (
+                    <span
+                      key={app}
+                      className="rounded-lg border border-slate-200 bg-navy-soft px-2.5 py-1.5 text-[11px] font-extrabold text-navy"
+                    >
+                      {app}
+                    </span>
+                  ))}
+                </div>
+                <p className="mt-4 text-xs leading-5 text-slate-400">
+                  App availability is determined by PayMongo and each
+                  participating institution.
+                </p>
+              </aside>
+            </div>
+
+            <div className="relative mt-12 overflow-hidden rounded-[32px] bg-navy p-6 shadow-2xl shadow-navy/15 sm:p-10 lg:p-12">
+              <div
+                aria-hidden="true"
+                className="absolute -bottom-24 -right-20 h-72 w-72 rounded-full bg-primary/20 blur-3xl"
+              />
+              <div className="relative grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-accent">
+                    For venue partners
+                  </p>
+                  <h3 className="mt-3 text-3xl font-black tracking-[-0.035em] text-white">
+                    Booking proceeds go straight to your connected PayMongo
+                    account.
+                  </h3>
+                  <p className="mt-4 text-sm leading-6 text-white/65 sm:text-base sm:leading-7">
+                    Bunal.club does not hold your court revenue. You receive the
+                    booking subtotal in your own PayMongo account, keep your
+                    advertised court rate, and see the fixed Bunal.club service
+                    fee clearly for later settlement.
+                  </p>
+                </div>
+
+                <ol className="grid gap-3 sm:grid-cols-3">
+                  {[
+                    {
+                      number: "01",
+                      title: "Player pays",
+                      copy: "Court rate and service fee appear in one checkout.",
+                    },
+                    {
+                      number: "02",
+                      title: "PayMongo verifies",
+                      copy: "The signed payment update confirms the booking.",
+                    },
+                    {
+                      number: "03",
+                      title: "You receive it",
+                      copy: "The booking subtotal lands in your PayMongo account.",
+                    },
+                  ].map((step) => (
+                    <li
+                      key={step.number}
+                      className="rounded-2xl border border-white/10 bg-white/5 p-5"
+                    >
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-xs font-black text-navy">
+                        {step.number}
+                      </span>
+                      <h4 className="mt-4 font-extrabold text-white">
+                        {step.title}
+                      </h4>
+                      <p className="mt-2 text-xs leading-5 text-white/55">
+                        {step.copy}
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-col justify-between gap-3 text-sm text-slate-500 sm:flex-row">
+              <p className="inline-flex items-center gap-2">
+                <Icon name="clock" className="h-4 w-4 text-primary" />
+                Selected hours are held for 15 minutes while checkout is open.
+              </p>
+              <p className="inline-flex items-center gap-2">
+                <Icon name="card" className="h-4 w-4 text-primary" />
+                Processing fees may be added by PayMongo at checkout.
+              </p>
             </div>
           </div>
         </section>
@@ -622,7 +785,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                 {[
                   "No plan or subscription",
                   "No monthly platform charge",
-                  "Guided PayMongo connection",
+                  "Connect PayMongo before hub setup",
                   "Reports and booking breakdown",
                 ].map((item) => (
                   <div

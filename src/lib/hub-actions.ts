@@ -10,6 +10,7 @@ import { liveBookingWhere } from "@/lib/bookings";
 import { HubSchema } from "@/lib/validation";
 import { firstErrors } from "@/lib/zod-errors";
 import { normalizeAvatar, normalizeCoverPhotos } from "@/lib/avatar";
+import { getActivePartnerGateway } from "@/lib/partner-gateway";
 import {
   WEEKDAYS,
   GAME_VALUES,
@@ -153,6 +154,14 @@ export async function createHubAction(
   formData: FormData
 ): Promise<HubFormState> {
   const partner = await requireActivePartner();
+  const gateway = await getActivePartnerGateway(partner.id);
+  if (!gateway) {
+    return {
+      message:
+        "Connect PayMongo in Payments before creating a hub. This ensures players can pay when your venue is published.",
+      values: formValues(formData),
+    };
+  }
 
   const result = parseHubForm(formData);
   if (!result.ok) return result.state;

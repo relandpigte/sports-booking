@@ -1,14 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+
 import { HubForm } from "@/components/dashboard/hubs/HubForm";
 import { requireActivePartner } from "@/lib/dal";
+import { getActivePartnerGateway } from "@/lib/partner-gateway";
 
 export const metadata: Metadata = {
   title: "New Hub — Bunal.ph",
 };
 
 export default async function NewHubPage() {
-  await requireActivePartner();
+  const partner = await requireActivePartner();
+  const gateway = await getActivePartnerGateway(partner.id);
+  if (!gateway) {
+    redirect("/dashboard/payments?setup=hub");
+  }
 
   return (
     <div className="mx-auto w-full max-w-3xl">

@@ -178,6 +178,7 @@ export async function createCheckoutSession(
             "card",
             "gcash",
             "paymaya",
+            "qrph",
           ],
           description: input.description,
           // Our own id, so a payment in the PayMongo dashboard can be traced

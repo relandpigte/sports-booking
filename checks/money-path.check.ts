@@ -148,9 +148,9 @@ async function check() {
     .data.attributes;
   ok("in centavos", (attrs.line_items as { amount: number }[])[0].amount === 52500);
   ok(
-    "offering card, GCash and Maya",
+    "offering card, GCash, Maya and QR Ph",
     JSON.stringify(attrs.payment_method_types) ===
-      JSON.stringify(["card", "gcash", "paymaya"])
+      JSON.stringify(["card", "gcash", "paymaya", "qrph"])
   );
   ok("tagged with our payment id", attrs.reference_number === one.payment.id);
   ok("PayMongo processing fees pass through", attrs.pass_on_fees === true);

@@ -1,8 +1,8 @@
-import "server-only";
-
 import qrcode from "qrcode-generator";
 
-// A QR code as SVG, rendered on the server.
+// A QR code as SVG. It is normally rendered on the server, but the pure,
+// deterministic renderer can also run after a Server Action returns a new
+// checkout URL to a Client Component.
 //
 // The encoder is dependency-free and only produces a matrix of dark/light
 // modules; the drawing is ours, the same way the revenue chart is. That keeps

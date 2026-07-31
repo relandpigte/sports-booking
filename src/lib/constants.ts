@@ -152,7 +152,7 @@ export const VENUE_GATEWAYS = [
   {
     value: "paymongo",
     label: "PayMongo",
-    hint: "Cards, GCash and Maya. Booking subtotals land in your account; remit Bunal.ph service fees from Payments.",
+    hint: "QR Ph, cards, GCash and Maya. Booking subtotals land in your account; remit Bunal.ph service fees from Payments.",
   },
 ] as const;
 

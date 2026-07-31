@@ -9,6 +9,8 @@ import { ok, run, stubRequestContext } from "./harness";
 import {
   calculateServiceFeeBalance,
   ensureServiceFeeCharge,
+  listAdminPartnerServiceFeeBreakdown,
+  serviceFeeStanding,
 } from "@/lib/service-fees";
 import { markBookingPaymentRefunded } from "@/lib/booking-payments";
 
@@ -67,6 +69,12 @@ async function check() {
     select: { id: true },
   });
 
+  const empty = await calculateServiceFeeBalance(prisma, partner.id, NOW);
+  ok(
+    "a partner with no accrued fees has no balance",
+    serviceFeeStanding(empty) === "NO_BALANCE"
+  );
+
   const payment = async (fee: number, paidAt: Date) =>
     prisma.bookingPayment.create({
       data: {
@@ -104,7 +112,29 @@ async function check() {
   ok("all service fees are outstanding", initial.amountDue === 45);
   ok("only the old weekly balance is overdue", initial.overdueAmount === 30);
   ok("an overdue balance blocks new paid bookings", initial.blocked);
+  ok(
+    "the standing marks an overdue partner",
+    serviceFeeStanding(initial) === "OVERDUE"
+  );
+  const beforeDeadline = await calculateServiceFeeBalance(
+    prisma,
+    partner.id,
+    new Date("2026-07-13T04:00:00Z")
+  );
+  ok(
+    "an outstanding balance before its deadline is due soon",
+    serviceFeeStanding(beforeDeadline) === "DUE_SOON"
+  );
   stubRequestContext({ id: partner.id, email: EMAIL });
+  const adminInitial = (
+    await listAdminPartnerServiceFeeBreakdown(NOW)
+  ).find((row) => row.partnerId === partner.id);
+  ok(
+    "the owner breakdown matches the partner's overdue balance",
+    adminInitial?.standing === "OVERDUE" &&
+      adminInitial.balance.amountDue === initial.amountDue &&
+      adminInitial.balance.overdueAmount === initial.overdueAmount
+  );
   const { listPublicHubs } = await import("@/lib/hubs");
   ok(
     "an overdue partner's hub is hidden from the public directory",
@@ -126,6 +156,18 @@ async function check() {
   ok("submitted proof reserves its amount", submitted.pending === 30);
   ok("review time does not block bookings", !submitted.blocked);
   ok("newer fees remain due", submitted.amountDue === 15);
+  ok(
+    "submitted proof is shown as under review",
+    serviceFeeStanding(submitted) === "UNDER_REVIEW"
+  );
+  const adminSubmitted = (
+    await listAdminPartnerServiceFeeBreakdown(NOW)
+  ).find((row) => row.partnerId === partner.id);
+  ok(
+    "the owner breakdown shows the same pending amount",
+    adminSubmitted?.standing === "UNDER_REVIEW" &&
+      adminSubmitted.balance.pending === submitted.pending
+  );
   ok(
     "submitted proof restores public visibility during review",
     (await listPublicHubs()).some((listed) => listed.id === partnerHub.id)
@@ -156,6 +198,19 @@ async function check() {
   ok("a refund reverses its service fee", refunded.earned === 30);
   ok("the approved remittance clears the balance", refunded.amountDue === 0);
   ok("a cleared balance does not block bookings", !refunded.blocked);
+  ok(
+    "a paid balance is current",
+    serviceFeeStanding(refunded) === "CURRENT"
+  );
+  const adminCurrent = (
+    await listAdminPartnerServiceFeeBreakdown(NOW)
+  ).find((row) => row.partnerId === partner.id);
+  ok(
+    "the owner breakdown shows the cleared balance and latest payment",
+    adminCurrent?.standing === "CURRENT" &&
+      adminCurrent.balance.amountDue === 0 &&
+      adminCurrent.lastPaidAmount === 30
+  );
   ok(
     "a cleared balance keeps the hub publicly visible",
     (await listPublicHubs()).some((listed) => listed.id === partnerHub.id)

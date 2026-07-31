@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 
+import { PartnerServiceFeeBreakdown } from "@/components/admin/PartnerServiceFeeBreakdown";
 import { Badge } from "@/components/ui/Badge";
 import { formatPHP } from "@/lib/currency";
 import { reviewServiceFeeSettlementAction } from "@/lib/service-fee-actions";
-import { listAdminServiceFeeSettlements } from "@/lib/service-fees";
+import {
+  listAdminPartnerServiceFeeBreakdown,
+  listAdminServiceFeeSettlements,
+} from "@/lib/service-fees";
 
 export const metadata: Metadata = {
   title: "Service Fee Settlements — Bunal.ph",
@@ -17,7 +21,10 @@ const formatDate = (date: Date) =>
   }).format(date);
 
 export default async function AdminSettlementsPage() {
-  const { submitted, history } = await listAdminServiceFeeSettlements();
+  const [{ submitted, history }, partners] = await Promise.all([
+    listAdminServiceFeeSettlements(),
+    listAdminPartnerServiceFeeBreakdown(),
+  ]);
 
   return (
     <div>
@@ -30,6 +37,8 @@ export default async function AdminSettlementsPage() {
           balance.
         </p>
       </div>
+
+      <PartnerServiceFeeBreakdown partners={partners} />
 
       <section className="mt-6">
         <h2 className="text-base font-semibold text-gray-900">

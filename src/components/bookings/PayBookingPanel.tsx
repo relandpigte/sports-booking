@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState } from "react";
 
+import { PayMongoCheckout } from "@/components/bookings/PayMongoCheckout";
 import { Button } from "@/components/ui/Button";
 import {
   payForBookingAction,
@@ -11,8 +12,9 @@ import { formatPHP } from "@/lib/currency";
 
 const initial: PayBookingFormState = {};
 
-// One button. PayMongo hosts the form, so the player picks card, GCash or Maya
-// there — no method radio here, and no card fields anywhere in this app.
+// One button creates the one-time PayMongo checkout. The player can open it on
+// this device or scan its QR on another device; no payment details pass through
+// this app.
 export function PayBookingPanel({
   paymentId,
   amount,
@@ -27,11 +29,9 @@ export function PayBookingPanel({
     initial
   );
 
-  // The hand-off. The hold keeps running while they're away, and PayMongo's
-  // return URL brings them straight back to this page.
-  useEffect(() => {
-    if (state.redirectUrl) window.location.href = state.redirectUrl;
-  }, [state.redirectUrl]);
+  if (state.redirectUrl) {
+    return <PayMongoCheckout checkoutUrl={state.redirectUrl} />;
+  }
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
@@ -55,9 +55,12 @@ export function PayBookingPanel({
       )}
 
       <p className="rounded-xl border border-gray-200 px-3 py-3 text-sm text-gray-600">
-        Pay by <span className="font-medium text-gray-900">card, GCash or
-        Maya</span> on the next screen. You&apos;ll come straight back here —
-        your hours stay held while you pay.
+        Pay by{" "}
+        <span className="font-medium text-gray-900">
+          QR Ph, card, GCash or Maya
+        </span>{" "}
+        through PayMongo. We&apos;ll give you a QR to scan or a button to
+        continue on this device.
       </p>
 
       <Button type="submit" disabled={pending}>

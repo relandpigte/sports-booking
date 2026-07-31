@@ -9,8 +9,8 @@ import {
 } from "@/lib/booking-payments";
 import { HoldCountdown } from "@/components/bookings/HoldCountdown";
 import { PayBookingPanel } from "@/components/bookings/PayBookingPanel";
+import { PayMongoCheckout } from "@/components/bookings/PayMongoCheckout";
 import { formatPHP } from "@/lib/currency";
-import { qrSvg } from "@/lib/qr";
 import { formatManilaDate, formatSlotRange } from "@/lib/time";
 
 export const metadata: Metadata = {
@@ -48,8 +48,8 @@ export default async function PayBookingPage({
   const holdLive = payment.status === "PENDING" && payment.secondsLeft > 0;
   // They started paying and came back without finishing — a closed tab, or the
   // back button. The checkout session is still open.
-  const awaitingApproval =
-    holdLive && payment.chargeInFlight && payment.redirectUrl != null;
+  const activeCheckoutUrl =
+    holdLive && payment.chargeInFlight ? payment.redirectUrl : null;
 
   return (
     <div className="mx-auto w-full max-w-md">
@@ -144,7 +144,7 @@ export default async function PayBookingPage({
           {payment.status !== "SUCCEEDED" &&
             payment.status !== "REFUNDED" &&
             (holdLive ? (
-              awaitingApproval ? (
+              activeCheckoutUrl ? (
                 // Send them back to the SAME checkout session rather than
                 // opening a second one against the same hold.
                 <div className="flex flex-col gap-3">
@@ -152,30 +152,7 @@ export default async function PayBookingPage({
                     Your payment hasn&apos;t finished yet. Your hours are still
                     held — pick up where you left off.
                   </p>
-                  <a
-                    href={payment.redirectUrl ?? "#"}
-                    className="rounded-lg bg-primary px-4 py-3 text-center text-sm font-semibold text-white shadow-sm shadow-primary/20 transition-colors hover:bg-primary-hover"
-                  >
-                    Continue to PayMongo
-                  </a>
-                  {/* For finishing on a phone when the hold started on a
-                      desktop — the same one-time checkout, so it settles
-                      against this booking either way. */}
-                  {payment.redirectUrl && (
-                    <div className="flex flex-col items-center gap-1">
-                      <div
-                        className="w-36"
-                        dangerouslySetInnerHTML={{
-                          __html: qrSvg(payment.redirectUrl, {
-                            title: "Scan to pay on your phone",
-                          }),
-                        }}
-                      />
-                      <p className="text-xs text-gray-400">
-                        or scan to pay on your phone
-                      </p>
-                    </div>
-                  )}
+                  <PayMongoCheckout checkoutUrl={activeCheckoutUrl} />
                 </div>
               ) : (
                 <div className="flex flex-col gap-4">

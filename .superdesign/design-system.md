@@ -84,7 +84,7 @@ hierarchy.
 ## Homepage content requirements
 
 1. Sticky navigation: logo; How it works, Payments, Features, For partners;
-   Browse courts; Log in.
+   Browse courts; a session-aware Log in or Dashboard account link.
 2. Hero: Bohol/local eyebrow; outcome headline about finding, booking, and
    paying for courts; player CTA to `/hubs`; partner CTA to
    `/register/partner`; visual booking/payment preview.

@@ -285,7 +285,10 @@ function BookingPreview() {
   );
 }
 
-export function HomePage() {
+export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
+  const accountHref = isLoggedIn ? "/dashboard" : "/login";
+  const accountLabel = isLoggedIn ? "Dashboard" : "Log in";
+
   return (
     <div className="min-h-screen overflow-hidden bg-white text-foreground">
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-md">
@@ -320,10 +323,10 @@ export function HomePage() {
 
           <div className="flex shrink-0 items-center gap-2">
             <Link
-              href="/login"
+              href={accountHref}
               className="hidden rounded-xl px-3 py-2.5 text-sm font-bold text-navy transition-colors hover:bg-slate-50 sm:inline-flex"
             >
-              Log in
+              {accountLabel}
             </Link>
             <Link
               href="/hubs"
@@ -640,10 +643,10 @@ export function HomePage() {
                   Register your venue
                 </Link>
                 <Link
-                  href="/login"
+                  href={accountHref}
                   className="inline-flex min-h-12 items-center justify-center rounded-xl border border-navy/15 bg-white px-6 py-3 text-sm font-bold text-navy transition-colors hover:border-navy/30"
                 >
-                  Partner log in
+                  {isLoggedIn ? "Open dashboard" : "Partner log in"}
                 </Link>
               </div>
             </div>
@@ -717,7 +720,7 @@ export function HomePage() {
                   eyebrow: "Admin / owner",
                   title: "Know what is due",
                   copy: "Review partners, payment collection, reports, and settlement breakdowns.",
-                  href: "/login",
+                  href: accountHref,
                   cta: "Open dashboard",
                   icon: "chart" as const,
                 },
@@ -839,8 +842,8 @@ export function HomePage() {
               <Link href="/register/partner" className="hover:text-white">
                 Partner signup
               </Link>
-              <Link href="/login" className="hover:text-white">
-                Log in
+              <Link href={accountHref} className="hover:text-white">
+                {accountLabel}
               </Link>
               <Link href="/terms" className="hover:text-white">
                 Terms

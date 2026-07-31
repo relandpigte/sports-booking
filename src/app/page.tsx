@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { HomePage } from "@/components/home/HomePage";
+import { auth } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: "Bunal.club — Book courts across Bohol",
@@ -11,6 +12,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default function Home() {
-  return <HomePage />;
+export default async function Home() {
+  const session = await auth();
+
+  return <HomePage isLoggedIn={Boolean(session?.user?.id)} />;
 }

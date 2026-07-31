@@ -14,10 +14,12 @@ export async function PageShell({
   children,
   maxWidth = "max-w-5xl",
   backgroundClass = "bg-white",
+  padded = true,
 }: {
   children: ReactNode;
   maxWidth?: string;
   backgroundClass?: string;
+  padded?: boolean;
 }) {
   const viewer = await getViewer();
 
@@ -32,7 +34,9 @@ export async function PageShell({
   return (
     <div className={`min-h-screen ${backgroundClass}`}>
       <PublicTopBar />
-      <main className={`mx-auto w-full ${maxWidth} px-4 pb-16 sm:px-6`}>
+      <main
+        className={`mx-auto w-full ${maxWidth} ${padded ? "px-4 pb-16 sm:px-6" : ""}`}
+      >
         {children}
       </main>
     </div>

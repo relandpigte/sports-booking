@@ -20,7 +20,7 @@ export function DateStrip({
   );
 
   return (
-    <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+    <div className="-mx-1 flex gap-2.5 overflow-x-auto px-1 pb-2">
       {dates.map((date) => {
         const selected = date === value;
         const [, , day] = date.split("-");
@@ -34,16 +34,16 @@ export function DateStrip({
             aria-label={formatManilaDate(date)}
             onClick={() => onChange(date)}
             className={[
-              "flex h-16 w-14 shrink-0 flex-col items-center justify-center rounded-xl border text-sm transition-colors",
+              "flex h-20 w-16 shrink-0 flex-col items-center justify-center rounded-2xl border-2 text-sm transition-all",
               selected
-                ? "border-primary bg-primary text-white"
-                : "border-gray-300 bg-white text-gray-700 hover:border-primary hover:text-primary",
+                ? "border-primary bg-primary text-white shadow-md shadow-primary/15"
+                : "border-gray-200 bg-white text-navy hover:border-primary hover:text-primary",
             ].join(" ")}
           >
-            <span className="text-[11px] uppercase opacity-80">
+            <span className="text-[10px] font-bold uppercase tracking-wider opacity-75">
               {date === today ? "Today" : weekday}
             </span>
-            <span className="text-base font-semibold">{Number(day)}</span>
+            <span className="text-xl font-extrabold">{Number(day)}</span>
           </button>
         );
       })}

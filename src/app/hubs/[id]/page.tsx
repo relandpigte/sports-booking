@@ -225,12 +225,21 @@ export default async function PublicHubPage({
       ...(localBusiness ? [localBusiness] : []),
     ],
   };
+  const galleryCovers = moreCovers.slice(0, 2);
+  const hiddenPhotoCount = Math.max(moreCovers.length - galleryCovers.length, 0);
 
   return (
-    <PageShell maxWidth="max-w-3xl">
-        <JsonLd data={hubJsonLd} />
-        {/* Cover */}
-        <div className="mt-4 aspect-video w-full overflow-hidden rounded-2xl bg-gray-100">
+    <PageShell
+      maxWidth="max-w-none"
+      backgroundClass="bg-[#f7faf8]"
+      padded={false}
+    >
+      <JsonLd data={hubJsonLd} />
+
+      <div className="mt-2 grid h-[300px] w-full grid-cols-1 gap-2 px-2 md:h-[480px] md:grid-cols-4">
+        <div
+          className={`overflow-hidden rounded-2xl bg-gray-100 ${galleryCovers.length > 0 ? "md:col-span-3" : "md:col-span-4"}`}
+        >
           {cover ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -245,187 +254,389 @@ export default async function PublicHubPage({
           )}
         </div>
 
-        {moreCovers.length > 0 && (
-          <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-4">
-            {moreCovers.map((src, i) => (
-              <div
-                key={i}
-                className="aspect-video overflow-hidden rounded-lg bg-gray-100"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={src}
-                  alt={`${hub.name} photo ${i + 2}`}
-                  className="h-full w-full object-cover"
-                />
-              </div>
-            ))}
+        {galleryCovers.length > 0 && (
+          <div
+            className={`hidden gap-2 md:grid ${galleryCovers.length > 1 ? "grid-rows-2" : "grid-rows-1"}`}
+          >
+            {galleryCovers.map((src, index) => {
+              const showCount =
+                index === galleryCovers.length - 1 && hiddenPhotoCount > 0;
+
+              return (
+                <div
+                  key={src}
+                  className="relative overflow-hidden rounded-2xl bg-gray-100"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={src}
+                    alt={`${hub.name} photo ${index + 2}`}
+                    className="h-full w-full object-cover"
+                  />
+                  {showCount && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-navy/45">
+                      <span className="rounded-full bg-white/90 px-3 py-1.5 text-sm font-semibold text-navy">
+                        +{hiddenPhotoCount} more
+                      </span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
+      </div>
 
-        {/* Header: logo + name */}
-        <div className="mt-6 flex items-center gap-4">
-          <Avatar src={hub.logo} name={hub.name} size={64} />
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-gray-900">{hub.name}</h1>
-            {hub.games.length > 0 ? (
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                {hub.games.map((g) => (
-                  <span
-                    key={g}
-                    className="rounded-full bg-primary-soft px-2 py-0.5 text-xs font-medium text-primary"
-                  >
-                    {GAME_LABELS[g] ?? g}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500">Bunal.club hub</p>
-            )}
-          </div>
-        </div>
+      <div className="relative z-10 mx-auto -mt-10 w-full max-w-6xl px-4 sm:px-6 md:-mt-16">
+        <div className="flex flex-col items-start gap-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-7 md:flex-row md:items-center md:gap-6">
+          <Avatar
+            src={hub.logo}
+            name={hub.name}
+            size={96}
+            shape="rounded"
+            className="h-20! w-20! border border-gray-200 bg-white ring-4 ring-white md:h-24! md:w-24!"
+          />
 
-        {/* About */}
-        {hub.about && (
-          <section className="mt-8">
-            <h2 className="text-base font-semibold text-gray-900">About</h2>
-            <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-gray-600">
-              {hub.about}
-            </p>
-          </section>
-        )}
-
-        {(hub.address || hasCoords) && (
-          <section className="mt-8">
-            <h2 className="text-base font-semibold text-gray-900">Location</h2>
-            {hub.address && (
-              <p className="mt-2 text-sm text-gray-600">{hub.address}</p>
-            )}
-            {mapsKey && hasCoords && (
-              <iframe
-                title={`Map of ${hub.name}`}
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                className="mt-3 h-64 w-full rounded-xl border border-gray-200"
-                src={`https://www.google.com/maps/embed/v1/place?key=${mapsKey}&q=${hub.latitude},${hub.longitude}&zoom=16`}
-              />
-            )}
-            <a
-              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                mapsQuery
-              )}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z" />
-                <circle cx="12" cy="10" r="3" />
-              </svg>
-              Open in Google Maps
-            </a>
-          </section>
-        )}
-
-        <div className="mt-8 grid grid-cols-1 gap-8 sm:grid-cols-2">
-          {/* Contact */}
-          <section>
-            <h2 className="text-base font-semibold text-gray-900">Contact</h2>
-            <dl className="mt-2 flex flex-col gap-2 text-sm">
-              {hub.phone && (
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-400">Phone</span>
-                  <a
-                    href={`tel:${hub.phone}`}
-                    className="font-medium text-primary hover:underline"
-                  >
-                    {hub.phone}
-                  </a>
-                </div>
-              )}
-              {hub.email && (
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-400">Email</span>
-                  <a
-                    href={`mailto:${hub.email}`}
-                    className="font-medium text-primary hover:underline"
-                  >
-                    {hub.email}
-                  </a>
-                </div>
-              )}
-              {!hub.phone && !hub.email && (
-                <p className="text-gray-400">No contact info provided.</p>
-              )}
-            </dl>
-          </section>
-
-          {/* Operating hours */}
-          <section>
-            <h2 className="text-base font-semibold text-gray-900">
-              Operating Hours
-            </h2>
-            {hours ? (
-              <dl className="mt-2 flex flex-col gap-1.5 text-sm">
-                {WEEKDAYS.map(({ value, label }) => {
-                  const day = hours[value as Weekday];
-                  return (
-                    <div
-                      key={value}
-                      className="flex items-center justify-between"
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+              <h1 className="text-3xl font-extrabold tracking-tight text-navy sm:text-4xl">
+                {hub.name}
+              </h1>
+              {hub.games.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {hub.games.map((game) => (
+                    <span
+                      key={game}
+                      className="rounded-full bg-primary-soft px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-primary"
                     >
-                      <dt className="text-gray-500">{label}</dt>
-                      <dd className="font-medium text-gray-900">
-                        {!day || day.closed
-                          ? "Closed"
-                          : `${formatTime(day.open)} – ${formatTime(day.close)}`}
+                      {GAME_LABELS[game] ?? game}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {hub.address ? (
+              <p className="mt-3 flex items-start gap-2 text-sm leading-relaxed text-gray-500 sm:text-base">
+                <svg
+                  className="mt-0.5 shrink-0 text-primary"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z" />
+                  <circle cx="12" cy="10" r="3" />
+                </svg>
+                <span>{hub.address}</span>
+              </p>
+            ) : (
+              <p className="mt-2 text-sm text-gray-500">Bunal.club hub</p>
+            )}
+          </div>
+
+          {hub.bookable && (
+            <a
+              href="#booking"
+              className="flex min-h-12 w-full shrink-0 items-center justify-center rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-primary/20 transition-colors hover:bg-primary-hover md:w-auto"
+            >
+              Book now
+            </a>
+          )}
+        </div>
+      </div>
+
+      <div className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
+        <div className="grid grid-cols-1 gap-12 lg:grid-cols-3">
+          <div className="space-y-12 lg:col-span-2">
+            {hub.about && (
+              <section>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
+                  About the venue
+                </p>
+                <p className="mt-4 whitespace-pre-line text-base leading-8 text-gray-600 sm:text-lg">
+                  {hub.about}
+                </p>
+              </section>
+            )}
+
+            {hub.courts.length > 0 && (
+              <section>
+                <div className="flex items-end justify-between gap-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
+                    Courts
+                  </p>
+                  <span className="text-sm font-medium text-gray-400">
+                    {hub.courts.length}{" "}
+                    {hub.courts.length === 1 ? "court" : "courts"}
+                  </span>
+                </div>
+                <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {hub.courts.map((court) => (
+                    <article
+                      key={court.id}
+                      className="rounded-xl border border-gray-200 bg-white p-5 transition-shadow hover:shadow-md"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <h2 className="text-lg font-bold text-navy">
+                          {court.name}
+                        </h2>
+                        <span className="rounded-md bg-gray-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-600">
+                          {COURT_TYPE_LABELS[court.courtType] ??
+                            court.courtType}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xl font-bold text-primary">
+                        {court.hourlyRate != null
+                          ? formatPHP(court.hourlyRate)
+                          : "Rate on request"}
+                        {court.hourlyRate != null && (
+                          <span className="text-xs font-normal text-gray-400">
+                            {" "}
+                            / hour
+                          </span>
+                        )}
+                      </p>
+                      {hours && (
+                        <dl className="mt-4 space-y-1 border-t border-gray-100 pt-4 text-xs text-gray-500">
+                          {summarizeOperatingHours(hours).map(
+                            (segment, index) => (
+                              <div
+                                key={index}
+                                className="flex justify-between gap-3"
+                              >
+                                <dt>{segment.label}</dt>
+                                <dd className="text-right font-medium text-gray-700">
+                                  {segment.value}
+                                </dd>
+                              </div>
+                            )
+                          )}
+                        </dl>
+                      )}
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {(hub.address || hasCoords) && (
+              <section>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
+                  Location &amp; map
+                </p>
+                <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200 bg-white">
+                  {mapsKey && hasCoords ? (
+                    <iframe
+                      title={`Map of ${hub.name}`}
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                      className="h-80 w-full"
+                      src={`https://www.google.com/maps/embed/v1/place?key=${mapsKey}&q=${hub.latitude},${hub.longitude}&zoom=16`}
+                    />
+                  ) : (
+                    <div className="flex min-h-64 flex-col items-center justify-center bg-navy-soft/60 px-6 text-center">
+                      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-primary shadow-sm">
+                        <svg
+                          width="22"
+                          height="22"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z" />
+                          <circle cx="12" cy="10" r="3" />
+                        </svg>
+                      </span>
+                      {hub.address && (
+                        <p className="mt-4 max-w-md text-sm font-medium text-navy">
+                          {hub.address}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  <div className="flex flex-col gap-3 border-t border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                    {hub.address && (
+                      <p className="text-sm text-gray-500">{hub.address}</p>
+                    )}
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                        mapsQuery
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex min-h-11 shrink-0 items-center text-sm font-semibold text-primary hover:underline"
+                    >
+                      Open in Google Maps →
+                    </a>
+                  </div>
+                </div>
+              </section>
+            )}
+          </div>
+
+          <aside className="space-y-6">
+            <section className="rounded-2xl border border-gray-200 bg-white p-6">
+              <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
+                Contact information
+              </h2>
+              <dl className="mt-5 space-y-5">
+                {hub.phone && (
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                      </svg>
+                    </span>
+                    <div className="min-w-0">
+                      <dt className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                        Phone
+                      </dt>
+                      <dd className="mt-1">
+                        <a
+                          href={`tel:${hub.phone}`}
+                          className="break-words text-sm font-semibold text-navy hover:text-primary"
+                        >
+                          {hub.phone}
+                        </a>
                       </dd>
                     </div>
-                  );
-                })}
+                  </div>
+                )}
+                {hub.email && (
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                        <polyline points="22,6 12,13 2,6" />
+                      </svg>
+                    </span>
+                    <div className="min-w-0">
+                      <dt className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                        Email
+                      </dt>
+                      <dd className="mt-1">
+                        <a
+                          href={`mailto:${hub.email}`}
+                          className="break-words text-sm font-semibold text-navy hover:text-primary"
+                        >
+                          {hub.email}
+                        </a>
+                      </dd>
+                    </div>
+                  </div>
+                )}
+                {!hub.phone && !hub.email && (
+                  <p className="text-sm text-gray-400">
+                    No contact information provided.
+                  </p>
+                )}
               </dl>
-            ) : (
-              <p className="mt-2 text-sm text-gray-400">Hours not set.</p>
-            )}
-          </section>
-        </div>
+            </section>
 
-        {/* Unlisted hubs still render by direct URL, but cannot take bookings. */}
-        {hub.bookable ? (
-          <BookCourtPanel
-            courts={hub.courts}
-            operatingHours={hours}
-            today={today}
-            nowHour={manilaNowHour()}
-            initialAvailability={
-              initialAvailability
-                ? {
-                    courtId: initialAvailability.courtId,
-                    date: initialAvailability.date,
-                    bookedHours: initialAvailability.bookedHours,
-                  }
-                : null
-            }
-            viewerRole={viewer?.role ?? null}
-            paymentRequired={hub.paymentRequired}
-          />
-        ) : (
-          <section className="mt-8 rounded-2xl border border-dashed border-gray-300 px-6 py-10 text-center">
-            <p className="text-sm text-gray-500">
-              This venue isn&apos;t taking online bookings right now. Contact
-              them directly using the details above.
+            <section className="rounded-2xl border border-gray-200 bg-white p-6">
+              <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
+                Operating hours
+              </h2>
+              {hours ? (
+                <dl className="mt-5 space-y-3 text-sm">
+                  {WEEKDAYS.map(({ value, label }) => {
+                    const day = hours[value as Weekday];
+                    return (
+                      <div
+                        key={value}
+                        className="flex items-center justify-between gap-4"
+                      >
+                        <dt className="text-gray-500">{label}</dt>
+                        <dd className="text-right font-semibold text-navy">
+                          {!day || day.closed
+                            ? "Closed"
+                            : `${formatTime(day.open)} – ${formatTime(day.close)}`}
+                        </dd>
+                      </div>
+                    );
+                  })}
+                </dl>
+              ) : (
+                <p className="mt-5 text-sm text-gray-400">Hours not set.</p>
+              )}
+            </section>
+          </aside>
+        </div>
+      </div>
+
+      {/* Unlisted hubs still render by direct URL, but cannot take bookings. */}
+      {hub.bookable ? (
+        <BookCourtPanel
+          courts={hub.courts}
+          operatingHours={hours}
+          today={today}
+          nowHour={manilaNowHour()}
+          initialAvailability={
+            initialAvailability
+              ? {
+                  courtId: initialAvailability.courtId,
+                  date: initialAvailability.date,
+                  bookedHours: initialAvailability.bookedHours,
+                }
+              : null
+          }
+          viewerRole={viewer?.role ?? null}
+          paymentRequired={hub.paymentRequired}
+        />
+      ) : (
+        <section className="border-y border-gray-200 bg-white py-14">
+          <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
+              Online booking unavailable
+            </p>
+            <h2 className="mt-2 text-2xl font-bold text-navy">
+              Contact the venue to reserve a court
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-gray-500">
+              This venue isn&apos;t taking online bookings right now. Use the
+              contact information above to reach them directly.
             </p>
             {/* Only the owner/admin needs the operational reason. */}
             {isOwner && (
-              <p className="mt-3 text-sm">
-                <span className="text-gray-400">
+              <p className="mt-5 rounded-xl bg-gray-50 px-4 py-3 text-sm">
+                <span className="text-gray-500">
                   {hub.blockedBy === "gateway"
                     ? "Your hub isn't listed publicly because no payment gateway is connected."
                     : hub.blockedBy === "setup"
                       ? "Add at least one court, its rate, and operating hours before publishing your hub."
-                    : hub.blockedBy === "settlement"
-                      ? "New bookings are paused because a service-fee settlement is overdue."
-                      : "This partner account is waiting for admin verification."}
+                      : hub.blockedBy === "settlement"
+                        ? "New bookings are paused because a service-fee settlement is overdue."
+                        : "This partner account is waiting for admin verification."}
                 </span>{" "}
                 {hub.blockedBy === "gateway" && (
                   <Link
@@ -453,47 +664,15 @@ export default async function PublicHubPage({
                 )}
               </p>
             )}
-          </section>
-        )}
+          </div>
+        </section>
+      )}
 
-        {/* Courts */}
-        {hub.courts.length > 0 && (
-          <section className="mt-8">
-            <h2 className="text-base font-semibold text-gray-900">
-              Courts ({hub.courts.length})
-            </h2>
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {hub.courts.map((c) => (
-                <div
-                  key={c.id}
-                  className="rounded-xl border border-gray-200 p-4"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-medium text-gray-900">{c.name}</p>
-                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                      {COURT_TYPE_LABELS[c.courtType] ?? c.courtType}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-sm font-medium text-primary">
-                    {c.hourlyRate != null
-                      ? `${formatPHP(c.hourlyRate)}/hr`
-                      : "Rate on request"}
-                  </p>
-                  {hours && (
-                    <dl className="mt-3 flex flex-col gap-0.5 text-xs text-gray-500">
-                      {summarizeOperatingHours(hours).map((seg, idx) => (
-                        <div key={idx} className="flex justify-between gap-3">
-                          <dt>{seg.label}</dt>
-                          <dd className="text-gray-700">{seg.value}</dd>
-                        </div>
-                      ))}
-                    </dl>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
+      {viewer === null && (
+        <footer className="bg-navy py-10 text-center text-sm text-white/45">
+          <p>© {new Date().getFullYear()} Bunal.club · Play. Compete. Connect.</p>
+        </footer>
+      )}
     </PageShell>
   );
 }

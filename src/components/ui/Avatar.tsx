@@ -3,12 +3,20 @@ interface AvatarProps {
   name?: string | null;
   size?: number;
   className?: string;
+  shape?: "circle" | "rounded";
 }
 
 // Round avatar that shows the image when present, otherwise an initial.
-export function Avatar({ src, name, size = 40, className = "" }: AvatarProps) {
+export function Avatar({
+  src,
+  name,
+  size = 40,
+  className = "",
+  shape = "circle",
+}: AvatarProps) {
   const dimension = { width: size, height: size };
   const initial = (name?.trim()?.[0] ?? "?").toUpperCase();
+  const shapeClass = shape === "rounded" ? "rounded-2xl" : "rounded-full";
 
   if (src) {
     return (
@@ -17,7 +25,7 @@ export function Avatar({ src, name, size = 40, className = "" }: AvatarProps) {
         src={src}
         alt={name ?? "Profile picture"}
         style={dimension}
-        className={`shrink-0 rounded-full object-cover ${className}`}
+        className={`shrink-0 ${shapeClass} object-cover ${className}`}
       />
     );
   }
@@ -26,7 +34,7 @@ export function Avatar({ src, name, size = 40, className = "" }: AvatarProps) {
     <div
       style={dimension}
       aria-hidden="true"
-      className={`flex shrink-0 items-center justify-center rounded-full bg-primary-soft text-sm font-semibold text-primary ${className}`}
+      className={`flex shrink-0 items-center justify-center ${shapeClass} bg-primary-soft text-sm font-semibold text-primary ${className}`}
     >
       {initial}
     </div>

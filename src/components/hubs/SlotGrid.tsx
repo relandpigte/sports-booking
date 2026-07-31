@@ -21,7 +21,7 @@ export function SlotGrid({
     return (
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
         {Array.from({ length: 8 }, (_, i) => (
-          <div key={i} className="h-11 animate-pulse rounded-lg bg-gray-100" />
+          <div key={i} className="h-12 animate-pulse rounded-xl bg-gray-100" />
         ))}
       </div>
     );
@@ -29,7 +29,7 @@ export function SlotGrid({
 
   if (slots.length === 0) {
     return (
-      <p className="rounded-lg bg-gray-50 px-3 py-2.5 text-sm text-gray-500">
+      <p className="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-500">
         No time slots available on this date.
       </p>
     );
@@ -60,14 +60,14 @@ export function SlotGrid({
                     : undefined
               }
               className={[
-                "h-11 rounded-lg border text-sm font-medium transition-colors",
+                "h-12 rounded-xl border-2 text-sm font-bold transition-all",
                 isSelected
-                  ? "border-primary bg-primary text-white"
+                  ? "border-primary bg-primary text-white shadow-md shadow-primary/15"
                   : slot.reason === "booked"
-                    ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 line-through"
+                    ? "cursor-not-allowed border-gray-100 bg-gray-50 text-gray-300 line-through"
                     : slot.reason === "past"
-                      ? "cursor-not-allowed border-gray-200 bg-white text-gray-300"
-                      : "border-gray-300 bg-white text-gray-700 hover:border-primary hover:text-primary",
+                      ? "cursor-not-allowed border-gray-100 bg-white text-gray-300"
+                      : "border-gray-200 bg-white text-navy hover:border-primary hover:text-primary",
               ].join(" ")}
             >
               {slot.label}
@@ -76,7 +76,7 @@ export function SlotGrid({
         })}
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-gray-500">
         <span className="inline-flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-sm border border-gray-300 bg-white" />
           Available

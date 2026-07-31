@@ -137,7 +137,7 @@ Point a cron at the cleanup endpoint:
 ```bash
 curl -X POST \
   -H "Authorization: Bearer $BOOKING_SWEEP_SECRET" \
-  https://bunal.club/api/bookings/sweep
+  https://www.bunal.club/api/bookings/sweep
 ```
 
 Availability does not depend on the cron: expired holds stop blocking slots

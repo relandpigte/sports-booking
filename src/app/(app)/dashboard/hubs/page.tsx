@@ -6,6 +6,7 @@ import { DeleteHubButton } from "@/components/dashboard/hubs/DeleteHubButton";
 import { listMyHubs } from "@/lib/hubs";
 import { requireActivePartner } from "@/lib/dal";
 import { getActivePartnerGateway } from "@/lib/partner-gateway";
+import { hubPublicPath } from "@/lib/hub-slug";
 
 export const metadata: Metadata = {
   title: "My Hubs — Bunal.club",
@@ -112,7 +113,7 @@ export default async function HubsPage() {
               </div>
               <div className="flex items-center justify-end gap-1 border-t border-gray-100 px-3 py-2">
                 <Link
-                  href={`/hubs/${hub.id}`}
+                  href={hubPublicPath(hub)}
                   target="_blank"
                   className="rounded-md px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
                 >

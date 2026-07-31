@@ -61,6 +61,7 @@ export type HubFormState = {
 function formValues(formData: FormData): Record<string, string> {
   return {
     name: String(formData.get("name") ?? ""),
+    slug: String(formData.get("slug") ?? ""),
     about: String(formData.get("about") ?? ""),
     address: String(formData.get("address") ?? ""),
     phone: String(formData.get("phone") ?? ""),
@@ -83,6 +84,7 @@ function parseOperatingHours(formData: FormData): OperatingHours {
 type ParsedHub = {
   data: {
     name: string;
+    slug: string;
     about?: string;
     address?: string;
     phone?: string;
@@ -168,29 +170,54 @@ export async function createHubAction(
   const { data, logo, coverPhotos, games, courts, latitude, longitude, operatingHours } =
     result.hub;
 
-  await prisma.hub.create({
-    data: {
-      ownerId: partner.id,
-      name: data.name,
-      about: data.about ?? null,
-      address: data.address ?? null,
-      latitude,
-      longitude,
-      phone: data.phone ?? null,
-      email: data.email ?? null,
-      logo,
-      coverPhotos,
-      games,
-      operatingHours: operatingHours as unknown as Prisma.InputJsonValue,
-      courts: {
-        create: courts.map((c) => ({
-          name: c.name,
-          courtType: c.courtType,
-          hourlyRate: c.hourlyRate,
-        })),
-      },
-    },
+  const slugTaken = await prisma.hub.findUnique({
+    where: { slug: data.slug },
+    select: { id: true },
   });
+  if (slugTaken) {
+    return {
+      errors: { slug: "That public URL is already taken" },
+      values: formValues(formData),
+    };
+  }
+
+  try {
+    await prisma.hub.create({
+      data: {
+        ownerId: partner.id,
+        name: data.name,
+        slug: data.slug,
+        about: data.about ?? null,
+        address: data.address ?? null,
+        latitude,
+        longitude,
+        phone: data.phone ?? null,
+        email: data.email ?? null,
+        logo,
+        coverPhotos,
+        games,
+        operatingHours: operatingHours as unknown as Prisma.InputJsonValue,
+        courts: {
+          create: courts.map((c) => ({
+            name: c.name,
+            courtType: c.courtType,
+            hourlyRate: c.hourlyRate,
+          })),
+        },
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return {
+        errors: { slug: "That public URL is already taken" },
+        values: formValues(formData),
+      };
+    }
+    throw error;
+  }
 
   revalidatePath("/dashboard/hubs");
   redirect("/dashboard/hubs");
@@ -215,6 +242,17 @@ export async function updateHubAction(
   if (!result.ok) return result.state;
   const { data, logo, coverPhotos, games, courts, latitude, longitude, operatingHours } =
     result.hub;
+
+  const slugTaken = await prisma.hub.findFirst({
+    where: { slug: data.slug, id: { not: id } },
+    select: { id: true },
+  });
+  if (slugTaken) {
+    return {
+      errors: { slug: "That public URL is already taken" },
+      values: formValues(formData),
+    };
+  }
 
   // Work out the court reconcile up front: a court with upcoming bookings
   // blocks the whole save, so this has to be checked before anything is
@@ -253,22 +291,36 @@ export async function updateHubAction(
     }
   }
 
-  await prisma.hub.update({
-    where: { id },
-    data: {
-      name: data.name,
-      about: data.about ?? null,
-      address: data.address ?? null,
-      latitude,
-      longitude,
-      phone: data.phone ?? null,
-      email: data.email ?? null,
-      logo,
-      coverPhotos,
-      games,
-      operatingHours: operatingHours as unknown as Prisma.InputJsonValue,
-    },
-  });
+  try {
+    await prisma.hub.update({
+      where: { id },
+      data: {
+        name: data.name,
+        slug: data.slug,
+        about: data.about ?? null,
+        address: data.address ?? null,
+        latitude,
+        longitude,
+        phone: data.phone ?? null,
+        email: data.email ?? null,
+        logo,
+        coverPhotos,
+        games,
+        operatingHours: operatingHours as unknown as Prisma.InputJsonValue,
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return {
+        errors: { slug: "That public URL is already taken" },
+        values: formValues(formData),
+      };
+    }
+    throw error;
+  }
 
   const ops: Prisma.PrismaPromise<unknown>[] = [];
   if (toDelete.length) {

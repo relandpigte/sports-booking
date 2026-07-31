@@ -12,6 +12,7 @@ import {
 
 export type DirectoryHubView = {
   id: string;
+  slug: string | null;
   name: string;
   about: string | null;
   logo: string | null;

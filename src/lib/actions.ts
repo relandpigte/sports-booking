@@ -2,12 +2,13 @@
 
 import { AuthError } from "next-auth";
 import bcrypt from "bcryptjs";
+import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/lib/db";
 import { signIn, signOut } from "@/lib/auth";
 import { verifySession } from "@/lib/dal";
-import { normalizeAvatar } from "@/lib/avatar";
+import { normalizeAvatar, normalizeCoverPhotos } from "@/lib/avatar";
 import {
   LoginSchema,
   RegisterSchema,
@@ -112,22 +113,33 @@ export async function registerPartnerAction(
   formData: FormData
 ): Promise<AuthFormState> {
   const raw = {
-    businessName: String(formData.get("businessName") ?? ""),
     fullName: String(formData.get("fullName") ?? ""),
     email: String(formData.get("email") ?? ""),
     phone: String(formData.get("phone") ?? ""),
     password: String(formData.get("password") ?? ""),
     confirmPassword: String(formData.get("confirmPassword") ?? ""),
+    hubName: String(formData.get("hubName") ?? ""),
+    slug: String(formData.get("slug") ?? ""),
+    hubAbout: String(formData.get("hubAbout") ?? ""),
+    hubPhone: String(formData.get("hubPhone") ?? ""),
+    hubEmail: String(formData.get("hubEmail") ?? ""),
+    address: String(formData.get("address") ?? ""),
+    games: formData.getAll("games").map((value) => String(value)),
     facebookPage: String(formData.get("facebookPage") ?? ""),
     agreed: formData.get("agreed") === "on",
   };
 
   // Echoed back so inputs survive a validation error.
   const values = {
-    businessName: raw.businessName,
     fullName: raw.fullName,
     email: raw.email,
     phone: raw.phone,
+    hubName: raw.hubName,
+    slug: raw.slug,
+    hubAbout: raw.hubAbout,
+    hubPhone: raw.hubPhone,
+    hubEmail: raw.hubEmail,
+    address: raw.address,
     // The raw text, not the canonical URL: someone correcting a typo should see
     // what they typed, not what we made of it.
     facebookPage: raw.facebookPage,
@@ -139,36 +151,100 @@ export async function registerPartnerAction(
   }
   const data = parsed.data;
 
-  const existing = await prisma.user.findUnique({
-    where: { email: data.email },
-    select: { id: true },
-  });
+  const [existing, slugTaken] = await Promise.all([
+    prisma.user.findUnique({
+      where: { email: data.email },
+      select: { id: true },
+    }),
+    prisma.hub.findUnique({
+      where: { slug: data.slug },
+      select: { id: true },
+    }),
+  ]);
   if (existing) {
     return {
       errors: { email: "An account with this email already exists" },
       values,
     };
   }
+  if (slugTaken) {
+    return {
+      errors: { slug: "That public URL is already taken" },
+      values,
+    };
+  }
 
-  const avatar = normalizeAvatar(String(formData.get("image") ?? ""));
-  if (avatar.error) return { errors: { image: avatar.error }, values };
+  const logo = normalizeAvatar(String(formData.get("hubLogo") ?? ""));
+  if (logo.error) return { errors: { hubLogo: logo.error }, values };
+
+  const covers = normalizeCoverPhotos(
+    formData.getAll("coverPhotos").map((value) => String(value))
+  );
+  if (covers.error) {
+    return { errors: { coverPhotos: covers.error }, values };
+  }
 
   const passwordHash = await bcrypt.hash(data.password, 10);
 
-  await prisma.user.create({
-    data: {
-      // The route decides the role and status, never a form field.
-      role: "PARTNER",
-      partnerStatus: "PENDING",
-      name: data.businessName,
-      playerName: data.fullName,
-      email: data.email,
-      phone: data.phone,
-      facebookPage: data.facebookPage ?? null,
-      image: avatar.value,
-      passwordHash,
-    },
-  });
+  const latitude = parseCoordinate(
+    String(formData.get("latitude") ?? ""),
+    -90,
+    90
+  );
+  const longitude = parseCoordinate(
+    String(formData.get("longitude") ?? ""),
+    -180,
+    180
+  );
+
+  try {
+    await prisma.user.create({
+      data: {
+        // The route decides the role and status, never a form field.
+        role: "PARTNER",
+        partnerStatus: "PENDING",
+        name: data.hubName,
+        playerName: data.fullName,
+        email: data.email,
+        phone: data.phone,
+        facebookPage: data.facebookPage ?? null,
+        image: logo.value,
+        passwordHash,
+        hubs: {
+          create: {
+            name: data.hubName,
+            slug: data.slug,
+            about: data.hubAbout ?? null,
+            logo: logo.value,
+            coverPhotos: covers.values,
+            games: data.games,
+            address: data.address,
+            latitude,
+            longitude,
+            phone: data.hubPhone ?? data.phone,
+            email: data.hubEmail ?? data.email,
+          },
+        },
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      const target = String(error.meta?.target ?? "");
+      return target.includes("email")
+        ? {
+            errors: { email: "An account with this email already exists" },
+            values,
+          }
+        : {
+            errors: { slug: "That public URL is already taken" },
+            values,
+          };
+    }
+    throw error;
+  }
 
   // The partner can sign in immediately, but hub and payment features stay
   // locked until an admin activates the account.
@@ -190,6 +266,13 @@ export async function registerPartnerAction(
   }
 
   return {};
+}
+
+function parseCoordinate(raw: string, min: number, max: number): number | null {
+  const value = Number.parseFloat(raw);
+  return Number.isFinite(value) && value >= min && value <= max
+    ? value
+    : null;
 }
 
 export async function loginAction(

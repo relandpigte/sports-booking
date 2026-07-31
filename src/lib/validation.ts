@@ -4,12 +4,15 @@ import { facebookPageUrl } from "@/lib/social";
 import {
   SKILL_LEVELS,
   ROLE_VALUES,
+  GAME_VALUES,
   MAX_BOOKING_HOURS,
   VENUE_GATEWAY_VALUES,
 } from "@/lib/constants";
+import { HUB_SLUG_MAX_LENGTH } from "@/lib/hub-slug";
 
 const skillValues = SKILL_LEVELS.map((s) => s.value) as [string, ...string[]];
 const roleValues = [...ROLE_VALUES] as [string, ...string[]];
+const gameValues = [...GAME_VALUES] as [string, ...string[]];
 
 export const LoginSchema = z.object({
   email: z.email({ error: "Enter a valid email" }).trim().toLowerCase(),
@@ -112,8 +115,23 @@ export type ProfileInput = z.infer<typeof ProfileSchema>;
 
 // --- Partner: hub ---
 
+export const HubSlugSchema = z
+  .string()
+  .trim()
+  .min(3, { error: "Public URL must be at least 3 characters" })
+  .max(HUB_SLUG_MAX_LENGTH, {
+    error: `Public URL must be ${HUB_SLUG_MAX_LENGTH} characters or fewer`,
+  })
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
+    error: "Use lowercase letters, numbers, and hyphens only",
+  })
+  .refine((value) => value !== "new", {
+    error: "That public URL is reserved",
+  });
+
 export const HubSchema = z.object({
   name: z.string().trim().min(2, { error: "Hub name is required" }),
+  slug: HubSlugSchema,
   about: optionalText,
   address: optionalText,
   phone: optionalText,
@@ -183,15 +201,34 @@ export type CreateBookingInput = z.infer<typeof CreateBookingSchema>;
 
 // --- Partner registration ---
 
-// A venue has no player name, skill level or private-profile setting; it has a
-// business name and legitimacy details for admin review.
+// A venue has no player name, skill level or private-profile setting; signup
+// captures both its owner identity and the initial hub profile for review.
 export const PartnerRegisterSchema = registerBase
   .omit({ playerName: true, skillLevel: true, privateProfile: true })
   .extend({
-    businessName: z
+    hubName: z
       .string()
       .trim()
-      .min(2, { error: "Business name is required" }),
+      .min(2, { error: "Hub name is required" }),
+    slug: HubSlugSchema,
+    hubAbout: optionalText,
+    hubPhone: optionalText,
+    hubEmail: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .optional()
+      .refine((value) => !value || z.email().safeParse(value).success, {
+        error: "Enter a valid hub email",
+      })
+      .transform((value) => (value ? value : undefined)),
+    address: z
+      .string()
+      .trim()
+      .min(5, { error: "Complete address is required" }),
+    games: z
+      .array(z.enum(gameValues))
+      .min(1, { error: "Choose at least one sport" }),
     facebookPage,
   })
   .refine(passwordsMatch, passwordMismatch);

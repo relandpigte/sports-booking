@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 
 import { listPublicHubs } from "@/lib/hubs";
+import { hubPublicPath } from "@/lib/hub-slug";
 import { absoluteUrl, isPublicHttpUrl } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +21,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.9,
     },
     ...hubs.map((hub) => ({
-      url: absoluteUrl(`/hubs/${hub.id}`),
+      url: absoluteUrl(hubPublicPath(hub)),
       lastModified: hub.updatedAt,
       changeFrequency: "weekly" as const,
       priority: 0.8,

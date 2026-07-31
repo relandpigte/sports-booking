@@ -9,6 +9,7 @@ import { SKILL_LEVELS } from "@/lib/constants";
 import type { BookingView } from "@/lib/bookings";
 import { formatManilaDateLong, formatSlotRange } from "@/lib/time";
 import { formatPHP } from "@/lib/currency";
+import { hubPublicPath } from "@/lib/hub-slug";
 
 type PlayerHomeUser = {
   name: string | null;
@@ -122,7 +123,7 @@ export function PlayerHome({
           {nextBooking ? (
             <div className="mt-3">
               <Link
-                href={`/hubs/${nextBooking.hub.id}`}
+                href={hubPublicPath(nextBooking.hub)}
                 className="text-lg font-bold text-navy hover:text-primary"
               >
                 {nextBooking.hub.name}

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { AuthLayout } from "@/components/AuthLayout";
+import { PartnerOnboardingLayout } from "@/components/partner/PartnerOnboardingLayout";
 import { PartnerRegisterForm } from "@/components/partner/PartnerRegisterForm";
 
 export const metadata: Metadata = {
@@ -10,11 +10,7 @@ export const metadata: Metadata = {
 
 export default async function PartnerRegisterPage() {
   return (
-    <AuthLayout
-      title="List your venue"
-      subtitle="Take bookings online, get paid directly, and keep your courts full."
-      width="max-w-2xl"
-    >
+    <PartnerOnboardingLayout>
       <>
         <PartnerRegisterForm />
 
@@ -37,6 +33,6 @@ export default async function PartnerRegisterPage() {
           </Link>
         </p>
       </>
-    </AuthLayout>
+    </PartnerOnboardingLayout>
   );
 }

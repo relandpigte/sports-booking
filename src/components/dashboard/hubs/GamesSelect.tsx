@@ -5,8 +5,10 @@ import { GAMES } from "@/lib/constants";
 
 export function GamesSelect({
   defaultValue = [],
+  error,
 }: {
   defaultValue?: string[];
+  error?: string;
 }) {
   const [selected, setSelected] = useState<string[]>(defaultValue);
 
@@ -45,6 +47,7 @@ export function GamesSelect({
       {selected.map((v) => (
         <input key={v} type="hidden" name="games" value={v} />
       ))}
+      {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
   );
 }

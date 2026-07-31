@@ -42,6 +42,7 @@ export { requireActivePartner, requirePartner };
 
 export type Hub = {
   id: string;
+  slug: string | null;
   name: string;
   about: string | null;
   logo: string | null;
@@ -60,6 +61,7 @@ export type Hub = {
 
 const hubSelect = {
   id: true,
+  slug: true,
   name: true,
   about: true,
   logo: true,
@@ -116,6 +118,7 @@ export async function listPublicHubs(
   const rows = await prisma.hub.findMany({
     where: {
       ...(opts.game ? { games: { has: opts.game } } : {}),
+      courts: { some: {} },
       owner: {
         role: "PARTNER",
         partnerStatus: "ACTIVE",
@@ -275,7 +278,7 @@ export type PublicHub = Hub & {
   paymentRequired: boolean;
   // Why it isn't bookable, so the page can say something true rather than a
   // vague "not right now".
-  blockedBy: "approval" | "gateway" | "settlement" | null;
+  blockedBy: "approval" | "gateway" | "setup" | "settlement" | null;
   ownerId: string;
 };
 
@@ -285,24 +288,28 @@ export type PublicHub = Hub & {
 // is no tag to revalidate.
 export const getPublicHub = cache(
   async (id: string): Promise<PublicHub | null> => {
-    const row = await prisma.hub.findUnique({
-      where: { id },
+    const row = await prisma.hub.findFirst({
+      where: { OR: [{ slug: id }, { id }] },
       select: publicHubSelect,
     });
     if (!row) return null;
     const { owner, ownerId, ...rest } = row;
     const approved = owner.partnerStatus === "ACTIVE";
     const connected = owner.partnerGateway?.disconnectedAt === null;
+    const setupComplete = rest.courts.length > 0;
     const overdue =
       approved && connected ? await isServiceFeeOverdue(ownerId) : false;
+    const bookable = approved && connected && setupComplete && !overdue;
     return {
       ...mapHub(rest),
-      bookable: approved && connected && !overdue,
-      paymentRequired: approved && connected && !overdue,
+      bookable,
+      paymentRequired: bookable,
       blockedBy: !approved
         ? "approval"
         : !connected
           ? "gateway"
+          : !setupComplete
+            ? "setup"
           : overdue
             ? "settlement"
             : null,

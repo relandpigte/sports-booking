@@ -10,6 +10,7 @@ import { getViewer } from "@/lib/dal";
 import { getCourtAvailability } from "@/lib/bookings";
 import { formatTime, summarizeOperatingHours } from "@/lib/hours";
 import { formatPHP } from "@/lib/currency";
+import { hubPublicPath } from "@/lib/hub-slug";
 import {
   DEFAULT_SOCIAL_IMAGE,
   SITE_NAME,
@@ -65,7 +66,7 @@ export async function generateMetadata({
 
   const title = `${hub.name} — Court Booking & Availability | Bunal.club`;
   const description = hubDescription(hub);
-  const canonical = `/hubs/${hub.id}`;
+  const canonical = hubPublicPath(hub);
   const socialImage =
     hub.coverPhotos.find(isPublicHttpUrl) ?? DEFAULT_SOCIAL_IMAGE;
 
@@ -126,7 +127,7 @@ export default async function PublicHubPage({
   const mapsQuery = hasCoords
     ? `${hub.latitude},${hub.longitude}`
     : (hub.address ?? "");
-  const canonicalUrl = absoluteUrl(`/hubs/${hub.id}`);
+  const canonicalUrl = absoluteUrl(hubPublicPath(hub));
   const description = hubDescription(hub);
   const publicImages = hub.coverPhotos.filter(isPublicHttpUrl);
   const hourlyRates = hub.courts
@@ -420,6 +421,8 @@ export default async function PublicHubPage({
                 <span className="text-gray-400">
                   {hub.blockedBy === "gateway"
                     ? "Your hub isn't listed publicly because no payment gateway is connected."
+                    : hub.blockedBy === "setup"
+                      ? "Add at least one court, its rate, and operating hours before publishing your hub."
                     : hub.blockedBy === "settlement"
                       ? "New bookings are paused because a service-fee settlement is overdue."
                       : "This partner account is waiting for admin verification."}
@@ -430,6 +433,14 @@ export default async function PublicHubPage({
                     className="font-semibold text-primary hover:underline"
                   >
                     Connect PayMongo →
+                  </Link>
+                )}
+                {hub.blockedBy === "setup" && (
+                  <Link
+                    href={`/dashboard/hubs/${hub.id}/edit`}
+                    className="font-semibold text-primary hover:underline"
+                  >
+                    Finish hub setup →
                   </Link>
                 )}
                 {hub.blockedBy === "settlement" && (

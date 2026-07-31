@@ -288,6 +288,9 @@ model ProviderEvent {
 // A partner-operated venue/club profile.
 model Hub {
   id             String   @id @default(cuid())
+  // Stable public URL segment. Optional so existing production rows continue
+  // to resolve by id until a partner chooses or saves a slug.
+  slug           String?  @unique
   ownerId        String
   name           String
   about          String?  @db.Text

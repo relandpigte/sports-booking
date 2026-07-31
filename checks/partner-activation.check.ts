@@ -69,7 +69,17 @@ async function check() {
       partnerActivatedById: "check-admin",
     },
   });
-  ok("activated partner is listed", await visible());
+  ok("activated partner stays hidden until court setup", !(await visible()));
+
+  await prisma.court.create({
+    data: {
+      hubId: partner.hubs[0].id,
+      name: "Court 1",
+      courtType: "covered",
+      hourlyRate: 500,
+    },
+  });
+  ok("activated partner with a court is listed", await visible());
 
   await prisma.user.update({
     where: { id: partner.id },

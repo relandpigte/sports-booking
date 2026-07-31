@@ -65,6 +65,13 @@ async function check() {
       name: "Settlement Check Hub",
       coverPhotos: [],
       games: ["basketball"],
+      courts: {
+        create: {
+          name: "Court 1",
+          courtType: "covered",
+          hourlyRate: 500,
+        },
+      },
     },
     select: { id: true },
   });

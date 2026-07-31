@@ -2,6 +2,7 @@ import Link from "next/link";
 import { formatPHP } from "@/lib/currency";
 import { GAME_LABELS } from "@/lib/constants";
 import type { Hub } from "@/lib/hubs";
+import { hubPublicPath } from "@/lib/hub-slug";
 
 export function HubCard({
   hub,
@@ -34,7 +35,7 @@ export function HubCard({
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-[20px] border border-[#dfe7e2] bg-white shadow-sm shadow-navy/5 transition-all hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-lg hover:shadow-navy/8">
       <Link
-        href={`/hubs/${hub.id}`}
+        href={hubPublicPath(hub)}
         aria-label={`View ${hub.name}`}
         className="absolute inset-0 z-0"
       />

@@ -7,6 +7,7 @@ import { RefundBookingButton } from "@/components/bookings/RefundBookingButton";
 import { RescheduleBookingButton } from "@/components/bookings/RescheduleBookingButton";
 import type { BookingView } from "@/lib/bookings";
 import { formatPHP } from "@/lib/currency";
+import { hubPublicPath } from "@/lib/hub-slug";
 import { formatManilaDateLong, formatSlotRange } from "@/lib/time";
 import {
   BOOKING_STATUS_LABELS,
@@ -57,7 +58,7 @@ export function BookingCard({
               <Avatar src={booking.hub.logo} name={booking.hub.name} size={40} />
               <div className="min-w-0">
                 <Link
-                  href={`/hubs/${booking.hub.id}`}
+                  href={hubPublicPath(booking.hub)}
                   className="font-medium text-gray-900 hover:underline"
                 >
                   {booking.hub.name}

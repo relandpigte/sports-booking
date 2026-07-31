@@ -12,6 +12,7 @@ import { GamesSelect } from "@/components/dashboard/hubs/GamesSelect";
 import { CourtsEditor } from "@/components/dashboard/hubs/CourtsEditor";
 import { LocationPicker } from "@/components/dashboard/hubs/LocationPicker";
 import { OperatingHoursEditor } from "@/components/dashboard/hubs/OperatingHoursEditor";
+import { HubIdentityFields } from "@/components/hubs/HubIdentityFields";
 import {
   createHubAction,
   updateHubAction,
@@ -71,12 +72,11 @@ export function HubForm({ hub }: { hub?: Hub }) {
           error={state.errors?.logo}
         />
         <div className="flex w-full flex-1 flex-col gap-4">
-          <Input
-            label="Hub Name"
-            name="name"
-            placeholder="e.g. Riverside Pickleball Club"
-            defaultValue={state.values?.name ?? hub?.name ?? ""}
-            error={state.errors?.name}
+          <HubIdentityFields
+            defaultName={state.values?.name ?? hub?.name ?? ""}
+            defaultSlug={state.values?.slug ?? hub?.slug ?? ""}
+            nameError={state.errors?.name}
+            slugError={state.errors?.slug}
           />
           <Textarea
             label="About"

@@ -61,7 +61,13 @@ export type BookingView = {
     platformFee: number;
   } | null;
   court: { id: string; name: string; courtType: string };
-  hub: { id: string; name: string; logo: string | null; address: string | null };
+  hub: {
+    id: string;
+    slug: string | null;
+    name: string;
+    logo: string | null;
+    address: string | null;
+  };
   player: {
     id: string;
     name: string | null;
@@ -98,7 +104,9 @@ const bookingSelect = {
     select: { id: true, status: true, amount: true, platformFee: true },
   },
   court: { select: { id: true, name: true, courtType: true } },
-  hub: { select: { id: true, name: true, logo: true, address: true } },
+  hub: {
+    select: { id: true, slug: true, name: true, logo: true, address: true },
+  },
   user: {
     select: { id: true, name: true, playerName: true, phone: true },
   },

@@ -1,9 +1,16 @@
-import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 
-// bunal.ph lands on the hub directory, not a login form: the courts are the
-// product, and browsing them needs no account. PageShell gives a signed-in
-// visitor their usual chrome and everyone else the public top bar, so this is
-// the right door for both.
+import { HomePage } from "@/components/home/HomePage";
+
+export const metadata: Metadata = {
+  title: "Bunal.club — Book courts across Bohol",
+  description:
+    "Find volleyball, badminton, pickleball, and other courts across Bohol. Choose your hours, pay securely with PayMongo, and get confirmed in seconds.",
+  alternates: {
+    canonical: "/",
+  },
+};
+
 export default function Home() {
-  redirect("/hubs");
+  return <HomePage />;
 }

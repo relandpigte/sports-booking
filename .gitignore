@@ -13,6 +13,11 @@
 # testing
 /coverage
 /.playwright-cli/
+/output/
+
+# design-tool working files
+/.superdesign/tmp/
+/.superdesign/website/
 
 # next.js
 /.next/

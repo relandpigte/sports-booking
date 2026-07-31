@@ -37,7 +37,7 @@ export function AppShell({
           beside it reads as content. */}
       <aside className="flex flex-col gap-5 border-b border-gray-200 bg-gray-50/70 p-4 md:sticky md:top-0 md:h-screen md:w-64 md:shrink-0 md:border-b-0 md:border-r">
         <Link href="/dashboard" aria-label="Home">
-          <Logo size={38} />
+          <Logo />
         </Link>
 
         <DashboardNav role={user.role} partnerStatus={user.partnerStatus} />

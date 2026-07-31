@@ -1,25 +1,21 @@
 import Image from "next/image";
 
-// The supplied mark already contains the full Bunal.club wordmark, so no
-// separate text is rendered beside it.
-const LOGO_ASPECT_RATIO = 1200 / 492;
-
 export function Logo({
   className = "",
-  size = 40,
 }: {
   className?: string;
-  size?: number;
 }) {
   return (
-    <div className={`inline-flex items-center ${className}`}>
+    <div
+      className={`relative h-[60px] w-[250px] max-w-full shrink ${className}`}
+    >
       <Image
         src="/bunal-logo.png"
         alt="Bunal.club"
-        width={Math.round(size * LOGO_ASPECT_RATIO)}
-        height={size}
+        fill
+        sizes="250px"
         priority
-        className="shrink-0 object-contain"
+        className="object-contain object-left"
       />
     </div>
   );

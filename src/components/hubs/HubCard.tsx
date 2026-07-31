@@ -32,7 +32,7 @@ export function HubCard({
         : null;
 
   return (
-    <article className="group relative flex flex-col overflow-hidden rounded-[20px] border border-[#dfe7e2] bg-white shadow-sm shadow-navy/5 transition-all hover:-translate-y-1 hover:border-primary/30 hover:shadow-xl hover:shadow-navy/10">
+    <article className="group relative flex flex-col overflow-hidden rounded-[20px] border border-[#dfe7e2] bg-white shadow-sm shadow-navy/5 transition-all hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-lg hover:shadow-navy/8">
       <Link
         href={`/hubs/${hub.id}`}
         aria-label={`View ${hub.name}`}
@@ -52,7 +52,7 @@ export function HubCard({
           </div>
         )}
         {distanceKm != null && (
-          <span className="absolute bottom-3 right-3 rounded-full bg-white/95 px-3 py-1.5 text-xs font-bold text-primary shadow-md backdrop-blur-sm">
+          <span className="absolute right-3 top-3 rounded-full bg-navy/85 px-3 py-1.5 text-xs font-bold text-white shadow-sm backdrop-blur-sm">
             <span aria-hidden="true">⌖</span>{" "}
             {distanceKm < 1
               ? `${Math.round(distanceKm * 1000)} m`
@@ -62,9 +62,21 @@ export function HubCard({
       </div>
 
       <div className="relative z-[1] flex flex-1 flex-col p-5 pointer-events-none">
-        <h2 className="text-lg font-black leading-tight text-navy">
-          {hub.name}
-        </h2>
+        <div className="flex items-start justify-between gap-4">
+          <h2 className="text-lg font-black leading-tight text-navy">
+            {hub.name}
+          </h2>
+          {hub.logo && (
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#dfe7e2] bg-white p-1.5 shadow-sm">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={hub.logo}
+                alt=""
+                className="h-full w-full object-contain"
+              />
+            </span>
+          )}
+        </div>
 
         {hub.address && (
           <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-slate-500">
@@ -89,22 +101,31 @@ export function HubCard({
         )}
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs font-semibold text-slate-500">
-          <span className="flex flex-col gap-0.5">
+          <span
+            className={`flex items-center gap-2 ${
+              availableSlots != null && availabilityDate
+                ? "rounded-xl border border-primary/10 bg-primary-soft px-3 py-2"
+                : ""
+            }`}
+          >
             {availableSlots != null && availabilityDate
               ? (
                   <>
-                    <span className="font-bold text-primary">
-                      {availableSlots}{" "}
-                      {availableSlots === 1 ? "slot" : "slots"} available
+                    <CalendarCheckIcon />
+                    <span className="flex flex-col gap-0.5">
+                      <span className="font-bold text-primary">
+                        {availableSlots}{" "}
+                        {availableSlots === 1 ? "slot" : "slots"} available
+                      </span>
+                      <time
+                        dateTime={availabilityDate}
+                        className="text-[10px] font-semibold text-primary/65"
+                      >
+                        {availabilityDate === today
+                          ? `Today · ${formatAvailabilityDate(availabilityDate)}`
+                          : formatAvailabilityDate(availabilityDate)}
+                      </time>
                     </span>
-                    <time
-                      dateTime={availabilityDate}
-                      className="text-[11px] font-medium text-slate-400"
-                    >
-                      {availabilityDate === today
-                        ? `Today · ${formatAvailabilityDate(availabilityDate)}`
-                        : formatAvailabilityDate(availabilityDate)}
-                    </time>
                   </>
                 )
               : `${hub.courts.length} ${hub.courts.length === 1 ? "court" : "courts"}`}
@@ -114,9 +135,9 @@ export function HubCard({
               href={mapsHref}
               target="_blank"
               rel="noreferrer"
-              className="pointer-events-auto relative z-10 inline-flex min-h-10 items-center rounded-xl border border-primary/15 bg-primary-soft px-3 text-primary transition-colors hover:bg-accent-soft"
+              className="pointer-events-auto relative z-10 inline-flex min-h-10 items-center gap-1.5 rounded-lg px-1 text-ocean transition-colors hover:text-navy"
             >
-              Navigate ↗
+              Navigate <span aria-hidden="true">↗</span>
             </a>
           )}
         </div>
@@ -163,4 +184,21 @@ function formatAvailabilityDate(date: string): string {
 
   if (!monthName || !year || !day) return date;
   return `${monthName} ${day}, ${year}`;
+}
+
+function CalendarCheckIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className="h-5 w-5 shrink-0 text-primary"
+      aria-hidden="true"
+    >
+      <path d="M8 2v4M16 2v4M3 10h18" />
+      <rect x="3" y="4" width="18" height="17" rx="2" />
+      <path d="m8 15 2.2 2.2L16 12" />
+    </svg>
+  );
 }

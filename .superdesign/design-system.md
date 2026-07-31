@@ -159,6 +159,10 @@ directory's information architecture while remaining unmistakably
 Bunal.club.
 
 - Use an off-white page background with a compact title and supporting copy.
+- Use a compact, rounded navy discovery banner with restrained green/lime
+  atmosphere so the page feels distinctly Bunal.club rather than a clone of
+  the facility reference. Float the crisp white search toolbar over its lower
+  edge and keep decorative detail minimal.
 - Place the primary search, nearest-first action, filter toggle, and sort
   control in one responsive toolbar. Controls stack cleanly on mobile.
 - Expanded filters include booking date, sport, court type, start time, and end
@@ -177,4 +181,5 @@ Bunal.club.
 - Keep the signed-out public top bar and the authenticated app shell behavior.
 - Only show supported sports: pickleball, tennis, badminton, and volleyball.
 - Preserve white cards, `#dfe7e2` borders, navy headings, green actions, lime
-  highlights, Geist typography, and 12–20px radii.
+  highlights, Geist typography, and 12–20px radii. Present date-aware
+  availability in a calm soft-green status panel and keep shadows restrained.

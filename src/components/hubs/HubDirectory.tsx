@@ -156,19 +156,38 @@ export function HubDirectory({
 
   return (
     <div>
-      <header className="py-8 sm:py-10">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">
-          Courts across Bohol
-        </p>
-        <h1 className="mt-2 text-3xl font-black tracking-[-0.04em] text-navy sm:text-4xl">
-          Find a hub
-        </h1>
-        <p className="mt-3 text-base text-slate-500 sm:text-lg">
-          Discover local courts, compare rates, and book your game online.
-        </p>
+      <header className="relative mt-6 overflow-hidden rounded-[28px] bg-navy px-6 pb-24 pt-12 sm:mt-8 sm:px-10 sm:pb-28 sm:pt-16 lg:px-14">
+        <div
+          aria-hidden="true"
+          className="absolute -right-24 -top-32 h-80 w-80 rounded-full bg-primary/20 blur-3xl"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute -bottom-28 left-1/3 h-56 w-56 rounded-full bg-accent/10 blur-3xl"
+        />
+        <div className="relative max-w-2xl">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-accent">
+            Discover Bohol sports
+          </p>
+          <h1 className="mt-3 text-4xl font-black tracking-[-0.045em] text-white sm:text-5xl">
+            Find your next hub.
+          </h1>
+          <p className="mt-4 max-w-xl text-base leading-7 text-white/70 sm:text-lg">
+            Search live court availability, compare rates, and book your game
+            without the back-and-forth.
+          </p>
+          <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/80 backdrop-blur-sm">
+            <span className="h-2 w-2 rounded-full bg-accent" />
+            Live availability from local venues
+          </div>
+        </div>
       </header>
 
-      <form action="/hubs" method="get" className="space-y-4">
+      <form
+        action="/hubs"
+        method="get"
+        className="relative z-10 -mt-10 space-y-4 px-3 sm:px-5 lg:px-8"
+      >
         {!filtersOpen && (
           <>
             <input type="hidden" name="game" value={initial.game} />
@@ -182,7 +201,7 @@ export function HubDirectory({
             <input type="hidden" name="to" value={initial.to} />
           </>
         )}
-        <div className="grid gap-3 lg:grid-cols-[minmax(320px,1fr)_auto_auto_minmax(190px,0.3fr)]">
+        <div className="grid gap-2 rounded-2xl border border-[#dfe7e2] bg-white p-2.5 shadow-xl shadow-navy/8 lg:grid-cols-[minmax(320px,1fr)_auto_auto_minmax(180px,0.3fr)]">
           <label className="relative block">
             <span className="sr-only">
               Search by hub, court, or location
@@ -194,7 +213,7 @@ export function HubDirectory({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search by hub, court, or location"
-              className="min-h-14 w-full rounded-2xl border border-[#dfe7e2] bg-white py-3 pl-12 pr-4 text-sm text-navy shadow-sm shadow-navy/5 placeholder:text-slate-400 focus:border-primary focus:outline-none"
+              className="min-h-12 w-full rounded-xl border border-[#dfe7e2] bg-white py-3 pl-12 pr-4 text-sm text-navy placeholder:text-slate-400 focus:border-primary focus:outline-none"
             />
           </label>
 
@@ -202,7 +221,7 @@ export function HubDirectory({
             type="button"
             onClick={requestLocation}
             disabled={locating}
-            className="inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-primary px-5 text-sm font-bold text-white shadow-sm shadow-primary/20 transition-colors hover:bg-primary-hover disabled:opacity-60"
+            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-white transition-colors hover:bg-primary-hover disabled:opacity-60"
           >
             <LocationIcon />
             {locating ? "Finding you…" : "Nearest first"}
@@ -212,7 +231,7 @@ export function HubDirectory({
             type="button"
             onClick={() => setFiltersOpen((open) => !open)}
             aria-expanded={filtersOpen}
-            className="inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-primary/30 bg-primary-soft px-5 text-sm font-bold text-primary transition-colors hover:bg-accent-soft"
+            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[#dfe7e2] bg-white px-5 text-sm font-bold text-navy transition-colors hover:border-primary/30 hover:bg-primary-soft"
           >
             <FilterIcon />
             Filters
@@ -229,7 +248,7 @@ export function HubDirectory({
               name="sort"
               value={sort}
               onChange={(event) => setSort(event.target.value as Sort)}
-              className="min-h-14 w-full appearance-none rounded-2xl border border-[#dfe7e2] bg-white px-4 pr-10 text-sm font-bold text-navy shadow-sm shadow-navy/5 focus:border-primary focus:outline-none"
+              className="min-h-12 w-full appearance-none rounded-xl border border-[#dfe7e2] bg-white px-4 pr-10 text-sm font-bold text-navy focus:border-primary focus:outline-none"
             >
               <option value="name">Name (A–Z)</option>
               <option value="price">Price (low first)</option>
@@ -252,7 +271,7 @@ export function HubDirectory({
         )}
 
         {filtersOpen && (
-          <div className="rounded-2xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5 sm:p-6">
+          <div className="rounded-2xl border border-[#dfe7e2] bg-white p-5 shadow-lg shadow-navy/5 sm:p-6">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
               <FilterField label="Date">
                 <input
@@ -328,14 +347,14 @@ export function HubDirectory({
         )}
       </form>
 
-      <section className="mt-10 pb-20">
+      <section className="mt-16 pb-20 sm:mt-20">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
               Book online
             </p>
-            <h2 className="mt-1 text-2xl font-black text-navy">
-              Available hubs
+            <h2 className="mt-1 text-2xl font-black tracking-[-0.025em] text-navy">
+              Courts ready for you
             </h2>
           </div>
           <p className="text-sm text-slate-500">

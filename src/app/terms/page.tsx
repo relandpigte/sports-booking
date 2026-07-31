@@ -4,6 +4,7 @@ import { LegalLayout, LegalSection } from "@/components/LegalLayout";
 export const metadata: Metadata = {
   title: "Terms & Conditions — Bunal.club",
   description: "The terms and conditions for using the Bunal.club app.",
+  alternates: { canonical: "/terms" },
 };
 
 export default function TermsPage() {
@@ -79,10 +80,10 @@ export default function TermsPage() {
         <p>
           Questions about these Terms? Reach us at{" "}
           <a
-            href="mailto:support@bunal.ph"
+            href="mailto:support@bunal.club"
             className="font-medium text-primary hover:underline"
           >
-            support@bunal.ph
+            support@bunal.club
           </a>
           .
         </p>

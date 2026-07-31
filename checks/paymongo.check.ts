@@ -195,7 +195,7 @@ async function main() {
     amount: { amount: 0.5, currency: "PHP" },
     description: "Court 1",
     idempotencyKey: "x:1",
-    returnUrl: "https://bunal.ph/dashboard/bookings/pay/x",
+    returnUrl: "https://bunal.club/dashboard/bookings/pay/x",
     metadata: {},
   });
   ok("a sub-peso charge fails without calling out", tooSmall.status === "failed");

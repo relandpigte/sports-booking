@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { JsonLd } from "@/components/JsonLd";
 import { PageShell } from "@/components/PageShell";
 import { BookCourtPanel } from "@/components/hubs/BookCourtPanel";
 import { Avatar } from "@/components/ui/Avatar";
@@ -9,6 +10,14 @@ import { getViewer } from "@/lib/dal";
 import { getCourtAvailability } from "@/lib/bookings";
 import { formatTime, summarizeOperatingHours } from "@/lib/hours";
 import { formatPHP } from "@/lib/currency";
+import {
+  DEFAULT_SOCIAL_IMAGE,
+  SITE_NAME,
+  SITE_URL,
+  absoluteUrl,
+  conciseDescription,
+  isPublicHttpUrl,
+} from "@/lib/site";
 import { manilaNowHour, manilaToday } from "@/lib/time";
 import {
   WEEKDAYS,
@@ -17,6 +26,29 @@ import {
   type Weekday,
 } from "@/lib/constants";
 
+function hubDescription({
+  name,
+  about,
+  address,
+  games,
+}: {
+  name: string;
+  about: string | null;
+  address: string | null;
+  games: string[];
+}): string {
+  const sports = games.map((game) => GAME_LABELS[game] ?? game).join(", ");
+  const location = address ? ` in ${address}` : "";
+  const introduction = about?.trim()
+    ? about
+    : `Book ${sports || "sports"} courts at ${name}${location}.`;
+
+  return conciseDescription(
+    `${introduction} Check live availability, hourly rates, and secure online booking.`,
+    165
+  );
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -24,9 +56,39 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const hub = await getPublicHub(id);
+  if (!hub) {
+    return {
+      title: "Hub not found | Bunal.club",
+      robots: { index: false, follow: false },
+    };
+  }
+
+  const title = `${hub.name} — Court Booking & Availability | Bunal.club`;
+  const description = hubDescription(hub);
+  const canonical = `/hubs/${hub.id}`;
+  const socialImage =
+    hub.coverPhotos.find(isPublicHttpUrl) ?? DEFAULT_SOCIAL_IMAGE;
+
   return {
-    title: hub ? `${hub.name} — Bunal.club` : "Hub — Bunal.club",
-    description: hub?.about ?? undefined,
+    title,
+    description,
+    alternates: { canonical },
+    robots: { index: hub.bookable, follow: true },
+    openGraph: {
+      title,
+      description,
+      url: canonical,
+      siteName: SITE_NAME,
+      images: [socialImage],
+      locale: "en_PH",
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [socialImage],
+    },
   };
 }
 
@@ -64,9 +126,108 @@ export default async function PublicHubPage({
   const mapsQuery = hasCoords
     ? `${hub.latitude},${hub.longitude}`
     : (hub.address ?? "");
+  const canonicalUrl = absoluteUrl(`/hubs/${hub.id}`);
+  const description = hubDescription(hub);
+  const publicImages = hub.coverPhotos.filter(isPublicHttpUrl);
+  const hourlyRates = hub.courts
+    .map((court) => court.hourlyRate)
+    .filter((rate): rate is number => rate != null);
+  const minRate = hourlyRates.length ? Math.min(...hourlyRates) : null;
+  const maxRate = hourlyRates.length ? Math.max(...hourlyRates) : null;
+  const openingHoursSpecification = hours
+    ? WEEKDAYS.flatMap(({ value, label }) => {
+        const day = hours[value as Weekday];
+        if (!day || day.closed) return [];
+        return [
+          {
+            "@type": "OpeningHoursSpecification",
+            dayOfWeek: `https://schema.org/${label}`,
+            opens: day.open,
+            closes: day.close,
+          },
+        ];
+      })
+    : [];
+  const localBusiness =
+    hub.bookable && hub.address
+      ? {
+          "@type": "SportsActivityLocation",
+          "@id": `${canonicalUrl}#venue`,
+          name: hub.name,
+          url: canonicalUrl,
+          description,
+          address: {
+            "@type": "PostalAddress",
+            streetAddress: hub.address,
+            addressCountry: "PH",
+          },
+          ...(publicImages.length > 0 ? { image: publicImages } : {}),
+          ...(hub.phone ? { telephone: hub.phone } : {}),
+          ...(hub.email ? { email: hub.email } : {}),
+          ...(hasCoords
+            ? {
+                geo: {
+                  "@type": "GeoCoordinates",
+                  latitude: hub.latitude,
+                  longitude: hub.longitude,
+                },
+              }
+            : {}),
+          ...(mapsQuery
+            ? {
+                hasMap: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                  mapsQuery
+                )}`,
+              }
+            : {}),
+          ...(openingHoursSpecification.length > 0
+            ? { openingHoursSpecification }
+            : {}),
+          ...(minRate != null && maxRate != null
+            ? {
+                priceRange:
+                  minRate === maxRate
+                    ? `PHP ${minRate} per hour`
+                    : `PHP ${minRate}-${maxRate} per hour`,
+              }
+            : {}),
+          currenciesAccepted: "PHP",
+        }
+      : null;
+  const hubJsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "@id": `${canonicalUrl}#breadcrumb`,
+        itemListElement: [
+          {
+            "@type": "ListItem",
+            position: 1,
+            name: "Home",
+            item: SITE_URL,
+          },
+          {
+            "@type": "ListItem",
+            position: 2,
+            name: "Hubs",
+            item: absoluteUrl("/hubs"),
+          },
+          {
+            "@type": "ListItem",
+            position: 3,
+            name: hub.name,
+            item: canonicalUrl,
+          },
+        ],
+      },
+      ...(localBusiness ? [localBusiness] : []),
+    ],
+  };
 
   return (
     <PageShell maxWidth="max-w-3xl">
+        <JsonLd data={hubJsonLd} />
         {/* Cover */}
         <div className="mt-4 aspect-video w-full overflow-hidden rounded-2xl bg-gray-100">
           {cover ? (

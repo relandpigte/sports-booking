@@ -55,6 +55,7 @@ export type Hub = {
   operatingHours: OperatingHours | null;
   courts: Court[];
   createdAt: Date;
+  updatedAt: Date;
 };
 
 const hubSelect = {
@@ -71,6 +72,7 @@ const hubSelect = {
   email: true,
   operatingHours: true,
   createdAt: true,
+  updatedAt: true,
   courts: {
     select: { id: true, name: true, courtType: true, hourlyRate: true },
     orderBy: { createdAt: "asc" },

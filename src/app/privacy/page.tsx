@@ -4,6 +4,7 @@ import { LegalLayout, LegalSection } from "@/components/LegalLayout";
 export const metadata: Metadata = {
   title: "Privacy Policy — Bunal.club",
   description: "How Bunal.club collects, uses, and protects your data.",
+  alternates: { canonical: "/privacy" },
 };
 
 export default function PrivacyPage() {
@@ -82,10 +83,10 @@ export default function PrivacyPage() {
           export, or delete your personal data. To exercise these rights, contact
           us at{" "}
           <a
-            href="mailto:privacy@bunal.ph"
+            href="mailto:privacy@bunal.club"
             className="font-medium text-primary hover:underline"
           >
-            privacy@bunal.ph
+            privacy@bunal.club
           </a>
           .
         </p>

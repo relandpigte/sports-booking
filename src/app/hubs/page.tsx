@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { JsonLd } from "@/components/JsonLd";
 import { PageShell } from "@/components/PageShell";
 import {
   HubDirectory,
@@ -12,12 +13,64 @@ import {
   type Game,
 } from "@/lib/constants";
 import { listPublicHubDirectory } from "@/lib/hubs";
+import {
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_URL,
+  absoluteUrl,
+} from "@/lib/site";
 import { isValidDateString, manilaToday } from "@/lib/time";
 
+const directoryDescription =
+  "Browse live availability and hourly rates for pickleball, badminton, volleyball, and tennis courts across Bohol. Book securely online with Bunal.club.";
+
 export const metadata: Metadata = {
-  title: "Find a Hub — Bunal.club",
-  description:
-    "Search and filter bookable pickleball, tennis, badminton, and volleyball courts across Bohol.",
+  title: "Find & Book Sports Courts in Bohol | Bunal.club",
+  description: directoryDescription,
+  alternates: {
+    canonical: "/hubs",
+  },
+  openGraph: {
+    title: "Find & Book Sports Courts in Bohol | Bunal.club",
+    description: SITE_DESCRIPTION,
+    url: "/hubs",
+    siteName: SITE_NAME,
+    locale: "en_PH",
+    type: "website",
+  },
+};
+
+const directoryJsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "CollectionPage",
+      "@id": `${absoluteUrl("/hubs")}#webpage`,
+      url: absoluteUrl("/hubs"),
+      name: "Sports courts and hubs in Bohol",
+      description: directoryDescription,
+      isPartOf: { "@id": `${SITE_URL}/#website` },
+      inLanguage: "en-PH",
+    },
+    {
+      "@type": "BreadcrumbList",
+      "@id": `${absoluteUrl("/hubs")}#breadcrumb`,
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Home",
+          item: SITE_URL,
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "Hubs",
+          item: absoluteUrl("/hubs"),
+        },
+      ],
+    },
+  ],
 };
 
 function first(value: string | string[] | undefined): string {
@@ -87,6 +140,7 @@ export default async function HubsDirectoryPage({
   const view: DirectoryHubView[] = hubs.map((hub) => ({
     ...hub,
     createdAt: hub.createdAt.toISOString(),
+    updatedAt: hub.updatedAt.toISOString(),
   }));
 
   return (
@@ -94,6 +148,7 @@ export default async function HubsDirectoryPage({
       maxWidth="max-w-7xl"
       backgroundClass="bg-[#f7faf8]"
     >
+      <JsonLd data={directoryJsonLd} />
       <HubDirectory
         hubs={view}
         today={today}

@@ -30,6 +30,7 @@ export type DirectoryHubView = {
     hourlyRate: number | null;
   }[];
   createdAt: string;
+  updatedAt: string;
   availableSlots: number | null;
 };
 
@@ -369,7 +370,11 @@ export function HubDirectory({
             {visibleHubs.map((hub) => (
               <HubCard
                 key={hub.id}
-                hub={{ ...hub, createdAt: new Date(hub.createdAt) }}
+                hub={{
+                  ...hub,
+                  createdAt: new Date(hub.createdAt),
+                  updatedAt: new Date(hub.updatedAt),
+                }}
                 distanceKm={
                   coordinates
                     ? distanceKm(coordinates, hub) ?? undefined

@@ -2,6 +2,12 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import {
+  DEFAULT_SOCIAL_IMAGE,
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_URL,
+} from "@/lib/site";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -15,23 +21,45 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://bunal.club"),
+  metadataBase: new URL(SITE_URL),
+  applicationName: SITE_NAME,
   title: {
-    default: "Bunal.club — Play. Compete. Connect.",
+    default: "Book Sports Courts in Bohol | Bunal.club",
     // Every page already sets its own complete title, so no template here.
     template: "%s",
   },
-  description:
-    "Book volleyball, badminton and pickleball courts across Bohol. Find a hub, pick your hours, and pay the venue directly.",
+  description: SITE_DESCRIPTION,
+  creator: SITE_NAME,
+  publisher: SITE_NAME,
+  category: "sports",
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
+  verification: process.env.GOOGLE_SITE_VERIFICATION
+    ? { google: process.env.GOOGLE_SITE_VERIFICATION }
+    : undefined,
   openGraph: {
-    title: "Bunal.club — Play. Compete. Connect.",
-    description:
-      "Book volleyball, badminton and pickleball courts across Bohol.",
-    url: "https://bunal.club",
-    siteName: "Bunal.club",
-    images: ["/bunal-logo-transparent.png"],
+    title: "Book Sports Courts in Bohol | Bunal.club",
+    description: SITE_DESCRIPTION,
+    url: SITE_URL,
+    siteName: SITE_NAME,
+    images: [DEFAULT_SOCIAL_IMAGE],
     locale: "en_PH",
     type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Book Sports Courts in Bohol | Bunal.club",
+    description: SITE_DESCRIPTION,
+    images: [DEFAULT_SOCIAL_IMAGE],
   },
 };
 
@@ -42,7 +70,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="en-PH"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body

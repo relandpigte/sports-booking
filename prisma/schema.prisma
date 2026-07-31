@@ -40,6 +40,9 @@ model User {
   role                 Role           @default(PLAYER)
   skillLevel           String         @default("intermediate")
   privateProfile       Boolean        @default(false)
+  // Incremented after a password reset. JWTs carry the version they were
+  // issued with, so the DAL can reject sessions created before the reset.
+  sessionVersion       Int            @default(0)
   // Only meaningful when role=PARTNER. Public signups start PENDING and an
   // admin activates them after reviewing their business details.
   partnerStatus        PartnerStatus?
@@ -49,16 +52,34 @@ model User {
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
 
-  accounts Account[]
-  sessions Session[]
-  hubs     Hub[]
-  bookings Booking[]
+  accounts           Account[]
+  sessions           Session[]
+  hubs               Hub[]
+  bookings           Booking[]
+  passwordResetToken PasswordResetToken?
 
   partnerGateway        PartnerGateway?
   bookingPayments       BookingPayment[]       @relation("PlayerBookingPayments")
   venuePayments         BookingPayment[]       @relation("PartnerBookingPayments")
   serviceFeeEntries     ServiceFeeEntry[]      @relation("PartnerServiceFeeEntries")
   serviceFeeSettlements ServiceFeeSettlement[] @relation("PartnerServiceFeeSettlements")
+}
+
+// One active reset request per normalized email. The raw email and raw token
+// are never stored: emailHash supports request throttling without retaining
+// mistyped addresses, and tokenHash makes a database leak insufficient to
+// reset an account.
+model PasswordResetToken {
+  id          String   @id @default(cuid())
+  emailHash   String   @unique
+  tokenHash   String   @unique
+  userId      String?  @unique
+  expiresAt   DateTime
+  requestedAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
 }
 
 enum PaymentMethodType {

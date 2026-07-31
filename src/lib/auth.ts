@@ -43,6 +43,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           email: user.email,
           name: user.name,
           role: user.role,
+          sessionVersion: user.sessionVersion,
         };
       },
     }),
@@ -52,6 +53,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         token.id = user.id;
         token.role = user.role;
+        token.sessionVersion = user.sessionVersion;
       }
       // Keep the cookie small — never persist an avatar in the JWT.
       if (token.picture) token.picture = undefined;
@@ -60,6 +62,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     session({ session, token }) {
       if (token.id) session.user.id = token.id as string;
       if (token.role) session.user.role = token.role as Role;
+      // Tokens issued before session versioning was introduced are version 0,
+      // matching every existing user until their first password reset.
+      session.user.sessionVersion =
+        typeof token.sessionVersion === "number" ? token.sessionVersion : 0;
       return session;
     },
   },

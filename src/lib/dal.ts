@@ -14,6 +14,17 @@ export const verifySession = cache(async () => {
   if (!session?.user?.id) {
     redirect("/login");
   }
+
+  const current = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { sessionVersion: true },
+  });
+  if (
+    !current ||
+    current.sessionVersion !== session.user.sessionVersion
+  ) {
+    redirect("/login");
+  }
   return { userId: session.user.id };
 });
 
@@ -23,7 +34,7 @@ export const verifySession = cache(async () => {
 export const getViewer = cache(async () => {
   const session = await auth();
   if (!session?.user?.id) return null;
-  return prisma.user.findUnique({
+  const user = await prisma.user.findUnique({
     where: { id: session.user.id },
     // email/image are here so public pages can render the signed-in shell
     // (sidebar + account footer) without a second query.
@@ -35,8 +46,15 @@ export const getViewer = cache(async () => {
       image: true,
       role: true,
       partnerStatus: true,
+      sessionVersion: true,
     },
   });
+  if (!user || user.sessionVersion !== session.user.sessionVersion) {
+    return null;
+  }
+
+  const { sessionVersion: _sessionVersion, ...viewer } = user;
+  return viewer;
 });
 
 // Returns the current user's profile (only the fields the UI needs).

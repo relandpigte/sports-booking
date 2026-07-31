@@ -7,10 +7,12 @@ email/password login, and **Prisma** against **Postgres** for storage.
 
 Copy `.env.example` to `.env` and fill in:
 
-| Variable       | What it is                                                            |
-| -------------- | -------------------------------------------------------------------- |
-| `DATABASE_URL` | Postgres connection string (Neon, Supabase, RDS, or local Postgres). |
-| `AUTH_SECRET`  | Secret used to sign session JWTs. Generate with the command below.    |
+| Variable         | What it is                                                            |
+| ---------------- | --------------------------------------------------------------------- |
+| `DATABASE_URL`   | Postgres connection string (Neon, Supabase, RDS, or local Postgres).  |
+| `AUTH_SECRET`    | Secret used to sign session JWTs. Generate with the command below.   |
+| `RESEND_API_KEY` | Resend API key used only by the server for password-reset email.      |
+| `EMAIL_FROM`     | Sender on a verified Resend domain, including an optional brand name. |
 
 ```bash
 openssl rand -base64 32   # value for AUTH_SECRET
@@ -41,6 +43,8 @@ npm run dev
 - `/register` — create a player account (password is hashed with bcrypt).
 - `/register/partner` — apply for a partner account; an admin must activate it.
 - `/login` — sign in.
+- `/forgot-password` — request an expiring password-reset link.
+- `/reset-password?token=…` — choose a new password with a single-use token.
 - `/dashboard` — protected; redirects to `/login` when signed out.
 
 ## How it fits together
@@ -52,6 +56,9 @@ npm run dev
 | `src/lib/auth.ts`                      | NextAuth config: Credentials provider, JWT sessions, callbacks.  |
 | `src/app/api/auth/[...nextauth]/route.ts` | NextAuth request handlers (`GET`/`POST`).                      |
 | `src/lib/actions.ts`                   | Server Actions: `registerAction`, `loginAction`, `logoutAction`. |
+| `src/lib/password-reset.ts`            | Hashed reset tokens, throttling, expiry, and password update.     |
+| `src/lib/password-reset-actions.ts`    | Server Actions for requesting and completing a reset.             |
+| `src/lib/email.ts`                     | Resend API adapter for reset email delivery.                       |
 | `src/lib/validation.ts`                | Zod schemas for login/registration.                              |
 | `src/lib/dal.ts`                       | Data Access Layer: `verifySession`, `getCurrentUser`.            |
 | `src/proxy.ts`                         | Next.js 16 "Proxy" (formerly Middleware): optimistic route guard. |
@@ -68,6 +75,8 @@ operation. `requirePartner()` is reserved for pages a pending partner may see.
 
 - The role is carried in the session JWT (`session.user.role`) via the callbacks
   in `src/lib/auth.ts`.
+- Resetting a password increments `User.sessionVersion`; the DAL compares that
+  value with the JWT and rejects sessions issued before the reset.
 - Gate a page or server action with `requireRole()` from `src/lib/dal.ts`:
 
   ```ts
@@ -91,3 +100,6 @@ operation. `requirePartner()` is reserved for pages a pending partner may see.
 - `src/proxy.ts` does an **optimistic** cookie check only. The authoritative
   check is `verifySession()` in the DAL, which every protected page/server
   action should call.
+- Reset tokens expire after 30 minutes, are single-use, and are stored only as
+  SHA-256 hashes. Requests return the same account-neutral response and are
+  throttled to one email per normalized address per minute.

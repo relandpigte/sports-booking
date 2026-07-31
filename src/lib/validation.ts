@@ -19,6 +19,25 @@ export const LoginSchema = z.object({
   password: z.string().min(1, { error: "Password is required" }),
 });
 
+export const ForgotPasswordSchema = z.object({
+  email: z.email({ error: "Enter a valid email" }).trim().toLowerCase(),
+});
+
+export const ResetPasswordSchema = z
+  .object({
+    token: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]{43}$/, { error: "This reset link is invalid" }),
+    password: z
+      .string()
+      .min(6, { error: "Password must be at least 6 characters" }),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    error: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
+
 // Factored out so the partner schema can reshape it. A refined schema (one
 // with .refine) can't be .omit()/.extend()-ed, so the base object and the
 // cross-field rule have to live separately.

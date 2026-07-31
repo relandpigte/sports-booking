@@ -41,8 +41,9 @@ export async function createServiceFeeCheckout(input: {
       partnerId: input.partnerId,
       partnerName: input.partnerName.slice(0, 120),
     },
-    // PayMongo's hosted page renders the exact-amount QR Ph code.
-    paymentMethodTypes: ["qrph"],
+    // Keep every settlement method on PayMongo's hosted page. No card or
+    // wallet details pass through this application.
+    paymentMethodTypes: ["qrph", "card", "gcash", "paymaya"],
     // The admin receives the complete service-fee balance. PayMongo shows its
     // processing fee separately to the paying partner.
     passOnFees: true,
@@ -53,7 +54,7 @@ export async function createServiceFeeCheckout(input: {
     throw new PayMongoRequestError(
       502,
       "no_checkout_url",
-      "PayMongo did not return a QR Ph checkout page."
+      "PayMongo did not return a settlement checkout page."
     );
   }
 
@@ -128,7 +129,7 @@ export async function verifyPlatformPaymongoWebhook(
       reference: event.resourceId,
       failureCode: "payment_failed",
       failureMessage:
-        payment.last_payment_error ?? "The QR Ph payment was not completed.",
+        payment.last_payment_error ?? "The PayMongo payment was not completed.",
       amountCentavos: undefined,
       raw: JSON.parse(rawBody),
     };

@@ -36,7 +36,7 @@ export default async function PaymentsPage({
     getGatewayView(partner.id),
     getPartnerServiceFeeView(partner.id),
   ]);
-  const paymongoQrEnabled = await platformPaymongoConfigured();
+  const paymongoSettlementEnabled = await platformPaymongoConfigured();
 
   return (
     <div>
@@ -51,7 +51,7 @@ export default async function PaymentsPage({
         <ServiceFeePanel
           balance={serviceFees.balance}
           settlements={serviceFees.settlements}
-          paymongoQrEnabled={paymongoQrEnabled}
+          paymongoSettlementEnabled={paymongoSettlementEnabled}
           paymentInstructions={
             process.env.SERVICE_FEE_PAYMENT_INSTRUCTIONS?.trim() ||
             "Transfer this amount using the payment details provided by the admin, then enter the reference and upload the receipt."

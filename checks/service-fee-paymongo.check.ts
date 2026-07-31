@@ -1,4 +1,4 @@
-// Partner-to-admin service-fee settlement through PayMongo QR Ph.
+// Partner-to-admin service-fee settlement through PayMongo.
 //
 //   npm run check:settlement-paymongo
 //
@@ -126,8 +126,9 @@ async function check() {
     created!.body as { data: { attributes: Record<string, unknown> } }
   ).data.attributes;
   ok(
-    "the checkout is QR Ph only",
-    JSON.stringify(attributes.payment_method_types) === JSON.stringify(["qrph"])
+    "the checkout offers QR Ph, card, GCash and Maya",
+    JSON.stringify(attributes.payment_method_types) ===
+      JSON.stringify(["qrph", "card", "gcash", "paymaya"])
   );
   ok(
     "the exact ₱25 balance is sent in centavos",
@@ -197,7 +198,7 @@ async function check() {
   const event = (await verifyPlatformPaymongoWebhook(body, headers))!;
   eventIds.push(event.eventId);
   ok(
-    "the signed webhook settles the QR payment",
+    "the signed webhook settles the PayMongo payment",
     (await handleServiceFeeProviderEvent(event)).applied
   );
   const replay = await handleServiceFeeProviderEvent(event);

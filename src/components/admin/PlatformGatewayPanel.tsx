@@ -93,8 +93,8 @@ export function PlatformGatewayPanel({
             PayMongo collection account
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-gray-500">
-            Partner service-fee settlements are collected through QR Ph and
-            deposited directly into this PayMongo account.
+            Partner service-fee settlements paid through QR Ph, card, GCash,
+            or Maya are deposited directly into this PayMongo account.
           </p>
         </div>
         {connected ? (
@@ -150,8 +150,8 @@ export function PlatformGatewayPanel({
 
         <CopyField value={gateway?.webhookUrl ?? webhookUrl} />
         <p className="-mt-2 text-xs text-gray-400">
-          PayMongo calls this signed endpoint after a QR payment succeeds. The
-          connection form registers it automatically when possible.
+          PayMongo calls this signed endpoint after an online payment succeeds.
+          The connection form registers it automatically when possible.
         </p>
 
         {!webhookUrlReachable && (
@@ -159,10 +159,11 @@ export function PlatformGatewayPanel({
             role="alert"
             className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800"
           >
-            This URL is not reaching the settlement webhook. QR funds can still
-            arrive in PayMongo, but automatic settlement confirmation and the
-            checkout return will be unreliable. Update <code>APP_URL</code> to
-            the live HTTPS site, restart the app, then replace this connection.
+            This URL is not reaching the settlement webhook. Funds can still
+            arrive in PayMongo, but automatic settlement confirmation and
+            checkout returns will be unreliable. Update <code>APP_URL</code>{" "}
+            to the live HTTPS site, restart the app, then replace this
+            connection.
           </p>
         )}
 

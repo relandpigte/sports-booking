@@ -196,7 +196,7 @@ export async function connectPlatformGatewayAction(
   revalidatePlatformGatewaySurfaces();
   return {
     success: parsed.data.webhookSecret
-      ? "PayMongo connected. Service-fee QR payments will be deposited into this account."
+      ? "PayMongo connected. Service-fee payments will be deposited into this account."
       : "PayMongo connected and its settlement webhook was registered automatically.",
   };
 }
@@ -213,7 +213,7 @@ export async function disconnectPlatformGatewayAction(
   if (active > 0) {
     return {
       message:
-        "This account has an active QR settlement. Let it complete or expire before disconnecting.",
+        "This account has an active PayMongo settlement. Let it complete or expire before disconnecting.",
     };
   }
 
@@ -231,6 +231,6 @@ export async function disconnectPlatformGatewayAction(
   revalidatePlatformGatewaySurfaces();
   return {
     success:
-      "PayMongo disconnected. New QR settlements are disabled; manual remittance remains available.",
+      "PayMongo disconnected. New online settlements are disabled; manual remittance remains available.",
   };
 }

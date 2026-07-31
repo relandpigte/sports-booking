@@ -52,14 +52,14 @@ export async function submitServiceFeeSettlementAction(
   try {
     const result = await prisma.$transaction(
       async (tx) => {
-        const awaitingQr = await tx.serviceFeeSettlement.count({
+        const awaitingPaymongo = await tx.serviceFeeSettlement.count({
           where: {
             partnerId: partner.id,
             status: "AWAITING_PAYMENT",
             provider: "paymongo",
           },
         });
-        if (awaitingQr > 0) throw new ActiveQrCheckoutError();
+        if (awaitingPaymongo > 0) throw new ActivePaymongoCheckoutError();
 
         const balance = await calculateServiceFeeBalance(tx, partner.id);
         if (balance.amountDue < 0.01) return null;
@@ -83,10 +83,10 @@ export async function submitServiceFeeSettlementAction(
       return { message: "There is no outstanding service-fee balance." };
     }
   } catch (error) {
-    if (error instanceof ActiveQrCheckoutError) {
+    if (error instanceof ActivePaymongoCheckoutError) {
       return {
         message:
-          "A QR Ph checkout is already active. Finish or let it expire before submitting a manual transfer.",
+          "A PayMongo checkout is already active. Finish or let it expire before submitting a manual transfer.",
       };
     }
     if (
@@ -105,7 +105,7 @@ export async function submitServiceFeeSettlementAction(
   };
 }
 
-class ActiveQrCheckoutError extends Error {}
+class ActivePaymongoCheckoutError extends Error {}
 
 export async function startServiceFeeCheckoutAction(
   _prev: ServiceFeeFormState,
@@ -115,7 +115,7 @@ export async function startServiceFeeCheckoutAction(
   if (!(await platformPaymongoConfigured())) {
     return {
       message:
-        "QR Ph payments are not configured yet. Use the manual transfer option below.",
+        "PayMongo payments are not configured yet. Use the manual transfer option below.",
     };
   }
 
@@ -135,7 +135,7 @@ export async function startServiceFeeCheckoutAction(
     case "pending":
       return {
         success:
-          "Your QR Ph checkout is being prepared. Refresh and try again in a moment.",
+          "Your PayMongo checkout is being prepared. Refresh and try again in a moment.",
       };
     case "failed":
       return { message: result.message };

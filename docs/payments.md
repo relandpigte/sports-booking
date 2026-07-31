@@ -30,8 +30,37 @@ method-specific processing fee to the player after they choose how to pay.
 
 ## Partner gateway setup
 
-An activated partner opens `/dashboard/payments` and supplies their own
-PayMongo publishable and secret keys. The application:
+Each venue uses its own PayMongo account so player booking proceeds go directly
+to that partner. The admin activates the partner in `/users`; the partner then
+connects its own account in `/dashboard/payments`.
+
+### Partner onboarding steps
+
+1. Create a PayMongo account at
+   [dashboard.paymongo.com/signup](https://dashboard.paymongo.com/signup) and
+   complete PayMongo's business verification. Test keys are available for
+   sandbox setup; the account and required payment channels must be activated
+   before accepting real payments.
+2. In the PayMongo dashboard, open **Developers → API Keys**. Copy a matching
+   pair:
+   - Test setup: `pk_test_…` and `sk_test_…`
+   - Live payments: `pk_live_…` and `sk_live_…`
+3. In Bunal.club, open **Partner dashboard → Payments → Getting paid by
+   players**. Paste the public key into **Publishable key**, paste the matching
+   secret into **Secret key**, and select **Connect account**.
+4. The application verifies the credentials and registers the
+   partner-specific `checkout_session.payment.paid` webhook automatically.
+   Complete a test booking before going live.
+5. After PayMongo activates the live account, use **Replace keys** and replace
+   both test keys with the live pair. Never mix test and live credentials.
+
+The secret key controls the partner's PayMongo account and must be treated like
+a password. Never send it through chat or email, store it in source control, or
+place it in client-side code. If it is exposed, regenerate it in PayMongo and
+replace it in Bunal.club immediately. See PayMongo's
+[official API-key guide](https://docs.paymongo.com/do/docs/account-settings-api-keys).
+
+After the partner submits the form, the application:
 
 1. Verifies the credentials with PayMongo.
 2. Registers the partner-specific webhook.
@@ -59,12 +88,13 @@ The partner's PayMongo account initially receives the court subtotal. After a
 successful booking is confirmed, an immutable `ServiceFeeEntry` records the
 fixed fee owed to Bunal.ph; a full refund creates an equal negative entry.
 Partners remit the outstanding balance from `/dashboard/payments`. The primary
-flow opens an exact-amount, QR-Ph-only PayMongo hosted checkout in Bunal.ph's
-own account. A signed `checkout_session.payment.paid` webhook marks the
-settlement paid automatically; the browser return leg also checks PayMongo in
-case it arrives before the webhook. Manual transfer reference and receipt
-submission remains available as a fallback, with admins reviewing those
-submissions in `/dashboard/admin/settlements`.
+flow opens an exact-amount PayMongo hosted checkout in Bunal.ph's own account
+with QR Ph, credit/debit card, GCash, and Maya. A signed
+`checkout_session.payment.paid` webhook marks the settlement paid
+automatically; the browser return leg also checks PayMongo in case it arrives
+before the webhook. Manual transfer reference and receipt submission remains
+available as a fallback, with admins reviewing those submissions in
+`/dashboard/admin/settlements`.
 
 An admin connects Bunal.ph's collection account under
 `/dashboard/admin/payments`. The action validates the secret key, registers the
@@ -104,7 +134,7 @@ Point a cron at the cleanup endpoint:
 ```bash
 curl -X POST \
   -H "Authorization: Bearer $BOOKING_SWEEP_SECRET" \
-  https://bunal.ph/api/bookings/sweep
+  https://bunal.club/api/bookings/sweep
 ```
 
 Availability does not depend on the cron: expired holds stop blocking slots

@@ -35,12 +35,12 @@ const formatDate = (date: Date) =>
 export function ServiceFeePanel({
   balance,
   settlements,
-  paymongoQrEnabled,
+  paymongoSettlementEnabled,
   paymentInstructions,
 }: {
   balance: ServiceFeeBalance;
   settlements: ServiceFeeSettlementView[];
-  paymongoQrEnabled: boolean;
+  paymongoSettlementEnabled: boolean;
   paymentInstructions: string;
 }) {
   const [state, action, pending] = useActionState(
@@ -160,18 +160,18 @@ export function ServiceFeePanel({
 
       {balance.amountDue > 0 && (
         <div className="mt-5 flex flex-col gap-5">
-          {paymongoQrEnabled && (
+          {paymongoSettlementEnabled && (
             <form
               action={checkoutAction}
               className="rounded-xl border border-primary/20 bg-primary-soft p-4"
             >
               <h3 className="text-sm font-semibold text-gray-900">
-                Pay {formatPHP(balance.amountDue)} with QR Ph
+                Pay {formatPHP(balance.amountDue)} with PayMongo
               </h3>
               <p className="mt-1 text-xs text-gray-600">
-                PayMongo opens a secure checkout with an exact-amount QR code.
-                Scan it with any participating bank or e-wallet app. Payment is
-                confirmed automatically.
+                Choose QR Ph, credit or debit card, GCash, or Maya in the
+                secure exact-amount checkout. Payment is confirmed
+                automatically.
               </p>
               <Button
                 type="submit"
@@ -181,8 +181,8 @@ export function ServiceFeePanel({
                 {startingCheckout
                   ? "Opening PayMongo…"
                   : awaitingCheckout
-                    ? "Continue QR Ph payment"
-                    : "Pay with QR Ph"}
+                    ? "Continue PayMongo payment"
+                    : "Choose payment method"}
               </Button>
             </form>
           )}
@@ -191,7 +191,7 @@ export function ServiceFeePanel({
             <form action={action} className="flex flex-col gap-4">
               <div>
                 <h3 className="text-sm font-semibold text-gray-900">
-                  {paymongoQrEnabled
+                  {paymongoSettlementEnabled
                     ? "Or submit a manual transfer"
                     : `Submit settlement for ${formatPHP(balance.amountDue)}`}
                 </h3>

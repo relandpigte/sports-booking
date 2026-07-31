@@ -70,6 +70,111 @@ function CopyField({ label, value }: { label: string; value: string }) {
   );
 }
 
+function PayMongoSetupGuide({ connected }: { connected: boolean }) {
+  return (
+    <details
+      open={!connected}
+      className="rounded-xl border border-gray-200 bg-gray-50"
+    >
+      <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-gray-900">
+        How to create and connect your PayMongo account
+      </summary>
+      <div className="border-t border-gray-200 px-4 py-4">
+        <ol className="flex flex-col gap-4">
+          <li className="flex gap-3">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
+              1
+            </span>
+            <div>
+              <p className="text-sm font-medium text-gray-900">
+                Create your PayMongo account
+              </p>
+              <p className="mt-1 text-xs leading-5 text-gray-500">
+                <a
+                  href="https://dashboard.paymongo.com/signup"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-medium text-primary hover:underline"
+                >
+                  Sign up with PayMongo
+                </a>{" "}
+                and complete its business verification. You can use test keys
+                while setting up; your PayMongo account and payment channels
+                must be activated before accepting real payments.
+              </p>
+            </div>
+          </li>
+          <li className="flex gap-3">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
+              2
+            </span>
+            <div>
+              <p className="text-sm font-medium text-gray-900">
+                Copy a matching API-key pair
+              </p>
+              <p className="mt-1 text-xs leading-5 text-gray-500">
+                In PayMongo, open{" "}
+                <span className="font-medium text-gray-700">
+                  Developers → API Keys
+                </span>
+                . For testing, copy the <code>pk_test_…</code> and{" "}
+                <code>sk_test_…</code> keys. For real payments, use the{" "}
+                <code>pk_live_…</code> and <code>sk_live_…</code> pair. Never
+                mix test and live keys.
+              </p>
+            </div>
+          </li>
+          <li className="flex gap-3">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
+              3
+            </span>
+            <div>
+              <p className="text-sm font-medium text-gray-900">
+                Connect the keys below
+              </p>
+              <p className="mt-1 text-xs leading-5 text-gray-500">
+                Paste the public key into Publishable key and the matching
+                secret into Secret key, then select Connect account. Bunal.club
+                verifies the keys and registers the payment webhook
+                automatically.
+              </p>
+            </div>
+          </li>
+          <li className="flex gap-3">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
+              4
+            </span>
+            <div>
+              <p className="text-sm font-medium text-gray-900">
+                Test, then switch to live
+              </p>
+              <p className="mt-1 text-xs leading-5 text-gray-500">
+                Complete a test booking first. When PayMongo has activated your
+                live account, choose Replace keys here and replace both test
+                keys with the matching live pair.
+              </p>
+            </div>
+          </li>
+        </ol>
+
+        <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+          Treat your <code>sk_…</code> secret like a password. Never send it by
+          chat or email. If it is exposed, regenerate it in PayMongo and replace
+          it here immediately.
+        </p>
+        <a
+          href="https://docs.paymongo.com/do/docs/account-settings-api-keys"
+          target="_blank"
+          rel="noreferrer"
+          className="mt-3 inline-flex text-xs font-medium text-primary hover:underline"
+        >
+          Read PayMongo&apos;s official API-key guide →
+        </a>
+      </div>
+    </details>
+  );
+}
+
 // Connect / disconnect a partner's own gateway.
 //
 // A secret key is never rendered and the form is never pre-filled — the only
@@ -111,6 +216,7 @@ export function GatewayPanel({ gateway }: { gateway: GatewayView | null }) {
 
       <div className="mt-4 flex flex-col gap-3">
         <Banner state={disconnectState} />
+        <PayMongoSetupGuide connected={connected} />
 
         {connected && gateway && (
           <>

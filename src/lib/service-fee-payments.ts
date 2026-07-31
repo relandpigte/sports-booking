@@ -80,7 +80,7 @@ export async function startServiceFeeCheckout(args: {
     ) {
       return {
         status: "failed",
-        message: "The balance changed. Please try the QR payment again.",
+        message: "The balance changed. Please start the payment again.",
       };
     }
     throw error;
@@ -160,7 +160,7 @@ async function markServiceFeeSettlementPaid(args: {
         paymentReference: args.reference ?? args.providerPaymentId,
         providerRef: args.reference,
         reviewedAt: new Date(),
-        reviewNote: "Paid automatically through PayMongo QR Ph.",
+        reviewNote: "Paid automatically through PayMongo.",
         raw: args.raw as Prisma.InputJsonValue,
       },
     });
@@ -190,7 +190,10 @@ export async function pollServiceFeeCheckout(args: {
     settlement.status !== "AWAITING_PAYMENT" ||
     !settlement.providerPaymentId
   ) {
-    return { status: "failed", message: "That QR payment is no longer active." };
+    return {
+      status: "failed",
+      message: "That PayMongo payment is no longer active.",
+    };
   }
 
   try {
@@ -213,13 +216,13 @@ export async function pollServiceFeeCheckout(args: {
         },
         data: {
           status: "REJECTED",
-          reviewNote: "PayMongo QR Ph checkout expired before payment.",
+          reviewNote: "PayMongo checkout expired before payment.",
           raw: session as Prisma.InputJsonValue,
         },
       });
       return {
         status: "failed",
-        message: "The QR Ph checkout expired. Start a new payment.",
+        message: "The PayMongo checkout expired. Start a new payment.",
       };
     }
     return settlement.redirectUrl
@@ -294,7 +297,7 @@ export async function handleServiceFeeProviderEvent(
       data: {
         status: "REJECTED",
         reviewNote:
-          event.failureMessage ?? "The PayMongo QR Ph payment failed.",
+          event.failureMessage ?? "The PayMongo payment failed.",
         raw: event.raw as Prisma.InputJsonValue,
       },
     });

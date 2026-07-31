@@ -29,7 +29,7 @@ export const metadata: Metadata = {
       "Book volleyball, badminton and pickleball courts across Bohol.",
     url: "https://bunal.club",
     siteName: "Bunal.club",
-    images: ["/bunal-logo.png"],
+    images: ["/bunal-logo-transparent.png"],
     locale: "en_PH",
     type: "website",
   },

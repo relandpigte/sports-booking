@@ -17,9 +17,10 @@ court directory.
 
 ## Brand source of truth
 
-Use the actual Bunal.club logo at `public/bunal-logo.png`. The badge combines a
-near-black shield/navy wordmark, court green, lime, ocean blue, and the Bohol
-landscape. The homepage should feel energetic, local, sunny, and operationally
+Use the actual transparent Bunal.club logo at
+`public/bunal-logo-transparent.png`. The badge combines a near-black
+shield/navy wordmark, court green, lime, ocean blue, and the Bohol landscape.
+The homepage should feel energetic, local, sunny, and operationally
 trustworthy—sports-club energy with payment-product clarity.
 
 Hard palette:

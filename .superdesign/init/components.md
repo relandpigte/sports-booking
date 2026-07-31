@@ -18,7 +18,7 @@ export function Logo({
       className={`relative h-[60px] w-[250px] max-w-full shrink ${className}`}
     >
       <Image
-        src="/bunal-logo.png"
+        src="/bunal-logo-transparent.png"
         alt="Bunal.club"
         fill
         sizes="250px"

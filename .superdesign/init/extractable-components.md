@@ -6,7 +6,8 @@
 - Category: basic
 - Description: Shared Bunal.club wordmark in a proportion-preserving 250×60 box.
 - Extractable props: none needed for the homepage.
-- Hardcoded: `/bunal-logo.png`, alt text, dimensions, containment behavior.
+- Hardcoded: `/bunal-logo-transparent.png`, alt text, dimensions, containment
+  behavior.
 
 ## PublicTopBar
 

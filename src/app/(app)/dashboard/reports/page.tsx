@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { PeriodPicker } from "@/components/reports/PeriodPicker";
 import { RevenueReport, type StatTile } from "@/components/reports/RevenueReport";
 import { requireActivePartner } from "@/lib/dal";
@@ -11,7 +12,7 @@ import { formatPHP } from "@/lib/currency";
 import { MONTHS } from "@/lib/constants";
 
 export const metadata: Metadata = {
-  title: "Reports — Bunal.ph",
+  title: "Reports — Bunal.club",
 };
 
 // The partner's own takings. Reads the payment ledger, so it shows money that
@@ -79,39 +80,37 @@ export default async function PartnerReportsPage({
 
   return (
     <div>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-navy">Reports</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Court payments that reached your PayMongo account.
-          </p>
-        </div>
-
-        <PeriodPicker
-          action="/dashboard/reports"
-          year={year}
-          month={month}
-          grain={grain}
-          hidden={{ hub: hubId }}
-          extra={
-            hubs.length > 1 ? (
-              <select
-                name="hub"
-                defaultValue={hubId ?? ""}
-                aria-label="Hub"
-                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary focus:outline-none"
-              >
-                <option value="">All hubs</option>
-                {hubs.map((hub) => (
-                  <option key={hub.id} value={hub.id}>
-                    {hub.name}
-                  </option>
-                ))}
-              </select>
-            ) : null
-          }
-        />
-      </div>
+      <DashboardPageHeader
+        eyebrow="Venue performance"
+        title="Reports"
+        description="Court payments that reached your own PayMongo account."
+        actions={
+          <PeriodPicker
+            action="/dashboard/reports"
+            year={year}
+            month={month}
+            grain={grain}
+            hidden={{ hub: hubId }}
+            extra={
+              hubs.length > 1 ? (
+                <select
+                  name="hub"
+                  defaultValue={hubId ?? ""}
+                  aria-label="Hub"
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary focus:outline-none"
+                >
+                  <option value="">All hubs</option>
+                  {hubs.map((hub) => (
+                    <option key={hub.id} value={hub.id}>
+                      {hub.name}
+                    </option>
+                  ))}
+                </select>
+              ) : null
+            }
+          />
+        }
+      />
 
       <div className="mt-6">
         <RevenueReport

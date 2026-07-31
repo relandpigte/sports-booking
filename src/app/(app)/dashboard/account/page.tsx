@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/dal";
 import { AccountForm } from "@/components/dashboard/AccountForm";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 
 export const metadata: Metadata = {
-  title: "Account Settings — Bunal.ph",
+  title: "Account Settings — Bunal.club",
 };
 
 export default async function AccountPage() {
@@ -14,10 +15,11 @@ export default async function AccountPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900">Account Settings</h1>
-      <p className="mt-1 text-sm text-gray-500">
-        Update your profile details and privacy.
-      </p>
+      <DashboardPageHeader
+        eyebrow="Profile"
+        title="Account settings"
+        description="Update your contact details, player profile, and privacy preferences."
+      />
       <AccountForm user={user} />
     </div>
   );

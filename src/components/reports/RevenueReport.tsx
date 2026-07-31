@@ -78,7 +78,7 @@ export function RevenueReport({
         ))}
       </div>
 
-      <section className="rounded-2xl border border-gray-200 p-4 sm:p-5">
+      <section className="rounded-2xl border border-[#dfe7e2] bg-white p-4 shadow-sm shadow-navy/5 sm:p-5">
         <h2 className="text-base font-semibold text-navy">{title}</h2>
         <p className="mt-0.5 text-sm text-gray-500">{subtitle}</p>
 
@@ -94,7 +94,7 @@ export function RevenueReport({
       </section>
 
       {top.length > 0 && (
-        <section className="rounded-2xl border border-gray-200 p-4 sm:p-5">
+        <section className="rounded-2xl border border-[#dfe7e2] bg-white p-4 shadow-sm shadow-navy/5 sm:p-5">
           <h2 className="text-base font-semibold text-navy">
             {series.grain === "month" ? "By month" : "Busiest days"}
           </h2>

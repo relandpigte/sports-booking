@@ -54,19 +54,13 @@ const FEATURES: {
     icon: "chart",
     title: "Reports that reconcile",
     description:
-      "Partners see revenue and booking performance; admins see payment and service-fee breakdowns.",
-  },
-  {
-    icon: "users",
-    title: "Partner approvals",
-    description:
-      "Admin review keeps the public directory focused on active, connected venue partners.",
+      "Venue partners see collected revenue and booking performance in one clear workspace.",
   },
   {
     icon: "shield",
-    title: "Payment controls",
+    title: "Protected payments",
     description:
-      "Signed webhooks, duplicate-charge protection, encrypted gateway keys, and clear settlement status.",
+      "Secure PayMongo checkout, automatic verification, and duplicate-charge protection make every booking easier.",
   },
 ];
 
@@ -496,7 +490,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                 {
                   number: "01",
                   title: "Browse a hub",
-                  copy: "Find volleyball, badminton, pickleball, tennis, basketball, and squash courts in the public directory.",
+                  copy: "Find volleyball, badminton, pickleball, and tennis courts in the public directory.",
                   icon: "map" as const,
                 },
                 {
@@ -745,7 +739,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
             <SectionHeading
               eyebrow="One connected platform"
               title="Useful before, during, and after every booking."
-              description="The public directory, booking flow, venue workspace, reports, and admin controls use the same source of truth."
+              description="The public directory, booking flow, venue workspace, and partner reports use the same source of truth."
             />
 
             <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -851,8 +845,8 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
               <div className="flex items-center gap-3 bg-navy px-6 py-5 text-white sm:px-7">
                 <Icon name="chart" className="h-5 w-5 shrink-0 text-accent" />
                 <p className="text-sm text-white/75">
-                  Payment, revenue, and settlement breakdowns stay visible to
-                  partners and platform admins.
+                  Payment, revenue, and booking breakdowns stay visible in the
+                  partner workspace.
                 </p>
               </div>
             </div>
@@ -861,7 +855,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
 
         <section className="px-5 py-20 sm:px-6 sm:py-24 lg:px-8">
           <div className="mx-auto max-w-7xl">
-            <div className="grid gap-5 lg:grid-cols-3">
+            <div className="mx-auto grid max-w-5xl gap-5 md:grid-cols-2">
               {[
                 {
                   eyebrow: "Players",
@@ -878,14 +872,6 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                   href: "/register/partner",
                   cta: "Apply as partner",
                   icon: "court" as const,
-                },
-                {
-                  eyebrow: "Admin / owner",
-                  title: "Know what is due",
-                  copy: "Review partners, payment collection, reports, and settlement breakdowns.",
-                  href: accountHref,
-                  cta: "Open dashboard",
-                  icon: "chart" as const,
                 },
               ].map((role) => (
                 <article

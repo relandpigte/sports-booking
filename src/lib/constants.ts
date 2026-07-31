@@ -49,8 +49,6 @@ export const GAMES = [
   { value: "pickleball", label: "Pickleball" },
   { value: "tennis", label: "Tennis" },
   { value: "badminton", label: "Badminton" },
-  { value: "basketball", label: "Basketball" },
-  { value: "squash", label: "Squash" },
   { value: "volleyball", label: "Volleyball" },
 ] as const;
 

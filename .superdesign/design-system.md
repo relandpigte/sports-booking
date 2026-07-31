@@ -100,7 +100,8 @@ hierarchy.
 6. Feature grid with only existing functionality: venue profiles and maps,
    court/rate/hours management, live availability, booking management,
    rescheduling/cancellation/refund support, player booking dashboard, partner
-   reports, admin partner approvals, admin settlement breakdown, social links.
+   reports, payment security, and social links. Do not expose owner/admin
+   workflows, approvals, reports, or settlement controls on public pages.
 7. Partner section: no plans/subscriptions/monthly charges; proceeds go to the
    venue's own PayMongo account; venue retains advertised court rate; fixed
    Bunal.club service fee is ₱15 for one hour and ₱25 for more than one hour;
@@ -114,3 +115,38 @@ Use 150–250ms color, border, transform, and shadow transitions. Respect
 `prefers-reduced-motion`. No scroll-trigger dependency or client-only viewport
 branching. Maintain visible focus states, semantic headings, descriptive link
 labels, 44px tap targets, sufficient contrast, and server-stable markup.
+
+## Authenticated dashboard architecture
+
+The dashboard must feel like the operational side of the same Bunal.club
+brand, with denser spacing and calmer surfaces than the marketing homepage.
+Preserve every route and role permission while making the shared shell and
+page composition consistent.
+
+- Desktop shell: a 272px navy sidebar with the real logo on a white inset,
+  clearly grouped navigation, a lime/green active marker, and a compact
+  signed-in user card at the bottom. The content area uses the off-white
+  background and a centered 1180px work surface.
+- Mobile shell: a compact white header with the logo and horizontally
+  scrollable role navigation. Never hide required destinations behind an
+  inaccessible hover state and avoid horizontal page overflow.
+- Page headers: small uppercase role/context eyebrow, 28–32px navy title,
+  concise muted description, and actions aligned right when space permits.
+- Dashboard cards: white, 1px `#dfe7e2` border, 16–20px radius, restrained
+  navy-tinted shadow, and consistent 20–24px padding.
+- Stat cards: label first, large value, optional short hint, and a small icon
+  tile. Use green for positive/actionable states, ocean for information, lime
+  sparingly for emphasis, and amber/red only for real warnings.
+- Forms and tables: group related fields into titled card sections. Inputs
+  remain 42–46px tall with clear labels and green focus states. Tables use
+  compact headers, generous row height, and responsive overflow.
+- Empty states: dashed border, soft brand tint, one clear next action.
+- Role homepages:
+  - Player: next booking and find-a-court action dominate; stats are secondary.
+  - Partner: the PayMongo-first onboarding sequence is explicit, followed by
+    hub, booking, report, and settlement shortcuts.
+  - Owner/admin: pending work and financial status dominate; sensitive owner
+    capabilities appear only inside authenticated routes.
+- Navigation labels and page content must use “Bunal.club”, not `Bunal.ph`.
+- Do not expose owner/admin functionality, approval tools, reports, or
+  settlement information in the public homepage or other signed-out content.

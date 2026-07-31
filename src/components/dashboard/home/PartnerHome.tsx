@@ -2,6 +2,12 @@ import Link from "next/link";
 
 import type { PartnerStatus } from "@prisma/client";
 
+import {
+  DashboardIcon,
+  type DashboardIconName,
+} from "@/components/dashboard/DashboardIcon";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+
 type PartnerHomeUser = {
   name: string | null;
   playerName: string | null;
@@ -17,71 +23,124 @@ export function PartnerHome({
   isGatewayConnected: boolean;
 }) {
   const active = partnerStatus === "ACTIVE";
-  const comingSoon = [
+  const shortcuts: {
+    label: string;
+    desc: string;
+    href: string;
+    action: string;
+    icon: DashboardIconName;
+    tone: string;
+  }[] = [
     {
-      label: "Booking requests",
-      desc: "Review and respond to players booking your courts.",
+      label: "My hubs",
+      desc: "Manage venue details, courts, rates, and operating hours.",
+      href: "/dashboard/hubs",
+      action: "Manage hubs",
+      icon: "hub",
+      tone: "bg-ocean-soft text-ocean",
+    },
+    {
+      label: "Bookings",
+      desc: "Review player reservations across all your active courts.",
+      href: "/dashboard/bookings",
+      action: "View bookings",
+      icon: "booking",
+      tone: "bg-primary-soft text-primary",
+    },
+    {
+      label: "Reports",
+      desc: "Understand collected court revenue and booking performance.",
+      href: "/dashboard/reports",
+      action: "Open reports",
+      icon: "report",
+      tone: "bg-accent-soft text-navy",
+    },
+    {
+      label: "Payments",
+      desc: "Manage PayMongo and settle Bunal.club service fees.",
+      href: "/dashboard/payments",
+      action: "Manage payments",
+      icon: "payment",
+      tone: "bg-navy-soft text-navy",
     },
   ];
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Welcome back, {user.name ?? user.playerName ?? "Partner"}
-          </h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Your partner workspace.
-          </p>
-        </div>
-        <span className="mt-1 shrink-0 rounded-full bg-primary-soft px-2.5 py-1 text-xs font-semibold text-primary">
-          Partner
-        </span>
-      </div>
+      <DashboardPageHeader
+        eyebrow="Partner dashboard"
+        title={`Welcome back, ${user.name ?? user.playerName ?? "Partner"}`}
+        description="Manage your payment setup, venues, bookings, and court revenue."
+        badge={
+          <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-navy shadow-sm shadow-navy/5">
+            <span
+              className={`h-2 w-2 rounded-full ${
+                active ? "bg-primary" : "bg-amber-500"
+              }`}
+            />
+            {active ? "Active partner" : "Under review"}
+          </span>
+        }
+      />
 
       {!active && (
-        <section className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5">
-          <h2 className="font-semibold text-amber-900">
-            Your partner account is under review
-          </h2>
-          <p className="mt-1 text-sm text-amber-800">
-            An admin will verify your business details before activating your
-            account. You can update your account information while you wait.
-          </p>
+        <section className="mt-8 rounded-2xl border border-amber-200 bg-white p-6 shadow-sm shadow-navy/5">
+          <div className="flex gap-4">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
+              <DashboardIcon name="alert" />
+            </span>
+            <div>
+              <h2 className="font-bold text-navy">
+                Your partner account is under review
+              </h2>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
+                The owner will verify your business details before activating
+                venue access. You can update your account information while
+                you wait.
+              </p>
+            </div>
+          </div>
         </section>
       )}
 
       {active && (
-        <section className="mt-6 rounded-2xl border border-gray-200 p-5">
-          <div>
-            <h2 className="text-base font-semibold text-gray-900">
-              Set up your venue
-            </h2>
-            <p className="mt-1 text-sm text-gray-500">
-              Connect the account that receives player payments, then add your
-              first hub.
-            </p>
+        <section className="mt-8 overflow-hidden rounded-2xl border border-[#dfe7e2] bg-white shadow-sm shadow-navy/5">
+          <div className="flex flex-col gap-4 border-b border-[#dfe7e2] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">
+                Venue onboarding
+              </p>
+              <h2 className="mt-1 text-lg font-bold text-navy">
+                Complete your venue setup
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-slate-500">
+                Connect the account that receives player payments, then add
+                your first hub.
+              </p>
+            </div>
+            <span className="w-fit rounded-full bg-navy-soft px-3 py-1.5 text-xs font-bold text-navy">
+              {isGatewayConnected ? "Payment ready" : "1 required step"}
+            </span>
           </div>
 
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 bg-[#f7faf8] p-5 sm:grid-cols-2 sm:p-6">
             <Link
               href="/dashboard/payments?setup=hub"
-              className={`rounded-xl border p-4 transition-colors ${
+              className={`rounded-xl border bg-white p-5 shadow-sm shadow-navy/5 transition-all hover:-translate-y-0.5 ${
                 isGatewayConnected
-                  ? "border-green-200 bg-green-50 hover:border-green-300"
-                  : "border-primary/30 bg-primary-soft hover:border-primary/50"
+                  ? "border-primary/25 hover:border-primary/40"
+                  : "border-primary/40 hover:border-primary/60"
               }`}
             >
               <div className="flex items-center justify-between gap-3">
-                <span className="text-xs font-bold uppercase tracking-[0.14em] text-gray-500">
-                  Step 1
+                <span className="rounded-lg bg-primary-soft px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-primary">
+                  Step 01
                 </span>
                 <span
                   className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
                     isGatewayConnected
                       ? "bg-green-100 text-green-700"
-                      : "bg-white text-primary"
+                      : "bg-accent-soft text-primary"
                   }`}
                 >
                   {isGatewayConnected ? "Connected" : "Required"}
@@ -90,19 +149,22 @@ export function PartnerHome({
               <h3 className="mt-4 font-semibold text-gray-900">
                 Connect PayMongo
               </h3>
-              <p className="mt-1 text-sm text-gray-600">
+              <p className="mt-1 text-sm leading-6 text-slate-500">
                 Booking proceeds land in your own payment account.
+              </p>
+              <p className="mt-4 text-xs font-bold uppercase tracking-[0.12em] text-primary">
+                {isGatewayConnected ? "Manage connection →" : "Connect now →"}
               </p>
             </Link>
 
             {isGatewayConnected ? (
               <Link
                 href="/dashboard/hubs"
-                className="rounded-xl border border-gray-200 p-4 transition-colors hover:border-gray-300"
+                className="rounded-xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5 transition-all hover:-translate-y-0.5 hover:border-primary/30"
               >
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-xs font-bold uppercase tracking-[0.14em] text-gray-500">
-                    Step 2
+                  <span className="rounded-lg bg-ocean-soft px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-ocean">
+                    Step 02
                   </span>
                   <span className="rounded-full bg-primary-soft px-2 py-0.5 text-[11px] font-semibold text-primary">
                     Ready
@@ -111,15 +173,18 @@ export function PartnerHome({
                 <h3 className="mt-4 font-semibold text-gray-900">
                   Add and manage hubs
                 </h3>
-                <p className="mt-1 text-sm text-gray-500">
+                <p className="mt-1 text-sm leading-6 text-slate-500">
                   Publish your venue, courts, rates, and operating hours.
+                </p>
+                <p className="mt-4 text-xs font-bold uppercase tracking-[0.12em] text-primary">
+                  Open hubs →
                 </p>
               </Link>
             ) : (
-              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4">
+              <div className="rounded-xl border border-dashed border-slate-300 bg-white/65 p-5">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-xs font-bold uppercase tracking-[0.14em] text-gray-400">
-                    Step 2
+                  <span className="rounded-lg bg-navy-soft px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                    Step 02
                   </span>
                   <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-semibold text-gray-500">
                     Locked
@@ -128,7 +193,7 @@ export function PartnerHome({
                 <h3 className="mt-4 font-semibold text-gray-500">
                   Add your hub
                 </h3>
-                <p className="mt-1 text-sm text-gray-400">
+                <p className="mt-1 text-sm leading-6 text-gray-400">
                   Available after PayMongo is connected.
                 </p>
               </div>
@@ -137,53 +202,61 @@ export function PartnerHome({
         </section>
       )}
 
-      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {active && isGatewayConnected && (
-          <Link
-            href="/dashboard/payments"
-            className="rounded-2xl border border-gray-200 p-5 transition-colors hover:border-gray-300"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-base font-semibold text-gray-900">
-                Payments
-              </h2>
-              <span className="text-sm font-medium text-primary">Manage →</span>
-            </div>
-            <p className="mt-1.5 text-sm text-gray-500">
-              Manage PayMongo and settle Bunal.club service fees.
+      {active && isGatewayConnected && (
+        <section className="mt-6">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">
+              Operations
             </p>
-          </Link>
-        )}
-        {comingSoon.map((c) => (
-          <div
-            key={c.label}
-            className="rounded-2xl border border-dashed border-gray-300 p-5"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-base font-semibold text-gray-900">
-                {c.label}
-              </h2>
-              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500">
-                Soon
-              </span>
-            </div>
-            <p className="mt-1.5 text-sm text-gray-500">{c.desc}</p>
+            <h2 className="mt-1 text-lg font-bold text-navy">
+              Run your venue
+            </h2>
           </div>
-        ))}
-      </div>
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {shortcuts.map((shortcut) => (
+              <Link
+                key={shortcut.href}
+                href={shortcut.href}
+                className="group rounded-2xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5 transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md hover:shadow-navy/5"
+              >
+                <span
+                  className={`flex h-11 w-11 items-center justify-center rounded-xl ${shortcut.tone}`}
+                >
+                  <DashboardIcon name={shortcut.icon} />
+                </span>
+                <h3 className="mt-5 font-bold text-navy transition-colors group-hover:text-primary">
+                  {shortcut.label}
+                </h3>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  {shortcut.desc}
+                </p>
+                <p className="mt-5 text-xs font-bold uppercase tracking-[0.12em] text-navy">
+                  {shortcut.action} →
+                </p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
-      <section className="mt-4 rounded-2xl border border-gray-200 p-5">
-        <h2 className="text-base font-semibold text-gray-900">
-          Account Settings
-        </h2>
-        <p className="mt-1 text-sm text-gray-500">
-          Update your business details, contact info, and profile picture.
-        </p>
+      <section className="mt-6 flex flex-col gap-4 rounded-2xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-navy-soft text-navy">
+            <DashboardIcon name="account" />
+          </span>
+          <div>
+            <h2 className="font-bold text-navy">Account settings</h2>
+            <p className="mt-1 text-sm leading-6 text-slate-500">
+              Update your business details, contact information, and profile
+              picture.
+            </p>
+          </div>
+        </div>
         <Link
           href="/dashboard/account"
-          className="mt-4 inline-block rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
+          className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-navy transition-colors hover:border-primary/30 hover:bg-primary-soft hover:text-primary"
         >
-          Go to settings
+          Open settings
         </Link>
       </section>
     </div>

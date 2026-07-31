@@ -49,7 +49,7 @@ export function BookingCard({
   const refunded = booking.payment?.status === "REFUNDED";
 
   return (
-    <div className="rounded-2xl border border-gray-200 p-5 sm:p-6">
+    <div className="rounded-2xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5 sm:p-6">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           {view === "player" ? (

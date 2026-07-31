@@ -135,10 +135,10 @@ export function DashboardNav({
       : pathname === item.href || pathname.startsWith(item.href + "/");
 
   const linkClass = (active: boolean) =>
-    `flex items-center gap-3 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+    `flex min-h-11 items-center gap-3 whitespace-nowrap border-l-[3px] px-3 py-2.5 text-sm font-semibold transition-colors md:rounded-xl ${
       active
-        ? "bg-primary-soft font-semibold text-primary"
-        : "text-gray-600 hover:bg-white hover:text-navy"
+        ? "border-primary bg-primary-soft text-primary md:border-accent md:bg-white/10 md:text-white"
+        : "border-transparent text-slate-600 hover:bg-slate-100 hover:text-navy md:text-white/55 md:hover:bg-white/5 md:hover:text-white"
     }`;
 
   const visibleItems = items
@@ -157,7 +157,7 @@ export function DashboardNav({
     );
 
   return (
-    <nav className="flex flex-row gap-1 overflow-x-auto md:flex-col md:overflow-visible">
+    <nav className="flex flex-row gap-1 overflow-x-auto border-t border-slate-100 px-3 py-2 md:mt-3 md:flex-col md:overflow-visible md:border-0 md:px-0 md:py-0">
       {visibleItems.map((item) => (
         <Link
           key={item.href}
@@ -180,7 +180,7 @@ export function DashboardNav({
           }
           className={`${linkClass(
             pathname.startsWith("/dashboard/admin/payments")
-          )} md:mt-2 md:border-t md:border-gray-100 md:pt-3`}
+          )} md:mt-3`}
         >
           <svg {...iconProps}>
             <rect x="2" y="5" width="20" height="14" rx="2" />

@@ -37,7 +37,7 @@ export function AccountForm({ user }: { user: ProfileUser }) {
     <form
       action={formAction}
       noValidate
-      className="mt-6 rounded-2xl border border-gray-200 p-5 sm:p-6"
+      className="mt-6 rounded-2xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5 sm:p-6"
     >
       {state.ok && state.message && (
         <p

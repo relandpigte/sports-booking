@@ -1,13 +1,14 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Avatar } from "@/components/ui/Avatar";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { DeleteHubButton } from "@/components/dashboard/hubs/DeleteHubButton";
 import { listMyHubs } from "@/lib/hubs";
 import { requireActivePartner } from "@/lib/dal";
 import { getActivePartnerGateway } from "@/lib/partner-gateway";
 
 export const metadata: Metadata = {
-  title: "My Hubs — Bunal.ph",
+  title: "My Hubs — Bunal.club",
 };
 
 export default async function HubsPage() {
@@ -19,24 +20,23 @@ export default async function HubsPage() {
 
   return (
     <div>
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Hubs</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Create and manage your venues and clubs.
-          </p>
-        </div>
-        <Link
-          href={
-            gateway
-              ? "/dashboard/hubs/new"
-              : "/dashboard/payments?setup=hub"
-          }
-          className="shrink-0 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
-        >
-          {gateway ? "+ New hub" : "Connect PayMongo first"}
-        </Link>
-      </div>
+      <DashboardPageHeader
+        eyebrow="Venue management"
+        title="My hubs"
+        description="Create and manage your venues, courts, rates, and operating hours."
+        actions={
+          <Link
+            href={
+              gateway
+                ? "/dashboard/hubs/new"
+                : "/dashboard/payments?setup=hub"
+            }
+            className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-hover"
+          >
+            {gateway ? "+ New hub" : "Connect PayMongo first"}
+          </Link>
+        }
+      />
 
       {!gateway && (
         <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
@@ -82,7 +82,7 @@ export default async function HubsPage() {
           {hubs.map((hub) => (
             <div
               key={hub.id}
-              className="overflow-hidden rounded-2xl border border-gray-200"
+              className="overflow-hidden rounded-2xl border border-[#dfe7e2] bg-white shadow-sm shadow-navy/5"
             >
               <div className="relative aspect-video bg-gray-100">
                 {hub.coverPhotos[0] ? (

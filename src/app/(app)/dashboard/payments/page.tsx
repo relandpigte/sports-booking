@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { GatewayPanel } from "@/components/partner/GatewayPanel";
 import { ServiceFeePanel } from "@/components/partner/ServiceFeePanel";
 import { requireActivePartner } from "@/lib/dal";
@@ -13,7 +14,7 @@ import {
 import { getPartnerServiceFeeView } from "@/lib/service-fees";
 
 export const metadata: Metadata = {
-  title: "Payments — Bunal.ph",
+  title: "Payments — Bunal.club",
 };
 
 export default async function PaymentsPage({
@@ -41,12 +42,11 @@ export default async function PaymentsPage({
 
   return (
     <div>
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Payments</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Connect the account that receives player booking payments.
-        </p>
-      </div>
+      <DashboardPageHeader
+        eyebrow="Payment workspace"
+        title="Payments"
+        description="Connect the account that receives player booking payments and manage service-fee settlements."
+      />
       {setup === "hub" && (
         <div
           className={`mt-5 rounded-2xl border px-4 py-3 ${

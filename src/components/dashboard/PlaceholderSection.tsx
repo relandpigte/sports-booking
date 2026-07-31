@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 
 export function PlaceholderSection({
   title,
@@ -13,10 +14,9 @@ export function PlaceholderSection({
 }) {
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-      <p className="mt-1 text-sm text-gray-500">{subtitle}</p>
+      <DashboardPageHeader title={title} description={subtitle} />
 
-      <div className="mt-6 flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-gray-300 px-6 py-16 text-center">
+      <div className="mt-6 flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center shadow-sm shadow-navy/5">
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-soft text-primary">
           {icon}
         </div>

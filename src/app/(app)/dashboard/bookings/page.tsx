@@ -6,10 +6,11 @@ import { getCurrentUser } from "@/lib/dal";
 import { listMyBookings, listPartnerBookings } from "@/lib/bookings";
 import { listMyHubs } from "@/lib/hubs";
 import { BookingCard } from "@/components/bookings/BookingCard";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { manilaNowHour, manilaToday } from "@/lib/time";
 
 export const metadata: Metadata = {
-  title: "Bookings — Bunal.ph",
+  title: "Bookings — Bunal.club",
 };
 
 export default async function BookingsPage() {
@@ -38,12 +39,11 @@ export default async function BookingsPage() {
 
     return (
       <div>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Bookings</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Manage player bookings across all of your hubs.
-          </p>
-        </div>
+        <DashboardPageHeader
+          eyebrow="Venue operations"
+          title="Bookings"
+          description="Manage player reservations across all of your hubs."
+        />
 
         <section className="mt-6">
           <h2 className="text-base font-semibold text-gray-900">
@@ -91,12 +91,11 @@ export default async function BookingsPage() {
 
   return (
     <div>
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Bookings</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Reserve courts and manage your game sessions.
-        </p>
-      </div>
+      <DashboardPageHeader
+        eyebrow="Your schedule"
+        title="Bookings"
+        description="Reserve courts and manage your upcoming game sessions."
+      />
 
       <section className="mt-6">
         <h2 className="text-base font-semibold text-gray-900">

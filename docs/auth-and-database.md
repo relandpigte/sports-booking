@@ -11,7 +11,7 @@ Copy `.env.example` to `.env` and fill in:
 | ---------------- | --------------------------------------------------------------------- |
 | `DATABASE_URL`   | Postgres connection string (Neon, Supabase, RDS, or local Postgres).  |
 | `AUTH_SECRET`    | Secret used to sign session JWTs. Generate with the command below.   |
-| `RESEND_API_KEY` | Resend API key used only by the server for password-reset email.      |
+| `RESEND_API_KEY` | Resend API key used by the server for transactional account email.    |
 | `EMAIL_FROM`     | Sender on the exact verified Resend domain, with an optional name.    |
 
 ```bash
@@ -64,7 +64,8 @@ npm run dev
 | `src/lib/actions.ts`                   | Server Actions: `registerAction`, `loginAction`, `logoutAction`. |
 | `src/lib/password-reset.ts`            | Hashed reset tokens, throttling, expiry, and password update.     |
 | `src/lib/password-reset-actions.ts`    | Server Actions for requesting and completing a reset.             |
-| `src/lib/email.ts`                     | Resend API adapter for reset email delivery.                       |
+| `src/lib/email.ts`                     | Resend adapter for password-reset and welcome email delivery.       |
+| `src/lib/welcome-email.ts`             | Role-specific player and partner welcome email content.             |
 | `src/lib/validation.ts`                | Zod schemas for login/registration.                              |
 | `src/lib/dal.ts`                       | Data Access Layer: `verifySession`, `getCurrentUser`.            |
 | `src/proxy.ts`                         | Next.js 16 "Proxy" (formerly Middleware): optimistic route guard. |

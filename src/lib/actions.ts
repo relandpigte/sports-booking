@@ -8,7 +8,12 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { signIn, signOut } from "@/lib/auth";
 import { verifySession } from "@/lib/dal";
+import {
+  emailDeliveryConfigured,
+  sendWelcomeEmail,
+} from "@/lib/email";
 import { normalizeAvatar, normalizeCoverPhotos } from "@/lib/avatar";
+import { appUrl } from "@/lib/urls";
 import {
   LoginSchema,
   RegisterSchema,
@@ -72,7 +77,7 @@ export async function registerAction(
   }
 
   const passwordHash = await bcrypt.hash(data.password, 10);
-  await prisma.user.create({
+  const user = await prisma.user.create({
     data: {
       name: data.fullName,
       playerName: data.playerName,
@@ -83,6 +88,15 @@ export async function registerAction(
       image: avatar.value,
       passwordHash,
     },
+    select: { id: true },
+  });
+
+  await sendRegistrationWelcome({
+    audience: "PLAYER",
+    to: data.email,
+    name: data.fullName,
+    actionPath: "/hubs",
+    idempotencyKey: `welcome-player-${user.id}`,
   });
 
   // Sign the new user in. On success this throws a redirect to /dashboard.
@@ -198,7 +212,7 @@ export async function registerPartnerAction(
   );
 
   try {
-    await prisma.user.create({
+    const user = await prisma.user.create({
       data: {
         // The route decides the role and status, never a form field.
         role: "PARTNER",
@@ -226,6 +240,16 @@ export async function registerPartnerAction(
           },
         },
       },
+      select: { id: true },
+    });
+
+    await sendRegistrationWelcome({
+      audience: "PARTNER",
+      to: data.email,
+      name: data.fullName,
+      venueName: data.hubName,
+      actionPath: "/dashboard/partner",
+      idempotencyKey: `welcome-partner-${user.id}`,
     });
   } catch (error) {
     if (
@@ -266,6 +290,58 @@ export async function registerPartnerAction(
   }
 
   return {};
+}
+
+type RegistrationWelcomeInput =
+  | {
+      audience: "PLAYER";
+      to: string;
+      name: string;
+      actionPath: string;
+      idempotencyKey: string;
+    }
+  | {
+      audience: "PARTNER";
+      to: string;
+      name: string;
+      venueName: string;
+      actionPath: string;
+      idempotencyKey: string;
+    };
+
+async function sendRegistrationWelcome(
+  input: RegistrationWelcomeInput
+): Promise<void> {
+  if (!emailDeliveryConfigured()) return;
+
+  try {
+    const actionUrl = appUrl(input.actionPath);
+    await sendWelcomeEmail(
+      input.audience === "PLAYER"
+        ? {
+            audience: input.audience,
+            to: input.to,
+            name: input.name,
+            actionUrl,
+            idempotencyKey: input.idempotencyKey,
+          }
+        : {
+            audience: input.audience,
+            to: input.to,
+            name: input.name,
+            venueName: input.venueName,
+            actionUrl,
+            idempotencyKey: input.idempotencyKey,
+          }
+    );
+  } catch (error) {
+    // Account creation is the source of truth. A provider outage should not
+    // strand a new user after their row has already been committed.
+    console.error(
+      "Welcome email delivery failed:",
+      error instanceof Error ? error.message : "Unknown provider error"
+    );
+  }
 }
 
 function parseCoordinate(raw: string, min: number, max: number): number | null {

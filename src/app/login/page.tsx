@@ -12,9 +12,12 @@ const initialState: AuthFormState = {};
 export default function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ reset?: string | string[] }>;
+  searchParams: Promise<{
+    reset?: string | string[];
+    password?: string | string[];
+  }>;
 }) {
-  const reset = use(searchParams).reset;
+  const query = use(searchParams);
   const [state, formAction, pending] = useActionState(
     loginAction,
     initialState
@@ -32,12 +35,20 @@ export default function LoginPage({
           className="rounded-2xl border border-gray-200 p-5 shadow-sm sm:p-6"
         >
           <div className="flex flex-col gap-4">
-            {reset === "success" && (
+            {query.reset === "success" && (
               <p
                 role="status"
                 className="rounded-lg bg-green-50 px-3 py-2.5 text-sm text-green-700"
               >
                 Your password has been reset. Log in with your new password.
+              </p>
+            )}
+            {query.password === "changed" && (
+              <p
+                role="status"
+                className="rounded-lg bg-green-50 px-3 py-2.5 text-sm text-green-700"
+              >
+                Your password was updated. Log in with your new password.
               </p>
             )}
             {state.message && (

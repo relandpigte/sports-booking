@@ -12,11 +12,17 @@ Copy `.env.example` to `.env` and fill in:
 | `DATABASE_URL`   | Postgres connection string (Neon, Supabase, RDS, or local Postgres).  |
 | `AUTH_SECRET`    | Secret used to sign session JWTs. Generate with the command below.   |
 | `RESEND_API_KEY` | Resend API key used only by the server for password-reset email.      |
-| `EMAIL_FROM`     | Sender on a verified Resend domain, including an optional brand name. |
+| `EMAIL_FROM`     | Sender on the exact verified Resend domain, with an optional name.    |
 
 ```bash
 openssl rand -base64 32   # value for AUTH_SECRET
 ```
+
+For Resend, install the DNS records shown for your domain and wait until its
+status is `Verified`. Use the raw API key as the environment-variable value—do
+not include `Bearer`, the variable name, or quotes entered as literal text.
+Production environment changes require a new deployment before they take
+effect.
 
 > A development `AUTH_SECRET` is already present in `.env`. **Generate a fresh
 > one for production.** `.env` is gitignored (`.env*`), so it is never committed.

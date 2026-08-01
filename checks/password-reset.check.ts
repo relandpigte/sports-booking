@@ -37,10 +37,17 @@ async function check() {
   const originalEmailFrom = process.env.EMAIL_FROM;
   const originalFetch = globalThis.fetch;
   let sends = 0;
+  let sdkUserAgent = false;
+  let idempotencyHeader = false;
+  let renderedResetLink = false;
   process.env.RESEND_API_KEY = "re_check_only";
   process.env.EMAIL_FROM = "Bunal.club <check@example.test>";
-  globalThis.fetch = (async () => {
+  globalThis.fetch = (async (_input, init) => {
     sends++;
+    const headers = new Headers(init?.headers);
+    sdkUserAgent = Boolean(headers.get("User-Agent"));
+    idempotencyHeader = Boolean(headers.get("Idempotency-Key"));
+    renderedResetLink = String(init?.body).includes("reset-password?token=");
     return new Response(JSON.stringify({ id: "email-check" }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -55,6 +62,9 @@ async function check() {
       secondRequest.configured
     );
     ok("repeat requests inside the cooldown send one email", sends === 1);
+    ok("the Resend SDK supplies its required user agent", sdkUserAgent);
+    ok("the SDK sends the reset request idempotently", idempotencyHeader);
+    ok("the email body contains the secure reset link", renderedResetLink);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalApiKey === undefined) delete process.env.RESEND_API_KEY;

@@ -152,6 +152,24 @@ page composition consistent.
 - Do not expose owner/admin functionality, approval tools, reports, or
   settlement information in the public homepage or other signed-out content.
 
+## Registration success pages
+
+- Successful player registration lands at `/welcome/player`; successful
+  partner registration lands at `/welcome/partner`.
+- Reuse the authentication layout language: compact navy brand panel, real
+  Bunal.club wordmark, subtle green/lime atmosphere, and a centered white
+  success card on the off-white surface.
+- Use a restrained green check medallion, one clear outcome headline, concise
+  next-step copy, one green primary action, and one bordered secondary action.
+- Player success prioritizes browsing hubs; partner success clearly states
+  that the venue application is still under review and prioritizes the partner
+  dashboard. Never imply that partner approval has already happened.
+- Keep these pages noindex, authenticated, responsive at 320px, and free of
+  confetti, invented metrics, unsupported review timelines, or fake support
+  destinations.
+- A successful registration may emit a one-time GTM data-layer event with the
+  user type, but refreshes and ordinary dashboard visits must not count again.
+
 ## Public hub directory
 
 The `/hubs` directory is the practical discovery surface between the marketing

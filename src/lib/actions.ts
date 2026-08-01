@@ -4,6 +4,7 @@ import { AuthError } from "next-auth";
 import bcrypt from "bcryptjs";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 
 import { prisma } from "@/lib/db";
 import { signIn, signOut } from "@/lib/auth";
@@ -21,6 +22,10 @@ import {
   PartnerRegisterSchema,
 } from "@/lib/validation";
 import { firstErrors } from "@/lib/zod-errors";
+import {
+  REGISTRATION_EVENT_COOKIE,
+  REGISTRATION_SUCCESS_PATH,
+} from "@/lib/registration-tracking";
 
 export type AuthFormState = {
   errors?: Record<string, string>;
@@ -99,15 +104,31 @@ export async function registerAction(
     idempotencyKey: `welcome-player-${user.id}`,
   });
 
-  // Sign the new user in. On success this throws a redirect to /dashboard.
+  const cookieStore = await cookies();
+  cookieStore.set(REGISTRATION_EVENT_COOKIE, "player", {
+    httpOnly: false,
+    maxAge: 10 * 60,
+    path: "/welcome",
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  });
+
+  // Sign the new user in. On success this throws a redirect to the welcome
+  // page, where the short-lived marker emits one registration event.
   try {
     await signIn("credentials", {
       email: data.email,
       password: data.password,
-      redirectTo: "/dashboard",
+      redirectTo: REGISTRATION_SUCCESS_PATH.player,
     });
   } catch (error) {
     if (error instanceof AuthError) {
+      cookieStore.set(REGISTRATION_EVENT_COOKIE, "", {
+        maxAge: 0,
+        path: "/welcome",
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+      });
       return {
         message:
           "Your account was created, but automatic sign-in failed. Please log in.",
@@ -270,16 +291,31 @@ export async function registerPartnerAction(
     throw error;
   }
 
-  // The partner can sign in immediately, but hub and payment features stay
-  // locked until an admin activates the account.
+  const cookieStore = await cookies();
+  cookieStore.set(REGISTRATION_EVENT_COOKIE, "partner", {
+    httpOnly: false,
+    maxAge: 10 * 60,
+    path: "/welcome",
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  });
+
+  // The partner can sign in immediately and see the application-received
+  // page, but hub and payment features stay locked until admin activation.
   try {
     await signIn("credentials", {
       email: data.email,
       password: data.password,
-      redirectTo: "/dashboard/partner",
+      redirectTo: REGISTRATION_SUCCESS_PATH.partner,
     });
   } catch (error) {
     if (error instanceof AuthError) {
+      cookieStore.set(REGISTRATION_EVENT_COOKIE, "", {
+        maxAge: 0,
+        path: "/welcome",
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+      });
       return {
         message:
           "Your partner account was created, but automatic sign-in failed. Please log in.",

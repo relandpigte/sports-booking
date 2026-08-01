@@ -8,9 +8,9 @@ a court booking through that partner's own PayMongo account.
 
 Public partner registrations start in `PENDING`. An admin reviews the business
 name, contact details, and optional Facebook page in `/users`, then activates
-the partner. An `ACTIVE` partner must connect PayMongo before creating a hub.
-Once connected, the partner can create hubs, appear in the public directory,
-and manage venue bookings and reports.
+the partner. An `ACTIVE` partner can create a hub before connecting PayMongo.
+After it has at least one court, the hub appears in the public directory as
+Coming soon. Connecting PayMongo verifies the hub and opens online bookings.
 
 ## Pricing
 
@@ -32,10 +32,10 @@ method-specific processing fee to the player after they choose how to pay.
 ## Partner gateway setup
 
 Each venue uses its own PayMongo account so player booking proceeds go directly
-to that partner. The admin activates the partner in `/users`; the partner then
-connects its own account in `/dashboard/payments`. Hub creation is unavailable
-until an active gateway is connected. This prerequisite is enforced both by
-the dashboard routes and by the hub-creation Server Action.
+to that partner. The admin activates the partner in `/users`; the partner may
+then create its hub and courts before connecting an account. Complete hubs are
+published as Coming soon, but booking remains unavailable. Connecting an active
+gateway changes the public hub to Verified and enables online reservations.
 
 ### Partner onboarding steps
 

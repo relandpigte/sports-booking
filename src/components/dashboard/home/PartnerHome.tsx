@@ -114,8 +114,8 @@ export function PartnerHome({
                 Complete your venue setup
               </h2>
               <p className="mt-1 text-sm leading-6 text-slate-500">
-                Connect the account that receives player payments, then add
-                your first hub.
+                Add your first hub now, then connect the account that receives
+                player payments to open bookings.
               </p>
             </div>
             <span className="w-fit rounded-full bg-navy-soft px-3 py-1.5 text-xs font-bold text-navy">
@@ -125,16 +125,39 @@ export function PartnerHome({
 
           <div className="grid grid-cols-1 gap-4 bg-[#f7faf8] p-5 sm:grid-cols-2 sm:p-6">
             <Link
-              href="/dashboard/payments?setup=hub"
-              className={`rounded-xl border bg-white p-5 shadow-sm shadow-navy/5 transition-all hover:-translate-y-0.5 ${
-                isGatewayConnected
-                  ? "border-primary/25 hover:border-primary/40"
-                  : "border-primary/40 hover:border-primary/60"
-              }`}
+              href="/dashboard/hubs"
+              className="rounded-xl border border-primary/25 bg-white p-5 shadow-sm shadow-navy/5 transition-all hover:-translate-y-0.5 hover:border-primary/40"
             >
               <div className="flex items-center justify-between gap-3">
                 <span className="rounded-lg bg-primary-soft px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-primary">
                   Step 01
+                </span>
+                <span className="rounded-full bg-primary-soft px-2 py-0.5 text-[11px] font-semibold text-primary">
+                  Ready
+                </span>
+              </div>
+              <h3 className="mt-4 font-semibold text-gray-900">
+                Add and manage hubs
+              </h3>
+              <p className="mt-1 text-sm leading-6 text-slate-500">
+                Publish your venue as Coming soon with courts, rates, and hours.
+              </p>
+              <p className="mt-4 text-xs font-bold uppercase tracking-[0.12em] text-primary">
+                Open hubs →
+              </p>
+            </Link>
+
+            <Link
+              href="/dashboard/payments?setup=hub"
+              className={`rounded-xl border bg-white p-5 shadow-sm shadow-navy/5 transition-all hover:-translate-y-0.5 ${
+                isGatewayConnected
+                  ? "border-primary/25 hover:border-primary/40"
+                  : "border-[#dfe7e2] hover:border-primary/30"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="rounded-lg bg-ocean-soft px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-ocean">
+                  Step 02
                 </span>
                 <span
                   className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
@@ -143,61 +166,19 @@ export function PartnerHome({
                       : "bg-accent-soft text-primary"
                   }`}
                 >
-                  {isGatewayConnected ? "Connected" : "Required"}
+                  {isGatewayConnected ? "Connected" : "Required for booking"}
                 </span>
               </div>
               <h3 className="mt-4 font-semibold text-gray-900">
                 Connect PayMongo
               </h3>
               <p className="mt-1 text-sm leading-6 text-slate-500">
-                Booking proceeds land in your own payment account.
+                Verify your hubs and receive online booking proceeds.
               </p>
               <p className="mt-4 text-xs font-bold uppercase tracking-[0.12em] text-primary">
                 {isGatewayConnected ? "Manage connection →" : "Connect now →"}
               </p>
             </Link>
-
-            {isGatewayConnected ? (
-              <Link
-                href="/dashboard/hubs"
-                className="rounded-xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5 transition-all hover:-translate-y-0.5 hover:border-primary/30"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <span className="rounded-lg bg-ocean-soft px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-ocean">
-                    Step 02
-                  </span>
-                  <span className="rounded-full bg-primary-soft px-2 py-0.5 text-[11px] font-semibold text-primary">
-                    Ready
-                  </span>
-                </div>
-                <h3 className="mt-4 font-semibold text-gray-900">
-                  Add and manage hubs
-                </h3>
-                <p className="mt-1 text-sm leading-6 text-slate-500">
-                  Publish your venue, courts, rates, and operating hours.
-                </p>
-                <p className="mt-4 text-xs font-bold uppercase tracking-[0.12em] text-primary">
-                  Open hubs →
-                </p>
-              </Link>
-            ) : (
-              <div className="rounded-xl border border-dashed border-slate-300 bg-white/65 p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="rounded-lg bg-navy-soft px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
-                    Step 02
-                  </span>
-                  <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-semibold text-gray-500">
-                    Locked
-                  </span>
-                </div>
-                <h3 className="mt-4 font-semibold text-gray-500">
-                  Add your hub
-                </h3>
-                <p className="mt-1 text-sm leading-6 text-gray-400">
-                  Available after PayMongo is connected.
-                </p>
-              </div>
-            )}
           </div>
         </section>
       )}

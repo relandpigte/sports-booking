@@ -237,9 +237,9 @@ export function PartnerRegisterForm() {
                 Next: approval, PayMongo, and court setup
               </p>
               <p className="mt-1 text-xs leading-5 text-amber-800">
-                Your hub is saved as an unpublished draft. After the owner
-                approves your account, connect your own PayMongo account and
-                add courts, rates, and operating hours before going live.
+                After the owner approves your account, add your hub, courts,
+                rates, and operating hours to publish as Coming soon. Connect
+                PayMongo when you are ready to verify the hub and open booking.
               </p>
             </div>
           </div>

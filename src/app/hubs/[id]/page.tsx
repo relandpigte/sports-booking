@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { JsonLd } from "@/components/JsonLd";
 import { PageShell } from "@/components/PageShell";
 import { BookCourtPanel } from "@/components/hubs/BookCourtPanel";
+import { VerifiedBadge } from "@/components/hubs/HubCard";
 import { Avatar } from "@/components/ui/Avatar";
 import { getPublicHub } from "@/lib/hubs";
 import { getViewer } from "@/lib/dal";
@@ -32,20 +33,26 @@ function hubDescription({
   about,
   address,
   games,
+  comingSoon = false,
 }: {
   name: string;
   about: string | null;
   address: string | null;
   games: string[];
+  comingSoon?: boolean;
 }): string {
   const sports = games.map((game) => GAME_LABELS[game] ?? game).join(", ");
   const location = address ? ` in ${address}` : "";
   const introduction = about?.trim()
     ? about
-    : `Book ${sports || "sports"} courts at ${name}${location}.`;
+    : comingSoon
+      ? `Discover ${sports || "sports"} courts at ${name}${location}.`
+      : `Book ${sports || "sports"} courts at ${name}${location}.`;
 
   return conciseDescription(
-    `${introduction} Check live availability, hourly rates, and secure online booking.`,
+    comingSoon
+      ? `${introduction} Explore the venue, courts, and rates. Online booking is coming soon.`
+      : `${introduction} Check live availability, hourly rates, and secure online booking.`,
     165
   );
 }
@@ -64,7 +71,9 @@ export async function generateMetadata({
     };
   }
 
-  const title = `${hub.name} — Court Booking & Availability | Bunal.club`;
+  const title = hub.comingSoon
+    ? `${hub.name} — Coming Soon | Bunal.club`
+    : `${hub.name} — Court Booking & Availability | Bunal.club`;
   const description = hubDescription(hub);
   const canonical = hubPublicPath(hub);
   const socialImage =
@@ -74,7 +83,7 @@ export async function generateMetadata({
     title,
     description,
     alternates: { canonical },
-    robots: { index: hub.bookable, follow: true },
+    robots: { index: hub.publiclyListed, follow: true },
     openGraph: {
       title,
       description,
@@ -116,7 +125,9 @@ export default async function PublicHubPage({
     getViewer(),
     // Render the first court's grid populated, so there's no empty flash before
     // the availability stream connects.
-    firstCourt ? getCourtAvailability(firstCourt.id, today) : null,
+    firstCourt && hub.bookable
+      ? getCourtAvailability(firstCourt.id, today)
+      : null,
   ]);
 
   // The partner previewing their own hub, or an admin looking at it.
@@ -150,7 +161,7 @@ export default async function PublicHubPage({
       })
     : [];
   const localBusiness =
-    hub.bookable && hub.address
+    hub.publiclyListed && hub.address
       ? {
           "@type": "SportsActivityLocation",
           "@id": `${canonicalUrl}#venue`,
@@ -238,7 +249,7 @@ export default async function PublicHubPage({
 
       <div className="mt-2 grid h-[300px] w-full grid-cols-1 gap-2 px-2 md:h-[480px] md:grid-cols-4">
         <div
-          className={`overflow-hidden rounded-2xl bg-gray-100 ${galleryCovers.length > 0 ? "md:col-span-3" : "md:col-span-4"}`}
+          className={`relative overflow-hidden rounded-2xl bg-gray-100 ${galleryCovers.length > 0 ? "md:col-span-3" : "md:col-span-4"}`}
         >
           {cover ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -250,6 +261,13 @@ export default async function PublicHubPage({
           ) : (
             <div className="flex h-full w-full items-center justify-center text-sm text-gray-400">
               No cover photo
+            </div>
+          )}
+          {hub.comingSoon && (
+            <div className="absolute -left-20 top-12 z-10 w-72 -rotate-45 bg-navy/95 py-3 text-center shadow-xl">
+              <span className="text-xs font-black uppercase tracking-[0.22em] text-accent sm:text-sm">
+                Coming soon
+              </span>
             </div>
           )}
         </div>
@@ -302,6 +320,12 @@ export default async function PublicHubPage({
               <h1 className="text-3xl font-extrabold tracking-tight text-navy sm:text-4xl">
                 {hub.name}
               </h1>
+              {hub.verified && <VerifiedBadge />}
+              {hub.comingSoon && (
+                <span className="inline-flex w-fit items-center rounded-full bg-navy px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-accent">
+                  Coming soon
+                </span>
+              )}
               {hub.games.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {hub.games.map((game) => (
@@ -340,14 +364,18 @@ export default async function PublicHubPage({
             )}
           </div>
 
-          {hub.bookable && (
+          {hub.bookable ? (
             <a
               href="#booking"
               className="flex min-h-12 w-full shrink-0 items-center justify-center rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-primary/20 transition-colors hover:bg-primary-hover md:w-auto"
             >
               Book now
             </a>
-          )}
+          ) : hub.comingSoon ? (
+            <span className="inline-flex min-h-12 w-full shrink-0 items-center justify-center rounded-xl bg-navy-soft px-6 py-3 text-sm font-bold text-navy md:w-auto">
+              Bookings open soon
+            </span>
+          ) : null}
         </div>
       </div>
 
@@ -594,7 +622,7 @@ export default async function PublicHubPage({
         </div>
       </div>
 
-      {/* Unlisted hubs still render by direct URL, but cannot take bookings. */}
+      {/* Non-bookable hubs still render, but never expose booking controls. */}
       {hub.bookable ? (
         <BookCourtPanel
           courts={hub.courts}
@@ -617,21 +645,24 @@ export default async function PublicHubPage({
         <section className="border-y border-gray-200 bg-white py-14">
           <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
-              Online booking unavailable
+              {hub.comingSoon ? "Opening soon" : "Online booking unavailable"}
             </p>
             <h2 className="mt-2 text-2xl font-bold text-navy">
-              Contact the venue to reserve a court
+              {hub.comingSoon
+                ? "Online booking is coming soon"
+                : "This venue is not accepting new bookings"}
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-gray-500">
-              This venue isn&apos;t taking online bookings right now. Use the
-              contact information above to reach them directly.
+              {hub.comingSoon
+                ? "The venue is finishing its payment setup. You can explore its courts and rates now, then check back soon to reserve online."
+                : "New online reservations are paused right now. Please check back later."}
             </p>
             {/* Only the owner/admin needs the operational reason. */}
             {isOwner && (
               <p className="mt-5 rounded-xl bg-gray-50 px-4 py-3 text-sm">
                 <span className="text-gray-500">
                   {hub.blockedBy === "gateway"
-                    ? "Your hub isn't listed publicly because no payment gateway is connected."
+                    ? "Your hub is published as Coming soon. Connect PayMongo to verify the venue and open online booking."
                     : hub.blockedBy === "setup"
                       ? "Add at least one court, its rate, and operating hours before publishing your hub."
                       : hub.blockedBy === "settlement"

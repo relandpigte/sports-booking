@@ -1,21 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 import { HubForm } from "@/components/dashboard/hubs/HubForm";
 import { requireActivePartner } from "@/lib/dal";
-import { getActivePartnerGateway } from "@/lib/partner-gateway";
 
 export const metadata: Metadata = {
   title: "New Hub — Bunal.club",
 };
 
 export default async function NewHubPage() {
-  const partner = await requireActivePartner();
-  const gateway = await getActivePartnerGateway(partner.id);
-  if (!gateway) {
-    redirect("/dashboard/payments?setup=hub");
-  }
+  await requireActivePartner();
 
   return (
     <div className="mx-auto w-full max-w-3xl">
@@ -28,7 +22,8 @@ export default async function NewHubPage() {
       <div className="mt-4">
         <h1 className="text-2xl font-bold text-gray-900">Create Hub</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Add your venue&apos;s details, photos, and operating hours.
+          Add your venue&apos;s details, photos, courts, and operating hours. It
+          can appear as Coming soon until PayMongo is connected.
         </p>
       </div>
       <HubForm />

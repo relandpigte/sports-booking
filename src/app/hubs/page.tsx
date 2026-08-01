@@ -22,7 +22,7 @@ import {
 import { isValidDateString, manilaToday } from "@/lib/time";
 
 const directoryDescription =
-  "Browse live availability and hourly rates for pickleball, badminton, volleyball, and tennis courts across Bohol. Book securely online with Bunal.club.";
+  "Discover pickleball, badminton, volleyball, and tennis hubs across Bohol. Compare rates, see upcoming venues, and book verified courts securely online.";
 
 export const metadata: Metadata = {
   title: "Find & Book Sports Courts in Bohol | Bunal.club",

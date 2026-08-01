@@ -62,7 +62,7 @@ export default async function PaymentsPage({
           >
             {gateway?.connected
               ? "PayMongo is connected"
-              : "Connect PayMongo before creating a hub"}
+              : "Connect PayMongo to open online bookings"}
           </p>
           <p
             className={`mt-0.5 text-sm ${
@@ -70,8 +70,8 @@ export default async function PaymentsPage({
             }`}
           >
             {gateway?.connected
-              ? "Your venue can accept player payments. You can create your hub now."
-              : "Your own PayMongo account receives booking proceeds and gives every published venue a working checkout."}
+              ? "Your verified venues can accept player payments and online bookings."
+              : "Your published hubs can remain visible as Coming soon. Connect the PayMongo account that will receive booking proceeds when you are ready to open reservations."}
           </p>
           {gateway?.connected && (
             <Link

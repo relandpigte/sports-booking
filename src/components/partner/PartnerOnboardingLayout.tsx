@@ -67,8 +67,8 @@ export function PartnerOnboardingLayout({ children }: { children: ReactNode }) {
               <span className="text-accent">Bunal.club.</span>
             </h1>
             <p className="mt-4 max-w-sm text-sm leading-6 text-white/65">
-              Create your venue profile now. After approval, connect PayMongo
-              and finish your courts before the hub goes live.
+              Create your venue profile now. After approval, publish your hub
+              as Coming soon, then connect PayMongo to open bookings.
             </p>
 
             <ul className="mt-10 space-y-7">

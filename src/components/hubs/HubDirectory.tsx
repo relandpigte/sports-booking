@@ -32,6 +32,9 @@ export type DirectoryHubView = {
   }[];
   createdAt: string;
   updatedAt: string;
+  bookable: boolean;
+  comingSoon: boolean;
+  verified: boolean;
   availableSlots: number | null;
 };
 
@@ -354,10 +357,10 @@ export function HubDirectory({
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
-              Book online
+              Discover Bohol courts
             </p>
             <h2 className="mt-1 text-2xl font-black tracking-[-0.025em] text-navy">
-              Courts ready for you
+              Explore local hubs
             </h2>
           </div>
           <p className="text-sm text-slate-500">
@@ -384,6 +387,8 @@ export function HubDirectory({
                 availableSlots={hub.availableSlots}
                 availabilityDate={initial.date || today}
                 today={today}
+                comingSoon={hub.comingSoon}
+                verified={hub.verified}
               />
             ))}
           </div>

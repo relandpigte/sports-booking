@@ -10,7 +10,8 @@ serve two journeys clearly:
    PayMongo, and manage their reservation.
 2. Venue partners register, get admin-approved, publish hubs and courts,
    connect their own PayMongo account, manage bookings, and understand revenue
-   and service-fee settlements.
+   and service-fee settlements. Completed hubs may appear publicly as
+   “Coming soon” before PayMongo is connected, but cannot accept bookings.
 
 The homepage is a new marketing route at `/`. `/hubs` remains the dedicated
 court directory.
@@ -105,8 +106,8 @@ hierarchy.
 7. Partner section: no plans/subscriptions/monthly charges; proceeds go to the
    venue's own PayMongo account; venue retains advertised court rate; the
    Bunal.club service fee is 3% of the court booking total;
-   PayMongo connection and webhook setup is guided in-dashboard and must be
-   completed before a partner can create a hub.
+   partners may publish a Coming soon hub before PayMongo setup, while
+   connection and webhook setup remain required to verify it and open booking.
 8. Final dual CTA and legal/footer links.
 
 ## Motion and accessibility
@@ -143,8 +144,8 @@ page composition consistent.
 - Empty states: dashed border, soft brand tint, one clear next action.
 - Role homepages:
   - Player: next booking and find-a-court action dominate; stats are secondary.
-  - Partner: the PayMongo-first onboarding sequence is explicit, followed by
-    hub, booking, report, and settlement shortcuts.
+  - Partner: hub setup may start immediately; the Coming soon to Verified
+    transition makes the PayMongo requirement for booking explicit.
   - Owner/admin: pending work and financial status dominate; sensitive owner
     capabilities appear only inside authenticated routes.
 - Navigation labels and page content must use “Bunal.club”, not `Bunal.ph`.
@@ -173,6 +174,11 @@ Bunal.club.
 - Hub cards use a landscape cover photo, venue name, address, sport chips,
   court count, starting hourly rate, distance when available, and a direct
   Google Maps navigation action. The whole card still links to the hub detail.
+- A completed hub whose approved partner has not connected PayMongo remains
+  discoverable as a non-bookable “Coming soon” venue. Use a crisp diagonal
+  navy/lime watermark or ribbon over the cover, replace live availability with
+  a calm launch-status panel, and keep the profile link available. Never imply
+  that players can reserve or pay before the gateway is connected.
 - Use actual availability data for the selected date/time range; never display
   invented slot counts. When no date is selected, query today's availability
   in the Manila timezone and label the card count as today's inventory.
@@ -185,6 +191,6 @@ Bunal.club.
   availability in a calm soft-green status panel and keep shadows restrained.
 - Never fill an empty live directory with invented venues. For a genuinely
   empty marketplace, show a polished player message beside a navy partner CTA
-  explaining PayMongo-first venue onboarding. When active search or filters
-  have no matches, use a smaller no-results state with clear-filter and partner
-  actions instead.
+  explaining that hub setup can begin before PayMongo while bookings require a
+  connected account. When active search or filters have no matches, use a
+  smaller no-results state with clear-filter and partner actions instead.

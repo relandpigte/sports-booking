@@ -48,16 +48,6 @@ async function check() {
         name: "Pending Venue",
         email: EMAIL,
         passwordHash: "x",
-        partnerGateway: {
-          create: {
-            provider: "paymongo",
-            publicKey: "pk_test_abcdefgh",
-            secretKeyEnc: "x",
-            webhookSecretEnc: "x",
-            secretKeyHint: "…test",
-            webhookToken: crypto.randomBytes(18).toString("base64url"),
-          },
-        },
         hubs: {
           create: {
             name: "Pending Venue",
@@ -69,9 +59,11 @@ async function check() {
       select: { id: true, hubs: { select: { id: true } } },
     });
 
-    const { listPublicHubs, getPublicHub } = await import("@/lib/hubs");
-    const visible = async () =>
-      (await listPublicHubs()).some((hub) => hub.id === partner.hubs[0].id);
+    const { listPublicHubs, listPublicHubDirectory, getPublicHub } =
+      await import("@/lib/hubs");
+    const listedHub = async () =>
+      (await listPublicHubs()).find((hub) => hub.id === partner.hubs[0].id);
+    const visible = async () => Boolean(await listedHub());
 
     ok("new partner starts hidden", !(await visible()));
     ok(
@@ -109,7 +101,51 @@ async function check() {
         hourlyRate: 500,
       },
     });
-    ok("activated partner with a court is listed", await visible());
+    const comingSoonHub = await listedHub();
+    ok("activated partner with a court is listed", Boolean(comingSoonHub));
+    ok(
+      "hub without PayMongo is publicly coming soon",
+      comingSoonHub?.comingSoon === true &&
+        comingSoonHub.bookable === false &&
+        comingSoonHub.verified === false
+    );
+
+    const datedDirectory = await listPublicHubDirectory({
+      date: "2099-01-01",
+    });
+    ok(
+      "coming-soon hub does not expose availability",
+      datedDirectory.find((hub) => hub.id === partner.hubs[0].id)
+        ?.availableSlots === null
+    );
+    const bookableWindow = await listPublicHubDirectory({
+      date: "2099-01-01",
+      fromHour: 8,
+      toHour: 9,
+    });
+    ok(
+      "coming-soon hub is excluded from bookable time filters",
+      !bookableWindow.some((hub) => hub.id === partner.hubs[0].id)
+    );
+
+    await prisma.partnerGateway.create({
+      data: {
+        user: { connect: { id: partner.id } },
+        provider: "paymongo",
+        publicKey: "pk_test_abcdefgh",
+        secretKeyEnc: "x",
+        webhookSecretEnc: "x",
+        secretKeyHint: "…test",
+        webhookToken: crypto.randomBytes(18).toString("base64url"),
+      },
+    });
+    const verifiedHub = await listedHub();
+    ok(
+      "connected hub becomes bookable and verified",
+      verifiedHub?.bookable === true &&
+        verifiedHub.comingSoon === false &&
+        verifiedHub.verified === true
+    );
 
     await prisma.user.update({
       where: { id: partner.id },

@@ -27,14 +27,10 @@ export default async function HubsPage() {
         description="Create and manage your venues, courts, rates, and operating hours."
         actions={
           <Link
-            href={
-              gateway
-                ? "/dashboard/hubs/new"
-                : "/dashboard/payments?setup=hub"
-            }
+            href="/dashboard/hubs/new"
             className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-hover"
           >
-            {gateway ? "+ New hub" : "Connect PayMongo first"}
+            + New hub
           </Link>
         }
       />
@@ -42,14 +38,12 @@ export default async function HubsPage() {
       {!gateway && (
         <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
           <p className="text-sm font-semibold text-amber-800">
-            Connect PayMongo before adding a hub
+            Publish now, open bookings when payments are ready
           </p>
           <p className="mt-0.5 text-sm text-amber-700">
-            Players need a working checkout before a venue can accept
-            bookings. Connect your own PayMongo account first
-            {hubs.length > 0
-              ? "; your existing hubs will also return to the public directory."
-              : ", then you can create and publish your first hub."}
+            You can create your hub now. After you add a court, approved venues
+            appear publicly as Coming soon until PayMongo is connected. Online
+            booking stays disabled in the meantime.
           </p>
           <Link
             href="/dashboard/payments?setup=hub"
@@ -65,17 +59,13 @@ export default async function HubsPage() {
           <p className="max-w-sm text-sm text-gray-500">
             {gateway
               ? "Your payment gateway is ready. Add your first venue to start accepting bookings."
-              : "Start by connecting the PayMongo account that will receive player booking payments."}
+              : "Create your first venue now. It can appear as Coming soon while you finish PayMongo setup."}
           </p>
           <Link
-            href={
-              gateway
-                ? "/dashboard/hubs/new"
-                : "/dashboard/payments?setup=hub"
-            }
+            href="/dashboard/hubs/new"
             className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
           >
-            {gateway ? "Create your first hub" : "Connect PayMongo"}
+            Create your first hub
           </Link>
         </div>
       ) : (
@@ -102,9 +92,20 @@ export default async function HubsPage() {
               <div className="flex items-start gap-3 p-4">
                 <Avatar src={hub.logo} name={hub.name} size={44} />
                 <div className="min-w-0 flex-1">
-                  <h2 className="truncate font-semibold text-gray-900">
-                    {hub.name}
-                  </h2>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="truncate font-semibold text-gray-900">
+                      {hub.name}
+                    </h2>
+                    {!gateway && hub.courts.length > 0 ? (
+                      <span className="rounded-full bg-navy px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-accent">
+                        Coming soon
+                      </span>
+                    ) : hub.courts.length === 0 ? (
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-gray-500">
+                        Draft
+                      </span>
+                    ) : null}
+                  </div>
                   <p className="mt-0.5 truncate text-xs text-gray-500">
                     {[hub.phone, hub.email].filter(Boolean).join(" · ") ||
                       "No contact info"}

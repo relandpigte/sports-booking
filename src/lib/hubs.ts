@@ -108,13 +108,19 @@ export async function listMyHubs(): Promise<Hub[]> {
   return rows.map(mapHub);
 }
 
-// Public directory of all hubs, optionally filtered by game. No auth.
-//
-// A venue is listed only after the partner is admin-approved and has connected
-// a payment gateway. There is no plan or subscription gate.
+export type ListedHub = Hub & {
+  bookable: boolean;
+  comingSoon: boolean;
+  verified: boolean;
+};
+
+// Public directory of all complete hubs owned by approved partners. No auth.
+// A connected, current PayMongo account makes the venue bookable and verified;
+// otherwise it stays discoverable as Coming soon. Overdue connected partners
+// remain hidden until their service-fee standing is current again.
 export async function listPublicHubs(
   opts: { game?: Game } = {}
-): Promise<Hub[]> {
+): Promise<ListedHub[]> {
   const rows = await prisma.hub.findMany({
     where: {
       ...(opts.game ? { games: { has: opts.game } } : {}),
@@ -122,32 +128,58 @@ export async function listPublicHubs(
       owner: {
         role: "PARTNER",
         partnerStatus: "ACTIVE",
-        partnerGateway: { disconnectedAt: null },
       },
     },
     orderBy: { createdAt: "desc" },
-    select: { ...hubSelect, ownerId: true },
+    select: {
+      ...hubSelect,
+      ownerId: true,
+      owner: {
+        select: {
+          partnerGateway: { select: { disconnectedAt: true } },
+        },
+      },
+    },
   });
+  const connectedOwnerIds = [
+    ...new Set(
+      rows
+        .filter(
+          (row) => row.owner.partnerGateway?.disconnectedAt === null
+        )
+        .map((row) => row.ownerId)
+    ),
+  ];
   const overdueByOwner = new Map(
     await Promise.all(
-      [...new Set(rows.map((row) => row.ownerId))].map(
-        async (ownerId) =>
-          [ownerId, await isServiceFeeOverdue(ownerId)] as const
+      connectedOwnerIds.map(async (ownerId) =>
+        [ownerId, await isServiceFeeOverdue(ownerId)] as const
       )
     )
   );
   return rows
-    .filter((row) => !overdueByOwner.get(row.ownerId))
-    .map(({ ownerId: _ownerId, ...row }) => mapHub(row));
+    .filter((row) => {
+      const connected = row.owner.partnerGateway?.disconnectedAt === null;
+      return !connected || !overdueByOwner.get(row.ownerId);
+    })
+    .map(({ ownerId: _ownerId, owner, ...row }) => {
+      const connected = owner.partnerGateway?.disconnectedAt === null;
+      return {
+        ...mapHub(row),
+        bookable: connected,
+        comingSoon: !connected,
+        verified: connected,
+      };
+    });
 }
 
-export type DirectoryHub = Hub & {
+export type DirectoryHub = ListedHub & {
   availableSlots: number | null;
 };
 
-// The public directory can narrow venues to a real bookable window. It starts
-// from the same approved/connected/current hub list as the normal directory,
-// then evaluates each court with the exact slot math used by the booking page.
+// Bookable venues use the exact slot math from the booking page. Coming-soon
+// venues stay visible without exposing an availability count, unless a player
+// explicitly filters for a time window they cannot yet reserve.
 export async function listPublicHubDirectory({
   game,
   courtType,
@@ -175,7 +207,7 @@ export async function listPublicHubDirectory({
     return typed.map((hub) => ({ ...hub, availableSlots: null }));
   }
 
-  const courtIds = typed.flatMap((hub) =>
+  const courtIds = typed.filter((hub) => hub.bookable).flatMap((hub) =>
     hub.courts.map((court) => court.id)
   );
   const now = new Date();
@@ -201,6 +233,10 @@ export async function listPublicHubDirectory({
 
   return typed
     .map((hub) => {
+      if (!hub.bookable) {
+        return { ...hub, availableSlots: null };
+      }
+
       let availableSlots = 0;
 
       if (fromHour == null || toHour == null) {
@@ -244,11 +280,11 @@ export async function listPublicHubDirectory({
 
       return { ...hub, courts: matchingCourts, availableSlots };
     })
-    .filter((hub) =>
-      fromHour == null || toHour == null
-        ? hub.courts.length > 0
-        : hub.courts.length > 0 && hub.availableSlots > 0
-    );
+    .filter((hub) => {
+      if (hub.courts.length === 0) return false;
+      if (fromHour == null || toHour == null) return true;
+      return hub.bookable && (hub.availableSlots ?? 0) > 0;
+    });
 }
 
 const publicHubSelect = {
@@ -266,12 +302,14 @@ const publicHubSelect = {
   },
 } as const;
 
-// A hub that isn't taking bookings still RENDERS — the requirement is "no new
-// bookings", not "vanish", and the partner's own View link must keep working.
-// It simply doesn't appear in the directory (see listPublicHubs) and its
-// booking panel is replaced by an explanation.
+// A hub that isn't taking bookings still renders. Complete, approved hubs with
+// no gateway appear publicly as Coming soon; other blocked hubs remain
+// available by direct link to their owner, with no booking controls.
 export type PublicHub = Hub & {
   bookable: boolean;
+  publiclyListed: boolean;
+  comingSoon: boolean;
+  verified: boolean;
   // Whether booking here holds the hours pending payment. Now implied by
   // bookable — a hub with no gateway takes no bookings at all — but kept
   // separate because it answers a different question for the booking panel.
@@ -300,9 +338,13 @@ export const getPublicHub = cache(
     const overdue =
       approved && connected ? await isServiceFeeOverdue(ownerId) : false;
     const bookable = approved && connected && setupComplete && !overdue;
+    const comingSoon = approved && !connected && setupComplete;
     return {
       ...mapHub(rest),
       bookable,
+      publiclyListed: bookable || comingSoon,
+      comingSoon,
+      verified: bookable,
       paymentRequired: bookable,
       blockedBy: !approved
         ? "approval"
@@ -310,9 +352,9 @@ export const getPublicHub = cache(
           ? "gateway"
           : !setupComplete
             ? "setup"
-          : overdue
-            ? "settlement"
-            : null,
+            : overdue
+              ? "settlement"
+              : null,
       ownerId,
     };
   }

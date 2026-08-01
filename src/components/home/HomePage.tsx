@@ -778,7 +778,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                 {[
                   "No plan or subscription",
                   "No monthly platform charge",
-                  "Connect PayMongo before hub setup",
+                  "Publish a Coming soon hub before PayMongo",
                   "Reports and booking breakdown",
                 ].map((item) => (
                   <div

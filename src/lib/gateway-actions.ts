@@ -174,6 +174,6 @@ export async function disconnectGatewayAction(
   await revalidateGatewaySurfaces(partner.id);
   return {
     success:
-      "Disconnected. Your hubs are hidden from the public directory and new hub creation is paused until you reconnect. Refunds on existing paid bookings still work.",
+      "Disconnected. Complete hubs remain public as Coming soon, but new online bookings are paused until you reconnect. Refunds on existing paid bookings still work.",
   };
 }

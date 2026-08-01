@@ -270,6 +270,14 @@ export const getCourtForBooking = cache(async (courtId: string) => {
       name: true,
       courtType: true,
       hourlyRate: true,
+      scheduleRules: {
+        select: {
+          weekday: true,
+          hour: true,
+          closed: true,
+          hourlyRate: true,
+        },
+      },
       hub: {
         select: {
           id: true,
@@ -300,6 +308,12 @@ export const getCourtForBooking = cache(async (courtId: string) => {
     name: row.name,
     courtType: row.courtType,
     hourlyRate: row.hourlyRate ? row.hourlyRate.toNumber() : null,
+    scheduleRules: row.scheduleRules.map((rule) => ({
+      weekday: rule.weekday,
+      hour: rule.hour,
+      closed: rule.closed,
+      hourlyRate: rule.hourlyRate ? rule.hourlyRate.toNumber() : null,
+    })),
     hub: {
       id: row.hub.id,
       name: row.hub.name,
@@ -335,6 +349,8 @@ export async function getCourtAvailability(
     bookedHours,
     today: manilaToday(),
     nowHour: manilaNowHour(),
+    courtHourlyRate: court.hourlyRate,
+    scheduleRules: court.scheduleRules,
   });
 
   return { courtId, hubId: court.hub.id, date, closed, slots, bookedHours };

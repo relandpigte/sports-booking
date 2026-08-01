@@ -13,9 +13,11 @@ import {
   buildSlots,
   clampSelection,
   runHours,
+  slotTotal,
   toRuns,
   toggleHourIn,
 } from "@/lib/slots";
+import type { CourtScheduleRule } from "@/lib/slots";
 import { formatPHP } from "@/lib/currency";
 import { formatHourLabel, formatManilaDateLong } from "@/lib/time";
 import {
@@ -31,6 +33,7 @@ type PanelCourt = {
   name: string;
   courtType: string;
   hourlyRate: number | null;
+  scheduleRules: CourtScheduleRule[];
 };
 
 const initialState: BookingFormState = {};
@@ -79,8 +82,10 @@ export function BookCourtPanel({
         bookedHours: bookedHours ?? [],
         today,
         nowHour,
+        courtHourlyRate: court?.hourlyRate,
+        scheduleRules: court?.scheduleRules,
       }),
-    [operatingHours, date, bookedHours, today, nowHour]
+    [operatingHours, date, bookedHours, today, nowHour, court]
   );
 
   // The selection is trimmed during render rather than repaired in an effect,
@@ -92,8 +97,7 @@ export function BookCourtPanel({
   );
   // Hours needn't be contiguous; each unbroken run becomes its own booking.
   const runs = useMemo(() => toRuns(selected), [selected]);
-  const total =
-    court?.hourlyRate != null ? court.hourlyRate * selected.length : null;
+  const total = slotTotal(slots, selected);
 
   // Switching court or date invalidates the selection — reset in the handler,
   // not an effect.
@@ -294,7 +298,7 @@ export function BookCourtPanel({
                 <div className="mt-2 space-y-2 border-t border-navy/10 pt-4">
                   <div className="flex items-center justify-between gap-3 text-navy/65">
                     <span>
-                      Court rate ({selected.length}{" "}
+                      Court total ({selected.length}{" "}
                       {selected.length === 1 ? "hour" : "hours"})
                     </span>
                     <span className="shrink-0 font-semibold text-navy">

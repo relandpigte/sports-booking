@@ -334,7 +334,8 @@ model Hub {
   @@index([ownerId])
 }
 
-// A bookable court within a hub. Its schedule follows the hub's operating hours.
+// A bookable court within a hub. Hub operating hours define its outer weekly
+// window; sparse CourtSlotRule rows close individual hours or override price.
 model Court {
   id         String   @id @default(cuid())
   hubId      String
@@ -343,10 +344,30 @@ model Court {
   hourlyRate Decimal? @db.Decimal(10, 2)
   createdAt  DateTime @default(now())
 
-  hub      Hub       @relation(fields: [hubId], references: [id], onDelete: Cascade)
-  bookings Booking[]
+  hub           Hub             @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  bookings      Booking[]
+  scheduleRules CourtSlotRule[]
 
   @@index([hubId])
+}
+
+// A recurring rule for one court-hour. `weekday` is ISO-style Monday=0 through
+// Sunday=6. Rows are intentionally sparse: no row means "open at the court's
+// default rate" whenever the hub itself is open.
+model CourtSlotRule {
+  id         String   @id @default(cuid())
+  courtId    String
+  weekday    Int
+  hour       Int
+  closed     Boolean  @default(false)
+  hourlyRate Decimal? @db.Decimal(10, 2)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  court Court @relation(fields: [courtId], references: [id], onDelete: Cascade)
+
+  @@unique([courtId, weekday, hour])
+  @@index([courtId, weekday])
 }
 
 // PENDING   — holding its hours until holdExpiresAt while payment settles.

@@ -21,14 +21,13 @@ export function HubCard({
   comingSoon?: boolean;
   verified?: boolean;
 }) {
-  const startingRate = hub.courts.reduce<number | null>(
-    (lowest, court) =>
-      court.hourlyRate != null &&
-      (lowest == null || court.hourlyRate < lowest)
-        ? court.hourlyRate
-        : lowest,
-    null
-  );
+  const rates = hub.courts.flatMap((court) => [
+    ...(court.hourlyRate != null ? [court.hourlyRate] : []),
+    ...court.scheduleRules.flatMap((rule) =>
+      !rule.closed && rule.hourlyRate != null ? [rule.hourlyRate] : []
+    ),
+  ]);
+  const startingRate = rates.length ? Math.min(...rates) : null;
   const mapsHref =
     hub.latitude != null && hub.longitude != null
       ? `https://www.google.com/maps/dir/?api=1&destination=${hub.latitude},${hub.longitude}`

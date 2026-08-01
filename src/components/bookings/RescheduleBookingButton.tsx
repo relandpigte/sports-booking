@@ -4,12 +4,14 @@ import { useState } from "react";
 
 import { RescheduleBookingPanel } from "@/components/bookings/RescheduleBookingPanel";
 import type { OperatingHours } from "@/lib/constants";
+import type { CourtScheduleRule } from "@/lib/slots";
 
 type PanelCourt = {
   id: string;
   name: string;
   courtType: string;
   hourlyRate: number | null;
+  scheduleRules: CourtScheduleRule[];
 };
 
 // Keeps the picker — and the EventSource it opens — unmounted until a partner

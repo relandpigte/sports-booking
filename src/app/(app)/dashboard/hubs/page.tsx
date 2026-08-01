@@ -127,6 +127,12 @@ export default async function HubsPage() {
                   Bookings
                 </Link>
                 <Link
+                  href={`/dashboard/hubs/${hub.id}/schedule`}
+                  className="rounded-md px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                >
+                  Schedule
+                </Link>
+                <Link
                   href={`/dashboard/hubs/${hub.id}/edit`}
                   className="rounded-md px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary-soft"
                 >

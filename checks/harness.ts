@@ -97,6 +97,7 @@ export function stubRequestContext(actor: { id: string; email: string }): void {
   put(path.join(root, "src/lib/dal.ts"), {
     requireRole: async () => actor,
     requirePartner: async () => actor,
+    requireActivePartner: async () => actor,
     getViewer: async () => actor,
     getCurrentUser: async () => actor,
     verifySession: async () => ({ user: actor }),

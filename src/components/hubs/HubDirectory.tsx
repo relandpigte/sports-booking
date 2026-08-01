@@ -9,6 +9,7 @@ import {
   GAMES,
   type OperatingHours,
 } from "@/lib/constants";
+import type { CourtScheduleRule } from "@/lib/slots";
 
 export type DirectoryHubView = {
   id: string;
@@ -29,6 +30,7 @@ export type DirectoryHubView = {
     name: string;
     courtType: string;
     hourlyRate: number | null;
+    scheduleRules: CourtScheduleRule[];
   }[];
   createdAt: string;
   updatedAt: string;
@@ -56,9 +58,12 @@ function distanceKm(from: Coordinates, hub: DirectoryHubView): number | null {
 }
 
 function startingRate(hub: DirectoryHubView): number {
-  const rates = hub.courts
-    .map((court) => court.hourlyRate)
-    .filter((rate): rate is number => rate != null);
+  const rates = hub.courts.flatMap((court) => [
+    ...(court.hourlyRate != null ? [court.hourlyRate] : []),
+    ...court.scheduleRules.flatMap((rule) =>
+      !rule.closed && rule.hourlyRate != null ? [rule.hourlyRate] : []
+    ),
+  ]);
   return rates.length ? Math.min(...rates) : Number.POSITIVE_INFINITY;
 }
 

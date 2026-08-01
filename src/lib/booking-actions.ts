@@ -9,7 +9,14 @@ import { prisma } from "@/lib/db";
 import { getActivePartnerGateway } from "@/lib/partner-gateway";
 import { getViewer } from "@/lib/dal";
 import { firstErrors } from "@/lib/zod-errors";
-import { buildSlots, isAvailable, runHours, toRuns } from "@/lib/slots";
+import {
+  buildSlots,
+  isAvailable,
+  runHours,
+  slotTotal,
+  toRuns,
+  uniformSlotRate,
+} from "@/lib/slots";
 import {
   getBookedHours,
   getBookedHoursExcluding,
@@ -102,6 +109,8 @@ export async function createBookingAction(
     bookedHours,
     today,
     nowHour: manilaNowHour(),
+    courtHourlyRate: court.hourlyRate,
+    scheduleRules: court.scheduleRules,
   });
   if (closed) {
     return { errors: { date: "This hub is closed on that day." } };
@@ -149,8 +158,7 @@ export async function createBookingAction(
   // at the venue. So does a court with no hourly rate — there's nothing to
   // charge for, and a ₱0 checkout is a dead end, not a payment.
   const gateway = await getActivePartnerGateway(court.hub.ownerId);
-  const total =
-    court.hourlyRate != null ? court.hourlyRate * hours.length : null;
+  const total = slotTotal(slots, hours);
   const requiresPayment = gateway != null && total != null && total > 0;
 
   const now = new Date();
@@ -214,6 +222,10 @@ export async function createBookingAction(
 
       for (const run of runs) {
         const runLength = runHours(run);
+        const runHourValues = Array.from(
+          { length: runLength },
+          (_, i) => run.start + i
+        );
         const booking = await tx.booking.create({
           data: {
             courtId,
@@ -225,9 +237,8 @@ export async function createBookingAction(
             hours: runLength,
             startsAt: manilaInstant(date, run.start),
             endsAt: manilaInstant(date, run.end + 1),
-            hourlyRate: court.hourlyRate,
-            totalPrice:
-              court.hourlyRate != null ? court.hourlyRate * runLength : null,
+            hourlyRate: uniformSlotRate(slots, runHourValues),
+            totalPrice: slotTotal(slots, runHourValues),
             notes: notes ?? null,
             // Pay-to-confirm only when there's a gateway to pay through.
             status: requiresPayment ? "PENDING" : "CONFIRMED",
@@ -550,6 +561,8 @@ export async function rescheduleHubBookingAction(
     bookedHours,
     today,
     nowHour: manilaNowHour(),
+    courtHourlyRate: court.hourlyRate,
+    scheduleRules: court.scheduleRules,
   });
   if (closed) {
     return { errors: { date: "This hub is closed on that day." } };
@@ -583,8 +596,12 @@ export async function rescheduleHubBookingAction(
 
   // Re-snapshot from the new court's current rate: the old snapshot may belong
   // to a different court entirely, and the length may have changed.
-  const priceFor = (length: number) =>
-    court.hourlyRate != null ? court.hourlyRate * length : null;
+  const hoursFor = (run: { start: number; end: number }) =>
+    Array.from({ length: runHours(run) }, (_, i) => run.start + i);
+  const priceFor = (run: { start: number; end: number }) =>
+    slotTotal(slots, hoursFor(run));
+  const rateFor = (run: { start: number; end: number }) =>
+    uniformSlotRate(slots, hoursFor(run));
 
   // Every booking that comes out of this move records the same origin, so the
   // player can see where each piece came from.
@@ -658,8 +675,8 @@ export async function rescheduleHubBookingAction(
           hours: runHours(firstRun),
           startsAt: manilaInstant(date, firstRun.start),
           endsAt: manilaInstant(date, firstRun.end + 1),
-          hourlyRate: court.hourlyRate,
-          totalPrice: priceFor(runHours(firstRun)),
+          hourlyRate: rateFor(firstRun),
+          totalPrice: priceFor(firstRun),
           ...movedFrom,
           rescheduleCount: { increment: 1 },
         },
@@ -690,8 +707,8 @@ export async function rescheduleHubBookingAction(
             hours: runHours(run),
             startsAt: manilaInstant(date, run.start),
             endsAt: manilaInstant(date, run.end + 1),
-            hourlyRate: court.hourlyRate,
-            totalPrice: priceFor(runHours(run)),
+            hourlyRate: rateFor(run),
+            totalPrice: priceFor(run),
             notes: booking.notes,
             status: "CONFIRMED",
             ...movedFrom,

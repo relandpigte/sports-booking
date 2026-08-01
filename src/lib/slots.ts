@@ -5,12 +5,20 @@ import { formatHourLabel, manilaWeekday } from "@/lib/time";
 // the client grid. Because it's shared, the realtime payload only has to carry
 // `bookedHours: number[]` — the client recomputes the same grid the server did.
 
-export type SlotReason = "booked" | "past";
+export type SlotReason = "booked" | "closed" | "past";
+
+export type CourtScheduleRule = {
+  weekday: number;
+  hour: number;
+  closed: boolean;
+  hourlyRate: number | null;
+};
 
 export type Slot = {
   hour: number;
   label: string;
   available: boolean;
+  hourlyRate: number | null;
   reason?: SlotReason;
 };
 
@@ -51,14 +59,31 @@ export type BuildSlotsInput = {
   bookedHours: number[];
   today: string; // manilaToday()
   nowHour: number; // manilaNowHour()
+  courtHourlyRate?: number | null;
+  scheduleRules?: CourtScheduleRule[];
 };
+
+export const WEEKDAY_INDEX = {
+  mon: 0,
+  tue: 1,
+  wed: 2,
+  thu: 3,
+  fri: 4,
+  sat: 5,
+  sun: 6,
+} as const;
+
+export function weekdayIndexForDate(date: string): number {
+  return WEEKDAY_INDEX[manilaWeekday(date)];
+}
 
 export function buildSlots(input: BuildSlotsInput): {
   closed: boolean;
   slots: Slot[];
 } {
+  const weekday = manilaWeekday(input.date);
   const window = input.operatingHours
-    ? dayWindow(input.operatingHours[manilaWeekday(input.date)])
+    ? dayWindow(input.operatingHours[weekday])
     : null;
   if (!window) return { closed: true, slots: [] };
 
@@ -66,20 +91,62 @@ export function buildSlots(input: BuildSlotsInput): {
   // ISO dates sort lexicographically, so a string compare is a valid past check.
   const isPastDate = input.date < input.today;
   const isToday = input.date === input.today;
+  const rules = new Map(
+    (input.scheduleRules ?? [])
+      .filter((rule) => rule.weekday === WEEKDAY_INDEX[weekday])
+      .map((rule) => [rule.hour, rule] as const)
+  );
 
   const slots: Slot[] = [];
   for (let hour = window.start; hour < window.end; hour++) {
     // An hour that has already started is no longer bookable.
     const past = isPastDate || (isToday && hour <= input.nowHour);
     const isBooked = booked.has(hour);
+    const rule = rules.get(hour);
+    const isClosed = rule?.closed === true;
     slots.push({
       hour,
       label: formatHourLabel(hour),
-      available: !past && !isBooked,
-      reason: past ? "past" : isBooked ? "booked" : undefined,
+      available: !past && !isBooked && !isClosed,
+      hourlyRate: rule?.hourlyRate ?? input.courtHourlyRate ?? null,
+      reason: past
+        ? "past"
+        : isBooked
+          ? "booked"
+          : isClosed
+            ? "closed"
+            : undefined,
     });
   }
   return { closed: false, slots };
+}
+
+// The exact court subtotal for a set of hours. A null rate anywhere keeps the
+// existing "rate on request" behaviour rather than silently treating it as ₱0.
+export function slotTotal(slots: Slot[], hours: number[]): number | null {
+  let centavos = 0;
+  for (const hour of hours) {
+    const slot = slots.find((item) => item.hour === hour);
+    if (!slot || slot.hourlyRate == null) return null;
+    centavos += Math.round(slot.hourlyRate * 100);
+  }
+  return centavos / 100;
+}
+
+// Booking.hourlyRate remains a useful snapshot when every selected hour costs
+// the same. Mixed-rate bookings store null there and keep the exact sum in
+// Booking.totalPrice.
+export function uniformSlotRate(
+  slots: Slot[],
+  hours: number[]
+): number | null {
+  if (hours.length === 0) return null;
+  const rates = hours.map(
+    (hour) => slots.find((item) => item.hour === hour)?.hourlyRate ?? null
+  );
+  if (rates.some((rate) => rate == null)) return null;
+  const first = rates[0];
+  return rates.every((rate) => rate === first) ? first : null;
 }
 
 export function isAvailable(slots: Slot[], hour: number): boolean {

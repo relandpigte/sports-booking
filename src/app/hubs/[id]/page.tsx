@@ -141,9 +141,12 @@ export default async function PublicHubPage({
   const canonicalUrl = absoluteUrl(hubPublicPath(hub));
   const description = hubDescription(hub);
   const publicImages = hub.coverPhotos.filter(isPublicHttpUrl);
-  const hourlyRates = hub.courts
-    .map((court) => court.hourlyRate)
-    .filter((rate): rate is number => rate != null);
+  const hourlyRates = hub.courts.flatMap((court) => [
+    ...(court.hourlyRate != null ? [court.hourlyRate] : []),
+    ...court.scheduleRules.flatMap((rule) =>
+      !rule.closed && rule.hourlyRate != null ? [rule.hourlyRate] : []
+    ),
+  ]);
   const minRate = hourlyRates.length ? Math.min(...hourlyRates) : null;
   const maxRate = hourlyRates.length ? Math.max(...hourlyRates) : null;
   const openingHoursSpecification = hours

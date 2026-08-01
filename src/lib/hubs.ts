@@ -11,7 +11,8 @@ import type {
 import { prisma } from "@/lib/db";
 import { requireActivePartner, requirePartner } from "@/lib/dal";
 import { isServiceFeeOverdue } from "@/lib/service-fees";
-import { buildSlots } from "@/lib/slots";
+import { buildSlots, weekdayIndexForDate } from "@/lib/slots";
+import type { CourtScheduleRule } from "@/lib/slots";
 import { manilaNowHour, manilaToday } from "@/lib/time";
 
 export type Court = {
@@ -19,6 +20,7 @@ export type Court = {
   name: string;
   courtType: string;
   hourlyRate: number | null;
+  scheduleRules: CourtScheduleRule[];
 };
 
 type CourtRow = {
@@ -26,6 +28,12 @@ type CourtRow = {
   name: string;
   courtType: string;
   hourlyRate: Prisma.Decimal | null;
+  scheduleRules: {
+    weekday: number;
+    hour: number;
+    closed: boolean;
+    hourlyRate: Prisma.Decimal | null;
+  }[];
 };
 
 function mapCourt(c: CourtRow): Court {
@@ -34,6 +42,12 @@ function mapCourt(c: CourtRow): Court {
     name: c.name,
     courtType: c.courtType,
     hourlyRate: c.hourlyRate ? c.hourlyRate.toNumber() : null,
+    scheduleRules: c.scheduleRules.map((rule) => ({
+      weekday: rule.weekday,
+      hour: rule.hour,
+      closed: rule.closed,
+      hourlyRate: rule.hourlyRate ? rule.hourlyRate.toNumber() : null,
+    })),
   };
 }
 
@@ -76,7 +90,20 @@ const hubSelect = {
   createdAt: true,
   updatedAt: true,
   courts: {
-    select: { id: true, name: true, courtType: true, hourlyRate: true },
+    select: {
+      id: true,
+      name: true,
+      courtType: true,
+      hourlyRate: true,
+      scheduleRules: {
+        select: {
+          weekday: true,
+          hour: true,
+          closed: true,
+          hourlyRate: true,
+        },
+      },
+    },
     orderBy: { createdAt: "asc" },
   },
 } as const;
@@ -247,6 +274,8 @@ export async function listPublicHubDirectory({
             bookedHours: bookedByCourt.get(court.id) ?? [],
             today,
             nowHour,
+            courtHourlyRate: court.hourlyRate,
+            scheduleRules: court.scheduleRules,
           });
           availableSlots += slots.filter((slot) => slot.available).length;
         }
@@ -264,6 +293,8 @@ export async function listPublicHubDirectory({
           bookedHours: bookedByCourt.get(court.id) ?? [],
           today,
           nowHour,
+          courtHourlyRate: court.hourlyRate,
+          scheduleRules: court.scheduleRules,
         });
         const courtAvailableSlots = slots.filter(
           (slot) => slot.available
@@ -369,4 +400,50 @@ export async function getMyHub(id: string): Promise<Hub | null> {
   });
   if (!row) return null;
   return mapHub(row);
+}
+
+export type LockedCourtScheduleSlot = {
+  courtId: string;
+  weekday: number;
+  hour: number;
+};
+
+// Recurring hours with at least one upcoming booking are locked in the weekly
+// editor. Rate changes remain safe because Booking snapshots its price, but a
+// partner must cancel/move the booking before closing that recurring hour.
+export async function getMyHubSchedule(id: string): Promise<{
+  hub: Hub;
+  lockedSlots: LockedCourtScheduleSlot[];
+} | null> {
+  const hub = await getMyHub(id);
+  if (!hub) return null;
+
+  const now = new Date();
+  const rows = await prisma.bookingSlot.findMany({
+    where: {
+      courtId: { in: hub.courts.map((court) => court.id) },
+      OR: [
+        { booking: { status: "CONFIRMED", endsAt: { gte: now } } },
+        {
+          booking: {
+            status: "PENDING",
+            holdExpiresAt: { gt: now },
+          },
+        },
+      ],
+    },
+    select: { courtId: true, date: true, hour: true },
+  });
+
+  const unique = new Map<string, LockedCourtScheduleSlot>();
+  for (const row of rows) {
+    const slot = {
+      courtId: row.courtId,
+      weekday: weekdayIndexForDate(row.date),
+      hour: row.hour,
+    };
+    unique.set(`${slot.courtId}:${slot.weekday}:${slot.hour}`, slot);
+  }
+
+  return { hub, lockedSlots: [...unique.values()] };
 }

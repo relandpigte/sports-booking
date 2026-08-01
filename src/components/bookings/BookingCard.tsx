@@ -9,6 +9,7 @@ import type { BookingView } from "@/lib/bookings";
 import { formatPHP } from "@/lib/currency";
 import { hubPublicPath } from "@/lib/hub-slug";
 import { formatManilaDateLong, formatSlotRange } from "@/lib/time";
+import type { CourtScheduleRule } from "@/lib/slots";
 import {
   BOOKING_STATUS_LABELS,
   BOOKING_STATUS_TONES,
@@ -36,6 +37,7 @@ export function BookingCard({
       name: string;
       courtType: string;
       hourlyRate: number | null;
+      scheduleRules: CourtScheduleRule[];
     }[];
     operatingHours: OperatingHours | null;
     today: string;

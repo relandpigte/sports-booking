@@ -1,6 +1,7 @@
 "use client";
 
 import type { Slot } from "@/lib/slots";
+import { formatPHP } from "@/lib/currency";
 
 // Hourly slots the player taps to pick their times. Each hour toggles on its
 // own — a selection does not have to be one unbroken block.
@@ -57,20 +58,37 @@ export function SlotGrid({
                   ? "Already booked"
                   : slot.reason === "past"
                     ? "This time has passed"
+                    : slot.reason === "closed"
+                      ? "Closed by the venue"
                     : undefined
               }
               className={[
-                "h-12 rounded-xl border-2 text-sm font-bold transition-all",
+                "min-h-14 rounded-xl border-2 px-1.5 py-2 text-sm font-bold transition-all",
                 isSelected
                   ? "border-primary bg-primary text-white shadow-md shadow-primary/15"
                   : slot.reason === "booked"
                     ? "cursor-not-allowed border-gray-100 bg-gray-50 text-gray-300 line-through"
                     : slot.reason === "past"
                       ? "cursor-not-allowed border-gray-100 bg-white text-gray-300"
+                      : slot.reason === "closed"
+                        ? "cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400"
                       : "border-gray-200 bg-white text-navy hover:border-primary hover:text-primary",
               ].join(" ")}
             >
-              {slot.label}
+              <span className="block">{slot.label}</span>
+              {slot.reason === "closed" ? (
+                <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-wide">
+                  Closed
+                </span>
+              ) : slot.hourlyRate != null && slot.reason !== "booked" ? (
+                <span
+                  className={`mt-0.5 block text-[10px] font-semibold ${
+                    isSelected ? "text-white/80" : "text-gray-400"
+                  }`}
+                >
+                  {formatPHP(slot.hourlyRate)}
+                </span>
+              ) : null}
             </button>
           );
         })}
@@ -84,6 +102,10 @@ export function SlotGrid({
         <span className="inline-flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-sm bg-gray-200" />
           Booked
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-sm border border-gray-200 bg-gray-50" />
+          Closed
         </span>
         {live && (
           <span className="inline-flex items-center gap-1.5 text-green-600">

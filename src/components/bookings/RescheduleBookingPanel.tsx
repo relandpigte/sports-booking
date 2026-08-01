@@ -16,9 +16,11 @@ import {
   buildSlots,
   clampSelection,
   runHours,
+  slotTotal,
   toRuns,
   toggleHourIn,
 } from "@/lib/slots";
+import type { CourtScheduleRule } from "@/lib/slots";
 import { formatPHP } from "@/lib/currency";
 import {
   formatHourLabel,
@@ -32,6 +34,7 @@ type PanelCourt = {
   name: string;
   courtType: string;
   hourlyRate: number | null;
+  scheduleRules: CourtScheduleRule[];
 };
 
 const initialState: BookingFormState = {};
@@ -100,8 +103,10 @@ export function RescheduleBookingPanel({
         bookedHours: bookedHours ?? [],
         today,
         nowHour,
+        courtHourlyRate: court?.hourlyRate,
+        scheduleRules: court?.scheduleRules,
       }),
-    [operatingHours, date, bookedHours, today, nowHour]
+    [operatingHours, date, bookedHours, today, nowHour, court]
   );
 
   // Trimmed during render, so hours taken mid-edit drop off on the next frame.
@@ -114,8 +119,7 @@ export function RescheduleBookingPanel({
   const runs = useMemo(() => toRuns(selected), [selected]);
   const selectedHours = selected.length;
 
-  const total =
-    court?.hourlyRate != null ? court.hourlyRate * selectedHours : null;
+  const total = slotTotal(slots, selected);
 
   const unchanged =
     runs.length === 1 &&
@@ -343,10 +347,9 @@ export function RescheduleBookingPanel({
           </div>
         )}
 
-        {court?.hourlyRate != null && (
+        {court && (
           <p className="text-xs text-gray-400">
-            Priced at {court.name}&apos;s current rate,{" "}
-            {formatPHP(court.hourlyRate)}/hr.
+            Priced from {court.name}&apos;s current weekly schedule.
           </p>
         )}
       </div>

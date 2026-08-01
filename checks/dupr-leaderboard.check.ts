@@ -7,6 +7,7 @@ import {
   getDuprLeaderboard,
   type DuprConfig,
 } from "@/lib/dupr";
+import { topRatedPlayers, type RankingEntry } from "@/lib/leaderboard";
 
 const config: DuprConfig = {
   baseUrl: "https://dupr-check.example.test/api",
@@ -99,6 +100,29 @@ async function check() {
     "DUPR reliability is preserved per format",
     snapshot.singles[0]?.reliability === "provisional" &&
       snapshot.singles[1]?.reliability === "reliable"
+  );
+
+  const rankedFixture: RankingEntry[] = [
+    ...Array.from({ length: 11 }, (_, index) => ({
+      duprId: `RATED${index}`,
+      fullName: `Rated Player ${index}`,
+      rating: 5 - index / 10,
+      reliability: "reliable" as const,
+    })),
+    {
+      duprId: "UNRATED",
+      fullName: "Unrated Player",
+      rating: null,
+      reliability: "not-rated",
+    },
+  ];
+  const topPlayers = topRatedPlayers(rankedFixture);
+  ok(
+    "the public leaderboard shows at most ten rated players",
+    topPlayers.length === 10 &&
+      topPlayers.every((entry) => entry.rating !== null) &&
+      topPlayers[0]?.duprId === "RATED0" &&
+      topPlayers[9]?.duprId === "RATED9"
   );
 
   const envNames = [

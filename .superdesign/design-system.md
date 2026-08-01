@@ -212,3 +212,20 @@ Bunal.club.
   explaining that hub setup can begin before PayMongo while bookings require a
   connected account. When active search or filters have no matches, use a
   smaller no-results state with clear-filter and partner actions instead.
+
+## Public leaderboard
+
+- Rankings live only at the public `/leaderboard` route and must not appear in
+  authenticated dashboard navigation. Signed-in visitors still see the public
+  page chrome, with a direct way back to their dashboard.
+- Use a compact centered navy hero followed by Doubles and Singles pill tabs
+  that switch one responsive ranking table.
+- Display at most the top ten rated members returned by the Bunal.club DUPR
+  club integration. Show rank, player name, rating, and reliability only; do
+  not invent age, gender, location, ranking movement, or profile data.
+- State clearly that the list represents Bunal.club club members and is not
+  DUPR's global standings. Link to `https://www.dupr.com/rankings` for the
+  official global ranking page.
+- Omit unrated members from the top-player view. Use compact honest states when
+  a format has no rated members, the API is unavailable, or the integration is
+  not configured.

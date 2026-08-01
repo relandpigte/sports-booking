@@ -1,8 +1,13 @@
 # DUPR leaderboard setup
 
-The public `/leaderboard` page keeps Singles and Doubles ratings separate. It
-shows a connection-pending state until all four server environment variables
-are configured:
+The public-only `/leaderboard` page shows the top ten rated Bunal.club members
+returned by the DUPR Partner API. Visitors can switch between the separate
+Singles and Doubles lists. Unrated members are omitted from this top-player
+view, and the page clearly links to DUPR's own global rankings rather than
+presenting the club list as global data.
+
+The page shows a connection-pending state until all four server environment
+variables are configured:
 
 ```env
 DUPR_API_BASE_URL=""

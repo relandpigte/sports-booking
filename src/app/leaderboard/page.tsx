@@ -7,14 +7,14 @@ import { getDuprLeaderboard } from "@/lib/dupr";
 import { SITE_NAME, SITE_URL, absoluteUrl } from "@/lib/site";
 
 const description =
-  "Explore separate Singles and Doubles DUPR rankings for Bunal.club pickleball players in Bohol.";
+  "View the top-rated Bunal.club club members returned by the DUPR Partner API, with separate Singles and Doubles lists.";
 
 export const metadata: Metadata = {
-  title: "Bohol Pickleball Rankings | Bunal.club",
+  title: "Top DUPR-Rated Club Players | Bunal.club",
   description,
   alternates: { canonical: "/leaderboard" },
   openGraph: {
-    title: "Bohol Pickleball Rankings | Bunal.club",
+    title: "Top DUPR-Rated Club Players | Bunal.club",
     description,
     url: "/leaderboard",
     siteName: SITE_NAME,
@@ -28,7 +28,7 @@ const leaderboardJsonLd = {
   "@type": "CollectionPage",
   "@id": `${absoluteUrl("/leaderboard")}#webpage`,
   url: absoluteUrl("/leaderboard"),
-  name: "Bohol Pickleball Rankings",
+  name: "Bunal.club DUPR Club Leaderboard",
   description,
   isPartOf: { "@id": `${SITE_URL}/#website` },
   inLanguage: "en-PH",
@@ -38,7 +38,12 @@ export default async function LeaderboardRoute() {
   const snapshot = await getDuprLeaderboard();
 
   return (
-    <PageShell maxWidth="max-w-none" backgroundClass="bg-[#f7faf8]" padded={false}>
+    <PageShell
+      maxWidth="max-w-none"
+      backgroundClass="bg-[#f7faf8]"
+      padded={false}
+      alwaysPublic
+    >
       <JsonLd data={leaderboardJsonLd} />
       <LeaderboardPage snapshot={snapshot} />
     </PageShell>

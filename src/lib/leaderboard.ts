@@ -20,3 +20,10 @@ export type LeaderboardSnapshot =
       singles: RankingEntry[];
       doubles: RankingEntry[];
     };
+
+export function topRatedPlayers(
+  entries: RankingEntry[],
+  limit = 10
+): RankingEntry[] {
+  return entries.filter((entry) => entry.rating !== null).slice(0, limit);
+}

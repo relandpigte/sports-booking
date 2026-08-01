@@ -2,6 +2,7 @@ import { transactionalEmailHtml } from "@/lib/email-html";
 
 export function passwordResetEmailHtml(resetUrl: string): string {
   return transactionalEmailHtml({
+    preheader: "Use this secure link to reset your Bunal.club password.",
     eyebrow: "Bunal.club account",
     heading: "Reset your password",
     paragraphs: [

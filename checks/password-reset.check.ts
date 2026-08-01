@@ -40,6 +40,8 @@ async function check() {
   let sdkUserAgent = false;
   let idempotencyHeader = false;
   let renderedResetLink = false;
+  let renderedBrandLogo = false;
+  let renderedEmailSafeShell = false;
   process.env.RESEND_API_KEY = "re_check_only";
   process.env.EMAIL_FROM = "Bunal.club <check@example.test>";
   globalThis.fetch = (async (_input, init) => {
@@ -48,6 +50,12 @@ async function check() {
     sdkUserAgent = Boolean(headers.get("User-Agent"));
     idempotencyHeader = Boolean(headers.get("Idempotency-Key"));
     renderedResetLink = String(init?.body).includes("reset-password?token=");
+    renderedBrandLogo = String(init?.body).includes(
+      "bunal-logo-transparent.png"
+    );
+    renderedEmailSafeShell = String(init?.body).includes(
+      'role=\\"presentation\\"'
+    );
     return new Response(JSON.stringify({ id: "email-check" }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -65,6 +73,8 @@ async function check() {
     ok("the Resend SDK supplies its required user agent", sdkUserAgent);
     ok("the SDK sends the reset request idempotently", idempotencyHeader);
     ok("the email body contains the secure reset link", renderedResetLink);
+    ok("the reset email contains the Bunal.club logo", renderedBrandLogo);
+    ok("the reset email uses an email-safe table shell", renderedEmailSafeShell);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalApiKey === undefined) delete process.env.RESEND_API_KEY;

@@ -30,6 +30,7 @@ export function welcomeEmailContent(input: WelcomeEmailContentInput): {
     return {
       subject,
       html: transactionalEmailHtml({
+        preheader: "Your Bunal.club player account is ready. Find a court and start playing.",
         eyebrow: "Welcome to Bunal.club",
         heading: "You're ready to play",
         paragraphs,
@@ -60,6 +61,7 @@ export function welcomeEmailContent(input: WelcomeEmailContentInput): {
   return {
     subject,
     html: transactionalEmailHtml({
+      preheader: "We received your Bunal.club venue application and will review it shortly.",
       eyebrow: "Bunal.club for venues",
       heading: "Your application is under review",
       paragraphs,

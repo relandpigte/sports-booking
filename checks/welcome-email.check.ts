@@ -80,6 +80,30 @@ async function check() {
       player?.headers.get("Idempotency-Key") === "welcome-player-check" &&
         partner?.headers.get("Idempotency-Key") === "welcome-partner-check"
     );
+    ok(
+      "all welcome emails use the branded logo and email-safe shell",
+      [player, partner].every((request) => {
+        const html = String(request?.body.html);
+        return (
+          html.includes(
+            "https://www.bunal.club/bunal-logo-transparent.png"
+          ) &&
+          html.includes('role="presentation"') &&
+          html.includes("Play") &&
+          html.includes("Compete") &&
+          html.includes("Connect")
+        );
+      })
+    );
+    ok(
+      "welcome emails include audience-specific preview text",
+      String(player?.body.html).includes(
+        "Your Bunal.club player account is ready"
+      ) &&
+        String(partner?.body.html).includes(
+          "We received your Bunal.club venue application"
+        )
+    );
   } finally {
     globalThis.fetch = originalFetch;
     if (originalApiKey === undefined) delete process.env.RESEND_API_KEY;

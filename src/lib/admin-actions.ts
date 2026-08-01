@@ -9,6 +9,11 @@ import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin";
 import { normalizeAvatar } from "@/lib/avatar";
 import { ROLE_VALUES } from "@/lib/constants";
+import {
+  emailDeliveryConfigured,
+  sendPartnerApprovalEmail,
+} from "@/lib/email";
+import { appUrl } from "@/lib/urls";
 import { firstErrors } from "@/lib/zod-errors";
 import {
   AdminCreateUserSchema,
@@ -211,12 +216,29 @@ export async function setPartnerActiveAction(formData: FormData) {
 
   const partner = await prisma.user.findFirst({
     where: { id, role: "PARTNER" },
-    select: { id: true },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      playerName: true,
+      hubs: { select: { name: true }, orderBy: { createdAt: "asc" }, take: 1 },
+    },
   });
   if (!partner) return;
 
-  await prisma.user.update({
-    where: { id },
+  const transition = await prisma.user.updateMany({
+    where: {
+      id,
+      role: "PARTNER",
+      ...(active
+        ? {
+            OR: [
+              { partnerStatus: null },
+              { partnerStatus: { not: "ACTIVE" } },
+            ],
+          }
+        : {}),
+    },
     data: active
       ? {
           partnerStatus: "ACTIVE",
@@ -229,6 +251,25 @@ export async function setPartnerActiveAction(formData: FormData) {
           partnerActivatedById: null,
         },
   });
+
+  if (active && transition.count === 1 && emailDeliveryConfigured()) {
+    try {
+      await sendPartnerApprovalEmail({
+        to: partner.email,
+        name: partner.playerName ?? partner.name ?? "there",
+        venueName: partner.hubs[0]?.name ?? partner.name ?? "Your venue",
+        actionUrl: appUrl("/dashboard/partner"),
+        idempotencyKey: `partner-approved-${partner.id}`,
+      });
+    } catch (error) {
+      // Approval is the source of truth. A provider outage must not leave a
+      // reviewed venue stuck in pending status.
+      console.error(
+        "Partner-approval email delivery failed:",
+        error instanceof Error ? error.message : "Unknown provider error"
+      );
+    }
+  }
 
   revalidatePath("/users");
   revalidatePath(`/users/${id}/edit`);

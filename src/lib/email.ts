@@ -4,6 +4,10 @@ import { Resend } from "resend";
 
 import { passwordResetEmailHtml } from "@/lib/password-reset-email";
 import {
+  partnerApprovalEmailContent,
+  type PartnerApprovalEmailContentInput,
+} from "@/lib/partner-approval-email";
+import {
   welcomeEmailContent,
   type WelcomeEmailContentInput,
 } from "@/lib/welcome-email";
@@ -15,6 +19,11 @@ type PasswordResetEmailInput = {
 };
 
 type WelcomeEmailInput = WelcomeEmailContentInput & {
+  to: string;
+  idempotencyKey: string;
+};
+
+type PartnerApprovalEmailInput = PartnerApprovalEmailContentInput & {
   to: string;
   idempotencyKey: string;
 };
@@ -108,5 +117,20 @@ export async function sendWelcomeEmail(
     category:
       input.audience === "PLAYER" ? "welcome-player" : "welcome-partner",
     description: "Welcome email delivery",
+  });
+}
+
+export async function sendPartnerApprovalEmail(
+  input: PartnerApprovalEmailInput
+): Promise<void> {
+  const content = partnerApprovalEmailContent(input);
+  await deliverEmail({
+    to: input.to,
+    subject: content.subject,
+    html: content.html,
+    text: content.text,
+    idempotencyKey: input.idempotencyKey,
+    category: "partner-approved",
+    description: "Partner-approval email delivery",
   });
 }

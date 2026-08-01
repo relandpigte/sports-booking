@@ -89,6 +89,11 @@ export function stubRequestContext(actor: { id: string; email: string }): void {
     },
   });
 
+  const cache = req.resolve("next/cache");
+  put(cache, {
+    revalidatePath: () => undefined,
+  });
+
   put(path.join(root, "src/lib/dal.ts"), {
     requireRole: async () => actor,
     requirePartner: async () => actor,

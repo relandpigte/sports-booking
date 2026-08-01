@@ -34,7 +34,7 @@ const homeJsonLd = {
       "@id": `${SITE_URL}/#organization`,
       name: SITE_NAME,
       url: SITE_URL,
-      logo: absoluteUrl("/bunal-logo-transparent.png"),
+      logo: absoluteUrl("/bunal-logo-v2-wordmark.png"),
       description: SITE_DESCRIPTION,
       areaServed: {
         "@type": "AdministrativeArea",

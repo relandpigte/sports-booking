@@ -8,7 +8,7 @@ export const contentType = "image/png";
 
 export default async function OpenGraphImage() {
   const logo = await readFile(
-    join(process.cwd(), "public", "bunal-logo-transparent.png")
+    join(process.cwd(), "public", "bunal-logo-v2-wordmark.png")
   );
   const logoSrc = `data:image/png;base64,${logo.toString("base64")}`;
 
@@ -21,7 +21,7 @@ export default async function OpenGraphImage() {
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
-          background: "#10243a",
+          background: "#030b20",
           color: "white",
           padding: "64px 72px",
           position: "relative",
@@ -44,18 +44,20 @@ export default async function OpenGraphImage() {
           style={{
             display: "flex",
             alignItems: "center",
-            width: "420px",
-            height: "172px",
-            borderRadius: "24px",
-            background: "white",
-            padding: "18px 24px",
+            justifyContent: "center",
+            width: "230px",
+            height: "230px",
+            borderRadius: "32px",
+            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(255,255,255,0.04)",
+            padding: "10px",
           }}
         >
           <img
             src={logoSrc}
             alt=""
-            width={372}
-            height={153}
+            width={210}
+            height={210}
             style={{ objectFit: "contain" }}
           />
         </div>

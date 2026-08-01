@@ -54,7 +54,7 @@ export function PartnerOnboardingLayout({ children }: { children: ReactNode }) {
 
         <div className="relative">
           <Link href="/" aria-label="Bunal.club home">
-            <Logo className="h-14 w-[230px]" />
+            <Logo size="standard" />
           </Link>
 
           <div className="mt-14 hidden lg:block">

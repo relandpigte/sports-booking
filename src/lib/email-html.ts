@@ -27,7 +27,7 @@ export function transactionalEmailHtml({
   note,
 }: TransactionalEmailOptions): string {
   const homeUrl = new URL("/", actionUrl).toString();
-  const logoUrl = new URL("/bunal-logo-transparent.png", actionUrl).toString();
+  const logoUrl = new URL("/bunal-logo-v2-wordmark.png", actionUrl).toString();
   const privacyUrl = new URL("/privacy", actionUrl).toString();
   const safeActionUrl = escapeEmailHtml(actionUrl);
   const body = paragraphs
@@ -65,7 +65,7 @@ export function transactionalEmailHtml({
             <tr>
               <td align="center" bgcolor="#10243a" class="email-header" style="padding:22px 32px;border-radius:16px 16px 0 0;">
                 <a href="${escapeEmailHtml(homeUrl)}" target="_blank" style="display:inline-block;text-decoration:none;">
-                  <img src="${escapeEmailHtml(logoUrl)}" width="190" alt="Bunal.club — Play. Compete. Connect." style="display:block;width:190px;max-width:100%;height:auto;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;">
+                  <img src="${escapeEmailHtml(logoUrl)}" width="120" alt="Bunal.club — Play. Compete. Connect." style="display:block;width:120px;max-width:100%;height:auto;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;">
                 </a>
               </td>
             </tr>

@@ -40,7 +40,7 @@ export function AuthLayout({
 
         <div className="relative">
           <Link href="/" aria-label="Bunal.club home">
-            <Logo />
+            <Logo size="standard" />
           </Link>
 
           <div className="mt-10 hidden lg:block">

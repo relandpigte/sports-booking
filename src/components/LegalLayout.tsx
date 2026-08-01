@@ -21,7 +21,7 @@ export function LegalLayout({ title, updated, children }: LegalLayoutProps) {
         </Link>
 
         <div className="mt-6 flex flex-col items-center gap-3 text-center">
-          <Logo />
+          <Logo size="standard" />
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
             <p className="mt-1 text-sm text-gray-500">Last updated {updated}</p>

@@ -86,7 +86,7 @@ async function check() {
         const html = String(request?.body.html);
         return (
           html.includes(
-            "https://www.bunal.club/bunal-logo-transparent.png"
+            "https://www.bunal.club/bunal-logo-v2-wordmark.png"
           ) &&
           html.includes('role="presentation"') &&
           html.includes("Play") &&

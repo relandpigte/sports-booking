@@ -328,7 +328,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
             aria-label="Bunal.club homepage"
             className="min-w-0"
           >
-            <Logo className="max-w-[170px] sm:max-w-[220px]" />
+            <Logo />
           </Link>
 
           <nav
@@ -964,9 +964,9 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
             <Link
               href="/"
               aria-label="Bunal.club homepage"
-              className="w-fit rounded-xl bg-white p-2"
+              className="w-fit"
             >
-              <Logo className="max-w-[220px]" />
+              <Logo size="standard" />
             </Link>
             <nav
               aria-label="Footer navigation"

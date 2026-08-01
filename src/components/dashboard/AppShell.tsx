@@ -46,9 +46,9 @@ export function AppShell({
           <Link
             href="/dashboard"
             aria-label="Bunal.club dashboard home"
-            className="block w-fit rounded-xl bg-white md:w-full md:p-2.5"
+            className="block w-fit md:p-2.5"
           >
-            <Logo className="max-w-[178px] md:max-w-full" />
+            <Logo />
           </Link>
 
           <div className="flex items-center gap-2 md:hidden">

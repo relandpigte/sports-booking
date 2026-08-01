@@ -51,7 +51,7 @@ async function check() {
     idempotencyHeader = Boolean(headers.get("Idempotency-Key"));
     renderedResetLink = String(init?.body).includes("reset-password?token=");
     renderedBrandLogo = String(init?.body).includes(
-      "bunal-logo-transparent.png"
+      "bunal-logo-v2-wordmark.png"
     );
     renderedEmailSafeShell = String(init?.body).includes(
       'role=\\"presentation\\"'

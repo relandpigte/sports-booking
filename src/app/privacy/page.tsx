@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function PrivacyPage() {
   return (
-    <LegalLayout title="Privacy Policy" updated="June 4, 2026">
+    <LegalLayout title="Privacy Policy" updated="August 1, 2026">
       <p>
         This Privacy Policy explains how Bunal.club (&quot;we&quot;,
         &quot;us&quot;) collects, uses, and protects your personal information
@@ -30,6 +30,12 @@ export default function PrivacyPage() {
           <li>
             <span className="font-medium text-gray-800">Activity</span> — the
             games you join and bookings you make.
+          </li>
+          <li>
+            <span className="font-medium text-gray-800">Usage data</span> —
+            pages visited, referral information, device and browser details,
+            and interactions collected through analytics and advertising
+            technologies.
           </li>
         </ul>
       </LegalSection>
@@ -69,7 +75,18 @@ export default function PrivacyPage() {
         </p>
       </LegalSection>
 
-      <LegalSection heading="6. Data retention">
+      <LegalSection heading="6. Analytics and advertising">
+        <p>
+          We use Meta Pixel to understand visits to Bunal.club and measure the
+          effectiveness of our promotions. The pixel may send page-view,
+          browser, device, cookie or identifier, and IP-derived information to
+          Meta, which processes that information under its own privacy terms.
+          We do not intentionally send booking or payment details to Meta
+          through this pixel.
+        </p>
+      </LegalSection>
+
+      <LegalSection heading="7. Data retention">
         <p>
           We keep your information for as long as your account is active. When you
           delete your account, we remove or anonymize your personal data, except
@@ -77,7 +94,7 @@ export default function PrivacyPage() {
         </p>
       </LegalSection>
 
-      <LegalSection heading="7. Your rights">
+      <LegalSection heading="8. Your rights">
         <p>
           Depending on your location, you may have the right to access, correct,
           export, or delete your personal data. To exercise these rights, contact
@@ -92,7 +109,7 @@ export default function PrivacyPage() {
         </p>
       </LegalSection>
 
-      <LegalSection heading="8. Changes to this policy">
+      <LegalSection heading="9. Changes to this policy">
         <p>
           We may update this Privacy Policy from time to time. Material changes
           will be reflected by updating the &quot;Last updated&quot; date above.

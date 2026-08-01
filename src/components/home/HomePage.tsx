@@ -339,6 +339,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
               ["How it works", "#how-it-works"],
               ["Payments", "#payments"],
               ["Features", "#features"],
+              ["Rankings", "/leaderboard"],
               ["For partners", "#partners"],
             ].map(([label, href]) => (
               <Link
@@ -973,6 +974,9 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
             >
               <Link href="/hubs" className="hover:text-white">
                 Browse hubs
+              </Link>
+              <Link href="/leaderboard" className="hover:text-white">
+                Player rankings
               </Link>
               <Link href="/register" className="hover:text-white">
                 Player signup

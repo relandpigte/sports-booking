@@ -77,12 +77,14 @@ export default function PrivacyPage() {
 
       <LegalSection heading="6. Analytics and advertising">
         <p>
-          We use Meta Pixel to understand visits to Bunal.club and measure the
-          effectiveness of our promotions. The pixel may send page-view,
-          browser, device, cookie or identifier, and IP-derived information to
-          Meta, which processes that information under its own privacy terms.
-          We do not intentionally send booking or payment details to Meta
-          through this pixel.
+          We use Meta Pixel and Google Tag Manager to understand visits to
+          Bunal.club, manage analytics and marketing tags, and measure the
+          effectiveness of our promotions. These technologies and the tags
+          configured through them may send page-view, browser, device, cookie
+          or identifier, and IP-derived information to Meta, Google, or other
+          providers identified by an active tag. Those providers process the
+          information under their own privacy terms. We do not intentionally
+          send booking or payment details through these tracking tools.
         </p>
       </LegalSection>
 

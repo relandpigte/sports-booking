@@ -33,6 +33,15 @@ export type AuthFormState = {
   values?: Record<string, string>;
 };
 
+function safeInternalPath(value: string): string | null {
+  return value.startsWith("/") &&
+    !value.startsWith("//") &&
+    !value.includes("\\") &&
+    !value.includes("\0")
+    ? value
+    : null;
+}
+
 export async function registerAction(
   _prev: AuthFormState,
   formData: FormData
@@ -47,6 +56,7 @@ export async function registerAction(
     confirmPassword: String(formData.get("confirmPassword") ?? ""),
     privateProfile: formData.get("privateProfile") === "on",
     agreed: formData.get("agreed") === "on",
+    redirectTo: String(formData.get("redirectTo") ?? ""),
   };
 
   // Values echoed back to the form so inputs survive a validation error.
@@ -119,7 +129,9 @@ export async function registerAction(
     await signIn("credentials", {
       email: data.email,
       password: data.password,
-      redirectTo: REGISTRATION_SUCCESS_PATH.player,
+      redirectTo: safeInternalPath(raw.redirectTo)
+        ? `${REGISTRATION_SUCCESS_PATH.player}?next=${encodeURIComponent(raw.redirectTo)}`
+          : REGISTRATION_SUCCESS_PATH.player,
     });
   } catch (error) {
     if (error instanceof AuthError) {
@@ -394,6 +406,7 @@ export async function loginAction(
   const raw = {
     email: String(formData.get("email") ?? ""),
     password: String(formData.get("password") ?? ""),
+    redirectTo: String(formData.get("redirectTo") ?? ""),
   };
 
   const parsed = LoginSchema.safeParse(raw);
@@ -405,7 +418,7 @@ export async function loginAction(
     await signIn("credentials", {
       email: parsed.data.email,
       password: parsed.data.password,
-      redirectTo: "/dashboard",
+      redirectTo: safeInternalPath(raw.redirectTo) ?? "/dashboard",
     });
   } catch (error) {
     if (error instanceof AuthError) {

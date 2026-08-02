@@ -113,6 +113,12 @@ export async function updateCourtScheduleAction(
               holdExpiresAt: { gt: now },
             },
           },
+          {
+            event: {
+              status: "PUBLISHED",
+              endsAt: { gte: now },
+            },
+          },
         ],
       },
       select: { courtId: true, date: true, hour: true },

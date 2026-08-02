@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { use, useActionState, useState } from "react";
 import Link from "next/link";
 import { AuthLayout } from "@/components/AuthLayout";
 import { Input } from "@/components/ui/Input";
@@ -13,7 +13,13 @@ import { registerAction, type AuthFormState } from "@/lib/actions";
 
 const initialState: AuthFormState = {};
 
-export default function RegisterPage() {
+export default function RegisterPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string | string[] }>;
+}) {
+  const query = use(searchParams);
+  const next = Array.isArray(query.next) ? query.next[0] : query.next;
   const [state, formAction, pending] = useActionState(
     registerAction,
     initialState
@@ -35,6 +41,7 @@ export default function RegisterPage() {
           noValidate
           className="rounded-2xl border border-gray-200 p-5 shadow-sm sm:p-6"
         >
+          <input type="hidden" name="redirectTo" value={next ?? ""} />
           {state.message && (
             <p
               role="alert"
@@ -173,7 +180,7 @@ export default function RegisterPage() {
         <p className="mt-5 text-center text-sm text-gray-500">
           Already have an account?{" "}
           <Link
-            href="/login"
+            href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"}
             className="font-semibold text-primary hover:underline"
           >
             Log in

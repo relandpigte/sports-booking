@@ -41,8 +41,10 @@ const SPORTS = ["Volleyball", "Badminton", "Pickleball"];
 
 export function RegistrationSuccessPage({
   userType,
+  primaryAction,
 }: {
   userType: RegistrationUserType;
+  primaryAction?: { label: string; href: string };
 }) {
   const content = CONTENT[userType];
 
@@ -123,10 +125,10 @@ export function RegistrationSuccessPage({
 
           <div className="mt-9 space-y-3">
             <Link
-              href={content.primaryHref}
+              href={primaryAction?.href ?? content.primaryHref}
               className="group flex min-h-12 w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
             >
-              {content.primaryLabel}
+              {primaryAction?.label ?? content.primaryLabel}
               <span
                 aria-hidden="true"
                 className="ml-2 transition-transform group-hover:translate-x-1"

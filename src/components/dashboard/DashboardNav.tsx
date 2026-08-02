@@ -75,6 +75,17 @@ const items: Item[] = [
     ),
   },
   {
+    href: "/dashboard/events",
+    label: "Events",
+    partnerOnly: true,
+    icon: (
+      <svg {...iconProps}>
+        <rect x="3" y="5" width="18" height="16" rx="2" />
+        <path d="M16 3v4M8 3v4M3 11h18M8 15h3M13 15h3" />
+      </svg>
+    ),
+  },
+  {
     href: "/dashboard/payments",
     label: "Payments",
     partnerOnly: true,
@@ -86,8 +97,8 @@ const items: Item[] = [
     ),
   },
   {
-    href: "/dashboard/tournaments",
-    label: "Tournaments",
+    href: "/events",
+    label: "Events",
     playerOnly: true,
     icon: (
       <svg {...iconProps}>

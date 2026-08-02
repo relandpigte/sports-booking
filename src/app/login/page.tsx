@@ -15,6 +15,7 @@ export default function LoginPage({
   searchParams: Promise<{
     reset?: string | string[];
     password?: string | string[];
+    next?: string | string[];
   }>;
 }) {
   const query = use(searchParams);
@@ -34,6 +35,11 @@ export default function LoginPage({
           noValidate
           className="rounded-2xl border border-gray-200 p-5 shadow-sm sm:p-6"
         >
+          <input
+            type="hidden"
+            name="redirectTo"
+            value={Array.isArray(query.next) ? query.next[0] : query.next ?? ""}
+          />
           <div className="flex flex-col gap-4">
             {query.reset === "success" && (
               <p

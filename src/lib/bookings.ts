@@ -251,8 +251,15 @@ export async function getBookedHoursExcluding(
     where: {
       courtId,
       date,
-      bookingId: { not: excludeBookingId },
-      ...holdingHourWhere(new Date()),
+      AND: [
+        {
+          OR: [
+            { bookingId: null },
+            { bookingId: { not: excludeBookingId } },
+          ],
+        },
+        holdingHourWhere(new Date()),
+      ],
     },
     select: { hour: true },
     orderBy: { hour: "asc" },

@@ -2,12 +2,16 @@ import type { MetadataRoute } from "next";
 
 import { listPublicHubs } from "@/lib/hubs";
 import { hubPublicPath } from "@/lib/hub-slug";
+import { listPublicEventSitemapEntries } from "@/lib/events";
 import { absoluteUrl, isPublicHttpUrl } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const hubs = await listPublicHubs();
+  const [hubs, events] = await Promise.all([
+    listPublicHubs(),
+    listPublicEventSitemapEntries(),
+  ]);
 
   return [
     {
@@ -25,6 +29,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "daily",
       priority: 0.8,
     },
+    {
+      url: absoluteUrl("/events"),
+      changeFrequency: "daily",
+      priority: 0.9,
+    },
+    ...events.map((event) => ({
+      url: absoluteUrl(`/events/${event.publicId}`),
+      lastModified: event.updatedAt,
+      changeFrequency: "daily" as const,
+      priority: 0.8,
+    })),
     ...hubs.map((hub) => ({
       url: absoluteUrl(hubPublicPath(hub)),
       lastModified: hub.updatedAt,

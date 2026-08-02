@@ -61,6 +61,7 @@ model User {
   partnerGateway        PartnerGateway?
   bookingPayments       BookingPayment[]       @relation("PlayerBookingPayments")
   venuePayments         BookingPayment[]       @relation("PartnerBookingPayments")
+  eventRegistrations    EventRegistration[]
   serviceFeeEntries     ServiceFeeEntry[]      @relation("PartnerServiceFeeEntries")
   serviceFeeSettlements ServiceFeeSettlement[] @relation("PartnerServiceFeeSettlements")
 }
@@ -225,10 +226,11 @@ model BookingPayment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  partner           User              @relation("PartnerBookingPayments", fields: [partnerId], references: [id], onDelete: Cascade)
-  user              User              @relation("PlayerBookingPayments", fields: [userId], references: [id], onDelete: Cascade)
-  gateway           PartnerGateway    @relation(fields: [gatewayId], references: [id])
+  partner           User               @relation("PartnerBookingPayments", fields: [partnerId], references: [id], onDelete: Cascade)
+  user              User               @relation("PlayerBookingPayments", fields: [userId], references: [id], onDelete: Cascade)
+  gateway           PartnerGateway     @relation(fields: [gatewayId], references: [id])
   bookings          Booking[]
+  eventRegistration EventRegistration?
   serviceFeeEntries ServiceFeeEntry[]
 
   @@index([partnerId, createdAt])
@@ -330,6 +332,7 @@ model Hub {
   owner    User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   courts   Court[]
   bookings Booking[]
+  events   Event[]
 
   @@index([ownerId])
 }
@@ -347,6 +350,7 @@ model Court {
   hub           Hub             @relation(fields: [hubId], references: [id], onDelete: Cascade)
   bookings      Booking[]
   scheduleRules CourtSlotRule[]
+  eventCourts   EventCourt[]
 
   @@index([hubId])
 }
@@ -481,8 +485,9 @@ model Booking {
 // partial unique index (`WHERE status = 'CONFIRMED'`), so a lingering row
 // would block that hour forever. The parent Booking survives as CANCELLED.
 model BookingSlot {
-  id        String @id @default(cuid())
-  bookingId String
+  id        String  @id @default(cuid())
+  bookingId String?
+  eventId   String?
   courtId   String
   date      String
   hour      Int
@@ -504,12 +509,98 @@ model BookingSlot {
   // blocking EARLIER, and the sweep deletes it.
   holdExpiresAt DateTime?
 
-  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  booking Booking? @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  event   Event?   @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@unique([courtId, date, hour])
   @@index([bookingId])
+  @@index([eventId])
   @@index([courtId, date])
   @@index([courtId, date, holdExpiresAt])
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+}
+
+enum EventRegistrationStatus {
+  PENDING
+  CONFIRMED
+  WAITLISTED
+  CANCELLED
+  EXPIRED
+}
+
+// A hub-hosted open play. Every selected court shares one Manila-local date
+// and start/end window. Published events own BookingSlot rows, so a normal
+// booking and an event can never claim the same court-hour concurrently.
+model Event {
+  id              String      @id @default(cuid())
+  publicId        String      @unique
+  hubId           String
+  title           String
+  description     String?     @db.Text
+  sport           String
+  date            String
+  startHour       Int
+  endHour         Int
+  startsAt        DateTime
+  endsAt          DateTime
+  capacity        Int
+  registrationFee Decimal     @db.Decimal(10, 2)
+  status          EventStatus @default(DRAFT)
+  publishedAt     DateTime?
+  cancelledAt     DateTime?
+  cancelReason    String?     @db.Text
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  hub           Hub                 @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  courts        EventCourt[]
+  slots         BookingSlot[]
+  registrations EventRegistration[]
+
+  @@index([hubId, startsAt])
+  @@index([status, startsAt])
+}
+
+model EventCourt {
+  eventId String
+  courtId String
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  court Court @relation(fields: [courtId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, courtId])
+  @@index([courtId])
+}
+
+// PENDING registrations reserve one capacity spot while their hosted checkout
+// is live. WAITLISTED rows are free and carry no payment. The payment model is
+// shared with court bookings so venue deposits, refunds and the service-fee
+// ledger keep one idempotent path.
+model EventRegistration {
+  id               String                  @id @default(cuid())
+  eventId          String
+  userId           String
+  status           EventRegistrationStatus @default(PENDING)
+  holdExpiresAt    DateTime?
+  bookingPaymentId String?                 @unique
+  confirmedAt      DateTime?
+  cancelledAt      DateTime?
+  cancelReason     String?                 @db.Text
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  event   Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payment BookingPayment? @relation(fields: [bookingPaymentId], references: [id])
+
+  @@unique([eventId, userId])
+  @@index([eventId, status, createdAt])
+  @@index([userId, createdAt])
 }
 
 model Account {

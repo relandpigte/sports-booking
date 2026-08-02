@@ -61,6 +61,14 @@ export type BookingPaymentView = {
   refundReason: string | null;
   hubId: string;
   lines: BookingPaymentLine[];
+  event: {
+    registrationId: string;
+    publicId: string;
+    title: string;
+    date: string;
+    startHour: number;
+    endHour: number;
+  } | null;
 };
 
 const paymentSelect = {
@@ -94,6 +102,20 @@ const paymentSelect = {
       court: { select: { name: true } },
     },
     orderBy: { startsAt: "asc" },
+  },
+  eventRegistration: {
+    select: {
+      id: true,
+      event: {
+        select: {
+          publicId: true,
+          title: true,
+          date: true,
+          startHour: true,
+          endHour: true,
+        },
+      },
+    },
   },
 } as const;
 
@@ -134,6 +156,12 @@ export function mapBookingPayment(row: PaymentRow): BookingPaymentView {
       endHour: b.endHour,
       hours: b.hours,
     })),
+    event: row.eventRegistration
+      ? {
+          registrationId: row.eventRegistration.id,
+          ...row.eventRegistration.event,
+        }
+      : null,
   };
 }
 
@@ -252,7 +280,7 @@ export async function recordBookingChargeResult(
 class LostHold extends Error {}
 
 export type SettleOutcome =
-  | { status: "confirmed"; bookingIds: string[] }
+  | { status: "confirmed"; bookingIds: string[]; registrationId?: string }
   | { status: "already" }
   | { status: "not-paid" }
   | { status: "missing" }
@@ -277,11 +305,93 @@ export async function settleBookingPayment(
       platformFee: true,
       paidAt: true,
       bookings: { select: { id: true, status: true, hours: true } },
+      eventRegistration: {
+        select: {
+          id: true,
+          status: true,
+          holdExpiresAt: true,
+          event: {
+            select: {
+              id: true,
+              status: true,
+              startsAt: true,
+            },
+          },
+        },
+      },
     },
   });
   if (!payment) return { status: "missing" };
   if (payment.status === "REFUNDED") return { status: "already" };
   if (payment.status !== "SUCCEEDED") return { status: "not-paid" };
+
+  if (payment.eventRegistration) {
+    const registration = payment.eventRegistration;
+    if (registration.status === "CONFIRMED") {
+      await prisma.$transaction((tx) => ensureServiceFeeCharge(tx, payment));
+      return { status: "already" };
+    }
+
+    const holdLive =
+      registration.status === "PENDING" &&
+      registration.holdExpiresAt != null &&
+      registration.holdExpiresAt > new Date() &&
+      registration.event.status === "PUBLISHED" &&
+      registration.event.startsAt > new Date();
+
+    if (!holdLive) {
+      await prisma.eventRegistration.updateMany({
+        where: { id: registration.id, status: "PENDING" },
+        data: { status: "EXPIRED", holdExpiresAt: null },
+      });
+      const refund = await refundBookingPayment({
+        paymentId,
+        reason:
+          "The event registration hold expired or the event closed before payment completed.",
+      });
+      return { status: "lost", refunded: refund.ok };
+    }
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw(
+          Prisma.sql`SELECT "id" FROM "Event" WHERE "id" = ${registration.event.id} FOR UPDATE`
+        );
+        const updated = await tx.eventRegistration.updateMany({
+          where: {
+            id: registration.id,
+            status: "PENDING",
+            holdExpiresAt: { gt: new Date() },
+            event: { status: "PUBLISHED", startsAt: { gt: new Date() } },
+          },
+          data: {
+            status: "CONFIRMED",
+            holdExpiresAt: null,
+            confirmedAt: new Date(),
+          },
+        });
+        if (updated.count !== 1) throw new LostHold();
+        await ensureServiceFeeCharge(tx, payment);
+      });
+    } catch (error) {
+      if (!(error instanceof LostHold)) throw error;
+      await prisma.eventRegistration.updateMany({
+        where: { id: registration.id, status: "PENDING" },
+        data: { status: "EXPIRED", holdExpiresAt: null },
+      });
+      const refund = await refundBookingPayment({
+        paymentId,
+        reason: "The event registration hold expired before payment completed.",
+      });
+      return { status: "lost", refunded: refund.ok };
+    }
+
+    return {
+      status: "confirmed",
+      bookingIds: [],
+      registrationId: registration.id,
+    };
+  }
 
   const pending = payment.bookings.filter((b) => b.status === "PENDING");
   if (pending.length === 0) {
@@ -412,17 +522,28 @@ export async function chargeBookingPayment(args: {
     endHour: b.endHour,
     hours: b.hours,
   }));
+  const event = payment.eventRegistration?.event;
 
   let result: ChargeResult;
   try {
     result = await getVenueGateway(creds).charge({
       amount: { amount: Number(payment.amount), currency: "PHP" },
-      description: describe(lines),
+      description: event
+        ? `${event.title} — ${formatManilaDate(event.date)}, ${formatSlotRange(event.startHour, event.endHour)}`
+        : describe(lines),
       // The gateway's own idempotency header too, so a retried request after a
       // network blip doesn't become a second charge.
       idempotencyKey: `${payment.id}:${attempt}`,
-      returnUrl: appUrl(`/dashboard/bookings/pay/${payment.id}`),
-      metadata: { paymentId: payment.id, hubId: payment.hubId },
+      returnUrl: appUrl(
+        event
+          ? `/events/${event.publicId}/pay/${payment.id}`
+          : `/dashboard/bookings/pay/${payment.id}`
+      ),
+      metadata: {
+        paymentId: payment.id,
+        hubId: payment.hubId,
+        ...(event ? { eventId: event.publicId } : {}),
+      },
     });
   } catch (error) {
     // A gateway that threw may still have taken the money, so the row keeps
@@ -516,7 +637,7 @@ export async function refundBookingPayment(args: {
   if (!payment) return { ok: false, message: "Payment not found." };
   if (payment.status === "REFUNDED") return { ok: true, alreadyRefunded: true };
   if (payment.status !== "SUCCEEDED") {
-    return { ok: false, message: "That booking hasn't been paid for." };
+    return { ok: false, message: "That payment has not settled yet." };
   }
   if (!payment.providerPaymentId) {
     return { ok: false, message: "That payment has no gateway reference to refund." };
@@ -634,6 +755,7 @@ export async function markBookingPaymentRefunded(args: {
 // close out payments whose window has passed.
 export async function expireBookingHolds(now: Date = new Date()): Promise<{
   bookings: number;
+  eventRegistrations: number;
   slots: number;
   payments: number;
 }> {
@@ -658,6 +780,11 @@ export async function expireBookingHolds(now: Date = new Date()): Promise<{
     bookings = expired.count;
   }
 
+  const eventRegistrations = await prisma.eventRegistration.updateMany({
+    where: { status: "PENDING", holdExpiresAt: { lte: now } },
+    data: { status: "EXPIRED", holdExpiresAt: null },
+  });
+
   // A payment whose hold is gone can never be settled, so it's terminal now —
   // this is the ONLY place a BookingPayment becomes FAILED. Rows with a charge
   // still in flight are left alone: their webhook may yet land, and settle
@@ -671,5 +798,10 @@ export async function expireBookingHolds(now: Date = new Date()): Promise<{
     },
   });
 
-  return { bookings, slots, payments: payments.count };
+  return {
+    bookings,
+    eventRegistrations: eventRegistrations.count,
+    slots,
+    payments: payments.count,
+  };
 }

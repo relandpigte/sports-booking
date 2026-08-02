@@ -339,6 +339,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
               ["How it works", "#how-it-works"],
               ["Payments", "#payments"],
               ["Features", "#features"],
+              ["Events", "/events"],
               ["Rankings", "/leaderboard"],
               ["For partners", "#partners"],
             ].map(([label, href]) => (
@@ -353,6 +354,12 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
           </nav>
 
           <div className="flex shrink-0 items-center gap-2">
+            <Link
+              href="/events"
+              className="inline-flex rounded-xl px-2.5 py-2.5 text-sm font-bold text-navy transition-colors hover:bg-primary-soft hover:text-primary lg:hidden"
+            >
+              Events
+            </Link>
             <Link
               href={accountHref}
               className="hidden rounded-xl px-3 py-2.5 text-sm font-bold text-navy transition-colors hover:bg-slate-50 sm:inline-flex"
@@ -977,6 +984,9 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
               </Link>
               <Link href="/leaderboard" className="hover:text-white">
                 Player rankings
+              </Link>
+              <Link href="/events" className="hover:text-white">
+                Open play events
               </Link>
               <Link href="/register" className="hover:text-white">
                 Player signup

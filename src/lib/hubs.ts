@@ -32,6 +32,7 @@ type CourtRow = {
     weekday: number;
     hour: number;
     closed: boolean;
+    closureReason: string | null;
     hourlyRate: Prisma.Decimal | null;
   }[];
 };
@@ -46,6 +47,7 @@ function mapCourt(c: CourtRow): Court {
       weekday: rule.weekday,
       hour: rule.hour,
       closed: rule.closed,
+      closureReason: rule.closureReason,
       hourlyRate: rule.hourlyRate ? rule.hourlyRate.toNumber() : null,
     })),
   };
@@ -100,6 +102,7 @@ const hubSelect = {
           weekday: true,
           hour: true,
           closed: true,
+          closureReason: true,
           hourlyRate: true,
         },
       },

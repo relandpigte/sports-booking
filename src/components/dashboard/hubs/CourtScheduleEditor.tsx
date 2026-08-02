@@ -56,6 +56,7 @@ export function CourtScheduleEditor({
   );
   const [selected, setSelected] = useState<number[]>([]);
   const [batchRate, setBatchRate] = useState("");
+  const [batchClosureReason, setBatchClosureReason] = useState("");
   const [localMessage, setLocalMessage] = useState<string | null>(null);
   const [state, formAction, pending] = useActionState(
     updateCourtScheduleAction,
@@ -103,6 +104,7 @@ export function CourtScheduleEditor({
     setCourtId(nextCourtId);
     setSelected([]);
     setBatchRate("");
+    setBatchClosureReason("");
     setLocalMessage(null);
   }
 
@@ -110,6 +112,7 @@ export function CourtScheduleEditor({
     setWeekday(nextWeekday);
     setSelected([]);
     setBatchRate("");
+    setBatchClosureReason("");
     setLocalMessage(null);
   }
 
@@ -119,7 +122,9 @@ export function CourtScheduleEditor({
 
   function updateRule(
     hour: number,
-    patch: Partial<Pick<CourtScheduleRule, "closed" | "hourlyRate">>
+    patch: Partial<
+      Pick<CourtScheduleRule, "closed" | "closureReason" | "hourlyRate">
+    >
   ) {
     if (!court) return;
     setRules((current) => {
@@ -136,11 +141,16 @@ export function CourtScheduleEditor({
         weekday,
         hour,
         closed: patch.closed ?? existing?.closed ?? false,
+        closureReason:
+          patch.closureReason !== undefined
+            ? patch.closureReason
+            : existing?.closureReason ?? null,
         hourlyRate:
           patch.hourlyRate !== undefined
             ? patch.hourlyRate
             : existing?.hourlyRate ?? null,
       };
+      if (!next.closed) next.closureReason = null;
       const copy = [...typed];
       if (!next.closed && next.hourlyRate == null) {
         if (index >= 0) copy.splice(index, 1);
@@ -172,9 +182,15 @@ export function CourtScheduleEditor({
   }
 
   function markSelected(closed: boolean) {
-    for (const hour of selected) updateRule(hour, { closed });
+    const reason = batchClosureReason.trim();
+    for (const hour of selected) {
+      updateRule(hour, {
+        closed,
+        closureReason: closed ? reason || null : null,
+      });
+    }
     setLocalMessage(
-      `${selected.length} ${selected.length === 1 ? "slot" : "slots"} marked ${closed ? "closed" : "open"}. Save to publish the change.`
+      `${selected.length} ${selected.length === 1 ? "slot" : "slots"} marked ${closed ? `closed${reason ? ` (${reason})` : ""}` : "open"}. Save to publish the change.`
     );
   }
 
@@ -210,6 +226,7 @@ export function CourtScheduleEditor({
     weekday: rule.weekday,
     hour: rule.hour,
     closed: rule.closed,
+    closureReason: rule.closureReason ?? null,
     hourlyRate: rule.hourlyRate,
   }));
 
@@ -356,7 +373,7 @@ export function CourtScheduleEditor({
               />
               <span>Time slot</span>
               <span>Status</span>
-              <span>Hourly rate</span>
+              <span>Rate / closure reason</span>
             </div>
 
             <div className="divide-y divide-gray-100">
@@ -401,7 +418,14 @@ export function CourtScheduleEditor({
                       <button
                         type="button"
                         disabled={isLocked && !isClosed}
-                        onClick={() => updateRule(hour, { closed: !isClosed })}
+                        onClick={() =>
+                          updateRule(hour, {
+                            closed: !isClosed,
+                            closureReason: isClosed
+                              ? null
+                              : rule?.closureReason ?? null,
+                          })
+                        }
                         className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
                           isClosed
                             ? "bg-gray-200 text-gray-600"
@@ -413,9 +437,23 @@ export function CourtScheduleEditor({
                     </div>
                     <div className="col-start-2 md:col-start-auto">
                       {isClosed ? (
-                        <span className="text-xs italic text-gray-400">
-                          Not available
-                        </span>
+                        <label className="block">
+                          <span className="sr-only">
+                            Closure reason for {formatHourLabel(hour)}
+                          </span>
+                          <input
+                            type="text"
+                            value={rule?.closureReason ?? ""}
+                            maxLength={120}
+                            placeholder="Reason, e.g. maintenance"
+                            onChange={(event) =>
+                              updateRule(hour, {
+                                closureReason: event.target.value,
+                              })
+                            }
+                            className="min-h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-navy outline-none placeholder:text-gray-400 focus:border-primary focus:ring-2 focus:ring-primary/15"
+                          />
+                        </label>
                       ) : (
                         <div className="flex flex-wrap items-center gap-2">
                           <label className="flex min-h-10 min-w-36 flex-1 items-center rounded-lg border border-gray-200 bg-white px-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15">
@@ -473,7 +511,15 @@ export function CourtScheduleEditor({
                 {selected.length === 1 ? "Slot selected" : "Slots selected"}
               </span>
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              <input
+                type="text"
+                value={batchClosureReason}
+                maxLength={120}
+                onChange={(event) => setBatchClosureReason(event.target.value)}
+                placeholder="Closure reason (optional)"
+                className="min-h-10 rounded-lg border border-white/15 bg-white/10 px-3 text-sm text-white outline-none placeholder:text-white/45 focus:border-accent sm:w-48"
+              />
               <div className="flex min-h-10 items-center rounded-lg bg-white px-3 text-navy">
                 <span className="mr-1 text-sm text-gray-400">₱</span>
                 <input

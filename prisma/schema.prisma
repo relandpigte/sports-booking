@@ -357,16 +357,18 @@ model Court {
 
 // A recurring rule for one court-hour. `weekday` is ISO-style Monday=0 through
 // Sunday=6. Rows are intentionally sparse: no row means "open at the court's
-// default rate" whenever the hub itself is open.
+// default rate" whenever the hub itself is open. Closed rules can carry a
+// short player-facing explanation such as maintenance or a private event.
 model CourtSlotRule {
-  id         String   @id @default(cuid())
-  courtId    String
-  weekday    Int
-  hour       Int
-  closed     Boolean  @default(false)
-  hourlyRate Decimal? @db.Decimal(10, 2)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id            String   @id @default(cuid())
+  courtId       String
+  weekday       Int
+  hour          Int
+  closed        Boolean  @default(false)
+  closureReason String?  @db.VarChar(120)
+  hourlyRate    Decimal? @db.Decimal(10, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   court Court @relation(fields: [courtId], references: [id], onDelete: Cascade)
 

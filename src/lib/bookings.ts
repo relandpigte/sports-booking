@@ -282,6 +282,7 @@ export const getCourtForBooking = cache(async (courtId: string) => {
           weekday: true,
           hour: true,
           closed: true,
+          closureReason: true,
           hourlyRate: true,
         },
       },
@@ -319,6 +320,7 @@ export const getCourtForBooking = cache(async (courtId: string) => {
       weekday: rule.weekday,
       hour: rule.hour,
       closed: rule.closed,
+      closureReason: rule.closureReason,
       hourlyRate: rule.hourlyRate ? rule.hourlyRate.toNumber() : null,
     })),
     hub: {

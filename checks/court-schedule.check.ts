@@ -86,6 +86,7 @@ async function check() {
       weekday: 0,
       hour: 9,
       closed: false,
+      closureReason: null,
       hourlyRate: 750,
     },
     {
@@ -93,6 +94,7 @@ async function check() {
       weekday: 0,
       hour: 10,
       closed: true,
+      closureReason: "Court maintenance",
       hourlyRate: null,
     },
   ];
@@ -111,7 +113,8 @@ async function check() {
     stored.length === 2 &&
       Number(stored[0].hourlyRate) === 750 &&
       stored[0].closed === false &&
-      stored[1].closed === true
+      stored[1].closed === true &&
+      stored[1].closureReason === "Court maintenance"
   );
 
   const monday = nextMonday();
@@ -126,12 +129,19 @@ async function check() {
       weekday: rule.weekday,
       hour: rule.hour,
       closed: rule.closed,
+      closureReason: rule.closureReason,
       hourlyRate: rule.hourlyRate == null ? null : Number(rule.hourlyRate),
     })),
   });
   ok(
     "a weekly closure is unavailable on the matching weekday",
-    slots.find((slot) => slot.hour === 10)?.reason === "closed"
+    slots.find((slot) => slot.hour === 10)?.reason === "closed" &&
+      slots.find((slot) => slot.hour === 10)?.closureReason ===
+        "Court maintenance"
+  );
+  ok(
+    "a selectable hour is labelled as its full one-hour range",
+    slots.find((slot) => slot.hour === 9)?.label === "9:00 AM – 10:00 AM"
   );
   ok(
     "an override replaces the court default for only that hour",
@@ -174,6 +184,7 @@ async function check() {
         weekday: 0,
         hour: 12,
         closed: true,
+        closureReason: "Private event",
         hourlyRate: null,
       },
     ])

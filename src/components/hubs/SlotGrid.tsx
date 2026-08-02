@@ -20,7 +20,7 @@ export function SlotGrid({
 }) {
   if (loading) {
     return (
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
         {Array.from({ length: 8 }, (_, i) => (
           <div key={i} className="h-12 animate-pulse rounded-xl bg-gray-100" />
         ))}
@@ -39,9 +39,9 @@ export function SlotGrid({
   return (
     <div className="flex flex-col gap-2">
       <div
-        className="grid grid-cols-3 gap-2 sm:grid-cols-4"
+        className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4"
         role="group"
-        aria-label="Available start times"
+        aria-label="Available one-hour time slots"
       >
         {slots.map((slot) => {
           const isSelected = selected.includes(slot.hour);
@@ -59,11 +59,13 @@ export function SlotGrid({
                   : slot.reason === "past"
                     ? "This time has passed"
                     : slot.reason === "closed"
-                      ? "Closed by the venue"
+                      ? slot.closureReason
+                        ? `Closed: ${slot.closureReason}`
+                        : "Closed by the venue"
                     : undefined
               }
               className={[
-                "min-h-14 rounded-xl border-2 px-1.5 py-2 text-sm font-bold transition-all",
+                "min-h-16 rounded-xl border-2 px-2 py-2 text-xs font-bold transition-all sm:text-sm",
                 isSelected
                   ? "border-primary bg-primary text-white shadow-md shadow-primary/15"
                   : slot.reason === "booked"
@@ -77,8 +79,8 @@ export function SlotGrid({
             >
               <span className="block">{slot.label}</span>
               {slot.reason === "closed" ? (
-                <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-wide">
-                  Closed
+                <span className="mt-0.5 block text-[10px] font-semibold leading-tight text-gray-400">
+                  Closed{slot.closureReason ? ` · ${slot.closureReason}` : ""}
                 </span>
               ) : slot.hourlyRate != null && slot.reason !== "booked" ? (
                 <span

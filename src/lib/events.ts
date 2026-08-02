@@ -496,6 +496,7 @@ export async function getEventCourtAvailability(args: {
               weekday: true,
               hour: true,
               closed: true,
+              closureReason: true,
               hourlyRate: true,
             },
           },
@@ -578,7 +579,9 @@ export async function getEventCourtAvailability(args: {
       reason: missing
         ? "The time is outside operating hours."
         : conflict?.reason === "closed"
-          ? "Closed by the weekly schedule."
+          ? conflict.closureReason
+            ? `Closed: ${conflict.closureReason}`
+            : "Closed by the weekly schedule."
           : conflict?.reason === "past"
             ? "That time has already started."
             : conflict

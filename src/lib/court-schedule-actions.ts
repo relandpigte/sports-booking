@@ -14,6 +14,7 @@ const ScheduleRuleSchema = z.object({
   weekday: z.number().int().min(0).max(6),
   hour: z.number().int().min(0).max(23),
   closed: z.boolean(),
+  closureReason: z.string().trim().max(120).nullable().optional(),
   hourlyRate: z.number().min(0).max(1_000_000).nullable(),
 });
 
@@ -80,6 +81,7 @@ export async function updateCourtScheduleAction(
     // centavos before Prisma receives them.
     const normalized = {
       ...rule,
+      closureReason: rule.closed ? rule.closureReason || null : null,
       hourlyRate:
         rule.hourlyRate == null
           ? null

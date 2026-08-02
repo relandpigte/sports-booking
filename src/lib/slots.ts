@@ -1,5 +1,5 @@
 import type { DayHours, OperatingHours } from "@/lib/constants";
-import { formatHourLabel, manilaWeekday } from "@/lib/time";
+import { formatSlotRange, manilaWeekday } from "@/lib/time";
 
 // Pure slot math, shared by the hub page, the booking action, the SSE route and
 // the client grid. Because it's shared, the realtime payload only has to carry
@@ -11,6 +11,7 @@ export type CourtScheduleRule = {
   weekday: number;
   hour: number;
   closed: boolean;
+  closureReason?: string | null;
   hourlyRate: number | null;
 };
 
@@ -19,6 +20,7 @@ export type Slot = {
   label: string;
   available: boolean;
   hourlyRate: number | null;
+  closureReason: string | null;
   reason?: SlotReason;
 };
 
@@ -106,9 +108,10 @@ export function buildSlots(input: BuildSlotsInput): {
     const isClosed = rule?.closed === true;
     slots.push({
       hour,
-      label: formatHourLabel(hour),
+      label: formatSlotRange(hour, hour + 1),
       available: !past && !isBooked && !isClosed,
       hourlyRate: rule?.hourlyRate ?? input.courtHourlyRate ?? null,
+      closureReason: isClosed ? rule?.closureReason?.trim() || null : null,
       reason: past
         ? "past"
         : isBooked

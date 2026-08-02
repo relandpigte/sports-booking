@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { formatPHP } from "@/lib/currency";
-import { GAME_LABELS } from "@/lib/constants";
+import { GAME_LABELS, WEEKDAYS } from "@/lib/constants";
 import type { Hub } from "@/lib/hubs";
 import { hubPublicPath } from "@/lib/hub-slug";
+import { dayWindow, weekdayIndexForDate } from "@/lib/slots";
 
 export function HubCard({
   hub,
@@ -28,6 +29,10 @@ export function HubCard({
     ),
   ]);
   const startingRate = rates.length ? Math.min(...rates) : null;
+  const closureReason =
+    availableSlots === 0 && availabilityDate
+      ? fullDayClosureReason(hub, availabilityDate)
+      : null;
   const mapsHref =
     hub.latitude != null && hub.longitude != null
       ? `https://www.google.com/maps/dir/?api=1&destination=${hub.latitude},${hub.longitude}`
@@ -131,25 +136,34 @@ export function HubCard({
             <span
               className={`flex items-center gap-2 ${
                 availableSlots != null && availabilityDate
-                  ? "rounded-xl border border-primary/10 bg-primary-soft px-3 py-2"
+                  ? closureReason
+                    ? "rounded-xl border border-amber-200 bg-amber-50 px-3 py-2"
+                    : "rounded-xl border border-primary/10 bg-primary-soft px-3 py-2"
                   : ""
               }`}
             >
               {availableSlots != null && availabilityDate ? (
                 <>
-                  <CalendarCheckIcon />
+                  <CalendarCheckIcon
+                    className={closureReason ? "text-amber-700" : "text-primary"}
+                  />
                   <span className="flex flex-col gap-0.5">
-                    <span className="font-bold text-primary">
-                      {availableSlots}{" "}
-                      {availableSlots === 1 ? "slot" : "slots"} available
+                    <span
+                      className={`font-bold ${closureReason ? "text-amber-800" : "text-primary"}`}
+                    >
+                      {closureReason
+                        ? "Closed"
+                        : `${availableSlots} ${availableSlots === 1 ? "slot" : "slots"} available`}
                     </span>
                     <time
                       dateTime={availabilityDate}
-                      className="text-[10px] font-semibold text-primary/65"
+                      className={`text-[10px] font-semibold ${closureReason ? "text-amber-700" : "text-primary/65"}`}
                     >
-                      {availabilityDate === today
-                        ? `Today · ${formatAvailabilityDate(availabilityDate)}`
-                        : formatAvailabilityDate(availabilityDate)}
+                      {closureReason
+                        ? `${closureReason} · ${availabilityDate === today ? "Today" : formatAvailabilityDate(availabilityDate)}`
+                        : availabilityDate === today
+                          ? `Today · ${formatAvailabilityDate(availabilityDate)}`
+                          : formatAvailabilityDate(availabilityDate)}
                     </time>
                   </span>
                 </>
@@ -193,6 +207,32 @@ export function HubCard({
   );
 }
 
+function fullDayClosureReason(hub: Hub, date: string): string | null {
+  const weekday = weekdayIndexForDate(date);
+  const dayKey = WEEKDAYS[weekday]?.value;
+  const window =
+    dayKey && hub.operatingHours
+      ? dayWindow(hub.operatingHours[dayKey])
+      : null;
+  if (!window || hub.courts.length === 0) return null;
+
+  const reasons = new Set<string>();
+  for (const court of hub.courts) {
+    for (let hour = window.start; hour < window.end; hour++) {
+      const rule = court.scheduleRules.find(
+        (candidate) =>
+          candidate.weekday === weekday && candidate.hour === hour
+      );
+      if (!rule?.closed) return null;
+      if (rule.closureReason?.trim()) reasons.add(rule.closureReason.trim());
+    }
+  }
+
+  if (reasons.size === 0) return null;
+  const [first] = reasons;
+  return reasons.size === 1 ? first : `${first} +${reasons.size - 1} more`;
+}
+
 function formatAvailabilityDate(date: string): string {
   const [year, month, day] = date.split("-").map(Number);
   const monthName = [
@@ -214,14 +254,14 @@ function formatAvailabilityDate(date: string): string {
   return `${monthName} ${day}, ${year}`;
 }
 
-function CalendarCheckIcon() {
+function CalendarCheckIcon({ className }: { className: string }) {
   return (
     <svg
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
-      className="h-5 w-5 shrink-0 text-primary"
+      className={`h-5 w-5 shrink-0 ${className}`}
       aria-hidden="true"
     >
       <path d="M8 2v4M16 2v4M3 10h18" />

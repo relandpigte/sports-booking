@@ -6,7 +6,7 @@ import { PageShell } from "@/components/PageShell";
 import { BookCourtPanel } from "@/components/hubs/BookCourtPanel";
 import { VerifiedBadge } from "@/components/hubs/HubCard";
 import { Avatar } from "@/components/ui/Avatar";
-import { getPublicHub } from "@/lib/hubs";
+import { getPublicHub, type Hub } from "@/lib/hubs";
 import { getViewer } from "@/lib/dal";
 import { getCourtAvailability } from "@/lib/bookings";
 import { formatTime, summarizeOperatingHours } from "@/lib/hours";
@@ -20,7 +20,12 @@ import {
   conciseDescription,
   isPublicHttpUrl,
 } from "@/lib/site";
-import { manilaNowHour, manilaToday } from "@/lib/time";
+import {
+  formatSlotRange,
+  manilaNowHour,
+  manilaToday,
+} from "@/lib/time";
+import { weekdayIndexForDate } from "@/lib/slots";
 import {
   WEEKDAYS,
   GAME_LABELS,
@@ -55,6 +60,43 @@ function hubDescription({
       : `${introduction} Check live availability, hourly rates, and secure online booking.`,
     165
   );
+}
+
+function closureNoticesForDate(courts: Hub["courts"], date: string): string[] {
+  const weekday = weekdayIndexForDate(date);
+  return courts.flatMap((court) => {
+    const rules = court.scheduleRules
+      .filter(
+        (rule) =>
+          rule.weekday === weekday &&
+          rule.closed &&
+          Boolean(rule.closureReason?.trim())
+      )
+      .sort((left, right) => left.hour - right.hour);
+    if (rules.length === 0) return [];
+
+    const notices: string[] = [];
+    let start = rules[0].hour;
+    let end = start + 1;
+    let reason = rules[0].closureReason!.trim();
+    for (const rule of rules.slice(1)) {
+      const nextReason = rule.closureReason!.trim();
+      if (rule.hour === end && nextReason === reason) {
+        end += 1;
+        continue;
+      }
+      notices.push(
+        `${court.name} · ${formatSlotRange(start, end)} — ${reason}`
+      );
+      start = rule.hour;
+      end = rule.hour + 1;
+      reason = nextReason;
+    }
+    notices.push(
+      `${court.name} · ${formatSlotRange(start, end)} — ${reason}`
+    );
+    return notices;
+  });
 }
 
 export async function generateMetadata({
@@ -120,6 +162,7 @@ export default async function PublicHubPage({
   // This page is public, so getViewer (which returns null when signed out)
   // rather than getCurrentUser (which would redirect anonymous visitors).
   const today = manilaToday();
+  const todayClosureNotices = closureNoticesForDate(hub.courts, today);
   const firstCourt = hub.courts[0];
   const [viewer, initialAvailability] = await Promise.all([
     getViewer(),
@@ -380,6 +423,24 @@ export default async function PublicHubPage({
             </span>
           ) : null}
         </div>
+        {todayClosureNotices.length > 0 && (
+          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-900 shadow-sm">
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-700">
+              Today&apos;s court closure
+            </p>
+            <ul className="mt-2 space-y-1 text-sm font-semibold">
+              {todayClosureNotices.slice(0, 3).map((notice) => (
+                <li key={notice}>{notice}</li>
+              ))}
+            </ul>
+            {todayClosureNotices.length > 3 && (
+              <p className="mt-1 text-xs text-amber-700">
+                +{todayClosureNotices.length - 3} more closure notices in the
+                booking schedule below.
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 sm:py-16">

@@ -5,6 +5,7 @@ import {
   SKILL_LEVELS,
   ROLE_VALUES,
   GAME_VALUES,
+  MAX_BOOKING_COURT_HOURS,
   MAX_BOOKING_HOURS,
   VENUE_GATEWAY_VALUES,
 } from "@/lib/constants";
@@ -185,18 +186,24 @@ export type HubInput = z.infer<typeof HubSchema>;
 // --- Player: bookings ---
 
 export const CreateBookingSchema = z.object({
-  courtId: z.string().min(1, { error: "Choose a court" }),
   date: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, { error: "Choose a date" }),
-  // The hours the player tapped, in any combination — they need not be
-  // contiguous. The action groups them into runs, one booking each.
-  hours: z
-    .array(z.coerce.number().int().min(0).max(23))
-    .min(1, { error: "Choose at least one hour" })
-    // Sanity bound only — see MAX_BOOKING_HOURS. The real limits are the hub's
-    // closing time and other bookings, enforced by the availability re-check.
-    .max(MAX_BOOKING_HOURS, { error: "That's too many hours to book at once" }),
+  // Each item is one court-hour. Players may choose the same hour on several
+  // courts; only an exact duplicate court-hour is normalized by the action.
+  selections: z
+    .array(
+      z.object({
+        courtId: z.string().min(1, { error: "Choose a court" }),
+        hour: z.coerce.number().int().min(0).max(23),
+      })
+    )
+    .min(1, { error: "Choose at least one court and hour" })
+    // Sanity bound only — see MAX_BOOKING_COURT_HOURS. The real limits are the
+    // hub's schedule and other bookings, enforced by the availability re-check.
+    .max(MAX_BOOKING_COURT_HOURS, {
+      error: "That's too many court-hours to book at once",
+    }),
   notes: optionalText,
 });
 

@@ -113,6 +113,28 @@ export default async function HubsPage() {
                 </div>
               </div>
               <div className="flex items-center justify-end gap-1 border-t border-gray-100 px-3 py-2">
+                <a
+                  href={`/api/hubs/${hub.id}/qr`}
+                  download
+                  className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                  title={`Download a branded QR code for ${hub.name}`}
+                >
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden="true"
+                  >
+                    <rect x="3" y="3" width="6" height="6" />
+                    <rect x="15" y="3" width="6" height="6" />
+                    <rect x="3" y="15" width="6" height="6" />
+                    <path d="M15 15h2v2h-2zM19 15h2v6h-6v-2M15 19h2" />
+                  </svg>
+                  QR code
+                </a>
                 <Link
                   href={hubPublicPath(hub)}
                   target="_blank"

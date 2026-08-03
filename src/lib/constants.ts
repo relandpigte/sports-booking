@@ -82,6 +82,11 @@ export const COURT_TYPE_LABELS: Record<string, string> = Object.fromEntries(
 // is capped anyway by the hub's closing time and by other players' bookings.
 export const MAX_BOOKING_HOURS = 24;
 
+// Multi-court carts count court-hours rather than clock hours. This remains a
+// request-abuse ceiling, not a product restriction: 240 covers ten full-day
+// courts in one atomic checkout.
+export const MAX_BOOKING_COURT_HOURS = 240;
+
 // How far ahead players can book.
 export const BOOKING_WINDOW_DAYS = 30;
 

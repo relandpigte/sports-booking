@@ -65,9 +65,11 @@ export function BookCourtPanel({
   // below is exactly what it was before payments existed.
   paymentRequired: boolean;
 }) {
-  const [courtId, setCourtId] = useState(courts[0]?.id ?? "");
+  const [activeCourtId, setActiveCourtId] = useState(courts[0]?.id ?? "");
   const [date, setDate] = useState(today);
-  const [picked, setPicked] = useState<number[]>([]);
+  const [pickedByCourt, setPickedByCourt] = useState<Record<string, number[]>>(
+    {}
+  );
   const [view, setView] = useState<CourtAvailabilityView>("grid");
   const [state, formAction, pending] = useActionState(
     createBookingAction,
@@ -79,8 +81,6 @@ export function BookCourtPanel({
     date,
     initialAvailability
   );
-
-  const court = courts.find((c) => c.id === courtId) ?? null;
 
   const courtAvailability = useMemo(
     () =>
@@ -100,51 +100,75 @@ export function BookCourtPanel({
       }),
     [courts, occupancies, operatingHours, date, today, nowHour]
   );
-  const activeAvailability =
-    courtAvailability.find((item) => item.id === courtId) ?? null;
-  const slots = useMemo(
-    () => activeAvailability?.slots ?? [],
-    [activeAvailability]
-  );
   const closed = courtAvailability.every((item) => item.closed);
 
-  // The selection is trimmed during render rather than repaired in an effect,
-  // so hours someone else books out from under us drop off on the next frame
-  // instead of silently staying selected.
-  const selected = useMemo(
-    () => clampSelection(slots, picked),
-    [slots, picked]
+  // Trim each court independently during render. If a live update takes an
+  // hour, it drops out of the submitted cart without disturbing other courts.
+  const selectedGroups = useMemo(
+    () =>
+      courtAvailability
+        .map((item) => {
+          const hours = clampSelection(
+            item.slots,
+            pickedByCourt[item.id] ?? []
+          );
+          return {
+            court: item,
+            hours,
+            runs: toRuns(hours),
+            total: slotTotal(item.slots, hours),
+          };
+        })
+        .filter((group) => group.hours.length > 0),
+    [courtAvailability, pickedByCourt]
   );
-  // Hours needn't be contiguous; each unbroken run becomes its own booking.
-  const runs = useMemo(() => toRuns(selected), [selected]);
-  const total = slotTotal(slots, selected);
+  const selectedByCourt = useMemo(
+    () =>
+      Object.fromEntries(
+        selectedGroups.map((group) => [group.court.id, group.hours])
+      ),
+    [selectedGroups]
+  );
+  const selectedCount = selectedGroups.reduce(
+    (sum, group) => sum + group.hours.length,
+    0
+  );
+  const pricedTotal = selectedGroups.reduce(
+    (sum, group) => sum + (group.total ?? 0),
+    0
+  );
+  const hasUnpricedSelection = selectedGroups.some(
+    (group) => group.total == null
+  );
+  const requiresOnlinePayment = paymentRequired && pricedTotal > 0;
 
-  // Switching court or date invalidates the selection — reset in the handler,
-  // not an effect.
+  // Court headers only focus a column/list. They never clear another court's
+  // hours: the comparison view is also a multi-court cart.
   function selectCourt(id: string) {
-    if (id === courtId) return;
-    setCourtId(id);
-    setPicked([]);
+    setActiveCourtId(id);
   }
 
   function selectDate(next: string) {
     setDate(next);
-    setPicked([]);
+    setPickedByCourt({});
   }
 
-  // Toggle against the trimmed selection so a tap never revives an hour that
-  // is no longer available.
+  // Toggle against that court's trimmed selection so a tap never revives an
+  // hour that the live stream has made unavailable.
   function toggle(nextCourtId: string, hour: number) {
     const next = courtAvailability.find((item) => item.id === nextCourtId);
     if (!next?.slots.some((slot) => slot.hour === hour && slot.available)) {
       return;
     }
-    if (nextCourtId !== courtId) {
-      setCourtId(nextCourtId);
-      setPicked([hour]);
-      return;
-    }
-    setPicked(toggleHourIn(selected, hour));
+    setActiveCourtId(nextCourtId);
+    setPickedByCourt((current) => {
+      const selected = clampSelection(next.slots, current[nextCourtId] ?? []);
+      const updated = toggleHourIn(selected, hour);
+      const result = { ...current };
+      if (updated.length > 0) result[nextCourtId] = updated;
+      else delete result[nextCourtId];
+      return result;
+    });
   }
 
   if (courts.length === 0) return null;
@@ -174,11 +198,19 @@ export function BookCourtPanel({
           className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-10"
         >
           {/* The panel keeps its state in React; these carry it into FormData. */}
-          <input type="hidden" name="courtId" value={courtId} />
           <input type="hidden" name="date" value={date} />
-          {selected.map((hour) => (
-            <input key={hour} type="hidden" name="hours" value={hour} />
-          ))}
+          {selectedGroups.flatMap((group) =>
+            group.hours.map((hour) => (
+              <span key={`${group.court.id}:${hour}`}>
+                <input
+                  type="hidden"
+                  name="courtIds"
+                  value={group.court.id}
+                />
+                <input type="hidden" name="hours" value={hour} />
+              </span>
+            ))
+          )}
 
           {(state.message || state.success) && (
             <div className="lg:col-span-2">
@@ -226,8 +258,8 @@ export function BookCourtPanel({
               ) : (
                 <CourtAvailabilityBrowser
                   courts={courtAvailability}
-                  activeCourtId={courtId}
-                  selected={selected}
+                  activeCourtId={activeCourtId}
+                  selectedByCourt={selectedByCourt}
                   view={view}
                   onViewChange={setView}
                   onSelectCourt={selectCourt}
@@ -236,9 +268,9 @@ export function BookCourtPanel({
                   live={live}
                 />
               )}
-              {state.errors?.hours && (
+              {(state.errors?.hours || state.errors?.selections) && (
                 <p className="mt-2 text-xs text-red-500">
-                  {state.errors.hours}
+                  {state.errors.hours ?? state.errors.selections}
                 </p>
               )}
             </div>
@@ -249,62 +281,81 @@ export function BookCourtPanel({
               Booking summary
             </p>
 
-            {runs.length > 0 ? (
+            {selectedGroups.length > 0 ? (
               <div className="mt-6 flex flex-col gap-3 text-sm">
                 <p className="font-semibold text-navy">
                   {formatManilaDateLong(date)}
                 </p>
-                {court && (
-                  <p className="rounded-lg bg-white/55 px-3 py-2 text-xs font-bold text-navy">
-                    {court.name}
-                  </p>
-                )}
-                {/* Gaps create separate bookings, so show every run. */}
-                {runs.map((run) => (
+                {selectedGroups.map((group) => (
                   <div
-                    key={run.start}
-                    className="flex items-center justify-between gap-3"
+                    key={group.court.id}
+                    className="rounded-xl bg-white/55 px-3 py-3"
                   >
-                    <span className="text-navy/70">
-                      {formatHourLabel(run.start)} –{" "}
-                      {formatHourLabel(run.end + 1)}
-                    </span>
-                    <span className="shrink-0 font-semibold text-navy">
-                      {runHours(run)} {runHours(run) === 1 ? "hr" : "hrs"}
-                    </span>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-extrabold text-navy">
+                        {group.court.name}
+                      </p>
+                      <p className="text-xs font-bold text-navy/65">
+                        {group.total != null
+                          ? formatPHP(group.total)
+                          : "Rate on request"}
+                      </p>
+                    </div>
+                    <div className="mt-2 space-y-1.5">
+                      {group.runs.map((run) => (
+                        <div
+                          key={run.start}
+                          className="flex items-center justify-between gap-3"
+                        >
+                          <span className="text-xs text-navy/70">
+                            {formatHourLabel(run.start)} –{" "}
+                            {formatHourLabel(run.end + 1)}
+                          </span>
+                          <span className="shrink-0 text-xs font-semibold text-navy">
+                            {runHours(run)} {runHours(run) === 1 ? "hr" : "hrs"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
 
                 <div className="mt-2 space-y-2 border-t border-navy/10 pt-4">
                   <div className="flex items-center justify-between gap-3 text-navy/65">
                     <span>
-                      Court total ({selected.length}{" "}
-                      {selected.length === 1 ? "hour" : "hours"})
+                      Court total ({selectedCount}{" "}
+                      {selectedCount === 1 ? "court-hour" : "court-hours"})
                     </span>
                     <span className="shrink-0 font-semibold text-navy">
-                      {total != null ? formatPHP(total) : "Rate on request"}
+                      {formatPHP(pricedTotal)}
                     </span>
                   </div>
-                  {paymentRequired && total != null && total > 0 && (
+                  {hasUnpricedSelection && (
+                    <p className="text-[11px] leading-relaxed text-navy/50">
+                      A selected court has no online rate and will be confirmed
+                      with the venue.
+                    </p>
+                  )}
+                  {requiresOnlinePayment && (
                     <div className="flex items-center justify-between gap-3 text-navy/65">
                       <span>Service fee (3%)</span>
                       <span className="shrink-0 font-semibold text-navy">
-                        {formatPHP(bookingServiceFeeFor(total))}
+                        {formatPHP(bookingServiceFeeFor(pricedTotal))}
                       </span>
                     </div>
                   )}
-                  {total != null && (
-                    <div className="flex items-end justify-between gap-3 border-t border-navy/10 pt-4">
-                      <span className="font-bold text-navy">
-                        {paymentRequired ? "Booking subtotal" : "Total"}
-                      </span>
-                      <span className="shrink-0 text-2xl font-extrabold text-navy">
-                        {formatPHP(
-                          paymentRequired ? grossFor(total) : total
-                        )}
-                      </span>
-                    </div>
-                  )}
+                  <div className="flex items-end justify-between gap-3 border-t border-navy/10 pt-4">
+                    <span className="font-bold text-navy">
+                      {requiresOnlinePayment ? "Booking subtotal" : "Total"}
+                    </span>
+                    <span className="shrink-0 text-2xl font-extrabold text-navy">
+                      {formatPHP(
+                        requiresOnlinePayment
+                          ? grossFor(pricedTotal)
+                          : pricedTotal
+                      )}
+                    </span>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -334,17 +385,17 @@ export function BookCourtPanel({
                 <Button
                   type="submit"
                   className="min-h-12 rounded-xl"
-                  disabled={selected.length === 0 || pending}
+                  disabled={selectedCount === 0 || pending}
                 >
                   {pending
-                    ? paymentRequired
+                    ? requiresOnlinePayment
                       ? "Holding…"
                       : "Booking…"
-                    : selected.length === 0
+                    : selectedCount === 0
                       ? "Pick your hours"
-                      : paymentRequired
-                        ? `Hold ${selected.length} ${selected.length === 1 ? "hour" : "hours"}`
-                        : `Book ${selected.length} ${selected.length === 1 ? "hour" : "hours"}`}
+                      : requiresOnlinePayment
+                        ? `Hold ${selectedCount} ${selectedCount === 1 ? "court-hour" : "court-hours"}`
+                        : `Book ${selectedCount} ${selectedCount === 1 ? "court-hour" : "court-hours"}`}
                 </Button>
               )}
 
@@ -365,7 +416,7 @@ export function BookCourtPanel({
                   <polyline points="9 12 11 14 15 10" />
                 </svg>
                 <p className="text-[11px] leading-relaxed text-navy/55">
-                  {paymentRequired
+                  {requiresOnlinePayment
                     ? `This venue takes payment online. We'll hold your hours for ${BOOKING_HOLD_MINUTES} minutes while you pay. PayMongo adds its processing fee after you choose a payment method.`
                     : "No payment needed — confirm here and settle at the venue."}
                 </p>

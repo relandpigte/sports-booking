@@ -10,20 +10,20 @@
 import qrcode from "qrcode-generator";
 
 import { ok, run } from "./harness";
-import { qrSvg } from "@/lib/qr";
+import { hubQrSvg, qrSvg } from "@/lib/qr";
 
 const QUIET = 2;
 
 // Rebuild the dark/light grid from the path we emitted.
-function decodeMatrix(svg: string, count: number): boolean[][] {
+function decodeMatrix(svg: string, count: number, quiet = QUIET): boolean[][] {
   const grid = Array.from({ length: count }, () =>
     Array.from({ length: count }, () => false)
   );
   const path = svg.match(/<path d="([^"]*)"/)?.[1] ?? "";
   // Each run is M<x> <y>h<len>v1h-<len>z
   for (const run of path.matchAll(/M(\d+) (\d+)h(\d+)v1h-\d+z/g)) {
-    const x = Number(run[1]) - QUIET;
-    const y = Number(run[2]) - QUIET;
+    const x = Number(run[1]) - quiet;
+    const y = Number(run[2]) - quiet;
     const len = Number(run[3]);
     for (let i = 0; i < len; i++) grid[y][x + i] = true;
   }
@@ -102,6 +102,41 @@ async function check() {
   ok(
     "and no raw markup survives",
     !titled.includes("<b>")
+  );
+
+  const logoDataUrl = "data:image/png;base64,aHVicXItbG9nbw==";
+  const branded = hubQrSvg("https://www.bunal.club/hubs/bunal-test", {
+    hubName: 'Bunal Test & "Play"',
+    logoDataUrl,
+  });
+  ok(
+    "a hub download is a self-contained branded SVG",
+    branded.startsWith("<svg") &&
+      branded.includes(logoDataUrl) &&
+      branded.includes("www.bunal.club")
+  );
+  ok(
+    "the hub name is escaped in both its label and artwork",
+    branded.includes("Bunal Test &amp; &quot;Play&quot;") &&
+      !branded.includes('Bunal Test & "Play"')
+  );
+
+  const brandedReference = qrcode(0, "H");
+  brandedReference.addData("https://www.bunal.club/hubs/bunal-test");
+  brandedReference.make();
+  const brandedCount = brandedReference.getModuleCount();
+  const brandedMatrix = decodeMatrix(branded, brandedCount, 4);
+  let brandedMismatches = 0;
+  for (let row = 0; row < brandedCount; row++) {
+    for (let col = 0; col < brandedCount; col++) {
+      if (brandedMatrix[row][col] !== brandedReference.isDark(row, col)) {
+        brandedMismatches++;
+      }
+    }
+  }
+  ok(
+    "the branded download still contains the exact high-correction QR matrix",
+    brandedMismatches === 0
   );
 }
 

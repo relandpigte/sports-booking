@@ -81,28 +81,46 @@ export async function createBookingAction(
     return { message: "Only player accounts can book courts." };
   }
 
+  const postedCourtIds = formData.getAll("courtIds").map(String);
+  const postedHours = formData.getAll("hours").map(String);
+  if (postedCourtIds.length !== postedHours.length) {
+    return { errors: { hours: "Choose a valid court and hour." } };
+  }
+
   const parsed = CreateBookingSchema.safeParse({
-    courtId: String(formData.get("courtId") ?? ""),
     date: String(formData.get("date") ?? ""),
-    hours: formData.getAll("hours").map((v) => String(v)),
+    selections: postedCourtIds.map((courtId, index) => ({
+      courtId,
+      hour: postedHours[index],
+    })),
     notes: String(formData.get("notes") ?? ""),
   });
   if (!parsed.success) return { errors: firstErrors(parsed.error) };
 
-  const { courtId, date, notes } = parsed.data;
-  // A crafted form can repeat the same checkbox value. Normalize before
-  // pricing, locking, and writing so one court-hour is represented exactly
-  // once throughout the transaction.
-  const hours = [...new Set(parsed.data.hours)].sort(
-    (left, right) => left - right
+  const { date, notes } = parsed.data;
+  // Normalize only exact duplicate court-hours. The same hour on two courts is
+  // intentional and supported: a player may be reserving courts for a group.
+  const selections = [
+    ...new Map(
+      parsed.data.selections.map((selection) => [
+        `${selection.courtId}:${selection.hour}`,
+        selection,
+      ])
+    ).values(),
+  ];
+  const courtIds = [...new Set(selections.map((selection) => selection.courtId))];
+  const courtRows = await Promise.all(
+    courtIds.map((courtId) => getCourtForBooking(courtId))
   );
-
-  const court = await getCourtForBooking(courtId);
-  if (!court) return { message: "Court not found." };
-
-  // The hub page hides the panel when a venue cannot accept bookings, but a
-  // Server Action is a public endpoint and has to enforce it too.
-  if (!court.hub.bookable) {
+  if (courtRows.some((court) => court == null)) {
+    return { message: "One of those courts was not found." };
+  }
+  const courts = courtRows.filter((court) => court != null);
+  const hub = courts[0].hub;
+  if (courts.some((court) => court.hub.id !== hub.id)) {
+    return { errors: { hours: "Choose courts from the same venue." } };
+  }
+  if (!hub.bookable) {
     return { message: "This venue isn't taking online bookings right now." };
   }
 
@@ -116,133 +134,85 @@ export async function createBookingAction(
     };
   }
 
-  // Re-check availability server-side; never trust the grid the client posted.
-  // This exists for a good error message — the unique index below is the guard.
-  const bookedHours = await getBookedHours(courtId, date);
-  const { closed, slots } = buildSlots({
-    operatingHours: court.hub.operatingHours,
-    date,
-    bookedHours,
-    today,
-    nowHour: manilaNowHour(),
-    courtHourlyRate: court.hourlyRate,
-    scheduleRules: court.scheduleRules,
-  });
-  if (closed) {
-    return { errors: { date: "This hub is closed on that day." } };
-  }
-  const unavailable = hours.filter((h) => !isAvailable(slots, h));
+  // Re-check every selected court server-side. This read gives a useful error;
+  // BookingSlot's database unique key remains the final collision guard.
+  const groups = await Promise.all(
+    courts.map(async (court) => {
+      const hours = selections
+        .filter((selection) => selection.courtId === court.id)
+        .map((selection) => selection.hour)
+        .sort((left, right) => left - right);
+      const bookedHours = await getBookedHours(court.id, date);
+      const availability = buildSlots({
+        operatingHours: court.hub.operatingHours,
+        date,
+        bookedHours,
+        today,
+        nowHour: manilaNowHour(),
+        courtHourlyRate: court.hourlyRate,
+        scheduleRules: court.scheduleRules,
+      });
+      return {
+        court,
+        hours,
+        slots: availability.slots,
+        runs: toRuns(hours),
+        total: slotTotal(availability.slots, hours),
+      };
+    })
+  );
+  const unavailable = groups.flatMap((group) =>
+    group.hours
+      .filter((hour) => !isAvailable(group.slots, hour))
+      .map((hour) => `${group.court.name} at ${formatHourLabel(hour)}`)
+  );
   if (unavailable.length > 0) {
     return {
       errors: {
-        hours: `${unavailable
-          .map(formatHourLabel)
-          .join(", ")} ${unavailable.length === 1 ? "is" : "are"} no longer available.`,
+        hours: `${unavailable.join(", ")} ${unavailable.length === 1 ? "is" : "are"} no longer available.`,
       },
     };
   }
 
-  // The hours need not be contiguous, so a selection can span several
-  // sessions. Each run becomes its own booking, while a single unbroken block
-  // still produces exactly one.
-  const runs = toRuns(hours);
-
-  // Don't let a player double-book themselves across two courts.
-  for (const run of runs) {
-    const clash = await prisma.booking.findFirst({
-      where: {
-        userId: viewer.id,
-        // A live unpaid hold counts — otherwise a player could hold the same
-        // hour on two courts at once.
-        ...liveBookingWhere(),
-        startsAt: { lt: manilaInstant(date, run.end + 1) },
-        endsAt: { gt: manilaInstant(date, run.start) },
-      },
-      select: { id: true },
-    });
-    if (clash) {
-      return {
-        errors: {
-          hours: `You already have a booking at ${formatHourLabel(run.start)}.`,
-        },
-      };
-    }
-  }
-
-  // Does this venue take money online? A partner who hasn't connected a
-  // gateway keeps the original behaviour exactly: instant confirmation, settle
-  // at the venue. So does a court with no hourly rate — there's nothing to
-  // charge for, and a ₱0 checkout is a dead end, not a payment.
-  const gateway = await getActivePartnerGateway(court.hub.ownerId);
-  const total = slotTotal(slots, hours);
-  const requiresPayment = gateway != null && total != null && total > 0;
-
+  // One checkout can span many courts at this hub. Unpriced court-hours are
+  // included in the reservation but add nothing to the online subtotal.
+  const gateway = await getActivePartnerGateway(hub.ownerId);
+  const total = groups.reduce((sum, group) => sum + (group.total ?? 0), 0);
+  const requiresPayment = gateway != null && total > 0;
   const now = new Date();
   const holdExpiresAt = requiresPayment
     ? new Date(now.getTime() + BOOKING_HOLD_MINUTES * 60_000)
     : null;
 
-  let created: { id: string }[];
+  let created: { id: string; courtName: string }[];
   let paymentId: string | null = null;
   try {
-    // One transaction for the whole selection: if any hour is taken while we
-    // write, the player gets none of them rather than a partial set they
-    // didn't ask for.
+    // The full multi-court cart is atomic. A collision on any court-hour rolls
+    // back the payment ledger, every Booking, and every slot in the cart.
     created = await prisma.$transaction(async (tx) => {
-      const out: { id: string }[] = [];
+      const out: { id: string; courtName: string }[] = [];
 
-      await lockPlayerBookingHours(tx, viewer.id, date, hours);
-
-      // Re-check after taking the player-hour locks. Concurrent requests for
-      // different courts now serialize here, so only the first can proceed.
-      for (const run of runs) {
-        const clash = await tx.booking.findFirst({
+      for (const group of groups) {
+        await tx.bookingSlot.deleteMany({
           where: {
-            userId: viewer.id,
-            ...liveBookingWhere(),
-            startsAt: { lt: manilaInstant(date, run.end + 1) },
-            endsAt: { gt: manilaInstant(date, run.start) },
+            courtId: group.court.id,
+            date,
+            hour: { in: group.hours },
+            holdExpiresAt: { lt: now },
           },
-          select: { id: true },
         });
-        if (clash) throw new PlayerClash();
       }
 
-      // Reap DEAD holds for exactly the keys we're about to claim. The unique
-      // index doesn't know about time: an expired hold's row is still
-      // physically present and would reject our insert even though the grid
-      // correctly showed the hour as free.
-      //
-      // Whoever locks the row first wins. If a settling payment nulls
-      // holdExpiresAt just before us, this matches nothing and our createMany
-      // fails with P2002 — which is correct, because that hour really was
-      // theirs.
-      await tx.bookingSlot.deleteMany({
-        where: {
-          courtId,
-          date,
-          hour: { in: hours },
-          holdExpiresAt: { lt: now },
-        },
-      });
-
       if (requiresPayment) {
-        // The ledger row BEFORE any money moves, so a crash mid-charge leaves
-        // something the sweep can reconcile rather than a silent hole. The
-        // method is a placeholder until the player picks one on the pay page —
-        // chargeBookingPayment overwrites it as it claims the charge.
         const payment = await tx.bookingPayment.create({
           data: {
-            partnerId: court.hub.ownerId,
+            partnerId: hub.ownerId,
             gatewayId: gateway!.id,
             userId: viewer.id,
-            hubId: court.hub.id,
-            // The checkout subtotal before PayMongo's method-specific pass-on
-            // processing fee. The other two are snapshotted so a report next
-            // year still reads the rate that was quoted today.
-            amount: new Prisma.Decimal(grossFor(total!)),
-            venueAmount: new Prisma.Decimal(total!),
-            platformFee: new Prisma.Decimal(bookingServiceFeeFor(total!)),
+            hubId: hub.id,
+            amount: new Prisma.Decimal(grossFor(total)),
+            venueAmount: new Prisma.Decimal(total),
+            platformFee: new Prisma.Decimal(bookingServiceFeeFor(total)),
             method: "CARD",
             status: "PENDING",
             expiresAt: holdExpiresAt!,
@@ -253,62 +223,52 @@ export async function createBookingAction(
         paymentId = payment.id;
       }
 
-      for (const run of runs) {
-        const runLength = runHours(run);
-        const runHourValues = Array.from(
-          { length: runLength },
-          (_, i) => run.start + i
-        );
-        const booking = await tx.booking.create({
-          data: {
-            courtId,
-            hubId: court.hub.id,
-            userId: viewer.id,
-            date,
-            startHour: run.start,
-            endHour: run.end + 1,
-            hours: runLength,
-            startsAt: manilaInstant(date, run.start),
-            endsAt: manilaInstant(date, run.end + 1),
-            hourlyRate: uniformSlotRate(slots, runHourValues),
-            totalPrice: slotTotal(slots, runHourValues),
-            notes: notes ?? null,
-            // Pay-to-confirm only when there's a gateway to pay through.
-            status: requiresPayment ? "PENDING" : "CONFIRMED",
-            holdExpiresAt,
-            bookingPaymentId: paymentId,
-          },
-          select: { id: true },
-        });
+      for (const group of groups) {
+        for (const run of group.runs) {
+          const runLength = runHours(run);
+          const runHourValues = Array.from(
+            { length: runLength },
+            (_, index) => run.start + index
+          );
+          const booking = await tx.booking.create({
+            data: {
+              courtId: group.court.id,
+              hubId: hub.id,
+              userId: viewer.id,
+              date,
+              startHour: run.start,
+              endHour: run.end + 1,
+              hours: runLength,
+              startsAt: manilaInstant(date, run.start),
+              endsAt: manilaInstant(date, run.end + 1),
+              hourlyRate: uniformSlotRate(group.slots, runHourValues),
+              totalPrice: slotTotal(group.slots, runHourValues),
+              notes: notes ?? null,
+              status: requiresPayment ? "PENDING" : "CONFIRMED",
+              holdExpiresAt,
+              bookingPaymentId: paymentId,
+            },
+            select: { id: true },
+          });
 
-        // The unique index on (courtId, date, hour) is what actually prevents a
-        // double-booking: a concurrent transaction holding the same key makes
-        // this block, then fail with P2002 once the other commits — rolling
-        // back every booking in this transaction along with it.
-        //
-        // Deliberately NOT skipDuplicates: that would swallow the collision and
-        // leave a booking whose hours are only partially reserved.
-        await tx.bookingSlot.createMany({
-          data: Array.from({ length: runLength }, (_, i) => ({
-            bookingId: booking.id,
-            courtId,
-            date,
-            hour: run.start + i,
-            // Mirrors the booking's hold — see the schema comment for why the
-            // grid can't afford to join Booking to find this out.
-            holdExpiresAt,
-          })),
-        });
-
-        out.push(booking);
+          // Deliberately do not skip duplicates. The unique court/date/hour key
+          // blocks concurrent double-booking and aborts this whole cart.
+          await tx.bookingSlot.createMany({
+            data: runHourValues.map((hour) => ({
+              bookingId: booking.id,
+              courtId: group.court.id,
+              date,
+              hour,
+              holdExpiresAt,
+            })),
+          });
+          out.push({ id: booking.id, courtName: group.court.name });
+        }
       }
 
       return out;
     });
   } catch (error) {
-    if (error instanceof PlayerClash) {
-      return { errors: { hours: "You already have a booking at that time." } };
-    }
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
@@ -318,19 +278,14 @@ export async function createBookingAction(
     throw error;
   }
 
-  revalidateBookingSurfaces(court.hub.id);
-
-  // The hours are held, not booked. Send the player straight to checkout —
-  // the clock is already running.
+  revalidateBookingSurfaces(hub.id);
   if (paymentId) redirect(`/dashboard/bookings/pay/${paymentId}`);
 
-  // No redirect: the player stays on the hub page and watches the slots they
-  // just took grey out.
   return {
     success:
       created.length === 1
-        ? `Booked ${court.name} on ${date}.`
-        : `Booked ${created.length} sessions on ${court.name}.`,
+        ? `Booked ${created[0].courtName} on ${date}.`
+        : `Booked ${created.length} sessions across ${groups.length} courts on ${date}.`,
     bookingId: created[0].id,
   };
 }

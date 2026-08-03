@@ -15,7 +15,7 @@ export type BrowserCourt = {
 export function CourtAvailabilityBrowser({
   courts,
   activeCourtId,
-  selected,
+  selectedByCourt,
   view,
   onViewChange,
   onSelectCourt,
@@ -25,7 +25,7 @@ export function CourtAvailabilityBrowser({
 }: {
   courts: BrowserCourt[];
   activeCourtId: string;
-  selected: number[];
+  selectedByCourt: Readonly<Record<string, number[]>>;
   view: CourtAvailabilityView;
   onViewChange: (view: CourtAvailabilityView) => void;
   onSelectCourt: (courtId: string) => void;
@@ -41,7 +41,7 @@ export function CourtAvailabilityBrowser({
             Choose court &amp; time
           </p>
           <p className="mt-1 text-xs text-gray-500">
-            One court per booking. Choosing another court starts a new selection.
+            Select any available hours across one or more courts.
           </p>
         </div>
         <div
@@ -74,7 +74,7 @@ export function CourtAvailabilityBrowser({
         <CourtList
           courts={courts}
           activeCourtId={activeCourtId}
-          selected={selected}
+          selectedByCourt={selectedByCourt}
           onSelectCourt={onSelectCourt}
           onToggle={onToggle}
         />
@@ -82,7 +82,7 @@ export function CourtAvailabilityBrowser({
         <CourtComparisonGrid
           courts={courts}
           activeCourtId={activeCourtId}
-          selected={selected}
+          selectedByCourt={selectedByCourt}
           onSelectCourt={onSelectCourt}
           onToggle={onToggle}
         />
@@ -94,13 +94,13 @@ export function CourtAvailabilityBrowser({
 function CourtList({
   courts,
   activeCourtId,
-  selected,
+  selectedByCourt,
   onSelectCourt,
   onToggle,
 }: {
   courts: BrowserCourt[];
   activeCourtId: string;
-  selected: number[];
+  selectedByCourt: Readonly<Record<string, number[]>>;
   onSelectCourt: (courtId: string) => void;
   onToggle: (courtId: string, hour: number) => void;
 }) {
@@ -151,7 +151,7 @@ function CourtList({
                     key={slot.hour}
                     court={court}
                     slot={slot}
-                    selected={active && selected.includes(slot.hour)}
+                    selected={selectedByCourt[court.id]?.includes(slot.hour) ?? false}
                     showTime
                     onToggle={onToggle}
                   />
@@ -172,13 +172,13 @@ function CourtList({
 function CourtComparisonGrid({
   courts,
   activeCourtId,
-  selected,
+  selectedByCourt,
   onSelectCourt,
   onToggle,
 }: {
   courts: BrowserCourt[];
   activeCourtId: string;
-  selected: number[];
+  selectedByCourt: Readonly<Record<string, number[]>>;
   onSelectCourt: (courtId: string) => void;
   onToggle: (courtId: string, hour: number) => void;
 }) {
@@ -252,8 +252,8 @@ function CourtComparisonGrid({
                             court={court}
                             slot={slot}
                             selected={
-                              court.id === activeCourtId &&
-                              selected.includes(slot.hour)
+                              selectedByCourt[court.id]?.includes(slot.hour) ??
+                              false
                             }
                             onToggle={onToggle}
                           />

@@ -139,6 +139,21 @@ async function check() {
       slots.find((slot) => slot.hour === 10)?.closureReason ===
         "Court maintenance"
   );
+  const openPlaySlots = buildSlots({
+    operatingHours,
+    date: monday,
+    bookedHours: [13],
+    openPlayHours: [13],
+    today: "2099-11-01",
+    nowHour: 0,
+    courtHourlyRate: 500,
+    scheduleRules: [],
+  }).slots;
+  ok(
+    "event occupancy is labelled Open Play while remaining unavailable",
+    openPlaySlots.find((slot) => slot.hour === 13)?.reason === "openPlay" &&
+      openPlaySlots.find((slot) => slot.hour === 13)?.available === false
+  );
   ok(
     "a selectable hour is labelled as its full one-hour range",
     slots.find((slot) => slot.hour === 9)?.label === "9:00 AM – 10:00 AM"

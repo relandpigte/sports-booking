@@ -2,10 +2,10 @@ import type { DayHours, OperatingHours } from "@/lib/constants";
 import { formatSlotRange, manilaWeekday } from "@/lib/time";
 
 // Pure slot math, shared by the hub page, the booking action, the SSE route and
-// the client grid. Because it's shared, the realtime payload only has to carry
-// `bookedHours: number[]` — the client recomputes the same grid the server did.
+// the client grid. Realtime carries occupied hours and the Open Play subset;
+// the client recomputes schedules and rates from the same pure function.
 
-export type SlotReason = "booked" | "closed" | "past";
+export type SlotReason = "booked" | "closed" | "past" | "openPlay";
 
 export type CourtScheduleRule = {
   weekday: number;
@@ -59,6 +59,7 @@ export type BuildSlotsInput = {
   operatingHours: OperatingHours | null;
   date: string; // "YYYY-MM-DD" Manila
   bookedHours: number[];
+  openPlayHours?: number[];
   today: string; // manilaToday()
   nowHour: number; // manilaNowHour()
   courtHourlyRate?: number | null;
@@ -90,6 +91,7 @@ export function buildSlots(input: BuildSlotsInput): {
   if (!window) return { closed: true, slots: [] };
 
   const booked = new Set(input.bookedHours);
+  const openPlay = new Set(input.openPlayHours ?? []);
   // ISO dates sort lexicographically, so a string compare is a valid past check.
   const isPastDate = input.date < input.today;
   const isToday = input.date === input.today;
@@ -104,6 +106,7 @@ export function buildSlots(input: BuildSlotsInput): {
     // An hour that has already started is no longer bookable.
     const past = isPastDate || (isToday && hour <= input.nowHour);
     const isBooked = booked.has(hour);
+    const isOpenPlay = openPlay.has(hour);
     const rule = rules.get(hour);
     const isClosed = rule?.closed === true;
     slots.push({
@@ -114,7 +117,9 @@ export function buildSlots(input: BuildSlotsInput): {
       closureReason: isClosed ? rule?.closureReason?.trim() || null : null,
       reason: past
         ? "past"
-        : isBooked
+        : isOpenPlay
+          ? "openPlay"
+          : isBooked
           ? "booked"
           : isClosed
             ? "closed"

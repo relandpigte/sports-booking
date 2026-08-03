@@ -6,8 +6,14 @@ import type { Role } from "@prisma/client";
 
 import { Button } from "@/components/ui/Button";
 import { DateStrip } from "@/components/hubs/DateStrip";
-import { SlotGrid } from "@/components/hubs/SlotGrid";
-import { useAvailabilityStream } from "@/hooks/useAvailabilityStream";
+import {
+  CourtAvailabilityBrowser,
+  type CourtAvailabilityView,
+} from "@/components/hubs/CourtAvailabilityBrowser";
+import {
+  useHubAvailabilityStream,
+  type HubAvailabilitySnapshot,
+} from "@/hooks/useHubAvailabilityStream";
 import { createBookingAction, type BookingFormState } from "@/lib/booking-actions";
 import {
   buildSlots,
@@ -22,7 +28,6 @@ import { formatPHP } from "@/lib/currency";
 import { formatHourLabel, formatManilaDateLong } from "@/lib/time";
 import {
   BOOKING_HOLD_MINUTES,
-  COURT_TYPE_LABELS,
   bookingServiceFeeFor,
   grossFor,
   type OperatingHours,
@@ -39,6 +44,7 @@ type PanelCourt = {
 const initialState: BookingFormState = {};
 
 export function BookCourtPanel({
+  hubId,
   courts,
   operatingHours,
   today,
@@ -47,11 +53,12 @@ export function BookCourtPanel({
   viewerRole,
   paymentRequired,
 }: {
+  hubId: string;
   courts: PanelCourt[];
   operatingHours: OperatingHours | null;
   today: string;
   nowHour: number;
-  initialAvailability: { courtId: string; date: string; bookedHours: number[] } | null;
+  initialAvailability: HubAvailabilitySnapshot | null;
   viewerRole: Role | null;
   // This venue has connected a gateway, so booking holds the hours rather than
   // confirming them. False for every venue that hasn't — and then every word
@@ -61,32 +68,45 @@ export function BookCourtPanel({
   const [courtId, setCourtId] = useState(courts[0]?.id ?? "");
   const [date, setDate] = useState(today);
   const [picked, setPicked] = useState<number[]>([]);
+  const [view, setView] = useState<CourtAvailabilityView>("grid");
   const [state, formAction, pending] = useActionState(
     createBookingAction,
     initialState
   );
 
-  const { bookedHours, live } = useAvailabilityStream(
-    courtId || null,
+  const { occupancies, live } = useHubAvailabilityStream(
+    hubId,
     date,
     initialAvailability
   );
 
   const court = courts.find((c) => c.id === courtId) ?? null;
 
-  const { closed, slots } = useMemo(
+  const courtAvailability = useMemo(
     () =>
-      buildSlots({
-        operatingHours,
-        date,
-        bookedHours: bookedHours ?? [],
-        today,
-        nowHour,
-        courtHourlyRate: court?.hourlyRate,
-        scheduleRules: court?.scheduleRules,
+      courts.map((item) => {
+        const occupancy = occupancies?.get(item.id);
+        const availability = buildSlots({
+          operatingHours,
+          date,
+          bookedHours: occupancy?.bookedHours ?? [],
+          openPlayHours: occupancy?.openPlayHours ?? [],
+          today,
+          nowHour,
+          courtHourlyRate: item.hourlyRate,
+          scheduleRules: item.scheduleRules,
+        });
+        return { ...item, ...availability };
       }),
-    [operatingHours, date, bookedHours, today, nowHour, court]
+    [courts, occupancies, operatingHours, date, today, nowHour]
   );
+  const activeAvailability =
+    courtAvailability.find((item) => item.id === courtId) ?? null;
+  const slots = useMemo(
+    () => activeAvailability?.slots ?? [],
+    [activeAvailability]
+  );
+  const closed = courtAvailability.every((item) => item.closed);
 
   // The selection is trimmed during render rather than repaired in an effect,
   // so hours someone else books out from under us drop off on the next frame
@@ -102,6 +122,7 @@ export function BookCourtPanel({
   // Switching court or date invalidates the selection — reset in the handler,
   // not an effect.
   function selectCourt(id: string) {
+    if (id === courtId) return;
     setCourtId(id);
     setPicked([]);
   }
@@ -113,7 +134,16 @@ export function BookCourtPanel({
 
   // Toggle against the trimmed selection so a tap never revives an hour that
   // is no longer available.
-  function toggle(hour: number) {
+  function toggle(nextCourtId: string, hour: number) {
+    const next = courtAvailability.find((item) => item.id === nextCourtId);
+    if (!next?.slots.some((slot) => slot.hour === hour && slot.available)) {
+      return;
+    }
+    if (nextCourtId !== courtId) {
+      setCourtId(nextCourtId);
+      setPicked([hour]);
+      return;
+    }
     setPicked(toggleHourIn(selected, hour));
   }
 
@@ -124,7 +154,7 @@ export function BookCourtPanel({
       id="booking"
       className="scroll-mt-24 border-y border-gray-200 bg-white py-14 sm:py-16"
     >
-      <div className="mx-auto w-full max-w-5xl px-4 sm:px-6">
+      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">
             Live availability
@@ -133,14 +163,15 @@ export function BookCourtPanel({
             Book a court
           </h2>
           <p className="mt-3 text-sm leading-relaxed text-gray-500 sm:text-base">
-            Choose a court, date, and any available hours that work for you.
+            Browse every court, compare live availability, and pick the hours
+            that work for you.
           </p>
         </div>
 
         <form
           action={formAction}
           noValidate
-          className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.85fr)] lg:gap-10"
+          className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-10"
         >
           {/* The panel keeps its state in React; these carry it into FormData. */}
           <input type="hidden" name="courtId" value={courtId} />
@@ -178,58 +209,6 @@ export function BookCourtPanel({
 
           <div className="space-y-8">
             <div>
-              <label
-                htmlFor="booking-court"
-                className="mb-3 block text-xs font-bold uppercase tracking-[0.16em] text-gray-400"
-              >
-                Choose court
-              </label>
-              {courts.length > 1 ? (
-                <div className="relative">
-                  <select
-                    id="booking-court"
-                    value={courtId}
-                    onChange={(event) => selectCourt(event.target.value)}
-                    className="min-h-14 w-full appearance-none rounded-xl border border-gray-200 bg-[#f7faf8] px-4 py-3 pr-11 text-sm font-semibold text-navy transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  >
-                    {courts.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name} —{" "}
-                        {COURT_TYPE_LABELS[item.courtType] ?? item.courtType}
-                        {item.hourlyRate != null
-                          ? ` · ${formatPHP(item.hourlyRate)}/hr`
-                          : ""}
-                      </option>
-                    ))}
-                  </select>
-                  <svg
-                    className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
-                </div>
-              ) : (
-                court && (
-                  <div className="rounded-xl border border-gray-200 bg-[#f7faf8] px-4 py-3.5 text-sm text-gray-600">
-                    <span className="font-semibold text-navy">{court.name}</span>
-                    {court.hourlyRate != null
-                      ? ` · ${formatPHP(court.hourlyRate)}/hr`
-                      : " · Rate on request"}
-                  </div>
-                )
-              )}
-            </div>
-
-            <div>
               <span className="mb-3 block text-xs font-bold uppercase tracking-[0.16em] text-gray-400">
                 Select date
               </span>
@@ -240,24 +219,20 @@ export function BookCourtPanel({
             </div>
 
             <div>
-              <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                <span className="text-xs font-bold uppercase tracking-[0.16em] text-gray-400">
-                  Available hours
-                </span>
-                <span className="text-xs text-gray-400">
-                  Pick any hours — they needn&apos;t be consecutive
-                </span>
-              </div>
-              {closed ? (
-                <p className="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-500">
-                  Closed on {formatManilaDateLong(date)}.
+              {closed && occupancies != null ? (
+                <p className="rounded-2xl border border-gray-200 bg-gray-50 px-5 py-6 text-sm text-gray-500">
+                  All courts are closed on {formatManilaDateLong(date)}.
                 </p>
               ) : (
-                <SlotGrid
-                  slots={slots}
+                <CourtAvailabilityBrowser
+                  courts={courtAvailability}
+                  activeCourtId={courtId}
                   selected={selected}
+                  view={view}
+                  onViewChange={setView}
+                  onSelectCourt={selectCourt}
                   onToggle={toggle}
-                  loading={bookedHours == null}
+                  loading={occupancies == null}
                   live={live}
                 />
               )}
@@ -269,7 +244,7 @@ export function BookCourtPanel({
             </div>
           </div>
 
-          <aside className="rounded-2xl border border-navy/10 bg-navy-soft p-6 sm:p-8 lg:sticky lg:top-24">
+          <aside className="h-fit rounded-2xl border border-navy/10 bg-navy-soft p-6 sm:p-8 lg:sticky lg:top-24">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-navy/45">
               Booking summary
             </p>
@@ -279,6 +254,11 @@ export function BookCourtPanel({
                 <p className="font-semibold text-navy">
                   {formatManilaDateLong(date)}
                 </p>
+                {court && (
+                  <p className="rounded-lg bg-white/55 px-3 py-2 text-xs font-bold text-navy">
+                    {court.name}
+                  </p>
+                )}
                 {/* Gaps create separate bookings, so show every run. */}
                 {runs.map((run) => (
                   <div

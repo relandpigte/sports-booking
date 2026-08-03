@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from "react";
 
-type Snapshot = { courtId: string; date: string; bookedHours: number[] };
+type Snapshot = {
+  courtId: string;
+  date: string;
+  bookedHours: number[];
+  openPlayHours?: number[];
+};
 
 // Subscribes to a court's live availability for one date.
 //
@@ -17,7 +22,11 @@ export function useAvailabilityStream(
   // Reschedule only: ignore this booking's own slots, so its current hours
   // arrive as free rather than booked by itself.
   excludeBookingId?: string
-): { bookedHours: number[] | null; live: boolean } {
+): {
+  bookedHours: number[] | null;
+  openPlayHours: number[];
+  live: boolean;
+} {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [connected, setConnected] = useState(false);
 
@@ -60,6 +69,10 @@ export function useAvailabilityStream(
 
   return {
     bookedHours: streamed ?? fallback,
+    openPlayHours:
+      (matches(snapshot) ? snapshot?.openPlayHours : undefined) ??
+      (matches(initial) ? initial?.openPlayHours : undefined) ??
+      [],
     live: connected && streamed !== null,
   };
 }

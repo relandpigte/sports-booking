@@ -1,8 +1,8 @@
 import type { NextRequest } from "next/server";
 
 import {
-  getBookedHours,
   getBookedHoursExcluding,
+  getCourtOccupancy,
   getCourtForBooking,
 } from "@/lib/bookings";
 import { isValidDateString } from "@/lib/time";
@@ -89,13 +89,27 @@ export async function GET(
       const tick = async () => {
         if (closed) return;
         try {
-          const bookedHours = excludeId
-            ? await getBookedHoursExcluding(courtId, date, excludeId)
-            : await getBookedHours(courtId, date);
-          const key = bookedHours.join(",");
+          const occupancy = excludeId
+            ? {
+                bookedHours: await getBookedHoursExcluding(
+                  courtId,
+                  date,
+                  excludeId
+                ),
+                openPlayHours: [] as number[],
+              }
+            : await getCourtOccupancy(courtId, date);
+          const key = `${occupancy.bookedHours.join(",")}|${occupancy.openPlayHours.join(",")}`;
           if (key !== lastKey) {
             lastKey = key;
-            write(`data: ${JSON.stringify({ courtId, date, bookedHours })}\n\n`);
+            write(
+              `data: ${JSON.stringify({
+                courtId,
+                date,
+                bookedHours: occupancy.bookedHours,
+                openPlayHours: occupancy.openPlayHours,
+              })}\n\n`
+            );
           }
         } catch {
           // Transient database error — keep the stream open and retry next tick.

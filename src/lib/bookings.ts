@@ -226,16 +226,84 @@ export function endedBookingWhere(
 }
 
 // The hours already occupied on a court for one Manila date, sorted ascending.
+export type CourtOccupancy = {
+  courtId: string;
+  date: string;
+  bookedHours: number[];
+  openPlayHours: number[];
+};
+
+export async function getCourtOccupancy(
+  courtId: string,
+  date: string
+): Promise<CourtOccupancy> {
+  const rows = await prisma.bookingSlot.findMany({
+    where: { courtId, date, ...holdingHourWhere(new Date()) },
+    select: { hour: true, eventId: true },
+    orderBy: { hour: "asc" },
+  });
+  return {
+    courtId,
+    date,
+    bookedHours: rows.map((row) => row.hour),
+    openPlayHours: rows
+      .filter((row) => row.eventId != null)
+      .map((row) => row.hour),
+  };
+}
+
+// One query for the public comparison view. Empty courts are included so the
+// client can render them immediately instead of waiting for an occupied row.
+export async function getHubCourtOccupancies(
+  hubId: string,
+  date: string,
+  knownCourtIds?: string[]
+): Promise<CourtOccupancy[]> {
+  const courts = knownCourtIds
+    ? knownCourtIds.map((id) => ({ id }))
+    : await prisma.court.findMany({
+        where: { hubId },
+        orderBy: { createdAt: "asc" },
+        select: { id: true },
+      });
+  const courtIds = courts.map((court) => court.id);
+  const rows = await prisma.bookingSlot.findMany({
+    where: {
+      courtId: { in: courtIds },
+      date,
+      ...holdingHourWhere(new Date()),
+    },
+    select: { courtId: true, hour: true, eventId: true },
+    orderBy: [{ courtId: "asc" }, { hour: "asc" }],
+  });
+
+  const byCourt = new Map<
+    string,
+    { bookedHours: number[]; openPlayHours: number[] }
+  >();
+  for (const row of rows) {
+    const occupancy = byCourt.get(row.courtId) ?? {
+      bookedHours: [],
+      openPlayHours: [],
+    };
+    occupancy.bookedHours.push(row.hour);
+    if (row.eventId != null) occupancy.openPlayHours.push(row.hour);
+    byCourt.set(row.courtId, occupancy);
+  }
+
+  return courts.map((court) => ({
+    courtId: court.id,
+    date,
+    bookedHours: byCourt.get(court.id)?.bookedHours ?? [],
+    openPlayHours: byCourt.get(court.id)?.openPlayHours ?? [],
+  }));
+}
+
 export async function getBookedHours(
   courtId: string,
   date: string
 ): Promise<number[]> {
-  const rows = await prisma.bookingSlot.findMany({
-    where: { courtId, date, ...holdingHourWhere(new Date()) },
-    select: { hour: true },
-    orderBy: { hour: "asc" },
-  });
-  return rows.map((r) => r.hour);
+  return (await getCourtOccupancy(courtId, date)).bookedHours;
 }
 
 // Like getBookedHours, but ignores one booking's own slots. The reschedule
@@ -340,6 +408,7 @@ export type CourtAvailability = {
   closed: boolean;
   slots: Slot[];
   bookedHours: number[];
+  openPlayHours: number[];
 };
 
 // The initial (server-rendered) availability for a court+date. The SSE stream
@@ -351,18 +420,27 @@ export async function getCourtAvailability(
   const court = await getCourtForBooking(courtId);
   if (!court) return null;
 
-  const bookedHours = await getBookedHours(courtId, date);
+  const { bookedHours, openPlayHours } = await getCourtOccupancy(courtId, date);
   const { closed, slots } = buildSlots({
     operatingHours: court.hub.operatingHours,
     date,
     bookedHours,
+    openPlayHours,
     today: manilaToday(),
     nowHour: manilaNowHour(),
     courtHourlyRate: court.hourlyRate,
     scheduleRules: court.scheduleRules,
   });
 
-  return { courtId, hubId: court.hub.id, date, closed, slots, bookedHours };
+  return {
+    courtId,
+    hubId: court.hub.id,
+    date,
+    closed,
+    slots,
+    bookedHours,
+    openPlayHours,
+  };
 }
 
 // --- Player surfaces --------------------------------------------------------

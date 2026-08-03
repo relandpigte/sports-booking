@@ -112,10 +112,28 @@ async function check() {
   });
 
   stubRequestContext(partner);
-  const { getBookedHours } = await import("@/lib/bookings");
+  const { getBookedHours, getCourtOccupancy, getHubCourtOccupancies } =
+    await import("@/lib/bookings");
   ok(
     "published event slots block ordinary court booking availability",
     (await getBookedHours(courtA.id, DATE)).join(",") === "9,10,11"
+  );
+  ok(
+    "availability distinguishes Open Play from ordinary bookings",
+    (await getCourtOccupancy(courtA.id, DATE)).openPlayHours.join(",") ===
+      "9,10,11"
+  );
+  const hubOccupancy = await getHubCourtOccupancies(
+    hub.id,
+    DATE,
+    hub.courts.map((court) => court.id)
+  );
+  ok(
+    "the comparison snapshot includes every court and its Open Play hours",
+    hubOccupancy.length === 2 &&
+      hubOccupancy.every(
+        (court) => court.openPlayHours.join(",") === "9,10,11"
+      )
   );
 
   let duplicateBlocked = false;

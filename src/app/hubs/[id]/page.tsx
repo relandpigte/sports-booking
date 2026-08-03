@@ -8,7 +8,7 @@ import { VerifiedBadge } from "@/components/hubs/HubCard";
 import { Avatar } from "@/components/ui/Avatar";
 import { getPublicHub, type Hub } from "@/lib/hubs";
 import { getViewer } from "@/lib/dal";
-import { getCourtAvailability } from "@/lib/bookings";
+import { getHubCourtOccupancies } from "@/lib/bookings";
 import { formatTime, summarizeOperatingHours } from "@/lib/hours";
 import { formatPHP } from "@/lib/currency";
 import { hubPublicPath } from "@/lib/hub-slug";
@@ -163,13 +163,16 @@ export default async function PublicHubPage({
   // rather than getCurrentUser (which would redirect anonymous visitors).
   const today = manilaToday();
   const todayClosureNotices = closureNoticesForDate(hub.courts, today);
-  const firstCourt = hub.courts[0];
   const [viewer, initialAvailability] = await Promise.all([
     getViewer(),
-    // Render the first court's grid populated, so there's no empty flash before
-    // the availability stream connects.
-    firstCourt && hub.bookable
-      ? getCourtAvailability(firstCourt.id, today)
+    // Populate every court for the comparison view before its live stream
+    // connects, so neither list nor grid flashes an empty schedule.
+    hub.courts.length > 0 && hub.bookable
+      ? getHubCourtOccupancies(
+          hub.id,
+          today,
+          hub.courts.map((court) => court.id)
+        )
       : null,
   ]);
 
@@ -689,6 +692,7 @@ export default async function PublicHubPage({
       {/* Non-bookable hubs still render, but never expose booking controls. */}
       {hub.bookable ? (
         <BookCourtPanel
+          hubId={hub.id}
           courts={hub.courts}
           operatingHours={hours}
           today={today}
@@ -696,9 +700,9 @@ export default async function PublicHubPage({
           initialAvailability={
             initialAvailability
               ? {
-                  courtId: initialAvailability.courtId,
-                  date: initialAvailability.date,
-                  bookedHours: initialAvailability.bookedHours,
+                  hubId: hub.id,
+                  date: today,
+                  courts: initialAvailability,
                 }
               : null
           }

@@ -25,9 +25,22 @@ function isRole(value: string | undefined): value is Role {
 
 function fmtDate(d: Date) {
   return d.toLocaleDateString("en-AU", {
+    timeZone: "Asia/Manila",
     day: "numeric",
     month: "short",
     year: "numeric",
+  });
+}
+
+function fmtLoginDate(d: Date | null) {
+  if (!d) return "Never";
+  return d.toLocaleString("en-PH", {
+    timeZone: "Asia/Manila",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
   });
 }
 
@@ -139,13 +152,15 @@ export default async function UsersPage({
 
       {/* Table */}
       <div className="mt-4 overflow-x-auto rounded-2xl border border-gray-200">
-        <table className="w-full min-w-[720px] text-left text-sm">
+        <table className="w-full min-w-[980px] text-left text-sm">
           <thead className="border-b border-gray-100 bg-gray-50/60 text-xs uppercase tracking-wide text-gray-500">
             <tr>
               <th className="px-4 py-3 font-semibold">Name</th>
               <th className="px-4 py-3 font-semibold">Email</th>
               <th className="px-4 py-3 font-semibold">Skill</th>
               <th className="px-4 py-3 font-semibold">Role</th>
+              <th className="px-4 py-3 font-semibold">Last login</th>
+              <th className="px-4 py-3 text-right font-semibold">Logins</th>
               <th className="px-4 py-3 font-semibold">Joined</th>
               <th className="px-4 py-3 text-right font-semibold">Actions</th>
             </tr>
@@ -153,7 +168,7 @@ export default async function UsersPage({
           <tbody className="divide-y divide-gray-100">
             {users.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-gray-400">
+                <td colSpan={8} className="px-4 py-10 text-center text-gray-400">
                   No users found.
                 </td>
               </tr>
@@ -215,6 +230,12 @@ export default async function UsersPage({
                         </Badge>
                       )}
                     </div>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-gray-500">
+                    {fmtLoginDate(u.lastLoginAt)}
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold tabular-nums text-navy">
+                    {u.loginCount.toLocaleString("en-PH")}
                   </td>
                   <td className="px-4 py-3 text-gray-500">
                     {fmtDate(u.createdAt)}

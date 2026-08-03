@@ -231,6 +231,7 @@ export type CourtOccupancy = {
   date: string;
   bookedHours: number[];
   openPlayHours: number[];
+  dateBlocks: { hour: number; closureReason: string | null }[];
 };
 
 export async function getCourtOccupancy(
@@ -239,7 +240,12 @@ export async function getCourtOccupancy(
 ): Promise<CourtOccupancy> {
   const rows = await prisma.bookingSlot.findMany({
     where: { courtId, date, ...holdingHourWhere(new Date()) },
-    select: { hour: true, eventId: true },
+    select: {
+      hour: true,
+      eventId: true,
+      blockId: true,
+      block: { select: { publicReason: true } },
+    },
     orderBy: { hour: "asc" },
   });
   return {
@@ -249,6 +255,12 @@ export async function getCourtOccupancy(
     openPlayHours: rows
       .filter((row) => row.eventId != null)
       .map((row) => row.hour),
+    dateBlocks: rows
+      .filter((row) => row.blockId != null)
+      .map((row) => ({
+        hour: row.hour,
+        closureReason: row.block?.publicReason ?? null,
+      })),
   };
 }
 
@@ -273,21 +285,38 @@ export async function getHubCourtOccupancies(
       date,
       ...holdingHourWhere(new Date()),
     },
-    select: { courtId: true, hour: true, eventId: true },
+    select: {
+      courtId: true,
+      hour: true,
+      eventId: true,
+      blockId: true,
+      block: { select: { publicReason: true } },
+    },
     orderBy: [{ courtId: "asc" }, { hour: "asc" }],
   });
 
   const byCourt = new Map<
     string,
-    { bookedHours: number[]; openPlayHours: number[] }
+    {
+      bookedHours: number[];
+      openPlayHours: number[];
+      dateBlocks: { hour: number; closureReason: string | null }[];
+    }
   >();
   for (const row of rows) {
     const occupancy = byCourt.get(row.courtId) ?? {
       bookedHours: [],
       openPlayHours: [],
+      dateBlocks: [],
     };
     occupancy.bookedHours.push(row.hour);
     if (row.eventId != null) occupancy.openPlayHours.push(row.hour);
+    if (row.blockId != null) {
+      occupancy.dateBlocks.push({
+        hour: row.hour,
+        closureReason: row.block?.publicReason ?? null,
+      });
+    }
     byCourt.set(row.courtId, occupancy);
   }
 
@@ -296,6 +325,7 @@ export async function getHubCourtOccupancies(
     date,
     bookedHours: byCourt.get(court.id)?.bookedHours ?? [],
     openPlayHours: byCourt.get(court.id)?.openPlayHours ?? [],
+    dateBlocks: byCourt.get(court.id)?.dateBlocks ?? [],
   }));
 }
 
@@ -409,6 +439,7 @@ export type CourtAvailability = {
   slots: Slot[];
   bookedHours: number[];
   openPlayHours: number[];
+  dateBlocks: { hour: number; closureReason: string | null }[];
 };
 
 // The initial (server-rendered) availability for a court+date. The SSE stream
@@ -420,12 +451,16 @@ export async function getCourtAvailability(
   const court = await getCourtForBooking(courtId);
   if (!court) return null;
 
-  const { bookedHours, openPlayHours } = await getCourtOccupancy(courtId, date);
+  const { bookedHours, openPlayHours, dateBlocks } = await getCourtOccupancy(
+    courtId,
+    date
+  );
   const { closed, slots } = buildSlots({
     operatingHours: court.hub.operatingHours,
     date,
     bookedHours,
     openPlayHours,
+    dateBlocks,
     today: manilaToday(),
     nowHour: manilaNowHour(),
     courtHourlyRate: court.hourlyRate,
@@ -440,6 +475,7 @@ export async function getCourtAvailability(
     slots,
     bookedHours,
     openPlayHours,
+    dateBlocks,
   };
 }
 

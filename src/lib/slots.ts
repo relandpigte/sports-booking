@@ -60,6 +60,7 @@ export type BuildSlotsInput = {
   date: string; // "YYYY-MM-DD" Manila
   bookedHours: number[];
   openPlayHours?: number[];
+  dateBlocks?: { hour: number; closureReason: string | null }[];
   today: string; // manilaToday()
   nowHour: number; // manilaNowHour()
   courtHourlyRate?: number | null;
@@ -92,6 +93,9 @@ export function buildSlots(input: BuildSlotsInput): {
 
   const booked = new Set(input.bookedHours);
   const openPlay = new Set(input.openPlayHours ?? []);
+  const dateBlocks = new Map(
+    (input.dateBlocks ?? []).map((block) => [block.hour, block.closureReason])
+  );
   // ISO dates sort lexicographically, so a string compare is a valid past check.
   const isPastDate = input.date < input.today;
   const isToday = input.date === input.today;
@@ -107,18 +111,25 @@ export function buildSlots(input: BuildSlotsInput): {
     const past = isPastDate || (isToday && hour <= input.nowHour);
     const isBooked = booked.has(hour);
     const isOpenPlay = openPlay.has(hour);
+    const isDateBlock = dateBlocks.has(hour);
     const rule = rules.get(hour);
     const isClosed = rule?.closed === true;
     slots.push({
       hour,
       label: formatSlotRange(hour, hour + 1),
-      available: !past && !isBooked && !isClosed,
+      available: !past && !isBooked && !isClosed && !isDateBlock,
       hourlyRate: rule?.hourlyRate ?? input.courtHourlyRate ?? null,
-      closureReason: isClosed ? rule?.closureReason?.trim() || null : null,
+      closureReason: isDateBlock
+        ? dateBlocks.get(hour)?.trim() || null
+        : isClosed
+          ? rule?.closureReason?.trim() || null
+          : null,
       reason: past
         ? "past"
         : isOpenPlay
           ? "openPlay"
+          : isDateBlock
+            ? "closed"
           : isBooked
           ? "booked"
           : isClosed

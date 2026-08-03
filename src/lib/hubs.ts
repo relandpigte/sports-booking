@@ -1,7 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
-import { Prisma } from "@prisma/client";
+import { Prisma, type CourtBlockType } from "@prisma/client";
 import type {
   CourtType,
   Game,
@@ -411,32 +411,85 @@ export type LockedCourtScheduleSlot = {
   hour: number;
 };
 
+export type UpcomingCourtBlock = {
+  id: string;
+  type: CourtBlockType;
+  date: string;
+  startHour: number;
+  endHour: number;
+  publicReason: string | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  amountPaid: number | null;
+  internalNote: string | null;
+  courts: { id: string; name: string }[];
+};
+
 // Recurring hours with at least one upcoming booking are locked in the weekly
 // editor. Rate changes remain safe because Booking snapshots its price, but a
 // partner must cancel/move the booking before closing that recurring hour.
 export async function getMyHubSchedule(id: string): Promise<{
   hub: Hub;
   lockedSlots: LockedCourtScheduleSlot[];
+  upcomingBlocks: UpcomingCourtBlock[];
 } | null> {
   const hub = await getMyHub(id);
   if (!hub) return null;
 
   const now = new Date();
-  const rows = await prisma.bookingSlot.findMany({
-    where: {
-      courtId: { in: hub.courts.map((court) => court.id) },
-      OR: [
-        { booking: { status: "CONFIRMED", endsAt: { gte: now } } },
-        {
-          booking: {
-            status: "PENDING",
-            holdExpiresAt: { gt: now },
+  const today = manilaToday();
+  const nowHour = manilaNowHour();
+  const [rows, blockRows] = await Promise.all([
+    prisma.bookingSlot.findMany({
+      where: {
+        courtId: { in: hub.courts.map((court) => court.id) },
+        OR: [
+          { booking: { status: "CONFIRMED", endsAt: { gte: now } } },
+          {
+            booking: {
+              status: "PENDING",
+              holdExpiresAt: { gt: now },
+            },
           },
+          {
+            event: {
+              status: "PUBLISHED",
+              endsAt: { gte: now },
+            },
+          },
+        ],
+      },
+      select: { courtId: true, date: true, hour: true },
+    }),
+    prisma.courtBlock.findMany({
+      where: {
+        hubId: hub.id,
+        releasedAt: null,
+        OR: [
+          { date: { gt: today } },
+          { date: today, endHour: { gt: nowHour } },
+        ],
+      },
+      orderBy: [{ date: "asc" }, { startHour: "asc" }],
+      take: 20,
+      select: {
+        id: true,
+        type: true,
+        date: true,
+        startHour: true,
+        endHour: true,
+        publicReason: true,
+        customerName: true,
+        customerPhone: true,
+        amountPaid: true,
+        internalNote: true,
+        slots: {
+          select: { courtId: true },
+          distinct: ["courtId"],
         },
-      ],
-    },
-    select: { courtId: true, date: true, hour: true },
-  });
+      },
+    }),
+  ]);
 
   const unique = new Map<string, LockedCourtScheduleSlot>();
   for (const row of rows) {
@@ -448,5 +501,27 @@ export async function getMyHubSchedule(id: string): Promise<{
     unique.set(`${slot.courtId}:${slot.weekday}:${slot.hour}`, slot);
   }
 
-  return { hub, lockedSlots: [...unique.values()] };
+  const courtById = new Map(hub.courts.map((court) => [court.id, court]));
+  const upcomingBlocks = blockRows.map((block) => ({
+    id: block.id,
+    type: block.type,
+    date: block.date,
+    startHour: block.startHour,
+    endHour: block.endHour,
+    publicReason: block.publicReason,
+    customerName: block.customerName,
+    customerPhone: block.customerPhone,
+    amountPaid: block.amountPaid ? block.amountPaid.toNumber() : null,
+    internalNote: block.internalNote,
+    courts: block.slots.flatMap((slot) => {
+      const court = courtById.get(slot.courtId);
+      return court ? [{ id: court.id, name: court.name }] : [];
+    }),
+  }));
+
+  return {
+    hub,
+    lockedSlots: [...unique.values()],
+    upcomingBlocks,
+  };
 }

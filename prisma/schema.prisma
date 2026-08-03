@@ -43,6 +43,10 @@ model User {
   // Incremented after a password reset. JWTs carry the version they were
   // issued with, so the DAL can reject sessions created before the reset.
   sessionVersion       Int            @default(0)
+  // Successful credential authentications only. The count is incremented
+  // atomically so simultaneous sign-ins cannot lose an update.
+  lastLoginAt          DateTime?
+  loginCount           Int            @default(0)
   // Only meaningful when role=PARTNER. Public signups start PENDING and an
   // admin activates them after reviewing their business details.
   partnerStatus        PartnerStatus?
@@ -313,15 +317,15 @@ model ProviderEvent {
 // active impersonation cookie. Admin and partner ids remain as immutable audit
 // facts even if either account is later removed.
 model PartnerImpersonationSession {
-  id           String   @id @default(cuid())
-  tokenHash    String   @unique
+  id           String    @id @default(cuid())
+  tokenHash    String    @unique
   adminId      String
   partnerId    String
-  startedAt    DateTime @default(now())
+  startedAt    DateTime  @default(now())
   expiresAt    DateTime
   endedAt      DateTime?
   endedReason  String?
-  lastActionAt DateTime @default(now())
+  lastActionAt DateTime  @default(now())
 
   @@index([adminId, endedAt, expiresAt])
   @@index([partnerId, startedAt])
@@ -367,10 +371,11 @@ model Hub {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  owner    User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  courts   Court[]
-  bookings Booking[]
-  events   Event[]
+  owner       User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  courts      Court[]
+  bookings    Booking[]
+  events      Event[]
+  courtBlocks CourtBlock[]
 
   @@index([ownerId])
 }
@@ -391,6 +396,42 @@ model Court {
   eventCourts   EventCourt[]
 
   @@index([hubId])
+}
+
+enum CourtBlockType {
+  WALK_IN
+  MAINTENANCE
+  PRIVATE_USE
+  OTHER
+}
+
+// A date-specific court closure created by a partner. Active blocks own the
+// same BookingSlot rows as bookings and published events, so the database's
+// unique court/date/hour key remains the single concurrency-safe conflict
+// guard. Releasing a block deletes its slots but keeps this row for history.
+model CourtBlock {
+  id            String         @id @default(cuid())
+  hubId         String
+  type          CourtBlockType
+  date          String
+  startHour     Int
+  endHour       Int
+  publicReason  String?        @db.VarChar(120)
+  customerName  String?        @db.VarChar(120)
+  customerPhone String?        @db.VarChar(40)
+  amountPaid    Decimal?       @db.Decimal(10, 2)
+  internalNote  String?        @db.VarChar(500)
+  createdById   String
+  releasedAt    DateTime?
+  releasedById  String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  hub   Hub           @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  slots BookingSlot[]
+
+  @@index([hubId, date, releasedAt])
+  @@index([date, endHour])
 }
 
 // A recurring rule for one court-hour. `weekday` is ISO-style Monday=0 through
@@ -528,6 +569,7 @@ model BookingSlot {
   id        String  @id @default(cuid())
   bookingId String?
   eventId   String?
+  blockId   String?
   courtId   String
   date      String
   hour      Int
@@ -549,12 +591,14 @@ model BookingSlot {
   // blocking EARLIER, and the sweep deletes it.
   holdExpiresAt DateTime?
 
-  booking Booking? @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  event   Event?   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  booking Booking?    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  event   Event?      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  block   CourtBlock? @relation(fields: [blockId], references: [id], onDelete: Cascade)
 
   @@unique([courtId, date, hour])
   @@index([bookingId])
   @@index([eventId])
+  @@index([blockId])
   @@index([courtId, date])
   @@index([courtId, date, holdExpiresAt])
 }

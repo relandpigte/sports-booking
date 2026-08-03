@@ -97,9 +97,13 @@ export async function GET(
                   excludeId
                 ),
                 openPlayHours: [] as number[],
+                dateBlocks: [] as {
+                  hour: number;
+                  closureReason: string | null;
+                }[],
               }
             : await getCourtOccupancy(courtId, date);
-          const key = `${occupancy.bookedHours.join(",")}|${occupancy.openPlayHours.join(",")}`;
+          const key = JSON.stringify(occupancy);
           if (key !== lastKey) {
             lastKey = key;
             write(
@@ -108,6 +112,7 @@ export async function GET(
                 date,
                 bookedHours: occupancy.bookedHours,
                 openPlayHours: occupancy.openPlayHours,
+                dateBlocks: occupancy.dateBlocks,
               })}\n\n`
             );
           }

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { CourtScheduleEditor } from "@/components/dashboard/hubs/CourtScheduleEditor";
 import { getMyHubSchedule } from "@/lib/hubs";
+import { manilaToday } from "@/lib/time";
 
 export const metadata: Metadata = {
   title: "Court Schedule — Bunal.club",
@@ -24,6 +25,8 @@ export default async function CourtSchedulePage({
       courts={data.hub.courts}
       operatingHours={data.hub.operatingHours}
       lockedSlots={data.lockedSlots}
+      upcomingBlocks={data.upcomingBlocks}
+      today={manilaToday()}
     />
   );
 }

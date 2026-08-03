@@ -91,6 +91,7 @@ export function BookCourtPanel({
           date,
           bookedHours: occupancy?.bookedHours ?? [],
           openPlayHours: occupancy?.openPlayHours ?? [],
+          dateBlocks: occupancy?.dateBlocks ?? [],
           today,
           nowHour,
           courtHourlyRate: item.hourlyRate,

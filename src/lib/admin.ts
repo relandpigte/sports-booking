@@ -29,6 +29,8 @@ const userListSelect = {
   partnerActivatedById: true,
   skillLevel: true,
   privateProfile: true,
+  lastLoginAt: true,
+  loginCount: true,
   createdAt: true,
 } as const;
 
@@ -46,6 +48,8 @@ export type AdminUser = {
   partnerActivatedById: string | null;
   skillLevel: string;
   privateProfile: boolean;
+  lastLoginAt: Date | null;
+  loginCount: number;
   createdAt: Date;
 };
 

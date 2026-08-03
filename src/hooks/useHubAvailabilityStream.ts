@@ -7,6 +7,7 @@ export type CourtOccupancySnapshot = {
   date: string;
   bookedHours: number[];
   openPlayHours: number[];
+  dateBlocks: { hour: number; closureReason: string | null }[];
 };
 
 export type HubAvailabilitySnapshot = {

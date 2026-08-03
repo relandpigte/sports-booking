@@ -68,17 +68,26 @@ async function check() {
       games: ["pickleball"],
       operatingHours,
       courts: {
-        create: { name: "Court A", hourlyRate: 500 },
+        create: [
+          { name: "Court A", hourlyRate: 500 },
+          { name: "Court B", hourlyRate: 600 },
+        ],
       },
     },
     select: { id: true, courts: { select: { id: true } } },
   });
   const court = hub.courts[0];
+  const courtB = hub.courts[1];
 
   stubRequestContext(partner);
-  const { updateCourtScheduleAction } = await import(
+  const {
+    createCourtBlockAction,
+    releaseCourtBlockAction,
+    updateCourtScheduleAction,
+  } = await import(
     "@/lib/court-schedule-actions"
   );
+  const { getCourtOccupancy } = await import("@/lib/bookings");
 
   const baseRules = [
     {
@@ -212,6 +221,80 @@ async function check() {
   ok(
     "a rejected save leaves the previous schedule intact",
     (await prisma.courtSlotRule.count({ where: { courtId: court.id } })) === 2
+  );
+
+  const blockForm = new FormData();
+  blockForm.set("hubId", hub.id);
+  blockForm.set("date", monday);
+  blockForm.append("courtIds", court.id);
+  blockForm.append("courtIds", courtB.id);
+  blockForm.set("startHour", "14");
+  blockForm.set("endHour", "16");
+  blockForm.set("type", "WALK_IN");
+  blockForm.set("publicReason", "Reserved for a walk-in group");
+  blockForm.set("customerName", "Juan Dela Cruz");
+  blockForm.set("customerPhone", "09171234567");
+  blockForm.set("amountPaid", "1200");
+  blockForm.set("internalNote", "Paid at the front desk");
+  const createdBlock = await createCourtBlockAction({}, blockForm);
+  ok(
+    "a partner can block one date across multiple courts",
+    createdBlock.success != null &&
+      (await prisma.bookingSlot.count({
+        where: {
+          courtId: { in: [court.id, courtB.id] },
+          date: monday,
+          hour: { in: [14, 15] },
+          blockId: { not: null },
+        },
+      })) === 4
+  );
+
+  const block = await prisma.courtBlock.findFirstOrThrow({
+    where: { hubId: hub.id, releasedAt: null },
+  });
+  ok(
+    "private walk-in details and amount are retained for the partner",
+    block.customerName === "Juan Dela Cruz" &&
+      block.customerPhone === "09171234567" &&
+      Number(block.amountPaid) === 1200 &&
+      block.internalNote === "Paid at the front desk"
+  );
+
+  const occupancy = await getCourtOccupancy(court.id, monday);
+  const blockedSlots = buildSlots({
+    operatingHours,
+    date: monday,
+    bookedHours: occupancy.bookedHours,
+    openPlayHours: occupancy.openPlayHours,
+    dateBlocks: occupancy.dateBlocks,
+    today: "2099-11-01",
+    nowHour: 0,
+    courtHourlyRate: 500,
+    scheduleRules: [],
+  }).slots;
+  ok(
+    "players see a date-specific block as closed with only its public reason",
+    blockedSlots.find((slot) => slot.hour === 14)?.reason === "closed" &&
+      blockedSlots.find((slot) => slot.hour === 14)?.closureReason ===
+        "Reserved for a walk-in group"
+  );
+
+  const duplicate = await createCourtBlockAction({}, blockForm);
+  ok(
+    "the unique slot key rejects an overlapping booking or block atomically",
+    duplicate.message?.includes("already booked, blocked, or assigned") === true &&
+      (await prisma.courtBlock.count({ where: { hubId: hub.id } })) === 1
+  );
+
+  const releaseForm = new FormData();
+  releaseForm.set("blockId", block.id);
+  await releaseCourtBlockAction(releaseForm);
+  ok(
+    "releasing a block frees every claimed hour but keeps an audit row",
+    (await prisma.bookingSlot.count({ where: { blockId: block.id } })) === 0 &&
+      (await prisma.courtBlock.findUnique({ where: { id: block.id } }))
+        ?.releasedAt != null
   );
 }
 

@@ -4,7 +4,10 @@ import Link from "next/link";
 import { useActionState, useMemo, useState } from "react";
 
 import {
+  createCourtBlockAction,
+  releaseCourtBlockAction,
   updateCourtScheduleAction,
+  type CourtBlockFormState,
   type CourtScheduleFormState,
 } from "@/lib/court-schedule-actions";
 import {
@@ -17,7 +20,7 @@ import {
   dayWindow,
   type CourtScheduleRule,
 } from "@/lib/slots";
-import { formatHourLabel } from "@/lib/time";
+import { formatHourLabel, formatManilaDateLong } from "@/lib/time";
 
 type EditorCourt = {
   id: string;
@@ -32,7 +35,35 @@ type LockedSlot = {
   hour: number;
 };
 
+type CourtBlockType = "WALK_IN" | "MAINTENANCE" | "PRIVATE_USE" | "OTHER";
+
+type UpcomingCourtBlock = {
+  id: string;
+  type: CourtBlockType;
+  date: string;
+  startHour: number;
+  endHour: number;
+  publicReason: string | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  amountPaid: number | null;
+  internalNote: string | null;
+  courts: { id: string; name: string }[];
+};
+
 const initialState: CourtScheduleFormState = {};
+const initialBlockState: CourtBlockFormState = {};
+
+const BLOCK_TYPES: { value: CourtBlockType; label: string }[] = [
+  { value: "WALK_IN", label: "Walk-in" },
+  { value: "MAINTENANCE", label: "Maintenance" },
+  { value: "PRIVATE_USE", label: "Private use" },
+  { value: "OTHER", label: "Other" },
+];
+
+function blockTypeLabel(value: CourtBlockType) {
+  return BLOCK_TYPES.find((item) => item.value === value)?.label ?? value;
+}
 
 export function CourtScheduleEditor({
   hubId,
@@ -40,12 +71,16 @@ export function CourtScheduleEditor({
   courts,
   operatingHours,
   lockedSlots,
+  upcomingBlocks,
+  today,
 }: {
   hubId: string;
   hubName: string;
   courts: EditorCourt[];
   operatingHours: OperatingHours | null;
   lockedSlots: LockedSlot[];
+  upcomingBlocks: UpcomingCourtBlock[];
+  today: string;
 }) {
   const [courtId, setCourtId] = useState(courts[0]?.id ?? "");
   const [weekday, setWeekday] = useState(0);
@@ -58,9 +93,19 @@ export function CourtScheduleEditor({
   const [batchRate, setBatchRate] = useState("");
   const [batchClosureReason, setBatchClosureReason] = useState("");
   const [localMessage, setLocalMessage] = useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [blockType, setBlockType] = useState<CourtBlockType>("WALK_IN");
   const [state, formAction, pending] = useActionState(
     updateCourtScheduleAction,
     initialState
+  );
+  const [blockState, blockAction, blockPending] = useActionState(
+    async (previous: CourtBlockFormState, formData: FormData) => {
+      const result = await createCourtBlockAction(previous, formData);
+      if (result.success) setDrawerOpen(false);
+      return result;
+    },
+    initialBlockState
   );
 
   const court = courts.find((item) => item.id === courtId) ?? courts[0];
@@ -233,14 +278,7 @@ export function CourtScheduleEditor({
   if (!court) return null;
 
   return (
-    <form action={formAction} className="space-y-6">
-      <input type="hidden" name="hubId" value={hubId} />
-      <input
-        type="hidden"
-        name="rules"
-        value={JSON.stringify(serializableRules)}
-      />
-
+    <div className="space-y-6">
       <div>
         <Link
           href="/dashboard/hubs"
@@ -248,34 +286,143 @@ export function CourtScheduleEditor({
         >
           ← Back to My Hubs
         </Link>
-        <div className="mt-4">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">
-            Venue management
-          </p>
-          <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-navy">
-            Court schedule
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500">
-            Set recurring weekly availability and hourly rates for {hubName}.
-            Upcoming bookings stay protected.
-          </p>
+        <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">
+              Venue management
+            </p>
+            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-navy">
+              Court schedule
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500">
+              Set recurring weekly availability and hourly rates for {hubName}.
+              Upcoming reservations stay protected.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setDrawerOpen(true)}
+            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-hover"
+          >
+            <span aria-hidden="true">▣</span>
+            Block court time
+          </button>
         </div>
       </div>
 
-      {(state.message || state.success || localMessage) && (
+      {(state.message ||
+        state.success ||
+        blockState.message ||
+        blockState.success ||
+        localMessage) && (
         <div
-          role={state.message ? "alert" : "status"}
+          role={state.message || blockState.message ? "alert" : "status"}
           className={`rounded-xl px-4 py-3 text-sm ${
-            state.message
+            state.message || blockState.message
               ? "bg-red-50 text-red-700"
-              : state.success
+              : state.success || blockState.success
                 ? "bg-green-50 text-green-700"
                 : "bg-ocean-soft text-navy"
           }`}
         >
-          {state.message ?? state.success ?? localMessage}
+          {state.message ??
+            blockState.message ??
+            state.success ??
+            blockState.success ??
+            localMessage}
         </div>
       )}
+
+      <section className="rounded-3xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-gray-400">
+            Upcoming date-specific blocks
+          </h2>
+          <span className="rounded-full bg-ocean-soft px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-ocean">
+            {upcomingBlocks.length} active
+          </span>
+        </div>
+        {upcomingBlocks.length === 0 ? (
+          <div className="mt-4 rounded-2xl border border-dashed border-gray-200 px-5 py-7 text-center">
+            <p className="text-sm font-semibold text-navy">No upcoming blocks</p>
+            <p className="mt-1 text-xs text-gray-500">
+              Record a walk-in, maintenance window, or private use without changing the weekly schedule.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {upcomingBlocks.map((block) => (
+              <article
+                key={block.id}
+                className="flex flex-col gap-4 rounded-2xl border border-gray-200 p-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-bold text-navy">
+                      {block.courts.map((item) => item.name).join(", ")}
+                    </span>
+                    <span className="text-gray-300">·</span>
+                    <span className="text-sm font-semibold text-navy">
+                      {formatHourLabel(block.startHour)} – {formatHourLabel(block.endHour)}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {formatManilaDateLong(block.date)}
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                      block.type === "WALK_IN"
+                        ? "bg-primary-soft text-primary"
+                        : "bg-gray-100 text-gray-600"
+                    }`}>
+                      {blockTypeLabel(block.type)}
+                    </span>
+                    {block.type === "WALK_IN" && block.customerName && (
+                      <span className="text-xs font-semibold text-navy">
+                        {block.customerName}
+                      </span>
+                    )}
+                    {block.amountPaid != null && (
+                      <span className="rounded-full bg-ocean-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ocean">
+                        {formatPHP(block.amountPaid)} paid
+                      </span>
+                    )}
+                    {block.publicReason && (
+                      <span className="text-xs text-gray-500">
+                        “{block.publicReason}”
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <form
+                  action={releaseCourtBlockAction}
+                  onSubmit={(event) => {
+                    if (!globalThis.confirm("Release this court time and make it bookable again?")) {
+                      event.preventDefault();
+                    }
+                  }}
+                >
+                  <input type="hidden" name="blockId" value={block.id} />
+                  <button
+                    type="submit"
+                    className="text-xs font-bold text-red-600 hover:text-red-700 hover:underline"
+                  >
+                    Release
+                  </button>
+                </form>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <form action={formAction} className="space-y-6">
+        <input type="hidden" name="hubId" value={hubId} />
+        <input
+          type="hidden"
+          name="rules"
+          value={JSON.stringify(serializableRules)}
+        />
 
       <section>
         <div className="mb-3 flex items-center justify-between gap-3">
@@ -410,7 +557,7 @@ export function CourtScheduleEditor({
                       </p>
                       {isLocked && (
                         <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-ocean">
-                          Upcoming booking · cannot close
+                          Upcoming reservation · cannot close
                         </p>
                       )}
                     </div>
@@ -580,7 +727,232 @@ export function CourtScheduleEditor({
         >
           {pending ? "Saving…" : "Save weekly schedule"}
         </button>
-      </div>
-    </form>
+        </div>
+      </form>
+
+      {drawerOpen && (
+        <div
+          className="fixed inset-0 z-[70] bg-navy/35 backdrop-blur-[1px]"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setDrawerOpen(false);
+          }}
+        >
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="block-court-title"
+            className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-gray-200 bg-white shadow-2xl"
+          >
+            <div className="flex items-start justify-between border-b border-gray-200 px-6 py-5">
+              <div>
+                <h2 id="block-court-title" className="text-xl font-extrabold tracking-tight text-navy">
+                  Block court time
+                </h2>
+                <p className="mt-1 text-xs text-gray-500">
+                  Create a date-specific availability override.
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Close block court drawer"
+                onClick={() => setDrawerOpen(false)}
+                className="flex h-10 w-10 items-center justify-center rounded-full text-xl text-gray-400 hover:bg-gray-100 hover:text-navy"
+              >
+                ×
+              </button>
+            </div>
+
+            <form action={blockAction} className="flex min-h-0 flex-1 flex-col">
+              <input type="hidden" name="hubId" value={hubId} />
+              <div className="flex-1 space-y-7 overflow-y-auto p-6">
+                {blockState.message && (
+                  <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {blockState.message}
+                  </p>
+                )}
+
+                <div className="space-y-4">
+                  <label className="block">
+                    <span className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-gray-500">
+                      Select date
+                    </span>
+                    <input
+                      type="date"
+                      name="date"
+                      min={today}
+                      defaultValue={today}
+                      required
+                      className="min-h-11 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-navy outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
+                    />
+                  </label>
+
+                  <fieldset>
+                    <legend className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-gray-500">
+                      Courts
+                    </legend>
+                    <div className="grid grid-cols-2 gap-2">
+                      {courts.map((item, index) => (
+                        <label
+                          key={item.id}
+                          className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-gray-200 px-3 text-sm font-bold text-navy has-checked:border-primary has-checked:bg-primary-soft"
+                        >
+                          <input
+                            type="checkbox"
+                            name="courtIds"
+                            value={item.id}
+                            defaultChecked={index === 0}
+                            className="h-4 w-4 accent-primary"
+                          />
+                          <span className="truncate">{item.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+                </div>
+
+                <fieldset>
+                  <legend className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-gray-500">
+                    Time window
+                  </legend>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                      Start
+                      <select
+                        name="startHour"
+                        defaultValue="8"
+                        className="mt-1 min-h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium normal-case tracking-normal text-navy outline-none focus:border-primary"
+                      >
+                        {Array.from({ length: 24 }, (_, hour) => (
+                          <option key={hour} value={hour}>{formatHourLabel(hour)}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                      End
+                      <select
+                        name="endHour"
+                        defaultValue="9"
+                        className="mt-1 min-h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium normal-case tracking-normal text-navy outline-none focus:border-primary"
+                      >
+                        {Array.from({ length: 24 }, (_, index) => index + 1).map((hour) => (
+                          <option key={hour} value={hour}>{formatHourLabel(hour)}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                </fieldset>
+
+                <fieldset>
+                  <legend className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-gray-500">
+                    Block type
+                  </legend>
+                  <div className="flex flex-wrap gap-2">
+                    {BLOCK_TYPES.map((item) => (
+                      <label
+                        key={item.value}
+                        className={`cursor-pointer rounded-full border px-4 py-1.5 text-xs font-bold transition-colors ${
+                          blockType === item.value
+                            ? "border-primary bg-primary text-white"
+                            : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="type"
+                          value={item.value}
+                          checked={blockType === item.value}
+                          onChange={() => setBlockType(item.value)}
+                          className="sr-only"
+                        />
+                        {item.label}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+
+                <label className="block">
+                  <span className="mb-2 flex items-center justify-between gap-3 text-xs font-bold uppercase tracking-[0.16em] text-gray-500">
+                    Public reason
+                    <span className="text-[9px] text-ocean">Visible to players</span>
+                  </span>
+                  <input
+                    type="text"
+                    name="publicReason"
+                    maxLength={120}
+                    placeholder="e.g. Reserved for a walk-in"
+                    className="min-h-11 w-full rounded-xl border border-gray-200 px-4 text-sm text-navy outline-none placeholder:text-gray-400 focus:border-primary focus:ring-2 focus:ring-primary/15"
+                  />
+                </label>
+
+                {blockType === "WALK_IN" && (
+                  <section className="rounded-2xl border border-primary/15 bg-primary-soft/45 p-5">
+                    <div className="mb-4 flex items-center gap-2">
+                      <span aria-hidden="true">🔒</span>
+                      <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-primary">
+                        Private walk-in details
+                      </h3>
+                    </div>
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        name="customerName"
+                        maxLength={120}
+                        placeholder="Customer name"
+                        className="min-h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-navy outline-none focus:border-primary"
+                      />
+                      <div className="grid grid-cols-2 gap-3">
+                        <input
+                          type="tel"
+                          name="customerPhone"
+                          maxLength={40}
+                          placeholder="Phone"
+                          className="min-h-10 min-w-0 rounded-lg border border-gray-200 bg-white px-3 text-sm text-navy outline-none focus:border-primary"
+                        />
+                        <label className="flex min-h-10 min-w-0 items-center rounded-lg border border-gray-200 bg-white px-3">
+                          <span className="mr-1 text-sm text-gray-400">₱</span>
+                          <input
+                            type="number"
+                            name="amountPaid"
+                            min="0"
+                            max="1000000"
+                            step="0.01"
+                            placeholder="Amount paid"
+                            className="min-w-0 flex-1 bg-transparent text-sm text-navy outline-none"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </section>
+                )}
+
+                <label className="block">
+                  <span className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-gray-500">
+                    Internal note
+                  </span>
+                  <textarea
+                    name="internalNote"
+                    rows={3}
+                    maxLength={500}
+                    placeholder="Only your team can see this note"
+                    className="w-full resize-none rounded-xl border border-gray-200 px-4 py-3 text-sm text-navy outline-none placeholder:text-gray-400 focus:border-primary focus:ring-2 focus:ring-primary/15"
+                  />
+                </label>
+              </div>
+
+              <div className="border-t border-gray-200 bg-gray-50 p-6">
+                <button
+                  type="submit"
+                  disabled={blockPending}
+                  className="min-h-12 w-full rounded-xl bg-navy px-6 text-sm font-bold text-white transition-colors hover:bg-navy-hover disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {blockPending ? "Creating block…" : "Create block"}
+                </button>
+              </div>
+            </form>
+          </aside>
+        </div>
+      )}
+    </div>
   );
 }

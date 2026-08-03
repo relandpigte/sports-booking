@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { prisma } from "@/lib/db";
+import { lockPlayerBookingHours } from "@/lib/booking-locks";
 import { getActivePartnerGateway } from "@/lib/partner-gateway";
 import { getViewer } from "@/lib/dal";
 import { firstErrors } from "@/lib/zod-errors";
@@ -51,6 +52,11 @@ export type BookingFormState = {
   bookingId?: string;
 };
 
+// An interactive transaction can only be aborted by throwing, so these carry
+// business failures back out of it.
+class StaleBooking extends Error {}
+class PlayerClash extends Error {}
+
 // Revalidates every surface a booking or cancellation shows up on.
 function revalidateBookingSurfaces(hubId: string) {
   revalidatePath("/dashboard/bookings");
@@ -79,7 +85,13 @@ export async function createBookingAction(
   });
   if (!parsed.success) return { errors: firstErrors(parsed.error) };
 
-  const { courtId, date, hours, notes } = parsed.data;
+  const { courtId, date, notes } = parsed.data;
+  // A crafted form can repeat the same checkbox value. Normalize before
+  // pricing, locking, and writing so one court-hour is represented exactly
+  // once throughout the transaction.
+  const hours = [...new Set(parsed.data.hours)].sort(
+    (left, right) => left - right
+  );
 
   const court = await getCourtForBooking(courtId);
   if (!court) return { message: "Court not found." };
@@ -174,6 +186,23 @@ export async function createBookingAction(
     // didn't ask for.
     created = await prisma.$transaction(async (tx) => {
       const out: { id: string }[] = [];
+
+      await lockPlayerBookingHours(tx, viewer.id, date, hours);
+
+      // Re-check after taking the player-hour locks. Concurrent requests for
+      // different courts now serialize here, so only the first can proceed.
+      for (const run of runs) {
+        const clash = await tx.booking.findFirst({
+          where: {
+            userId: viewer.id,
+            ...liveBookingWhere(),
+            startsAt: { lt: manilaInstant(date, run.end + 1) },
+            endsAt: { gt: manilaInstant(date, run.start) },
+          },
+          select: { id: true },
+        });
+        if (clash) throw new PlayerClash();
+      }
 
       // Reap DEAD holds for exactly the keys we're about to claim. The unique
       // index doesn't know about time: an expired hold's row is still
@@ -273,6 +302,9 @@ export async function createBookingAction(
       return out;
     });
   } catch (error) {
+    if (error instanceof PlayerClash) {
+      return { errors: { hours: "You already have a booking at that time." } };
+    }
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
@@ -458,11 +490,6 @@ export async function refundBookingAction(
   };
 }
 
-// An interactive transaction can only be aborted by throwing, so these carry
-// the two business failures back out of it.
-class StaleBooking extends Error {}
-class PlayerClash extends Error {}
-
 // Moves a booking to a different court / date / time within the same hub.
 // Venue-initiated only — players cancel and rebook instead.
 export async function rescheduleHubBookingAction(
@@ -630,6 +657,8 @@ export async function rescheduleHubBookingAction(
 
   try {
     await prisma.$transaction(async (tx) => {
+      await lockPlayerBookingHours(tx, booking.userId, date, hours);
+
       // The checks above ran outside the transaction; the player may have
       // cancelled since.
       const fresh = await tx.booking.findUnique({

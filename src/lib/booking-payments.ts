@@ -759,26 +759,54 @@ export async function expireBookingHolds(now: Date = new Date()): Promise<{
   slots: number;
   payments: number;
 }> {
-  const dead = await prisma.booking.findMany({
-    where: { status: "PENDING", holdExpiresAt: { lte: now } },
-    select: { id: true },
-  });
+  const swept = await prisma.$transaction(async (tx) => {
+    const candidates = await tx.booking.findMany({
+      where: { status: "PENDING", holdExpiresAt: { lte: now } },
+      select: { id: true },
+    });
+    if (candidates.length === 0) return { slots: 0, bookings: 0 };
 
-  let slots = 0;
-  let bookings = 0;
-  if (dead.length) {
-    const ids = dead.map((b) => b.id);
-    const [deleted, expired] = await prisma.$transaction([
-      prisma.bookingSlot.deleteMany({ where: { bookingId: { in: ids } } }),
-      prisma.booking.updateMany({
-        // status re-asserted: a payment may have confirmed it since the read.
-        where: { id: { in: ids }, status: "PENDING" },
-        data: { status: "EXPIRED", holdExpiresAt: null },
-      }),
-    ]);
-    slots = deleted.count;
-    bookings = expired.count;
-  }
+    const candidateIds = candidates.map((booking) => booking.id);
+
+    // Settlement and cleanup must lock rows in the same order: slots first,
+    // then bookings. If payment confirmation already owns a slot lock, this
+    // waits for it and the re-read below sees CONFIRMED. If cleanup owns the
+    // lock first, settlement sees the missing slot and takes its LostHold +
+    // refund path. There is no state where a CONFIRMED booking loses its slot.
+    await tx.$queryRaw(
+      Prisma.sql`SELECT "id" FROM "BookingSlot"
+                 WHERE "bookingId" IN (${Prisma.join(candidateIds)})
+                 FOR UPDATE`
+    );
+
+    // The candidate read intentionally happened before the slot locks. Re-read
+    // after acquiring them so a payment that committed while we waited is not
+    // cleaned up from a stale snapshot.
+    const stillExpired = await tx.booking.findMany({
+      where: {
+        id: { in: candidateIds },
+        status: "PENDING",
+        holdExpiresAt: { lte: now },
+      },
+      select: { id: true },
+    });
+    const ids = stillExpired.map((booking) => booking.id);
+    if (ids.length === 0) return { slots: 0, bookings: 0 };
+
+    const deleted = await tx.bookingSlot.deleteMany({
+      where: { bookingId: { in: ids } },
+    });
+    const expired = await tx.booking.updateMany({
+      where: {
+        id: { in: ids },
+        status: "PENDING",
+        holdExpiresAt: { lte: now },
+      },
+      data: { status: "EXPIRED", holdExpiresAt: null },
+    });
+
+    return { slots: deleted.count, bookings: expired.count };
+  });
 
   const eventRegistrations = await prisma.eventRegistration.updateMany({
     where: { status: "PENDING", holdExpiresAt: { lte: now } },
@@ -799,9 +827,9 @@ export async function expireBookingHolds(now: Date = new Date()): Promise<{
   });
 
   return {
-    bookings,
+    bookings: swept.bookings,
     eventRegistrations: eventRegistrations.count,
-    slots,
+    slots: swept.slots,
     payments: payments.count,
   };
 }

@@ -1,12 +1,15 @@
 // The reap and the race, at the level the unique index actually operates on.
 // Mirrors the transaction in createBookingAction exactly. Cleans up after.
 import { PrismaClient, Prisma } from "@prisma/client";
+import { lockPlayerBookingHours } from "@/lib/booking-locks";
 
 import { ok, run } from "./harness";
 
 const prisma = new PrismaClient();
 
 const DATE = "2099-12-29";
+
+class PlayerBusy extends Error {}
 
 async function makeHold(
   courtId: string,
@@ -70,6 +73,52 @@ async function claim(
         date: DATE,
         hour,
       })),
+    });
+    return booking.id;
+  });
+}
+
+async function claimForPlayer(
+  courtId: string,
+  hubId: string,
+  userId: string,
+  hour: number
+) {
+  const startsAt = new Date(
+    `${DATE}T${String(hour).padStart(2, "0")}:00:00.000Z`
+  );
+  const endsAt = new Date(startsAt.getTime() + 60 * 60_000);
+
+  return prisma.$transaction(async (tx) => {
+    await lockPlayerBookingHours(tx, userId, DATE, [hour]);
+    const clash = await tx.booking.findFirst({
+      where: {
+        userId,
+        status: "CONFIRMED",
+        startsAt: { lt: endsAt },
+        endsAt: { gt: startsAt },
+      },
+      select: { id: true },
+    });
+    if (clash) throw new PlayerBusy();
+
+    const booking = await tx.booking.create({
+      data: {
+        courtId,
+        hubId,
+        userId,
+        date: DATE,
+        startHour: hour,
+        endHour: hour + 1,
+        hours: 1,
+        startsAt,
+        endsAt,
+        status: "CONFIRMED",
+      },
+      select: { id: true },
+    });
+    await tx.bookingSlot.create({
+      data: { bookingId: booking.id, courtId, date: DATE, hour },
     });
     return booking.id;
   });
@@ -145,7 +194,32 @@ async function main() {
     })) === 1
   );
 
+  // --- 4. One player cannot claim two courts for the same hour ------------
+  const secondCourt = await prisma.court.create({
+    data: {
+      hubId: court.hubId,
+      name: `Player lock check ${Date.now()}`,
+      courtType: "covered",
+    },
+    select: { id: true },
+  });
+  const playerResults = await Promise.allSettled([
+    claimForPlayer(court.id, court.hubId, a.id, 18),
+    claimForPlayer(secondCourt.id, court.hubId, a.id, 18),
+  ]);
+  ok(
+    "exactly one concurrent court claim succeeds for one player-hour",
+    playerResults.filter((result) => result.status === "fulfilled").length === 1
+  );
+  ok(
+    "the player owns exactly one booking at that time",
+    (await prisma.booking.count({
+      where: { userId: a.id, date: DATE, startHour: 18 },
+    })) === 1
+  );
+
   await prisma.booking.deleteMany({ where: { date: DATE } });
+  await prisma.court.delete({ where: { id: secondCourt.id } });
   ok("cleaned up", (await prisma.booking.count({ where: { date: DATE } })) === 0);
 
 }

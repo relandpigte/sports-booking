@@ -265,6 +265,51 @@ async function main() {
     (await prisma.bookingSlot.count({ where: { bookingId: live.booking.id } })) === 1
   );
 
+  // --- 6. Confirmation racing the sweep never loses its slot ---------------
+  // Hold the slot row so both operations queue behind us. Settlement queues
+  // first; the sweep reads the expired PENDING candidate, then queues second.
+  // Once released, settlement confirms it and cleanup must re-read that state
+  // instead of deleting the slot from its stale candidate list.
+  const race = await scaffold({
+    ...base,
+    hours: [18],
+    holdExpiresAt: past,
+    paymentStatus: "SUCCEEDED",
+  });
+  let releaseBlocker!: () => void;
+  let reportLocked!: () => void;
+  const release = new Promise<void>((resolve) => {
+    releaseBlocker = resolve;
+  });
+  const locked = new Promise<void>((resolve) => {
+    reportLocked = resolve;
+  });
+  const blocker = prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "BookingSlot"
+                       WHERE "bookingId" = ${race.booking.id}
+                       FOR UPDATE`;
+    reportLocked();
+    await release;
+  });
+  await locked;
+
+  const settling = settleBookingPayment(race.payment.id);
+  await new Promise((resolve) => setTimeout(resolve, 75));
+  const sweeping = expireBookingHolds();
+  await new Promise((resolve) => setTimeout(resolve, 75));
+  releaseBlocker();
+
+  const [raceOutcome] = await Promise.all([settling, sweeping, blocker]);
+  const raceBooking = await prisma.booking.findUnique({
+    where: { id: race.booking.id },
+  });
+  ok("confirmation wins the queued race", raceOutcome.status === "confirmed");
+  ok("racing booking stays CONFIRMED", raceBooking?.status === "CONFIRMED");
+  ok(
+    "racing confirmation keeps its slot",
+    (await prisma.bookingSlot.count({ where: { bookingId: race.booking.id } })) === 1
+  );
+
   // --- cleanup -------------------------------------------------------------
   await prisma.booking.deleteMany({ where: { id: { in: created.bookings } } });
   await prisma.bookingPayment.deleteMany({ where: { id: { in: created.payments } } });

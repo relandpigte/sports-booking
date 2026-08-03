@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useMemo, useState } from "react";
+import { Fragment, useActionState, useMemo, useState } from "react";
 import type { Role } from "@prisma/client";
 
 import { Button } from "@/components/ui/Button";
@@ -201,14 +201,14 @@ export function BookCourtPanel({
           <input type="hidden" name="date" value={date} />
           {selectedGroups.flatMap((group) =>
             group.hours.map((hour) => (
-              <span key={`${group.court.id}:${hour}`}>
+              <Fragment key={`${group.court.id}:${hour}`}>
                 <input
                   type="hidden"
                   name="courtIds"
                   value={group.court.id}
                 />
                 <input type="hidden" name="hours" value={hour} />
-              </span>
+              </Fragment>
             ))
           )}
 

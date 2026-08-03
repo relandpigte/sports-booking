@@ -146,6 +146,7 @@ export async function resetPasswordWithToken({
     select: { id: true, userId: true, expiresAt: true },
   });
   if (!record?.userId || record.expiresAt <= new Date()) return false;
+  const userId = record.userId;
 
   const passwordHash = await bcrypt.hash(password, 10);
 
@@ -161,16 +162,24 @@ export async function resetPasswordWithToken({
       if (claimed.count !== 1) throw new InvalidResetTokenError();
 
       await tx.user.update({
-        where: { id: record.userId! },
+        where: { id: userId },
         data: {
           passwordHash,
           sessionVersion: { increment: 1 },
         },
       });
 
+      await tx.authSession.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      await tx.securityEvent.create({
+        data: { userId, type: "PASSWORD_RESET" },
+      });
+
       // Defensive cleanup if old data ever contains more than one token.
       await tx.passwordResetToken.deleteMany({
-        where: { userId: record.userId },
+        where: { userId },
       });
     });
   } catch (error) {

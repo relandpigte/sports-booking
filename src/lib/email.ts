@@ -15,6 +15,7 @@ import {
   welcomeEmailContent,
   type WelcomeEmailContentInput,
 } from "@/lib/welcome-email";
+import { newDeviceLoginEmailContent } from "@/lib/security-alert-email";
 
 type PasswordResetEmailInput = {
   to: string;
@@ -34,6 +35,16 @@ type PartnerApprovalEmailInput = PartnerApprovalEmailContentInput & {
 
 type PartnerAssistanceEmailInput = PartnerAssistanceEmailContentInput & {
   to: string;
+  idempotencyKey: string;
+};
+
+type NewDeviceLoginEmailInput = {
+  to: string;
+  name: string;
+  device: string;
+  location: string | null;
+  occurredAt: Date;
+  securityUrl: string;
   idempotencyKey: string;
 };
 
@@ -156,5 +167,20 @@ export async function sendPartnerAssistanceEmail(
     idempotencyKey: input.idempotencyKey,
     category: "partner-assistance",
     description: "Partner-assistance email delivery",
+  });
+}
+
+export async function sendNewDeviceLoginEmail(
+  input: NewDeviceLoginEmailInput
+): Promise<void> {
+  const content = newDeviceLoginEmailContent(input);
+  await deliverEmail({
+    to: input.to,
+    subject: content.subject,
+    html: content.html,
+    text: content.text,
+    idempotencyKey: input.idempotencyKey,
+    category: "security-new-device",
+    description: "New-device security email delivery",
   });
 }

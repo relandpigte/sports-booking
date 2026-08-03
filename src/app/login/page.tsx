@@ -15,6 +15,8 @@ export default function LoginPage({
   searchParams: Promise<{
     reset?: string | string[];
     password?: string | string[];
+    mfa?: string | string[];
+    session?: string | string[];
     next?: string | string[];
   }>;
 }) {
@@ -55,6 +57,23 @@ export default function LoginPage({
                 className="rounded-lg bg-green-50 px-3 py-2.5 text-sm text-green-700"
               >
                 Your password was updated. Log in with your new password.
+              </p>
+            )}
+            {query.mfa === "disabled" && (
+              <p
+                role="status"
+                className="rounded-lg bg-green-50 px-3 py-2.5 text-sm text-green-700"
+              >
+                Multi-factor authentication was disabled. Sign in again to
+                continue.
+              </p>
+            )}
+            {query.session === "revoked" && (
+              <p
+                role="status"
+                className="rounded-lg bg-green-50 px-3 py-2.5 text-sm text-green-700"
+              >
+                That session was revoked successfully.
               </p>
             )}
             {state.message && (

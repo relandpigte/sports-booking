@@ -13,9 +13,11 @@ Copy `.env.example` to `.env` and fill in:
 | `AUTH_SECRET`    | Secret used to sign session JWTs. Generate with the command below.   |
 | `RESEND_API_KEY` | Resend API key used by the server for transactional account email.    |
 | `EMAIL_FROM`     | Sender on the exact verified Resend domain, with an optional name.    |
+| `ENCRYPTION_KEY` | AES key for authenticator MFA secrets and payment credentials.        |
 
 ```bash
 openssl rand -base64 32   # value for AUTH_SECRET
+node -e "console.log('k1:'+require('crypto').randomBytes(32).toString('base64'))" # ENCRYPTION_KEY
 ```
 
 For Resend, install the DNS records shown for your domain and wait until its
@@ -49,9 +51,11 @@ npm run dev
 - `/register` — create a player account (password is hashed with bcrypt).
 - `/register/partner` — apply for a partner account; an admin must activate it.
 - `/login` — sign in.
+- `/login/mfa` — complete authenticator or recovery-code verification.
 - `/forgot-password` — request an expiring password-reset link.
 - `/reset-password?token=…` — choose a new password with a single-use token.
 - `/dashboard` — protected; redirects to `/login` when signed out.
+- `/dashboard/account?tab=security` — MFA, active sessions, and audit history.
 
 ## How it fits together
 

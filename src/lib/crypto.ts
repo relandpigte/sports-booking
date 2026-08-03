@@ -167,4 +167,5 @@ export const CRYPTO_PURPOSE = {
   gatewayWebhookSecret: "partner-gateway.webhookSecret",
   platformGatewaySecretKey: "platform-gateway.secretKey",
   platformGatewayWebhookSecret: "platform-gateway.webhookSecret",
+  mfaSecret: "account-security.mfaSecret",
 } as const;

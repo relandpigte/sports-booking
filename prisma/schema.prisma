@@ -47,6 +47,10 @@ model User {
   // atomically so simultaneous sign-ins cannot lose an update.
   lastLoginAt          DateTime?
   loginCount           Int            @default(0)
+  // Authenticator-app MFA. The secret is AES-256-GCM ciphertext; recovery
+  // codes are stored as one-way hashes in MfaRecoveryCode.
+  mfaEnabledAt         DateTime?
+  mfaSecretEnc         String?        @db.Text
   // Only meaningful when role=PARTNER. Public signups start PENDING and an
   // admin activates them after reviewing their business details.
   partnerStatus        PartnerStatus?
@@ -61,6 +65,11 @@ model User {
   hubs               Hub[]
   bookings           Booking[]
   passwordResetToken PasswordResetToken?
+  authSessions       AuthSession[]
+  authGrants         AuthGrant[]
+  securityChallenges SecurityChallenge[]
+  securityEvents     SecurityEvent[]
+  mfaRecoveryCodes   MfaRecoveryCode[]
 
   partnerGateway        PartnerGateway?
   bookingPayments       BookingPayment[]       @relation("PlayerBookingPayments")
@@ -68,6 +77,119 @@ model User {
   eventRegistrations    EventRegistration[]
   serviceFeeEntries     ServiceFeeEntry[]      @relation("PartnerServiceFeeEntries")
   serviceFeeSettlements ServiceFeeSettlement[] @relation("PartnerServiceFeeSettlements")
+}
+
+// A short-lived, single-use credential exchanged for an Auth.js JWT. Passwords
+// and MFA codes never enter the JWT provider; authorize() accepts only a random
+// grant whose SHA-256 hash is stored here.
+model AuthGrant {
+  id              String    @id @default(cuid())
+  tokenHash       String    @unique
+  userId          String
+  mfaVerified     Boolean
+  deviceHash      String
+  deviceLabel     String
+  browser         String?
+  operatingSystem String?
+  location        String?
+  ipHash          String
+  ipPrefix        String?
+  expiresAt       DateTime
+  consumedAt      DateTime?
+  createdAt       DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+}
+
+// Server-side registry for otherwise stateless Auth.js JWT sessions. The JWT
+// carries the random session token; only its hash is stored in Postgres.
+model AuthSession {
+  id              String    @id @default(cuid())
+  tokenHash       String    @unique
+  userId          String
+  mfaVerified     Boolean
+  deviceHash      String
+  deviceLabel     String
+  browser         String?
+  operatingSystem String?
+  location        String?
+  ipHash          String
+  ipPrefix        String?
+  createdAt       DateTime  @default(now())
+  lastSeenAt      DateTime  @default(now())
+  expiresAt       DateTime
+  revokedAt       DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt, expiresAt])
+  @@index([expiresAt])
+}
+
+// Login MFA and MFA-enrolment challenges. The browser receives only the random
+// token; the database stores its hash. A setup secret is encrypted at rest.
+model SecurityChallenge {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique
+  userId     String
+  purpose    String
+  secretEnc  String?   @db.Text
+  redirectTo String?
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  verifiedAt DateTime?
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose, expiresAt])
+  @@index([expiresAt])
+}
+
+model MfaRecoveryCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String    @unique
+  createdAt DateTime  @default(now())
+  usedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt])
+}
+
+// Append-only account security history. Metadata is intentionally limited to
+// non-secret device and outcome details by the callers.
+model SecurityEvent {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String
+  deviceLabel String?
+  location    String?
+  ipHash      String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
+}
+
+// Progressive login throttling keys are HMAC/SHA-256 digests of an IP and the
+// normalized email/IP pair. Raw attempted addresses and raw IPs are not stored.
+model LoginThrottle {
+  keyHash         String    @id
+  attempts        Int       @default(0)
+  windowStartedAt DateTime  @default(now())
+  blockedUntil    DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  @@index([blockedUntil])
 }
 
 // One active reset request per normalized email. The raw email and raw token

@@ -5,9 +5,10 @@ import bcrypt from "bcryptjs";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 
 import { prisma } from "@/lib/db";
-import { signIn, signOut } from "@/lib/auth";
+import { auth, signIn, signOut } from "@/lib/auth";
 import { verifySession } from "@/lib/dal";
 import {
   emailDeliveryConfigured,
@@ -27,6 +28,14 @@ import {
   REGISTRATION_SUCCESS_PATH,
 } from "@/lib/registration-tracking";
 import { endImpersonationForLogout, isPartnerImpersonationActive } from "@/lib/impersonation";
+import {
+  authenticatePassword,
+  createLoginGrant,
+  createSecurityChallenge,
+  revokeSessionByToken,
+  SECURITY_CHALLENGE_COOKIE,
+} from "@/lib/account-security";
+import { getSecurityRequestContext } from "@/lib/security-context";
 
 export type AuthFormState = {
   errors?: Record<string, string>;
@@ -127,9 +136,13 @@ export async function registerAction(
   // Sign the new user in. On success this throws a redirect to the welcome
   // page, where the short-lived marker emits one registration event.
   try {
+    const grant = await createLoginGrant({
+      userId: user.id,
+      mfaVerified: true,
+      context: await getSecurityRequestContext(),
+    });
     await signIn("credentials", {
-      email: data.email,
-      password: data.password,
+      grant,
       redirectTo: safeInternalPath(raw.redirectTo)
         ? `${REGISTRATION_SUCCESS_PATH.player}?next=${encodeURIComponent(raw.redirectTo)}`
           : REGISTRATION_SUCCESS_PATH.player,
@@ -245,6 +258,7 @@ export async function registerPartnerAction(
     180
   );
 
+  let createdUserId: string | null = null;
   try {
     const user = await prisma.user.create({
       data: {
@@ -276,6 +290,7 @@ export async function registerPartnerAction(
       },
       select: { id: true },
     });
+    createdUserId = user.id;
 
     await sendRegistrationWelcome({
       audience: "PARTNER",
@@ -316,9 +331,14 @@ export async function registerPartnerAction(
   // The partner can sign in immediately and see the application-received
   // page, but hub and payment features stay locked until admin activation.
   try {
+    if (!createdUserId) throw new Error("Partner account was not created");
+    const grant = await createLoginGrant({
+      userId: createdUserId,
+      mfaVerified: true,
+      context: await getSecurityRequestContext(),
+    });
     await signIn("credentials", {
-      email: data.email,
-      password: data.password,
+      grant,
       redirectTo: REGISTRATION_SUCCESS_PATH.partner,
     });
   } catch (error) {
@@ -415,11 +435,70 @@ export async function loginAction(
     return { errors: firstErrors(parsed.error), values: { email: raw.email } };
   }
 
+  const context = await getSecurityRequestContext();
+  const authentication = await authenticatePassword({
+    email: parsed.data.email,
+    password: parsed.data.password,
+    context,
+  });
+  if (authentication.status === "blocked") {
+    return {
+      message:
+        "Too many sign-in attempts. Wait a few minutes and try again.",
+      values: { email: raw.email },
+    };
+  }
+  if (authentication.status === "invalid") {
+    return {
+      message: "Invalid email or password",
+      values: { email: raw.email },
+    };
+  }
+
+  const redirectTo = safeInternalPath(raw.redirectTo) ?? "/dashboard";
+  const requiresMfa =
+    authentication.user.role === "ADMIN" ||
+    authentication.user.mfaEnabledAt !== null;
+  if (requiresMfa) {
+    const purpose = authentication.user.mfaEnabledAt
+      ? "LOGIN_MFA"
+      : "LOGIN_MFA_SETUP";
+    try {
+      const challenge = await createSecurityChallenge({
+        userId: authentication.user.id,
+        purpose,
+        redirectTo,
+      });
+      (await cookies()).set(SECURITY_CHALLENGE_COOKIE, challenge, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 10 * 60,
+      });
+    } catch (error) {
+      return {
+        message:
+          error instanceof Error
+            ? error.message
+            : "Multi-factor authentication is temporarily unavailable.",
+        values: { email: raw.email },
+      };
+    }
+    redirect(
+      purpose === "LOGIN_MFA" ? "/login/mfa" : "/login/mfa/setup"
+    );
+  }
+
   try {
+    const grant = await createLoginGrant({
+      userId: authentication.user.id,
+      mfaVerified: true,
+      context,
+    });
     await signIn("credentials", {
-      email: parsed.data.email,
-      password: parsed.data.password,
-      redirectTo: safeInternalPath(raw.redirectTo) ?? "/dashboard",
+      grant,
+      redirectTo,
     });
   } catch (error) {
     if (error instanceof AuthError) {
@@ -436,6 +515,14 @@ export async function loginAction(
 
 export async function logoutAction() {
   await endImpersonationForLogout();
+  const session = await auth();
+  if (session?.user?.id && session.user.sessionId) {
+    await revokeSessionByToken({
+      userId: session.user.id,
+      sessionId: session.user.sessionId,
+      context: await getSecurityRequestContext(),
+    });
+  }
   await signOut({ redirectTo: "/login" });
 }
 

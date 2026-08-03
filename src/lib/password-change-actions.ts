@@ -9,6 +9,11 @@ import { changeUserPassword } from "@/lib/password-change";
 import { ChangePasswordSchema } from "@/lib/validation";
 import { firstErrors } from "@/lib/zod-errors";
 import { isPartnerImpersonationActive } from "@/lib/impersonation";
+import {
+  createLoginGrant,
+  recordPasswordChanged,
+} from "@/lib/account-security";
+import { getSecurityRequestContext } from "@/lib/security-context";
 
 export type PasswordChangeFormState = {
   errors?: Record<string, string>;
@@ -61,12 +66,19 @@ export async function changePasswordAction(
     };
   }
 
+  const context = await getSecurityRequestContext();
+  await recordPasswordChanged(userId, context);
+
   // The database update invalidated every old JWT. Re-authenticate this
   // browser with the new credentials so it receives the new session version.
   try {
+    const grant = await createLoginGrant({
+      userId,
+      mfaVerified: true,
+      context,
+    });
     await signIn("credentials", {
-      email: result.email,
-      password: parsed.data.newPassword,
+      grant,
       redirectTo: "/dashboard/account?password=changed",
     });
   } catch (error) {

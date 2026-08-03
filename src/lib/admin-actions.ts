@@ -163,6 +163,8 @@ export async function updateUserAction(
     data: {
       name: data.name,
       role: data.role as Role,
+      sessionVersion:
+        existingUser.role !== data.role ? { increment: 1 } : undefined,
       ...(data.role === "PARTNER" && existingUser.role !== "PARTNER"
         ? {
             partnerStatus: "PENDING",
@@ -183,6 +185,21 @@ export async function updateUserAction(
       image: avatar.value,
     },
   });
+  if (existingUser.role !== data.role) {
+    await prisma.$transaction([
+      prisma.authSession.updateMany({
+        where: { userId: data.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+      prisma.securityEvent.create({
+        data: {
+          userId: data.id,
+          type: "ROLE_CHANGED",
+          metadata: { from: existingUser.role, to: data.role },
+        },
+      }),
+    ]);
+  }
 
   revalidatePath("/users");
   redirect("/users");
@@ -207,6 +224,7 @@ export async function setUserRoleAction(formData: FormData) {
     where: { id },
     data: {
       role,
+      sessionVersion: current.role !== role ? { increment: 1 } : undefined,
       ...(role === "PARTNER" && current.role !== "PARTNER"
         ? { partnerStatus: "PENDING" }
         : role !== "PARTNER"
@@ -218,6 +236,21 @@ export async function setUserRoleAction(formData: FormData) {
           : {}),
     },
   });
+  if (current.role !== role) {
+    await prisma.$transaction([
+      prisma.authSession.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+      prisma.securityEvent.create({
+        data: {
+          userId: id,
+          type: "ROLE_CHANGED",
+          metadata: { from: current.role, to: role },
+        },
+      }),
+    ]);
+  }
   revalidatePath("/users");
 }
 

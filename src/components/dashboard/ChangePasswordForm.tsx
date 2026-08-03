@@ -24,7 +24,7 @@ export function ChangePasswordForm({
   );
 
   return (
-    <section className="mt-6 rounded-2xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5 sm:p-6">
+    <section className="rounded-2xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5 sm:p-6">
       <div className="border-b border-gray-100 pb-5">
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">
           Security

@@ -7,6 +7,7 @@ import type { Role } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getActivePartnerImpersonation } from "@/lib/impersonation";
+import { validateManagedSession } from "@/lib/account-security";
 
 const currentUserSelect = {
   id: true,
@@ -22,33 +23,50 @@ const currentUserSelect = {
   privateProfile: true,
 } as const;
 
-// Verifies there is an authenticated session, redirecting to /login otherwise.
-// Memoized per render pass so repeated calls don't re-run the check.
-export const verifySession = cache(async () => {
+const getValidatedSession = cache(async () => {
   const session = await auth();
-  if (!session?.user?.id) {
-    redirect("/login");
-  }
-
+  if (!session?.user?.id) return null;
   const current = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { sessionVersion: true },
+    select: { sessionVersion: true, role: true, mfaEnabledAt: true },
   });
   if (
     !current ||
-    current.sessionVersion !== session.user.sessionVersion
+    current.sessionVersion !== session.user.sessionVersion ||
+    (current.role === "ADMIN" &&
+      (!current.mfaEnabledAt || !session.user.mfaVerified))
   ) {
+    return null;
+  }
+  const managedSession = await validateManagedSession({
+    userId: session.user.id,
+    sessionId: session.user.sessionId,
+  });
+  if (!managedSession) return null;
+  return { session, managedSession };
+});
+
+// Verifies there is an authenticated session, redirecting to /login otherwise.
+// Memoized per render pass so repeated calls don't re-run the check.
+export const verifySession = cache(async () => {
+  const validated = await getValidatedSession();
+  if (!validated) {
     redirect("/login");
   }
-  return { userId: session.user.id };
+  return {
+    userId: validated.session.user.id,
+    sessionId: validated.session.user.sessionId,
+    sessionDatabaseId: validated.managedSession.id,
+  };
 });
 
 // Like getCurrentUser, but does NOT redirect when signed out — returns null
 // instead. Public pages (e.g. a hub profile) render differently for a signed-in
 // player but must not bounce anonymous visitors to /login.
 export const getViewer = cache(async () => {
-  const session = await auth();
-  if (!session?.user?.id) return null;
+  const validated = await getValidatedSession();
+  if (!validated) return null;
+  const { session } = validated;
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
     // email/image are here so public pages can render the signed-in shell
@@ -91,8 +109,9 @@ export const getViewer = cache(async () => {
 // The real signed-in account, never the assisted partner. Admin authorization,
 // impersonation controls, and security-sensitive account actions use this.
 export const getAuthenticatedUser = cache(async () => {
-  const session = await auth();
-  if (!session?.user?.id) return null;
+  const validated = await getValidatedSession();
+  if (!validated) return null;
+  const { session } = validated;
   const row = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: { ...currentUserSelect, sessionVersion: true },

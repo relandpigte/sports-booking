@@ -17,12 +17,15 @@ export function PartnerHome({
   user,
   partnerStatus,
   isGatewayConnected,
+  canOperate,
 }: {
   user: PartnerHomeUser;
   partnerStatus: PartnerStatus | null;
   isGatewayConnected: boolean;
+  canOperate?: boolean;
 }) {
   const active = partnerStatus === "ACTIVE";
+  const operational = canOperate ?? active;
   const shortcuts: {
     label: string;
     desc: string;
@@ -103,7 +106,7 @@ export function PartnerHome({
         </section>
       )}
 
-      {active && (
+      {operational && (
         <section className="mt-8 overflow-hidden rounded-2xl border border-[#dfe7e2] bg-white shadow-sm shadow-navy/5">
           <div className="flex flex-col gap-4 border-b border-[#dfe7e2] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
             <div>
@@ -183,7 +186,7 @@ export function PartnerHome({
         </section>
       )}
 
-      {active && isGatewayConnected && (
+      {operational && isGatewayConnected && (
         <section className="mt-6">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">

@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { requireActivePartner } from "@/lib/dal";
 import { dayWindow, weekdayIndexForDate } from "@/lib/slots";
 import { formatHourLabel } from "@/lib/time";
+import { recordImpersonatedAction } from "@/lib/impersonation";
 
 const ScheduleRuleSchema = z.object({
   courtId: z.string().min(1),
@@ -146,6 +147,13 @@ export async function updateCourtScheduleAction(
     if (rules.length > 0) {
       await tx.courtSlotRule.createMany({ data: rules });
     }
+  });
+
+  await recordImpersonatedAction({
+    action: "COURT_SCHEDULE_UPDATED",
+    targetType: "Hub",
+    targetId: hub.id,
+    metadata: { ruleCount: rules.length },
   });
 
   revalidatePath("/dashboard/hubs");

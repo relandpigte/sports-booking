@@ -8,15 +8,23 @@ import { listMyHubs } from "@/lib/hubs";
 import { BookingCard } from "@/components/bookings/BookingCard";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { manilaNowHour, manilaToday } from "@/lib/time";
+import { getCurrentPartnerImpersonation } from "@/lib/impersonation";
 
 export const metadata: Metadata = {
   title: "Bookings — Bunal.club",
 };
 
 export default async function BookingsPage() {
-  const user = await getCurrentUser();
+  const [user, impersonation] = await Promise.all([
+    getCurrentUser(),
+    getCurrentPartnerImpersonation(),
+  ]);
   if (!user || user.role === "ADMIN") redirect("/dashboard");
-  if (user.role === "PARTNER" && user.partnerStatus !== "ACTIVE") {
+  if (
+    user.role === "PARTNER" &&
+    user.partnerStatus !== "ACTIVE" &&
+    impersonation?.partner.id !== user.id
+  ) {
     redirect("/dashboard/partner");
   }
 

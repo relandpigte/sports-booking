@@ -17,6 +17,7 @@ import {
   type OperatingHours,
   type Weekday,
 } from "@/lib/constants";
+import { recordImpersonatedAction } from "@/lib/impersonation";
 
 type CourtInput = {
   id: string;
@@ -172,7 +173,7 @@ export async function createHubAction(
   }
 
   try {
-    await prisma.hub.create({
+    const hub = await prisma.hub.create({
       data: {
         ownerId: partner.id,
         name: data.name,
@@ -195,6 +196,12 @@ export async function createHubAction(
           })),
         },
       },
+      select: { id: true },
+    });
+    await recordImpersonatedAction({
+      action: "HUB_CREATED",
+      targetType: "Hub",
+      targetId: hub.id,
     });
   } catch (error) {
     if (
@@ -339,6 +346,12 @@ export async function updateHubAction(
   }
   if (ops.length) await prisma.$transaction(ops);
 
+  await recordImpersonatedAction({
+    action: "HUB_UPDATED",
+    targetType: "Hub",
+    targetId: id,
+  });
+
   revalidatePath("/dashboard/hubs");
   redirect("/dashboard/hubs");
 }
@@ -349,6 +362,15 @@ export async function deleteHubAction(formData: FormData) {
   if (!id) return;
 
   // Ownership-scoped delete.
-  await prisma.hub.deleteMany({ where: { id, ownerId: partner.id } });
+  const deleted = await prisma.hub.deleteMany({
+    where: { id, ownerId: partner.id },
+  });
+  if (deleted.count > 0) {
+    await recordImpersonatedAction({
+      action: "HUB_DELETED",
+      targetType: "Hub",
+      targetId: id,
+    });
+  }
   revalidatePath("/dashboard/hubs");
 }

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/Badge";
 import { requireAdmin, listUsers, userCounts } from "@/lib/admin";
 import { facebookPageLabel } from "@/lib/social";
 import { ROLE_VALUES, ROLE_LABELS, SKILL_LEVELS } from "@/lib/constants";
+import { startPartnerImpersonationAction } from "@/lib/impersonation-actions";
 
 export const metadata: Metadata = {
   title: "Manage Users — Bunal.club",
@@ -221,10 +222,22 @@ export default async function UsersPage({
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
                       {u.role === "PARTNER" && (
-                        <PartnerActivationButton
-                          userId={u.id}
-                          active={u.partnerStatus === "ACTIVE"}
-                        />
+                        <>
+                          <form action={startPartnerImpersonationAction}>
+                            <input type="hidden" name="partnerId" value={u.id} />
+                            <button
+                              type="submit"
+                              title={`Assist ${u.name ?? u.email}`}
+                              className="rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+                            >
+                              Assist
+                            </button>
+                          </form>
+                          <PartnerActivationButton
+                            userId={u.id}
+                            active={u.partnerStatus === "ACTIVE"}
+                          />
+                        </>
                       )}
                       <Link
                         href={`/users/${u.id}/edit`}

@@ -19,6 +19,7 @@ import {
   AdminCreateUserSchema,
   AdminUpdateUserSchema,
 } from "@/lib/validation";
+import { isPartnerImpersonationActive } from "@/lib/impersonation";
 
 export type AdminFormState = {
   errors?: Record<string, string>;
@@ -35,6 +36,12 @@ export async function createUserAction(
   formData: FormData
 ): Promise<AdminFormState> {
   const admin = await requireAdmin();
+  if (await isPartnerImpersonationActive()) {
+    return {
+      message:
+        "Exit assisted partner access before changing account profile details.",
+    };
+  }
 
   const raw = {
     name: String(formData.get("name") ?? ""),
@@ -102,6 +109,12 @@ export async function updateUserAction(
   formData: FormData
 ): Promise<AdminFormState> {
   const admin = await requireAdmin();
+  if (await isPartnerImpersonationActive()) {
+    return {
+      message:
+        "Exit assisted partner access before changing account profile details.",
+    };
+  }
 
   const raw = {
     id: String(formData.get("id") ?? ""),
@@ -278,6 +291,7 @@ export async function setPartnerActiveAction(formData: FormData) {
 
 export async function deleteUserAction(formData: FormData) {
   const admin = await requireAdmin();
+  if (await isPartnerImpersonationActive()) return;
   const id = String(formData.get("userId") ?? "");
 
   if (!id) return;

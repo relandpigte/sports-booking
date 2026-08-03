@@ -105,4 +105,11 @@ export function stubRequestContext(actor: { id: string; email: string }): void {
   put(path.join(root, "src/lib/admin.ts"), {
     requireAdmin: async () => actor,
   });
+  put(path.join(root, "src/lib/impersonation.ts"), {
+    getActivePartnerImpersonation: async () => null,
+    getCurrentPartnerImpersonation: async () => null,
+    isPartnerImpersonationActive: async () => false,
+    recordImpersonatedAction: async () => undefined,
+    endImpersonationForLogout: async () => undefined,
+  });
 }

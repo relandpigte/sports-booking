@@ -1,13 +1,18 @@
 import "server-only";
 
 import type { PartnerStatus, Role } from "@prisma/client";
+import { redirect } from "next/navigation";
 
 import { prisma } from "@/lib/db";
-import { requireRole } from "@/lib/dal";
+import { getAuthenticatedUser } from "@/lib/dal";
 
 // Guard: only ADMINs may use the management area. Returns the current admin.
 export async function requireAdmin() {
-  return requireRole("ADMIN");
+  const user = await getAuthenticatedUser();
+  if (!user || user.role !== "ADMIN") {
+    redirect("/dashboard");
+  }
+  return user;
 }
 
 const userListSelect = {
@@ -93,4 +98,33 @@ export async function pendingPartnerCount(): Promise<number> {
 export async function getUserById(id: string): Promise<AdminUser | null> {
   await requireAdmin();
   return prisma.user.findUnique({ where: { id }, select: userListSelect });
+}
+
+export async function listPartnerAssistanceAudit(partnerId: string) {
+  await requireAdmin();
+  const rows = await prisma.partnerImpersonationAudit.findMany({
+    where: { partnerId },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    select: {
+      id: true,
+      adminId: true,
+      action: true,
+      targetType: true,
+      targetId: true,
+      metadata: true,
+      createdAt: true,
+    },
+  });
+  const adminIds = [...new Set(rows.map((row) => row.adminId))];
+  const admins = await prisma.user.findMany({
+    where: { id: { in: adminIds } },
+    select: { id: true, name: true, email: true },
+  });
+  const adminById = new Map(admins.map((admin) => [admin.id, admin]));
+
+  return rows.map((row) => ({
+    ...row,
+    admin: adminById.get(row.adminId) ?? null,
+  }));
 }

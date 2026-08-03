@@ -44,6 +44,10 @@ import {
   manilaNowHour,
   manilaToday,
 } from "@/lib/time";
+import {
+  isPartnerImpersonationActive,
+  recordImpersonatedAction,
+} from "@/lib/impersonation";
 
 export type BookingFormState = {
   errors?: Record<string, string>;
@@ -370,7 +374,11 @@ export async function cancelHubBookingAction(
   if (viewer.role !== "PARTNER" && viewer.role !== "ADMIN") {
     return { message: "Only the hub owner can cancel this booking." };
   }
-  if (viewer.role === "PARTNER" && viewer.partnerStatus !== "ACTIVE") {
+  if (
+    viewer.role === "PARTNER" &&
+    viewer.partnerStatus !== "ACTIVE" &&
+    !(await isPartnerImpersonationActive())
+  ) {
     return { message: "Your partner account is waiting for admin verification." };
   }
 
@@ -419,6 +427,12 @@ export async function cancelHubBookingAction(
     viewer.role === "ADMIN" ? "ADMIN" : "PARTNER",
     parsed.data.reason
   );
+  await recordImpersonatedAction({
+    action: "BOOKING_CANCELLED",
+    targetType: "Booking",
+    targetId: booking.id,
+    metadata: { refundRequested: parsed.data.refund === "full" },
+  });
   revalidateBookingSurfaces(booking.hubId);
 
   const wasPaid = booking.bookingPayment?.status === "SUCCEEDED";
@@ -452,7 +466,11 @@ export async function refundBookingAction(
   if (viewer.role !== "PARTNER" && viewer.role !== "ADMIN") {
     return { message: "Only the venue can refund this booking." };
   }
-  if (viewer.role === "PARTNER" && viewer.partnerStatus !== "ACTIVE") {
+  if (
+    viewer.role === "PARTNER" &&
+    viewer.partnerStatus !== "ACTIVE" &&
+    !(await isPartnerImpersonationActive())
+  ) {
     return { message: "Your partner account is waiting for admin verification." };
   }
 
@@ -482,6 +500,13 @@ export async function refundBookingAction(
   });
   if (!refund.ok) return { message: refund.message };
 
+  await recordImpersonatedAction({
+    action: "BOOKING_REFUNDED",
+    targetType: "Booking",
+    targetId: booking.id,
+    metadata: { alreadyRefunded: refund.alreadyRefunded },
+  });
+
   revalidateBookingSurfaces(booking.hubId);
   return {
     success: refund.alreadyRefunded
@@ -501,7 +526,11 @@ export async function rescheduleHubBookingAction(
   if (viewer.role !== "PARTNER" && viewer.role !== "ADMIN") {
     return { message: "Only the hub owner can move this booking." };
   }
-  if (viewer.role === "PARTNER" && viewer.partnerStatus !== "ACTIVE") {
+  if (
+    viewer.role === "PARTNER" &&
+    viewer.partnerStatus !== "ACTIVE" &&
+    !(await isPartnerImpersonationActive())
+  ) {
     return { message: "Your partner account is waiting for admin verification." };
   }
 
@@ -770,6 +799,12 @@ export async function rescheduleHubBookingAction(
   }
 
   revalidateBookingSurfaces(booking.hubId);
+  await recordImpersonatedAction({
+    action: "BOOKING_RESCHEDULED",
+    targetType: "Booking",
+    targetId: booking.id,
+    metadata: { sessionCount: runs.length },
+  });
   return {
     success:
       runs.length === 1

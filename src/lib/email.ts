@@ -8,6 +8,10 @@ import {
   type PartnerApprovalEmailContentInput,
 } from "@/lib/partner-approval-email";
 import {
+  partnerAssistanceEmailContent,
+  type PartnerAssistanceEmailContentInput,
+} from "@/lib/partner-assistance-email";
+import {
   welcomeEmailContent,
   type WelcomeEmailContentInput,
 } from "@/lib/welcome-email";
@@ -24,6 +28,11 @@ type WelcomeEmailInput = WelcomeEmailContentInput & {
 };
 
 type PartnerApprovalEmailInput = PartnerApprovalEmailContentInput & {
+  to: string;
+  idempotencyKey: string;
+};
+
+type PartnerAssistanceEmailInput = PartnerAssistanceEmailContentInput & {
   to: string;
   idempotencyKey: string;
 };
@@ -132,5 +141,20 @@ export async function sendPartnerApprovalEmail(
     idempotencyKey: input.idempotencyKey,
     category: "partner-approved",
     description: "Partner-approval email delivery",
+  });
+}
+
+export async function sendPartnerAssistanceEmail(
+  input: PartnerAssistanceEmailInput
+): Promise<void> {
+  const content = partnerAssistanceEmailContent(input);
+  await deliverEmail({
+    to: input.to,
+    subject: content.subject,
+    html: content.html,
+    text: content.text,
+    idempotencyKey: input.idempotencyKey,
+    category: "partner-assistance",
+    description: "Partner-assistance email delivery",
   });
 }

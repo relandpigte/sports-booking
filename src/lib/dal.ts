@@ -6,6 +6,21 @@ import type { Role } from "@prisma/client";
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { getActivePartnerImpersonation } from "@/lib/impersonation";
+
+const currentUserSelect = {
+  id: true,
+  name: true,
+  playerName: true,
+  email: true,
+  phone: true,
+  facebookPage: true,
+  image: true,
+  role: true,
+  partnerStatus: true,
+  skillLevel: true,
+  privateProfile: true,
+} as const;
 
 // Verifies there is an authenticated session, redirecting to /login otherwise.
 // Memoized per render pass so repeated calls don't re-run the check.
@@ -53,29 +68,52 @@ export const getViewer = cache(async () => {
     return null;
   }
 
+  if (user.role === "ADMIN") {
+    const impersonation = await getActivePartnerImpersonation(user.id);
+    if (impersonation) {
+      const partner = impersonation.partner;
+      return {
+        id: partner.id,
+        name: partner.name,
+        playerName: partner.playerName,
+        email: partner.email,
+        image: partner.image,
+        role: partner.role,
+        partnerStatus: partner.partnerStatus,
+      };
+    }
+  }
+
   const { sessionVersion: _sessionVersion, ...viewer } = user;
   return viewer;
 });
 
-// Returns the current user's profile (only the fields the UI needs).
-export const getCurrentUser = cache(async () => {
-  const { userId } = await verifySession();
-  return prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      name: true,
-      playerName: true,
-      email: true,
-      phone: true,
-      facebookPage: true,
-      image: true,
-      role: true,
-      partnerStatus: true,
-      skillLevel: true,
-      privateProfile: true,
-    },
+// The real signed-in account, never the assisted partner. Admin authorization,
+// impersonation controls, and security-sensitive account actions use this.
+export const getAuthenticatedUser = cache(async () => {
+  const session = await auth();
+  if (!session?.user?.id) return null;
+  const row = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { ...currentUserSelect, sessionVersion: true },
   });
+  if (!row || row.sessionVersion !== session.user.sessionVersion) {
+    return null;
+  }
+  const { sessionVersion: _sessionVersion, ...user } = row;
+  return user;
+});
+
+// Returns the effective workspace user. During assisted setup this is the
+// partner, while getAuthenticatedUser remains the real admin.
+export const getCurrentUser = cache(async () => {
+  await verifySession();
+  const user = await getAuthenticatedUser();
+  if (!user) return null;
+  if (user.role !== "ADMIN") return user;
+
+  const impersonation = await getActivePartnerImpersonation(user.id);
+  return impersonation?.partner ?? user;
 });
 
 // Guards a page/action by role. Redirects to /login if the signed-in user
@@ -103,6 +141,14 @@ export async function requirePartner() {
 export async function requireActivePartner() {
   const user = await requirePartner();
   if (user.partnerStatus !== "ACTIVE") {
+    const actor = await getAuthenticatedUser();
+    const impersonation =
+      actor?.role === "ADMIN"
+        ? await getActivePartnerImpersonation(actor.id)
+        : null;
+    // Admins may finish setup before approval. Public listing and payments
+    // still use the partner's real status, so this does not activate the venue.
+    if (impersonation?.partner.id === user.id) return user;
     redirect("/dashboard/partner");
   }
   return user;

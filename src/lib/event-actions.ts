@@ -16,6 +16,7 @@ import { refundBookingPayment } from "@/lib/booking-payments";
 import { isServiceFeeOverdue } from "@/lib/service-fees";
 import { isValidDateString, manilaInstant, manilaToday } from "@/lib/time";
 import { firstErrors } from "@/lib/zod-errors";
+import { recordImpersonatedAction } from "@/lib/impersonation";
 
 const optionalText = z
   .string()
@@ -329,6 +330,12 @@ export async function saveEventAction(
   }
 
   revalidateEventSurfaces(publicId, values.hubId);
+  await recordImpersonatedAction({
+    action: existing ? "EVENT_UPDATED" : "EVENT_CREATED",
+    targetType: "Event",
+    targetId: eventId,
+    metadata: { published: willPublish },
+  });
   redirect(
     willPublish ? `/events/${publicId}` : `/dashboard/events/${publicId}/edit`
   );
@@ -640,6 +647,15 @@ export async function cancelEventAction(
   }
 
   revalidateEventSurfaces(event.publicId, event.hubId);
+  await recordImpersonatedAction({
+    action: "EVENT_CANCELLED",
+    targetType: "Event",
+    targetId: event.id,
+    metadata: {
+      refundRequested: parsed.data.refund === "full",
+      failedRefunds,
+    },
+  });
   return failedRefunds > 0
     ? {
         success: `Event cancelled, but ${failedRefunds} refund${failedRefunds === 1 ? "" : "s"} need manual follow-up.`,
@@ -705,5 +721,11 @@ export async function cancelEventRegistrationAction(
     registration.event.publicId,
     registration.event.hubId
   );
+  await recordImpersonatedAction({
+    action: "EVENT_REGISTRATION_CANCELLED",
+    targetType: "EventRegistration",
+    targetId: registration.id,
+    metadata: { refundRequested: parsed.data.refund === "full" },
+  });
   return { success: `Registration cancelled.${refundMessage}` };
 }

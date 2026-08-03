@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 
 import { PublicTopBar } from "@/components/hubs/PublicTopBar";
 import { AppShell } from "@/components/dashboard/AppShell";
-import { getViewer } from "@/lib/dal";
+import { getAuthenticatedUser, getViewer } from "@/lib/dal";
+import { getActivePartnerImpersonation } from "@/lib/impersonation";
 
 // Chrome for pages that are public but that signed-in people also use.
 //
@@ -25,11 +26,33 @@ export async function PageShell({
   padded?: boolean;
   alwaysPublic?: boolean;
 }) {
-  const viewer = await getViewer();
+  const [viewer, actor] = await Promise.all([
+    getViewer(),
+    getAuthenticatedUser(),
+  ]);
+  const impersonation =
+    actor?.role === "ADMIN"
+      ? await getActivePartnerImpersonation(actor.id)
+      : null;
 
-  if (viewer && !alwaysPublic) {
+  // Assisted access always keeps the authenticated shell visible so the
+  // actor/target banner and exit control cannot disappear on a public page.
+  if (viewer && (!alwaysPublic || impersonation)) {
     return (
-      <AppShell user={viewer} maxWidth={maxWidth}>
+      <AppShell
+        user={viewer}
+        maxWidth={maxWidth}
+        impersonation={
+          impersonation
+            ? {
+                partnerName:
+                  impersonation.partner.name ?? impersonation.partner.email,
+                adminName: impersonation.admin.name ?? impersonation.admin.email,
+                expiresAt: impersonation.expiresAt,
+              }
+            : null
+        }
+      >
         {children}
       </AppShell>
     );

@@ -5,6 +5,7 @@ import { PartnerHome } from "@/components/dashboard/home/PartnerHome";
 import { getCurrentUser } from "@/lib/dal";
 import { dashboardHomeFor } from "@/lib/dashboard";
 import { getActivePartnerGateway } from "@/lib/partner-gateway";
+import { getCurrentPartnerImpersonation } from "@/lib/impersonation";
 
 export const metadata: Metadata = {
   title: "Partner Home — Bunal.club",
@@ -15,8 +16,11 @@ export default async function PartnerDashboardPage() {
   if (!user) return null;
   if (user.role !== "PARTNER") redirect(dashboardHomeFor(user.role));
 
+  const impersonation = await getCurrentPartnerImpersonation();
+  const canOperate =
+    user.partnerStatus === "ACTIVE" || impersonation?.partner.id === user.id;
   const gateway =
-    user.partnerStatus === "ACTIVE"
+    canOperate
       ? await getActivePartnerGateway(user.id)
       : null;
 
@@ -25,6 +29,7 @@ export default async function PartnerDashboardPage() {
       user={user}
       partnerStatus={user.partnerStatus}
       isGatewayConnected={gateway != null}
+      canOperate={canOperate}
     />
   );
 }

@@ -16,6 +16,7 @@ import {
 import { getVenueGateway, type VenueGatewayId } from "@/lib/payments/venue";
 import { registerPaymongoWebhook } from "@/lib/payments/paymongo-venue";
 import { appUrl } from "@/lib/urls";
+import { isPartnerImpersonationActive } from "@/lib/impersonation";
 
 // Deliberately NO `values` field: unlike a hub form, a gateway form's contents
 // must never round-trip through rendered state.
@@ -46,6 +47,12 @@ export async function connectGatewayAction(
   _prev: GatewayFormState,
   formData: FormData
 ): Promise<GatewayFormState> {
+  if (await isPartnerImpersonationActive()) {
+    return {
+      message:
+        "Payment credentials are protected during assisted access. Ask the partner to connect PayMongo from their own session.",
+    };
+  }
   const partner = await requireActivePartner();
 
   // Refuse rather than ever storing a secret in plaintext.
@@ -154,6 +161,12 @@ export async function disconnectGatewayAction(
   _prev: GatewayFormState,
   _formData: FormData
 ): Promise<GatewayFormState> {
+  if (await isPartnerImpersonationActive()) {
+    return {
+      message:
+        "Payment connections cannot be changed during assisted access.",
+    };
+  }
   // Active partners can turn off taking money at any time.
   const partner = await requireActivePartner();
 

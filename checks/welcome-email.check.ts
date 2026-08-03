@@ -2,7 +2,10 @@
 //
 //   npm run check:welcome-email
 import { ok, run } from "./harness";
-import { sendWelcomeEmail } from "@/lib/email";
+import {
+  sendPartnerAssistanceEmail,
+  sendWelcomeEmail,
+} from "@/lib/email";
 
 type CapturedRequest = {
   body: Record<string, unknown>;
@@ -44,10 +47,22 @@ async function check() {
       actionUrl: "https://www.bunal.club/dashboard/partner",
       idempotencyKey: "welcome-partner-check",
     });
+    await sendPartnerAssistanceEmail({
+      to: "partner@example.test",
+      name: "Venue Owner",
+      adminName: "Bunal Support",
+      expiresAt: new Date("2030-01-02T03:30:00.000Z"),
+      actionUrl: "https://www.bunal.club/dashboard/partner",
+      idempotencyKey: "partner-assistance-check",
+    });
 
     const player = requests[0];
     const partner = requests[1];
-    ok("one welcome email is sent for each audience", requests.length === 2);
+    const assistance = requests[2];
+    ok(
+      "welcome and assistance emails are sent for each audience",
+      requests.length === 3
+    );
     ok(
       "the player email links to court discovery",
       String(player?.body.html).includes("https://www.bunal.club/hubs")
@@ -81,8 +96,20 @@ async function check() {
         partner?.headers.get("Idempotency-Key") === "welcome-partner-check"
     );
     ok(
+      "assistance email explains the temporary protected session",
+      String(assistance?.body.html).includes("temporary assisted setup") &&
+        String(assistance?.body.html).includes("PayMongo credentials") &&
+        String(assistance?.body.html).includes("Bunal Support")
+    );
+    ok(
+      "assistance email uses its own delivery tag and idempotency key",
+      JSON.stringify(assistance?.body.tags).includes("partner-assistance") &&
+        assistance?.headers.get("Idempotency-Key") ===
+          "partner-assistance-check"
+    );
+    ok(
       "all welcome emails use the branded logo and email-safe shell",
-      [player, partner].every((request) => {
+      [player, partner, assistance].every((request) => {
         const html = String(request?.body.html);
         return (
           html.includes(

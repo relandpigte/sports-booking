@@ -10,6 +10,7 @@ import { requireActivePartner } from "@/lib/dal";
 import { platformPaymongoConfigured } from "@/lib/payments/paymongo-platform";
 import { calculateServiceFeeBalance } from "@/lib/service-fees";
 import { startServiceFeeCheckout } from "@/lib/service-fee-payments";
+import { isPartnerImpersonationActive } from "@/lib/impersonation";
 
 const MAX_RECEIPT_BYTES = 800 * 1024;
 
@@ -31,6 +32,12 @@ export async function submitServiceFeeSettlementAction(
   _prev: ServiceFeeFormState,
   formData: FormData
 ): Promise<ServiceFeeFormState> {
+  if (await isPartnerImpersonationActive()) {
+    return {
+      message:
+        "Settlement payments and receipt submissions are protected during assisted access.",
+    };
+  }
   const partner = await requireActivePartner();
   const paymentReference = String(
     formData.get("paymentReference") ?? ""
@@ -111,6 +118,12 @@ export async function startServiceFeeCheckoutAction(
   _prev: ServiceFeeFormState,
   _formData: FormData
 ): Promise<ServiceFeeFormState> {
+  if (await isPartnerImpersonationActive()) {
+    return {
+      message:
+        "Settlement payments are protected during assisted access.",
+    };
+  }
   const partner = await requireActivePartner();
   if (!(await platformPaymongoConfigured())) {
     return {

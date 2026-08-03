@@ -26,6 +26,7 @@ import {
   REGISTRATION_EVENT_COOKIE,
   REGISTRATION_SUCCESS_PATH,
 } from "@/lib/registration-tracking";
+import { endImpersonationForLogout, isPartnerImpersonationActive } from "@/lib/impersonation";
 
 export type AuthFormState = {
   errors?: Record<string, string>;
@@ -434,6 +435,7 @@ export async function loginAction(
 }
 
 export async function logoutAction() {
+  await endImpersonationForLogout();
   await signOut({ redirectTo: "/login" });
 }
 
@@ -448,6 +450,12 @@ export async function updateProfileAction(
   _prev: ProfileFormState,
   formData: FormData
 ): Promise<ProfileFormState> {
+  if (await isPartnerImpersonationActive()) {
+    return {
+      message:
+        "Account profile changes are blocked during assisted partner access.",
+    };
+  }
   const { userId } = await verifySession();
 
   const raw = {

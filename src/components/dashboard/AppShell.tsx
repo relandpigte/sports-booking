@@ -6,6 +6,7 @@ import { Logo } from "@/components/Logo";
 import { Avatar } from "@/components/ui/Avatar";
 import { DashboardNav } from "@/components/dashboard/DashboardNav";
 import { logoutAction } from "@/lib/actions";
+import { stopPartnerImpersonationAction } from "@/lib/impersonation-actions";
 
 export type ShellUser = {
   name: string | null;
@@ -26,14 +27,22 @@ export function AppShell({
   user,
   children,
   maxWidth = "max-w-6xl",
+  impersonation,
 }: {
   user: ShellUser;
   children: ReactNode;
   maxWidth?: string;
+  impersonation?: {
+    partnerName: string;
+    adminName: string;
+    expiresAt: Date;
+  } | null;
 }) {
   const displayName = user.playerName ?? user.name ?? "Player";
   const workspaceLabel =
-    user.role === "ADMIN"
+    impersonation
+      ? "Assisted partner workspace"
+      : user.role === "ADMIN"
       ? "Owner workspace"
       : user.role === "PARTNER"
         ? "Venue workspace"
@@ -70,7 +79,10 @@ export function AppShell({
           {workspaceLabel}
         </p>
 
-        <DashboardNav role={user.role} partnerStatus={user.partnerStatus} />
+        <DashboardNav
+          role={user.role}
+          partnerStatus={impersonation ? "ACTIVE" : user.partnerStatus}
+        />
 
         <div className="mt-auto hidden rounded-2xl border border-white/10 bg-white/5 p-3 md:flex md:items-center md:gap-3">
           <Avatar
@@ -99,10 +111,42 @@ export function AppShell({
       </aside>
 
       <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 md:px-8 md:py-10">
-        <div className={`mx-auto w-full ${maxWidth}`}>{children}</div>
+        <div className={`mx-auto w-full ${maxWidth}`}>
+          {impersonation && (
+            <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-bold text-amber-950">
+                  Acting as {impersonation.partnerName}
+                </p>
+                <p className="mt-0.5 text-xs leading-5 text-amber-800">
+                  Signed in as {impersonation.adminName}. Account credentials,
+                  payment connections, and settlement payments remain blocked.
+                  Session ends at {formatImpersonationExpiry(impersonation.expiresAt)}.
+                </p>
+              </div>
+              <form action={stopPartnerImpersonationAction}>
+                <button
+                  type="submit"
+                  className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl bg-amber-900 px-4 text-sm font-bold text-white transition-colors hover:bg-amber-950"
+                >
+                  Exit assistance
+                </button>
+              </form>
+            </div>
+          )}
+          {children}
+        </div>
       </main>
     </div>
   );
+}
+
+function formatImpersonationExpiry(value: Date) {
+  return new Intl.DateTimeFormat("en-PH", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Asia/Manila",
+  }).format(value);
 }
 
 function LogoutIcon() {

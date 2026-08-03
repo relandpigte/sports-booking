@@ -308,6 +308,44 @@ model ProviderEvent {
   @@unique([provider, eventId])
 }
 
+// A short-lived admin assistance session. The browser holds only the random
+// token; its SHA-256 hash is stored here so a database read cannot recreate an
+// active impersonation cookie. Admin and partner ids remain as immutable audit
+// facts even if either account is later removed.
+model PartnerImpersonationSession {
+  id           String   @id @default(cuid())
+  tokenHash    String   @unique
+  adminId      String
+  partnerId    String
+  startedAt    DateTime @default(now())
+  expiresAt    DateTime
+  endedAt      DateTime?
+  endedReason  String?
+  lastActionAt DateTime @default(now())
+
+  @@index([adminId, endedAt, expiresAt])
+  @@index([partnerId, startedAt])
+}
+
+// Operational mutations performed while assisting a partner. These rows are
+// append-only and intentionally keep plain ids rather than cascading user
+// relations so deleting an account cannot erase the administrative record.
+model PartnerImpersonationAudit {
+  id         String   @id @default(cuid())
+  sessionId  String?
+  adminId    String
+  partnerId  String
+  action     String
+  targetType String?
+  targetId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([partnerId, createdAt])
+  @@index([adminId, createdAt])
+  @@index([sessionId, createdAt])
+}
+
 // A partner-operated venue/club profile.
 model Hub {
   id             String   @id @default(cuid())

@@ -237,8 +237,12 @@ async function check() {
     data: { eventId: event.id, userId: players[2].id, status: "WAITLISTED" },
   });
   stubRequestContext(players[0]);
-  const { getPublicEvent, listMyEventRegistrations, listPublicEvents } =
-    await import("@/lib/events");
+  const {
+    getMyUpcomingEventRegistrationSummary,
+    getPublicEvent,
+    listMyEventRegistrations,
+    listPublicEvents,
+  } = await import("@/lib/events");
   const publicEvent = await getPublicEvent(event.publicId);
   ok(
     "the public event reports capacity and a free waitlist without exposing emails",
@@ -263,6 +267,12 @@ async function check() {
         item.payment?.status === "SUCCEEDED" &&
         item.event.courts.length === 2
     )
+  );
+  const eventSummary = await getMyUpcomingEventRegistrationSummary();
+  ok(
+    "the player dashboard counts and selects confirmed event registrations",
+    eventSummary.count === 1 &&
+      eventSummary.next?.event.publicId === event.publicId
   );
   stubRequestContext(partner);
 

@@ -11,6 +11,7 @@ import { formatManilaDateLong, formatSlotRange } from "@/lib/time";
 import { formatPHP } from "@/lib/currency";
 import { hubPublicPath } from "@/lib/hub-slug";
 import { InstallAppCard } from "@/components/pwa/InstallAppCard";
+import type { PlayerEventRegistrationView } from "@/lib/events";
 
 type PlayerHomeUser = {
   name: string | null;
@@ -23,15 +24,21 @@ export function PlayerHome({
   user,
   upcomingCount,
   nextBooking,
+  nextEventRegistration,
 }: {
   user: PlayerHomeUser;
   upcomingCount: number;
   nextBooking: BookingView | null;
+  nextEventRegistration: PlayerEventRegistrationView | null;
 }) {
   const skillLabel =
     SKILL_LEVELS.find((s) => s.value === user.skillLevel)?.label ??
     user.skillLevel ??
     "—";
+  const nextIsEvent =
+    nextEventRegistration != null &&
+    (nextBooking == null ||
+      nextEventRegistration.event.startsAt < nextBooking.startsAt);
 
   const stats = [
     {
@@ -123,11 +130,48 @@ export function PlayerHome({
               View all
             </Link>
           </div>
-          {nextBooking ? (
+          {nextIsEvent && nextEventRegistration ? (
             <div className="mt-3">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-ocean">
+                Event
+              </p>
+              <Link
+                href={`/events/${nextEventRegistration.event.publicId}`}
+                className="mt-1 inline-block text-lg font-bold text-navy hover:text-primary"
+              >
+                {nextEventRegistration.event.title}
+              </Link>
+              <p className="text-sm text-slate-500">
+                {nextEventRegistration.event.hub.name}
+                {nextEventRegistration.event.courts.length > 0
+                  ? ` · ${nextEventRegistration.event.courts
+                      .map((court) => court.name)
+                      .join(", ")}`
+                  : ""}
+              </p>
+              <p className="mt-4 text-sm font-semibold text-navy">
+                {formatManilaDateLong(nextEventRegistration.event.date)}
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                {formatSlotRange(
+                  nextEventRegistration.event.startHour,
+                  nextEventRegistration.event.endHour
+                )}
+                {nextEventRegistration.event.registrationFee > 0
+                  ? ` · ${formatPHP(
+                      nextEventRegistration.event.registrationFee
+                    )}`
+                  : " · Free"}
+              </p>
+            </div>
+          ) : nextBooking ? (
+            <div className="mt-3">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">
+                Court booking
+              </p>
               <Link
                 href={hubPublicPath(nextBooking.hub)}
-                className="text-lg font-bold text-navy hover:text-primary"
+                className="mt-1 inline-block text-lg font-bold text-navy hover:text-primary"
               >
                 {nextBooking.hub.name}
               </Link>
@@ -152,6 +196,12 @@ export function PlayerHome({
                 className="mt-3 inline-flex rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-hover"
               >
                 Find a court
+              </Link>
+              <Link
+                href="/events"
+                className="ml-2 mt-3 inline-flex rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-navy transition-colors hover:bg-slate-50"
+              >
+                Explore events
               </Link>
             </div>
           )}

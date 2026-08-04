@@ -500,6 +500,40 @@ export async function listMyEventRegistrations(): Promise<{
   };
 }
 
+export async function getMyUpcomingEventRegistrationSummary(): Promise<{
+  count: number;
+  next: PlayerEventRegistrationView | null;
+}> {
+  const viewer = await getViewer();
+  if (!viewer) return { count: 0, next: null };
+
+  const now = new Date();
+  const where: Prisma.EventRegistrationWhereInput = {
+    userId: viewer.id,
+    OR: [
+      { status: "CONFIRMED" },
+      { status: "PENDING", holdExpiresAt: { gt: now } },
+    ],
+    event: {
+      status: "PUBLISHED",
+      endsAt: { gte: now },
+    },
+  };
+  const [count, next] = await Promise.all([
+    prisma.eventRegistration.count({ where }),
+    prisma.eventRegistration.findFirst({
+      where,
+      orderBy: { event: { startsAt: "asc" } },
+      select: playerEventRegistrationSelect,
+    }),
+  ]);
+
+  return {
+    count,
+    next: next ? mapPlayerEventRegistration(next, now) : null,
+  };
+}
+
 export async function listEventFormHubs(
   ownerId: string
 ): Promise<EventFormHub[]> {

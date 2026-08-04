@@ -76,6 +76,10 @@ const CancelEventSchema = z.object({
   refund: z.enum(["full", "none"]).catch("full"),
 });
 
+const DeleteCancelledEventSchema = z.object({
+  eventId: z.string().min(1),
+});
+
 const ManageRegistrationSchema = z.object({
   registrationId: z.string().min(1),
   reason: z.string().trim().max(1_000).optional(),
@@ -679,6 +683,71 @@ export async function cancelEventAction(
         success: `Event cancelled, but ${failedRefunds} refund${failedRefunds === 1 ? "" : "s"} need manual follow-up.`,
       }
     : { success: "Event cancelled and court hours released." };
+}
+
+// Cancelled events with no payment record can be removed permanently. Once a
+// checkout exists, the event and registration relation becomes part of the
+// financial audit trail and must remain available for refunds and reporting.
+export async function deleteCancelledEventAction(
+  _previous: EventFormState,
+  formData: FormData
+): Promise<EventFormState> {
+  const partner = await requireActivePartner();
+  const parsed = DeleteCancelledEventSchema.safeParse({
+    eventId: String(formData.get("eventId") ?? ""),
+  });
+  if (!parsed.success) return { message: "Event not found." };
+
+  const outcome = await prisma.$transaction(async (tx) => {
+    const event = await tx.event.findFirst({
+      where: {
+        id: parsed.data.eventId,
+        hub: { ownerId: partner.id },
+      },
+      select: {
+        id: true,
+        publicId: true,
+        hubId: true,
+        title: true,
+        status: true,
+        registrations: {
+          where: { bookingPaymentId: { not: null } },
+          take: 1,
+          select: { id: true },
+        },
+      },
+    });
+    if (!event) return { status: "missing" as const };
+    if (event.status !== "CANCELLED") {
+      return { status: "not-cancelled" as const };
+    }
+    if (event.registrations.length > 0) {
+      return { status: "payment-history" as const };
+    }
+
+    await tx.event.delete({ where: { id: event.id } });
+    return { status: "deleted" as const, event };
+  });
+
+  if (outcome.status === "missing") return { message: "Event not found." };
+  if (outcome.status === "not-cancelled") {
+    return { message: "Only cancelled events can be deleted." };
+  }
+  if (outcome.status === "payment-history") {
+    return {
+      message:
+        "This event has payment history and must be kept for refunds and reports.",
+    };
+  }
+
+  revalidateEventSurfaces(outcome.event.publicId, outcome.event.hubId);
+  await recordImpersonatedAction({
+    action: "EVENT_DELETED",
+    targetType: "Event",
+    targetId: outcome.event.id,
+    metadata: { title: outcome.event.title, previousStatus: "CANCELLED" },
+  });
+  return { success: "Cancelled event deleted." };
 }
 
 export async function cancelEventRegistrationAction(

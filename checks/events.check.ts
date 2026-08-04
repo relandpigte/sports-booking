@@ -268,7 +268,9 @@ async function check() {
       openGraph.title === "Friday Night Open Play — Bunal.club"
   );
 
-  const { cancelEventAction } = await import("@/lib/event-actions");
+  const { cancelEventAction, deleteCancelledEventAction } = await import(
+    "@/lib/event-actions"
+  );
   const form = new FormData();
   form.set("eventId", event.id);
   form.set("reason", "Venue maintenance check.");
@@ -283,6 +285,45 @@ async function check() {
     cancelled.success?.includes("released") === true &&
       afterCancel?.status === "CANCELLED" &&
       afterCancel.slots.length === 0
+  );
+
+  const paidDeleteForm = new FormData();
+  paidDeleteForm.set("eventId", event.id);
+  const paidDelete = await deleteCancelledEventAction({}, paidDeleteForm);
+  ok(
+    "cancelled events with payment history remain available for audit and refunds",
+    paidDelete.message?.includes("payment history") === true &&
+      (await prisma.event.count({ where: { id: event.id } })) === 1
+  );
+
+  const emptyCancelledEvent = await prisma.event.create({
+    data: {
+      publicId: `check-empty-${crypto.randomBytes(8).toString("hex")}`,
+      hubId: hub.id,
+      title: "Cancelled event without payments",
+      sport: "pickleball",
+      date: DATE,
+      startHour: 14,
+      endHour: 16,
+      startsAt: manilaInstant(DATE, 14),
+      endsAt: manilaInstant(DATE, 16),
+      capacity: 12,
+      registrationFee: 0,
+      status: "CANCELLED",
+      cancelledAt: new Date(),
+      cancelReason: "No registrations received.",
+    },
+    select: { id: true },
+  });
+  const emptyDeleteForm = new FormData();
+  emptyDeleteForm.set("eventId", emptyCancelledEvent.id);
+  const emptyDelete = await deleteCancelledEventAction({}, emptyDeleteForm);
+  ok(
+    "partners can permanently delete cancelled events without payment history",
+    emptyDelete.success?.includes("deleted") === true &&
+      (await prisma.event.count({
+        where: { id: emptyCancelledEvent.id },
+      })) === 0
   );
 }
 

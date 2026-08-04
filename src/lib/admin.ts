@@ -53,29 +53,50 @@ export type AdminUser = {
   createdAt: Date;
 };
 
+export const ADMIN_USERS_PAGE_SIZE = 20;
+
+export type AdminUsersPage = {
+  items: AdminUser[];
+  page: number;
+  pageCount: number;
+  pageSize: number;
+  total: number;
+};
+
 export async function listUsers(opts: {
   query?: string;
   role?: Role;
-}): Promise<AdminUser[]> {
+  page: number;
+}): Promise<AdminUsersPage> {
   await requireAdmin();
   const { query, role } = opts;
+  const where = {
+    ...(role ? { role } : {}),
+    ...(query
+      ? {
+          OR: [
+            { name: { contains: query, mode: "insensitive" as const } },
+            {
+              playerName: { contains: query, mode: "insensitive" as const },
+            },
+            { email: { contains: query, mode: "insensitive" as const } },
+          ],
+        }
+      : {}),
+  };
+  const total = await prisma.user.count({ where });
+  const pageCount = Math.max(1, Math.ceil(total / ADMIN_USERS_PAGE_SIZE));
+  const page = Math.min(Math.max(1, opts.page), pageCount);
 
-  return prisma.user.findMany({
-    where: {
-      ...(role ? { role } : {}),
-      ...(query
-        ? {
-            OR: [
-              { name: { contains: query, mode: "insensitive" } },
-              { playerName: { contains: query, mode: "insensitive" } },
-              { email: { contains: query, mode: "insensitive" } },
-            ],
-          }
-        : {}),
-    },
+  const items = await prisma.user.findMany({
+    where,
     orderBy: { createdAt: "desc" },
+    skip: (page - 1) * ADMIN_USERS_PAGE_SIZE,
+    take: ADMIN_USERS_PAGE_SIZE,
     select: userListSelect,
   });
+
+  return { items, page, pageCount, pageSize: ADMIN_USERS_PAGE_SIZE, total };
 }
 
 export async function userCounts(): Promise<Record<Role, number>> {

@@ -63,7 +63,10 @@ export async function run(
 // imports them. Nothing else is faked, and a check must still `await import()`
 // the module it is testing rather than importing it at the top, or the real one
 // is loaded first.
-export function stubRequestContext(actor: { id: string; email: string }): void {
+export function stubRequestContext(
+  actor: { id: string; email: string; role?: string },
+  options: { stubAdminModule?: boolean } = {}
+): void {
   const req = createRequire(import.meta.url);
   const root = process.cwd();
 
@@ -100,11 +103,14 @@ export function stubRequestContext(actor: { id: string; email: string }): void {
     requireActivePartner: async () => actor,
     getViewer: async () => actor,
     getCurrentUser: async () => actor,
+    getAuthenticatedUser: async () => actor,
     verifySession: async () => ({ user: actor }),
   });
-  put(path.join(root, "src/lib/admin.ts"), {
-    requireAdmin: async () => actor,
-  });
+  if (options.stubAdminModule !== false) {
+    put(path.join(root, "src/lib/admin.ts"), {
+      requireAdmin: async () => actor,
+    });
+  }
   put(path.join(root, "src/lib/impersonation.ts"), {
     getActivePartnerImpersonation: async () => null,
     getCurrentPartnerImpersonation: async () => null,

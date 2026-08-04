@@ -3,6 +3,7 @@
 import { useActionState, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/Button";
+import { usePwa } from "@/components/pwa/PwaProvider";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { DateStrip } from "@/components/hubs/DateStrip";
@@ -83,6 +84,7 @@ export function RescheduleBookingPanel({
     rescheduleHubBookingAction,
     initialState
   );
+  const { isOnline } = usePwa();
 
   // The 4th arg makes the stream ignore this booking's own slots, so the hours
   // it currently holds arrive as free.
@@ -366,10 +368,10 @@ export function RescheduleBookingPanel({
         <div className="flex items-center gap-2">
           <Button
             type="submit"
-            disabled={pending || blockedReason !== null}
+            disabled={pending || blockedReason !== null || !isOnline}
             className="flex-1"
           >
-            {pending ? "Moving…" : "Move booking"}
+            {!isOnline ? "Reconnect to move" : pending ? "Moving…" : "Move booking"}
           </Button>
           <button
             type="button"

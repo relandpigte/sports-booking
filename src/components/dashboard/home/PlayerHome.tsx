@@ -10,6 +10,7 @@ import type { BookingView } from "@/lib/bookings";
 import { formatManilaDateLong, formatSlotRange } from "@/lib/time";
 import { formatPHP } from "@/lib/currency";
 import { hubPublicPath } from "@/lib/hub-slug";
+import { InstallAppCard } from "@/components/pwa/InstallAppCard";
 
 type PlayerHomeUser = {
   name: string | null;
@@ -76,6 +77,8 @@ export function PlayerHome({
           </span>
         }
       />
+
+      <InstallAppCard />
 
       <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {stats.map((s) => (

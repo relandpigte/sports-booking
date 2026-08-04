@@ -7,6 +7,7 @@ import {
   type DashboardIconName,
 } from "@/components/dashboard/DashboardIcon";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { InstallAppCard } from "@/components/pwa/InstallAppCard";
 
 type PartnerHomeUser = {
   name: string | null;
@@ -85,6 +86,8 @@ export function PartnerHome({
           </span>
         }
       />
+
+      <InstallAppCard />
 
       {!active && (
         <section className="mt-8 rounded-2xl border border-amber-200 bg-white p-6 shadow-sm shadow-navy/5">

@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { ServiceWorkerRegistration } from "@/components/pwa/ServiceWorkerRegistration";
+import { PwaProvider } from "@/components/pwa/PwaProvider";
 import {
   DEFAULT_SOCIAL_IMAGE,
   SITE_DESCRIPTION,
@@ -84,6 +84,7 @@ export default function RootLayout({
   return (
     <html
       lang="en-PH"
+      data-scroll-behavior="smooth"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body
@@ -102,8 +103,7 @@ export default function RootLayout({
             title="Google Tag Manager"
           />
         </noscript>
-        {children}
-        <ServiceWorkerRegistration />
+        <PwaProvider>{children}</PwaProvider>
         <Analytics />
         <SpeedInsights />
       </body>

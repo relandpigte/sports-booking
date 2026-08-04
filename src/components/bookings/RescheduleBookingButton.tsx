@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { RescheduleBookingPanel } from "@/components/bookings/RescheduleBookingPanel";
+import { usePwa } from "@/components/pwa/PwaProvider";
 import type { OperatingHours } from "@/lib/constants";
 import type { CourtScheduleRule } from "@/lib/slots";
 
@@ -39,13 +40,16 @@ export function RescheduleBookingButton({
   };
 }) {
   const [open, setOpen] = useState(false);
+  const { isOnline } = usePwa();
 
   if (!open) {
     return (
       <button
         type="button"
+        disabled={!isOnline}
+        title={!isOnline ? "Reconnect to reschedule this booking." : undefined}
         onClick={() => setOpen(true)}
-        className="rounded-md px-2.5 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary-soft"
+        className="rounded-md px-2.5 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-50"
       >
         Reschedule
       </button>

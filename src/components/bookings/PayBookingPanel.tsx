@@ -4,6 +4,7 @@ import { useActionState } from "react";
 
 import { PayMongoCheckout } from "@/components/bookings/PayMongoCheckout";
 import { Button } from "@/components/ui/Button";
+import { usePwa } from "@/components/pwa/PwaProvider";
 import {
   payForBookingAction,
   type PayBookingFormState,
@@ -28,6 +29,7 @@ export function PayBookingPanel({
     payForBookingAction,
     initial
   );
+  const { isOnline } = usePwa();
 
   if (state.redirectUrl) {
     return <PayMongoCheckout checkoutUrl={state.redirectUrl} />;
@@ -63,8 +65,12 @@ export function PayBookingPanel({
         continue on this device.
       </p>
 
-      <Button type="submit" disabled={pending}>
-        {pending ? "Taking you to PayMongo…" : `Pay ${formatPHP(amount)}`}
+      <Button type="submit" disabled={pending || !isOnline}>
+        {!isOnline
+          ? "Reconnect to pay"
+          : pending
+            ? "Taking you to PayMongo…"
+            : `Pay ${formatPHP(amount)}`}
       </Button>
 
       <p className="text-center text-xs text-gray-400">

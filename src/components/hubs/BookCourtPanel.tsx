@@ -11,6 +11,7 @@ import {
 import type { Role } from "@prisma/client";
 
 import { Button } from "@/components/ui/Button";
+import { usePwa } from "@/components/pwa/PwaProvider";
 import { DateStrip } from "@/components/hubs/DateStrip";
 import {
   CourtAvailabilityBrowser,
@@ -97,6 +98,7 @@ export function BookCourtPanel({
     createBookingAction,
     initialState
   );
+  const { isOnline } = usePwa();
   const mobileBookingView = useSyncExternalStore(
     subscribeToMobileBookingView,
     getMobileBookingViewSnapshot,
@@ -414,9 +416,11 @@ export function BookCourtPanel({
                 <Button
                   type="submit"
                   className="min-h-12 rounded-xl"
-                  disabled={selectedCount === 0 || pending}
+                  disabled={selectedCount === 0 || pending || !isOnline}
                 >
-                  {pending
+                  {!isOnline
+                    ? "Reconnect to book"
+                    : pending
                     ? requiresOnlinePayment
                       ? "Holding…"
                       : "Booking…"

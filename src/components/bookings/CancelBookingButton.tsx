@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 
 import { Textarea } from "@/components/ui/Textarea";
+import { usePwa } from "@/components/pwa/PwaProvider";
 import {
   cancelHubBookingAction,
   type BookingFormState,
@@ -30,6 +31,7 @@ export function CancelBookingButton({
   );
   const [open, setOpen] = useState(false);
   const [refund, setRefund] = useState(true);
+  const { isOnline } = usePwa();
 
   if (state.success) {
     return (
@@ -43,8 +45,10 @@ export function CancelBookingButton({
     return (
       <button
         type="button"
+        disabled={!isOnline}
+        title={!isOnline ? "Reconnect to cancel this booking." : undefined}
         onClick={() => setOpen(true)}
-        className="rounded-md px-2.5 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50"
+        className="rounded-md px-2.5 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
       >
         Cancel booking
       </button>
@@ -98,7 +102,7 @@ export function CancelBookingButton({
         </button>
         <button
           type="submit"
-          disabled={pending}
+          disabled={pending || !isOnline}
           className="rounded-md px-2.5 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
         >
           {pending ? "Cancelling…" : "Cancel booking"}

@@ -6,6 +6,7 @@ import {
   refundBookingAction,
   type BookingFormState,
 } from "@/lib/booking-actions";
+import { usePwa } from "@/components/pwa/PwaProvider";
 
 const initialState: BookingFormState = {};
 
@@ -24,6 +25,7 @@ export function RefundBookingButton({
     initialState
   );
   const [open, setOpen] = useState(false);
+  const { isOnline } = usePwa();
 
   if (state.success) {
     return (
@@ -37,8 +39,10 @@ export function RefundBookingButton({
     return (
       <button
         type="button"
+        disabled={!isOnline}
+        title={!isOnline ? "Reconnect to refund this payment." : undefined}
         onClick={() => setOpen(true)}
-        className="rounded-md px-2.5 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
+        className="rounded-md px-2.5 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
       >
         Refund {amountLabel ?? "payment"}
       </button>
@@ -66,7 +70,7 @@ export function RefundBookingButton({
         </button>
         <button
           type="submit"
-          disabled={pending}
+          disabled={pending || !isOnline}
           className="rounded-md px-2.5 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
         >
           {pending

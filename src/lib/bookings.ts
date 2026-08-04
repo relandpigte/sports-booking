@@ -574,34 +574,173 @@ export async function listHubBookings(hubId: string): Promise<{
   return { upcoming: upcoming.map(mapBooking), past: past.map(mapBooking) };
 }
 
-// Consolidated partner inbox across every owned hub. Ownership is expressed in
-// the query itself, so adding a hub filter later cannot expose another venue.
-export async function listPartnerBookings(): Promise<{
-  upcoming: BookingView[];
-  past: BookingView[];
-}> {
+export const PARTNER_BOOKINGS_PAGE_SIZE = 20;
+
+export type PartnerBookingSection = "upcoming" | "history";
+export type PartnerBookingPaymentFilter = "paid" | "unpaid" | "refunded";
+export type PartnerBookingSort = "soonest" | "newest" | "player" | "amount";
+
+export type PartnerBookingFilters = {
+  section: PartnerBookingSection;
+  query?: string;
+  hubId?: string;
+  courtId?: string;
+  status?: BookingStatus;
+  payment?: PartnerBookingPaymentFilter;
+  from?: string;
+  to?: string;
+  sort: PartnerBookingSort;
+  page: number;
+};
+
+export type PartnerBookingsPage = {
+  items: BookingView[];
+  section: PartnerBookingSection;
+  page: number;
+  pageCount: number;
+  pageSize: number;
+  total: number;
+  upcomingCount: number;
+  historyCount: number;
+};
+
+function partnerBookingStatusWhere(
+  status: BookingStatus,
+  now: Date
+): Prisma.BookingWhereInput {
+  if (status === "PENDING") {
+    return { status: "PENDING", holdExpiresAt: { gt: now } };
+  }
+  if (status === "EXPIRED") {
+    return {
+      OR: [
+        { status: "EXPIRED" },
+        { status: "PENDING", holdExpiresAt: { lte: now } },
+      ],
+    };
+  }
+  return { status };
+}
+
+function partnerBookingPaymentWhere(
+  payment: PartnerBookingPaymentFilter
+): Prisma.BookingWhereInput {
+  if (payment === "paid") {
+    return { bookingPayment: { is: { status: "SUCCEEDED" } } };
+  }
+  if (payment === "refunded") {
+    return { bookingPayment: { is: { status: "REFUNDED" } } };
+  }
+  return {
+    OR: [
+      { bookingPaymentId: null },
+      { bookingPayment: { is: { status: { in: ["PENDING", "FAILED"] } } } },
+    ],
+  };
+}
+
+function partnerBookingOrderBy(
+  sort: PartnerBookingSort,
+  section: PartnerBookingSection
+): Prisma.BookingOrderByWithRelationInput[] {
+  if (sort === "newest") return [{ createdAt: "desc" }, { id: "desc" }];
+  if (sort === "player") {
+    return [
+      { user: { playerName: "asc" } },
+      { user: { name: "asc" } },
+      { startsAt: section === "upcoming" ? "asc" : "desc" },
+    ];
+  }
+  if (sort === "amount") {
+    return [
+      { totalPrice: "desc" },
+      { startsAt: section === "upcoming" ? "asc" : "desc" },
+    ];
+  }
+  return [
+    { startsAt: section === "upcoming" ? "asc" : "desc" },
+    { id: "asc" },
+  ];
+}
+
+// Consolidated partner inbox across every owned hub. Ownership remains in the
+// database predicate while every filter and page is also resolved server-side,
+// so large booking histories never need to be shipped to the browser.
+export async function listPartnerBookings(
+  filters: PartnerBookingFilters
+): Promise<PartnerBookingsPage> {
   const partner = await requireActivePartner();
   const now = new Date();
-  const owned = { hub: { ownerId: partner.id } };
-  const [upcoming, past] = await Promise.all([
-    prisma.booking.findMany({
-      where: {
-        ...owned,
-        ...liveBookingWhere(now),
-        endsAt: { gte: now },
+  const constraints: Prisma.BookingWhereInput[] = [
+    { hub: { ownerId: partner.id } },
+  ];
+
+  if (filters.query) {
+    constraints.push({
+      OR: [
+        { id: { contains: filters.query, mode: "insensitive" } },
+        { user: { name: { contains: filters.query, mode: "insensitive" } } },
+        {
+          user: {
+            playerName: { contains: filters.query, mode: "insensitive" },
+          },
+        },
+        { user: { phone: { contains: filters.query, mode: "insensitive" } } },
+      ],
+    });
+  }
+  if (filters.hubId) constraints.push({ hubId: filters.hubId });
+  if (filters.courtId) constraints.push({ courtId: filters.courtId });
+  if (filters.status) {
+    constraints.push(partnerBookingStatusWhere(filters.status, now));
+  }
+  if (filters.payment) {
+    constraints.push(partnerBookingPaymentWhere(filters.payment));
+  }
+  if (filters.from || filters.to) {
+    constraints.push({
+      date: {
+        ...(filters.from ? { gte: filters.from } : {}),
+        ...(filters.to ? { lte: filters.to } : {}),
       },
-      orderBy: { startsAt: "asc" },
-      select: bookingSelect,
-    }),
-    prisma.booking.findMany({
-      where: {
-        ...owned,
-        ...endedBookingWhere(now),
-      },
-      orderBy: { startsAt: "desc" },
-      take: 100,
-      select: bookingSelect,
-    }),
+    });
+  }
+
+  const filteredWhere: Prisma.BookingWhereInput = { AND: constraints };
+  const upcomingWhere: Prisma.BookingWhereInput = {
+    AND: [filteredWhere, liveBookingWhere(now), { endsAt: { gte: now } }],
+  };
+  const historyWhere: Prisma.BookingWhereInput = {
+    AND: [filteredWhere, endedBookingWhere(now)],
+  };
+
+  const [upcomingCount, historyCount] = await Promise.all([
+    prisma.booking.count({ where: upcomingWhere }),
+    prisma.booking.count({ where: historyWhere }),
   ]);
-  return { upcoming: upcoming.map(mapBooking), past: past.map(mapBooking) };
+  const total =
+    filters.section === "upcoming" ? upcomingCount : historyCount;
+  const pageCount = Math.max(
+    1,
+    Math.ceil(total / PARTNER_BOOKINGS_PAGE_SIZE)
+  );
+  const page = Math.min(Math.max(1, filters.page), pageCount);
+  const rows = await prisma.booking.findMany({
+    where: filters.section === "upcoming" ? upcomingWhere : historyWhere,
+    orderBy: partnerBookingOrderBy(filters.sort, filters.section),
+    skip: (page - 1) * PARTNER_BOOKINGS_PAGE_SIZE,
+    take: PARTNER_BOOKINGS_PAGE_SIZE,
+    select: bookingSelect,
+  });
+
+  return {
+    items: rows.map(mapBooking),
+    section: filters.section,
+    page,
+    pageCount,
+    pageSize: PARTNER_BOOKINGS_PAGE_SIZE,
+    total,
+    upcomingCount,
+    historyCount,
+  };
 }

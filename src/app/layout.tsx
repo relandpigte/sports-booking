@@ -1,8 +1,9 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { ServiceWorkerRegistration } from "@/components/pwa/ServiceWorkerRegistration";
 import {
   DEFAULT_SOCIAL_IMAGE,
   SITE_DESCRIPTION,
@@ -35,6 +36,11 @@ export const metadata: Metadata = {
   creator: SITE_NAME,
   publisher: SITE_NAME,
   category: "sports",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: SITE_NAME,
+  },
   robots: {
     index: true,
     follow: true,
@@ -66,6 +72,10 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  themeColor: "#10243a",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -93,6 +103,7 @@ export default function RootLayout({
           />
         </noscript>
         {children}
+        <ServiceWorkerRegistration />
         <Analytics />
         <SpeedInsights />
       </body>

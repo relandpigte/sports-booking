@@ -4,8 +4,10 @@ export type DashboardIconName =
   | "account"
   | "alert"
   | "booking"
+  | "home"
   | "hub"
   | "map"
+  | "more"
   | "payment"
   | "profile"
   | "report"
@@ -40,6 +42,12 @@ export function DashboardIcon({
         <path d="m9 16 2 2 4-4" />
       </>
     ),
+    home: (
+      <>
+        <path d="M3 9.5 12 3l9 6.5" />
+        <path d="M5 10v10h14V10" />
+      </>
+    ),
     hub: (
       <>
         <path d="M3 21h18M5 21V8l7-4 7 4v13" />
@@ -50,6 +58,13 @@ export function DashboardIcon({
       <>
         <path d="m3 6 5-3 8 3 5-3v15l-5 3-8-3-5 3Z" />
         <path d="M8 3v15M16 6v15" />
+      </>
+    ),
+    more: (
+      <>
+        <circle cx="5" cy="12" r="1" />
+        <circle cx="12" cy="12" r="1" />
+        <circle cx="19" cy="12" r="1" />
       </>
     ),
     payment: (

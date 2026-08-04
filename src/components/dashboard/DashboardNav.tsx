@@ -168,7 +168,11 @@ export function DashboardNav({
     );
 
   return (
-    <nav className="flex flex-row gap-1 overflow-x-auto border-t border-slate-100 px-3 py-2 md:mt-3 md:flex-col md:overflow-visible md:border-0 md:px-0 md:py-0">
+    <nav
+      className={`${
+        role === "ADMIN" ? "flex" : "hidden"
+      } flex-row gap-1 overflow-x-auto border-t border-slate-100 px-3 py-2 md:mt-3 md:flex md:flex-col md:overflow-visible md:border-0 md:px-0 md:py-0`}
+    >
       {visibleItems.map((item) => (
         <Link
           key={item.href}

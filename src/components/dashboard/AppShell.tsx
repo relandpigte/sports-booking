@@ -5,6 +5,7 @@ import type { PartnerStatus, Role } from "@prisma/client";
 import { Logo } from "@/components/Logo";
 import { Avatar } from "@/components/ui/Avatar";
 import { DashboardNav } from "@/components/dashboard/DashboardNav";
+import { MobileDashboardNav } from "@/components/dashboard/MobileDashboardNav";
 import { logoutAction } from "@/lib/actions";
 import { stopPartnerImpersonationAction } from "@/lib/impersonation-actions";
 
@@ -62,16 +63,18 @@ export function AppShell({
 
           <div className="flex items-center gap-2 md:hidden">
             <Avatar src={user.image} name={displayName} size={34} />
-            <form action={logoutAction}>
-              <button
-                type="submit"
-                title="Log out"
-                aria-label="Log out"
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-navy"
-              >
-                <LogoutIcon />
-              </button>
-            </form>
+            {user.role === "ADMIN" && (
+              <form action={logoutAction}>
+                <button
+                  type="submit"
+                  title="Log out"
+                  aria-label="Log out"
+                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-navy"
+                >
+                  <LogoutIcon />
+                </button>
+              </form>
+            )}
           </div>
         </div>
 
@@ -110,7 +113,11 @@ export function AppShell({
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 md:px-8 md:py-10">
+      <main
+        className={`min-w-0 flex-1 px-4 pt-6 sm:px-6 md:px-8 md:py-10 ${
+          user.role === "ADMIN" ? "pb-6" : "pb-28 md:pb-10"
+        }`}
+      >
         <div className={`mx-auto w-full ${maxWidth}`}>
           {impersonation && (
             <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
@@ -137,6 +144,10 @@ export function AppShell({
           {children}
         </div>
       </main>
+      <MobileDashboardNav
+        role={user.role}
+        partnerStatus={impersonation ? "ACTIVE" : user.partnerStatus}
+      />
     </div>
   );
 }

@@ -54,7 +54,7 @@ export default async function PayBookingPage({
   return (
     <div className="mx-auto w-full max-w-md">
       <div className="rounded-2xl border border-gray-200 p-5 sm:p-6">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
           <div>
             <h1 className="text-xl font-bold text-gray-900">
               {payment.status === "SUCCEEDED"

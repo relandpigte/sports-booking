@@ -53,7 +53,7 @@ export default async function PayEventRegistrationPage({
         </Link>
         <div className="mt-5 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-100 bg-navy px-6 py-7 text-white sm:px-8">
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col items-start gap-4 sm:flex-row sm:justify-between">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-accent">
                   Event registration
@@ -72,6 +72,7 @@ export default async function PayEventRegistrationPage({
                 <HoldCountdown
                   expiresAt={payment.expiresAt.toISOString()}
                   initialSeconds={payment.secondsLeft}
+                  tone="dark"
                 />
               )}
             </div>

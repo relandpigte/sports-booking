@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useActionState, useMemo, useState } from "react";
+import {
+  Fragment,
+  useActionState,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type { Role } from "@prisma/client";
 
 import { Button } from "@/components/ui/Button";
@@ -42,6 +48,21 @@ type PanelCourt = {
 };
 
 const initialState: BookingFormState = {};
+const mobileBookingViewQuery = "(max-width: 639px)";
+
+function subscribeToMobileBookingView(onChange: () => void) {
+  const mediaQuery = window.matchMedia(mobileBookingViewQuery);
+  mediaQuery.addEventListener("change", onChange);
+  return () => mediaQuery.removeEventListener("change", onChange);
+}
+
+function getMobileBookingViewSnapshot() {
+  return window.matchMedia(mobileBookingViewQuery).matches;
+}
+
+function getMobileBookingViewServerSnapshot() {
+  return true;
+}
 
 export function BookCourtPanel({
   hubId,
@@ -70,11 +91,18 @@ export function BookCourtPanel({
   const [pickedByCourt, setPickedByCourt] = useState<Record<string, number[]>>(
     {}
   );
-  const [view, setView] = useState<CourtAvailabilityView>("grid");
+  const [viewOverride, setViewOverride] =
+    useState<CourtAvailabilityView | null>(null);
   const [state, formAction, pending] = useActionState(
     createBookingAction,
     initialState
   );
+  const mobileBookingView = useSyncExternalStore(
+    subscribeToMobileBookingView,
+    getMobileBookingViewSnapshot,
+    getMobileBookingViewServerSnapshot
+  );
+  const view = viewOverride ?? (mobileBookingView ? "list" : "grid");
 
   const { occupancies, live } = useHubAvailabilityStream(
     hubId,
@@ -262,7 +290,7 @@ export function BookCourtPanel({
                   activeCourtId={activeCourtId}
                   selectedByCourt={selectedByCourt}
                   view={view}
-                  onViewChange={setView}
+                  onViewChange={setViewOverride}
                   onSelectCourt={selectCourt}
                   onToggle={toggle}
                   loading={occupancies == null}

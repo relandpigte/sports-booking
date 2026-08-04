@@ -115,6 +115,14 @@ const PAYMENT_METHODS = [
   },
 ];
 
+const PAYMONGO_PROCESSING_RATES = [
+  { method: "QR Ph online", rate: "1.34%" },
+  { method: "Maya", rate: "1.79%" },
+  { method: "GCash", rate: "2.23%" },
+  { method: "Visa · Mastercard (PH)", rate: "3.125% + ₱13.39" },
+  { method: "Visa · Mastercard (international)", rate: "4.02% + ₱13.39" },
+];
+
 const QR_PH_APPS = [
   "BDO Pay",
   "BPI",
@@ -831,13 +839,51 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                 </p>
               </div>
 
-              <div className="p-6 sm:p-7">
-                <p className="text-sm font-medium text-slate-500">
-                  Every paid booking
-                </p>
-                <p className="mt-2 text-4xl font-black text-primary">3%</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  of the court booking total
+              <div className="grid gap-7 p-6 sm:p-7 xl:grid-cols-[0.72fr_1.28fr]">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">
+                    Bunal.club fee
+                  </p>
+                  <p className="mt-3 text-4xl font-black text-primary">3%</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    of the court booking total
+                  </p>
+                </div>
+
+                <div className="border-t border-slate-100 pt-6 xl:border-l xl:border-t-0 xl:pl-7 xl:pt-0">
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-ocean">
+                    PayMongo processing
+                  </p>
+                  <dl className="mt-4 space-y-2.5">
+                    {PAYMONGO_PROCESSING_RATES.map((item) => (
+                      <div
+                        key={item.method}
+                        className="flex items-start justify-between gap-4 text-xs"
+                      >
+                        <dt className="leading-5 text-slate-600">
+                          {item.method}
+                        </dt>
+                        <dd className="shrink-0 text-right font-black leading-5 text-navy">
+                          {item.rate}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+
+                <p className="text-[11px] leading-5 text-slate-400 xl:col-span-2">
+                  PayMongo&apos;s published standard rates are exclusive of VAT
+                  and may change. Connected-account or custom pricing can
+                  differ. Processing charges are separate from Bunal.club&apos;s
+                  service fee.{" "}
+                  <a
+                    href="https://www.paymongo.com/pricing"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-bold text-ocean hover:underline"
+                  >
+                    View current PayMongo pricing ↗
+                  </a>
                 </p>
               </div>
 

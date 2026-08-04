@@ -10,6 +10,7 @@ import {
   getBookingPaymentScreen,
   pollBookingPayment,
 } from "@/lib/booking-payments";
+import { BOOKING_HOLD_MINUTES } from "@/lib/constants";
 import { formatPHP } from "@/lib/currency";
 import { getCurrentUser } from "@/lib/dal";
 import { formatManilaDateLong, formatSlotRange } from "@/lib/time";
@@ -138,7 +139,8 @@ export default async function PayEventRegistrationPage({
               ) : (
                 <div className="space-y-4">
                   <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">
-                    The 15-minute hold expired. Nothing was charged; register again if a spot remains.
+                    The {BOOKING_HOLD_MINUTES}-minute hold expired. Nothing was
+                    charged; register again if a spot remains.
                   </p>
                   <Link href={`/events/${publicId}`} className="block rounded-2xl bg-primary px-4 py-3.5 text-center text-sm font-bold text-white hover:bg-primary-hover">
                     Return to event

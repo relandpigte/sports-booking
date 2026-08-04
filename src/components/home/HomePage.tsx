@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { Logo } from "@/components/Logo";
+import { BOOKING_HOLD_MINUTES } from "@/lib/constants";
 
 type IconName =
   | "calendar"
@@ -502,7 +503,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                 {
                   number: "02",
                   title: "Pick your hours",
-                  copy: "Choose a court, game day, and live available time blocks. Your paid checkout holds them for 15 minutes.",
+                  copy: `Choose a court, game day, and live available time blocks. Your paid checkout holds them for ${BOOKING_HOLD_MINUTES} minutes.`,
                   icon: "calendar" as const,
                 },
                 {
@@ -727,7 +728,8 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
             <div className="mt-6 flex flex-col justify-between gap-3 text-sm text-slate-500 sm:flex-row">
               <p className="inline-flex items-center gap-2">
                 <Icon name="clock" className="h-4 w-4 text-primary" />
-                Selected hours are held for 15 minutes while checkout is open.
+                Selected hours are held for {BOOKING_HOLD_MINUTES} minutes
+                while checkout is open.
               </p>
               <p className="inline-flex items-center gap-2">
                 <Icon name="card" className="h-4 w-4 text-primary" />

@@ -9,7 +9,7 @@ function mmss(totalSeconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-// The 15-minute hold, ticking down.
+// The checkout hold, ticking down.
 //
 // The first value is computed on the SERVER and passed in: reading the clock
 // during render is impure, and it also means the initial paint is right even

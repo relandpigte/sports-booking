@@ -127,7 +127,7 @@ the admin reviews it; rejection restores the overdue block.
 
 ## Booking settlement
 
-A paid booking begins as a 15-minute hold. The app creates the payment ledger
+A paid booking begins as a 10-minute hold. The app creates the payment ledger
 before calling PayMongo and claims the charge atomically to prevent duplicate
 checkout sessions. A signed webhook marks the payment successful and confirms
 the associated bookings. `ProviderEvent` prevents webhook replay.

@@ -2,6 +2,7 @@ import "server-only";
 
 import { Prisma, type PaymentMethodType, type PaymentStatus } from "@prisma/client";
 
+import { BOOKING_HOLD_MINUTES } from "@/lib/constants";
 import { prisma } from "@/lib/db";
 import { loadGatewayCredentials } from "@/lib/partner-gateway";
 import { getVenueGateway, UnknownVenueGateway } from "@/lib/payments/venue";
@@ -822,7 +823,7 @@ export async function expireBookingHolds(now: Date = new Date()): Promise<{
     data: {
       status: "FAILED",
       failureCode: "hold_expired",
-      failureMessage: "The 15-minute hold expired before payment was completed.",
+      failureMessage: `The ${BOOKING_HOLD_MINUTES}-minute hold expired before payment was completed.`,
     },
   });
 

@@ -128,8 +128,9 @@ export const MONTHS = [
 
 // --- Players paying venues --------------------------------------------------
 
-// How long an unpaid booking holds its hours before they go back on the grid.
-export const BOOKING_HOLD_MINUTES = 15;
+// How long an unpaid court booking or event registration reserves capacity
+// before it goes back on sale.
+export const BOOKING_HOLD_MINUTES = 10;
 
 // Bunal.club's percentage fee, added ON TOP of the venue's court total. It is
 // charged once per checkout even when gaps split the selected hours into

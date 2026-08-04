@@ -6,7 +6,11 @@ import crypto from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 
 import { ok, run, stubRequestContext } from "./harness";
-import { WEEKDAYS, type OperatingHours } from "@/lib/constants";
+import {
+  BOOKING_HOLD_MINUTES,
+  WEEKDAYS,
+  type OperatingHours,
+} from "@/lib/constants";
 import { addDays, manilaToday } from "@/lib/time";
 
 const prisma = new PrismaClient();
@@ -94,12 +98,14 @@ async function check() {
     form.append("hours", String(hour));
   }
 
+  const holdStartedAfter = Date.now();
   let redirected = false;
   try {
     await createBookingAction({}, form);
   } catch (error) {
     redirected = error instanceof Error && error.message.includes("redirect");
   }
+  const holdCreatedBefore = Date.now();
   ok("a paid multi-court cart proceeds to one checkout", redirected);
 
   const payment = await prisma.bookingPayment.findFirst({
@@ -111,6 +117,18 @@ async function check() {
   ok(
     "one payment covers every selected court",
     payment?.bookings.length === 2 && Number(payment.venueAmount) === 1_400
+  );
+  const configuredHoldMs = BOOKING_HOLD_MINUTES * 60_000;
+  ok(
+    "paid carts receive the configured 10-minute hold",
+    BOOKING_HOLD_MINUTES === 10 &&
+      payment != null &&
+      payment.expiresAt.getTime() >= holdStartedAfter + configuredHoldMs &&
+      payment.expiresAt.getTime() <= holdCreatedBefore + configuredHoldMs &&
+      payment.bookings.every(
+        (booking) =>
+          booking.holdExpiresAt?.getTime() === payment.expiresAt.getTime()
+      )
   );
   const sameHourSlots = await prisma.bookingSlot.findMany({
     where: { date, hour: 9, courtId: { in: [courtOne.id, courtTwo.id] } },

@@ -6,6 +6,8 @@ import { getCurrentUser } from "@/lib/dal";
 import { listMyBookings, listPartnerBookings } from "@/lib/bookings";
 import { listMyHubs } from "@/lib/hubs";
 import { BookingCard } from "@/components/bookings/BookingCard";
+import { PartnerBookingListRow } from "@/components/bookings/PartnerBookingListRow";
+import { PartnerBookingsView } from "@/components/bookings/PartnerBookingsView";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { manilaNowHour, manilaToday } from "@/lib/time";
 import { getCurrentPartnerImpersonation } from "@/lib/impersonation";
@@ -46,52 +48,42 @@ export default async function BookingsPage() {
     );
 
     return (
-      <div>
-        <DashboardPageHeader
-          eyebrow="Venue operations"
-          title="Bookings"
-          description="Manage player reservations across all of your hubs."
-        />
-
-        <section className="mt-6">
-          <h2 className="text-base font-semibold text-gray-900">
-            Upcoming ({bookings.upcoming.length})
-          </h2>
-          {bookings.upcoming.length ? (
-            <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
-              {bookings.upcoming.map((booking) => (
-                <BookingCard
-                  key={booking.id}
-                  booking={booking}
-                  view="partner"
-                  cancellable
-                  reschedule={rescheduleByHub.get(booking.hub.id)}
-                />
-              ))}
-            </div>
-          ) : (
-            <p className="mt-3 rounded-2xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">
-              No upcoming bookings yet.
-            </p>
-          )}
-        </section>
-
-        {bookings.past.length > 0 && (
-          <section className="mt-8">
-            <h2 className="text-base font-semibold text-gray-900">History</h2>
-            <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
-              {bookings.past.map((booking) => (
-                <BookingCard
-                  key={booking.id}
-                  booking={booking}
-                  view="partner"
-                  cancellable={false}
-                />
-              ))}
-            </div>
-          </section>
-        )}
-      </div>
+      <PartnerBookingsView
+        upcomingCount={bookings.upcoming.length}
+        historyCount={bookings.past.length}
+        upcomingList={bookings.upcoming.map((booking) => (
+          <PartnerBookingListRow
+            key={booking.id}
+            booking={booking}
+            cancellable
+            reschedule={rescheduleByHub.get(booking.hub.id)}
+          />
+        ))}
+        upcomingGrid={bookings.upcoming.map((booking) => (
+          <BookingCard
+            key={booking.id}
+            booking={booking}
+            view="partner"
+            cancellable
+            reschedule={rescheduleByHub.get(booking.hub.id)}
+          />
+        ))}
+        historyList={bookings.past.map((booking) => (
+          <PartnerBookingListRow
+            key={booking.id}
+            booking={booking}
+            cancellable={false}
+          />
+        ))}
+        historyGrid={bookings.past.map((booking) => (
+          <BookingCard
+            key={booking.id}
+            booking={booking}
+            view="partner"
+            cancellable={false}
+          />
+        ))}
+      />
     );
   }
 

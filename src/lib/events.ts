@@ -64,10 +64,6 @@ export type EventDetailView = PublicEventView & {
   cancelReason: string | null;
 };
 
-export type MyEventView = PublicEventView & {
-  expectedRevenue: number;
-};
-
 export type EventFormHub = {
   id: string;
   name: string;
@@ -107,7 +103,38 @@ export type OwnerEventRegistrationView = {
     id: string;
     status: "PENDING" | "SUCCEEDED" | "FAILED" | "REFUNDED";
     amount: number;
+    venueAmount: number;
+    platformFee: number;
+    providerRef: string | null;
+    paidAt: Date | null;
+    refundedAt: Date | null;
   } | null;
+};
+
+export type OwnerEventDetailView = EventEditorView & {
+  startsAt: Date;
+  endsAt: Date;
+  cancelReason: string | null;
+  confirmedCount: number;
+  pendingCount: number;
+  waitlistedCount: number;
+  remainingSpots: number;
+  hub: {
+    id: string;
+    name: string;
+    address: string | null;
+  };
+  courts: EventCourtView[];
+  registrations: OwnerEventRegistrationView[];
+  finance: {
+    successfulPayments: number;
+    pendingPayments: number;
+    refundedPayments: number;
+    partnerRevenue: number;
+    platformFees: number;
+    checkoutSubtotal: number;
+    refundedPartnerRevenue: number;
+  };
 };
 
 export type PlayerEventRegistrationView = {
@@ -189,7 +216,7 @@ const eventSelect = {
       status: true,
       holdExpiresAt: true,
       bookingPaymentId: true,
-      payment: { select: { status: true, venueAmount: true } },
+      payment: { select: { status: true } },
       user: {
         select: {
           id: true,
@@ -362,28 +389,14 @@ export async function getPublicEvent(
   };
 }
 
-export async function listMyEvents(ownerId: string): Promise<MyEventView[]> {
+export async function listMyEvents(ownerId: string): Promise<PublicEventView[]> {
   const rows = await prisma.event.findMany({
     where: { hub: { ownerId } },
     orderBy: { startsAt: "asc" },
     select: eventSelect,
   });
   const now = new Date();
-  return rows.map((row) => {
-    const mapped = mapPublicEvent(row, now);
-    const expectedRevenue = row.registrations
-      .filter(
-        (registration) =>
-          registration.status === "CONFIRMED" &&
-          registration.payment?.status === "SUCCEEDED"
-      )
-      .reduce(
-        (total, registration) =>
-          total + Number(registration.payment?.venueAmount ?? 0),
-        0
-      );
-    return { ...mapped, expectedRevenue };
-  });
+  return rows.map((row) => mapPublicEvent(row, now));
 }
 
 const playerEventRegistrationSelect = {
@@ -618,7 +631,16 @@ export async function listOwnerEventRegistrations(
             },
           },
           payment: {
-            select: { id: true, status: true, amount: true },
+            select: {
+              id: true,
+              status: true,
+              amount: true,
+              venueAmount: true,
+              platformFee: true,
+              providerRef: true,
+              paidAt: true,
+              refundedAt: true,
+            },
           },
         },
       },
@@ -641,9 +663,188 @@ export async function listOwnerEventRegistrations(
           id: registration.payment.id,
           status: registration.payment.status,
           amount: Number(registration.payment.amount),
+          venueAmount: Number(registration.payment.venueAmount),
+          platformFee: Number(registration.payment.platformFee),
+          providerRef: registration.payment.providerRef,
+          paidAt: registration.payment.paidAt,
+          refundedAt: registration.payment.refundedAt,
         }
       : null,
   }));
+}
+
+export async function getOwnerEventDetails(
+  publicId: string,
+  ownerId: string
+): Promise<OwnerEventDetailView | null> {
+  const row = await prisma.event.findFirst({
+    where: { publicId, hub: { ownerId } },
+    select: {
+      id: true,
+      publicId: true,
+      hubId: true,
+      title: true,
+      description: true,
+      sport: true,
+      date: true,
+      startHour: true,
+      endHour: true,
+      startsAt: true,
+      endsAt: true,
+      capacity: true,
+      registrationFee: true,
+      status: true,
+      cancelReason: true,
+      hub: {
+        select: {
+          id: true,
+          name: true,
+          address: true,
+        },
+      },
+      courts: {
+        orderBy: { court: { createdAt: "asc" } },
+        select: {
+          court: {
+            select: {
+              id: true,
+              name: true,
+              courtType: true,
+            },
+          },
+        },
+      },
+      registrations: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          status: true,
+          holdExpiresAt: true,
+          createdAt: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              playerName: true,
+              image: true,
+              email: true,
+            },
+          },
+          payment: {
+            select: {
+              id: true,
+              status: true,
+              amount: true,
+              venueAmount: true,
+              platformFee: true,
+              providerRef: true,
+              paidAt: true,
+              refundedAt: true,
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!row) return null;
+
+  const now = new Date();
+  const registrations: OwnerEventRegistrationView[] = row.registrations.map(
+    (registration) => ({
+      id: registration.id,
+      status:
+        registration.status === "PENDING" &&
+        registration.holdExpiresAt != null &&
+        registration.holdExpiresAt <= now
+          ? "EXPIRED"
+          : registration.status,
+      createdAt: registration.createdAt,
+      player: registration.user,
+      payment: registration.payment
+        ? {
+            id: registration.payment.id,
+            status: registration.payment.status,
+            amount: Number(registration.payment.amount),
+            venueAmount: Number(registration.payment.venueAmount),
+            platformFee: Number(registration.payment.platformFee),
+            providerRef: registration.payment.providerRef,
+            paidAt: registration.payment.paidAt,
+            refundedAt: registration.payment.refundedAt,
+          }
+        : null,
+    })
+  );
+  const confirmedCount = registrations.filter(
+    (registration) => registration.status === "CONFIRMED"
+  ).length;
+  const pendingCount = registrations.filter(
+    (registration) => registration.status === "PENDING"
+  ).length;
+  const waitlistedCount = registrations.filter(
+    (registration) => registration.status === "WAITLISTED"
+  ).length;
+  const successfulPayments = registrations.filter(
+    (registration) => registration.payment?.status === "SUCCEEDED"
+  );
+  const pendingPayments = registrations.filter(
+    (registration) => registration.payment?.status === "PENDING"
+  );
+  const refundedPayments = registrations.filter(
+    (registration) => registration.payment?.status === "REFUNDED"
+  );
+
+  return {
+    id: row.id,
+    publicId: row.publicId,
+    hubId: row.hubId,
+    title: row.title,
+    description: row.description,
+    sport: row.sport,
+    date: row.date,
+    startHour: row.startHour,
+    endHour: row.endHour,
+    startsAt: row.startsAt,
+    endsAt: row.endsAt,
+    capacity: row.capacity,
+    registrationFee: Number(row.registrationFee),
+    status: row.status,
+    cancelReason: row.cancelReason,
+    courtIds: row.courts.map(({ court }) => court.id),
+    confirmedCount,
+    pendingCount,
+    waitlistedCount,
+    remainingSpots: Math.max(
+      0,
+      row.capacity - confirmedCount - pendingCount
+    ),
+    hub: row.hub,
+    courts: row.courts.map(({ court }) => court),
+    registrations,
+    finance: {
+      successfulPayments: successfulPayments.length,
+      pendingPayments: pendingPayments.length,
+      refundedPayments: refundedPayments.length,
+      partnerRevenue: successfulPayments.reduce(
+        (total, registration) =>
+          total + (registration.payment?.venueAmount ?? 0),
+        0
+      ),
+      platformFees: successfulPayments.reduce(
+        (total, registration) =>
+          total + (registration.payment?.platformFee ?? 0),
+        0
+      ),
+      checkoutSubtotal: successfulPayments.reduce(
+        (total, registration) => total + (registration.payment?.amount ?? 0),
+        0
+      ),
+      refundedPartnerRevenue: refundedPayments.reduce(
+        (total, registration) =>
+          total + (registration.payment?.venueAmount ?? 0),
+        0
+      ),
+    },
+  };
 }
 
 export type EventCourtAvailability = {

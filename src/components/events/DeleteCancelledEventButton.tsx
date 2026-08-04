@@ -1,7 +1,8 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 import {
   deleteCancelledEventAction,
@@ -17,10 +18,15 @@ export function DeleteCancelledEventButton({
   eventId: string;
   title: string;
 }) {
+  const router = useRouter();
   const [state, formAction, pending] = useActionState(
     deleteCancelledEventAction,
     initialState
   );
+
+  useEffect(() => {
+    if (state.success) router.push("/dashboard/events");
+  }, [router, state.success]);
 
   function confirmDelete(event: FormEvent<HTMLFormElement>) {
     if (
@@ -47,6 +53,10 @@ export function DeleteCancelledEventButton({
       {state.message ? (
         <p className="mt-1 max-w-64 text-xs text-red-600" role="alert">
           {state.message}
+        </p>
+      ) : state.success ? (
+        <p className="mt-1 max-w-64 text-xs text-emerald-700" role="status">
+          {state.success}
         </p>
       ) : null}
     </div>

@@ -96,6 +96,7 @@ function revalidateEventSurfaces(publicId: string, hubId: string) {
   revalidatePath("/events");
   revalidatePath(`/events/${publicId}`);
   revalidatePath("/dashboard/events");
+  revalidatePath(`/dashboard/events/${publicId}`);
   revalidatePath("/dashboard");
   revalidatePath("/hubs");
   revalidatePath(`/hubs/${hubId}`);
@@ -343,9 +344,7 @@ export async function saveEventAction(
     targetId: eventId,
     metadata: { published: willPublish },
   });
-  redirect(
-    willPublish ? `/events/${publicId}` : `/dashboard/events/${publicId}/edit`
-  );
+  redirect(`/dashboard/events/${publicId}`);
 }
 
 export async function registerForEventAction(

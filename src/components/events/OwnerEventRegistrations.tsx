@@ -19,6 +19,7 @@ function RegistrationRow({ registration }: { registration: OwnerEventRegistratio
   const [state, action, pending] = useActionState(cancelEventRegistrationAction, initialState);
   const name = registration.player.playerName ?? registration.player.name ?? "Player";
   const active = ["CONFIRMED", "PENDING", "WAITLISTED"].includes(registration.status);
+  const refundable = registration.payment?.status === "SUCCEEDED";
   return (
     <div className="py-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -31,7 +32,7 @@ function RegistrationRow({ registration }: { registration: OwnerEventRegistratio
           <form action={action} className="flex flex-wrap items-center gap-2">
             <input type="hidden" name="registrationId" value={registration.id} />
             <input type="hidden" name="reason" value="Cancelled by the event organizer." />
-            <label className="flex items-center gap-1.5 text-xs text-slate-500"><input type="checkbox" name="refund" value="full" defaultChecked disabled={!registration.payment || registration.payment.status !== "SUCCEEDED"} /> Refund</label>
+            <label className="flex items-center gap-1.5 text-xs text-slate-500"><input type="checkbox" name="refund" value="full" defaultChecked={refundable} disabled={!refundable} /> Refund</label>
             <button disabled={pending} className="rounded-lg px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50 disabled:opacity-50">{pending ? "Updating…" : "Cancel spot"}</button>
           </form>
         )}

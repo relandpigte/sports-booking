@@ -238,6 +238,7 @@ async function check() {
   });
   stubRequestContext(players[0]);
   const {
+    getOwnerEventDetails,
     getMyUpcomingEventRegistrationSummary,
     getPublicEvent,
     listMyEventRegistrations,
@@ -275,6 +276,26 @@ async function check() {
       eventSummary.next?.event.publicId === event.publicId
   );
   stubRequestContext(partner);
+
+  const ownerDetails = await getOwnerEventDetails(event.publicId, partner.id);
+  const hiddenFromAnotherOwner = await getOwnerEventDetails(
+    event.publicId,
+    "not-the-event-owner"
+  );
+  ok(
+    "the owner event workspace contains private registration and revenue details",
+    ownerDetails?.confirmedCount === 2 &&
+      ownerDetails.waitlistedCount === 1 &&
+      ownerDetails.remainingSpots === 0 &&
+      ownerDetails.finance.successfulPayments === 2 &&
+      ownerDetails.finance.partnerRevenue === 1_000 &&
+      ownerDetails.finance.platformFees === 30 &&
+      ownerDetails.finance.checkoutSubtotal === 1_030
+  );
+  ok(
+    "event management details are hidden from other partners",
+    hiddenFromAnotherOwner === null
+  );
 
   const { buildEventMetadata } = await import("@/lib/event-metadata");
   const eventMetadata = buildEventMetadata({

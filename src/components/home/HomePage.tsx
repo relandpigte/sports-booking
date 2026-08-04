@@ -248,7 +248,7 @@ function BookingPreview() {
                 Sample booking
               </p>
               <h3 className="mt-1 text-lg font-bold text-navy">
-                Your chosen Bohol hub
+                Your chosen sports hub
               </h3>
               <p className="mt-1 text-sm text-slate-500">
                 Pickleball · Covered court
@@ -391,7 +391,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.17em] text-accent">
                 <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-                Made for Bohol&apos;s court community
+                Made for the Philippine court community
               </div>
               <h1 className="mt-6 max-w-3xl text-4xl font-black leading-[1.02] tracking-[-0.045em] text-white sm:text-6xl lg:text-[64px]">
                 Find your court.
@@ -945,8 +945,8 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                 Your next game is a few taps away.
               </h2>
               <p className="mt-4 text-base leading-7 text-white/65">
-                Find a Bohol hub, choose your court and hours, and complete your
-                booking with the payment method that works for you.
+                Find a nearby hub, choose your court and hours, and complete
+                your booking with the payment method that works for you.
               </p>
             </div>
             <div className="relative mt-8 flex shrink-0 flex-col gap-3 sm:flex-row lg:mt-0">
@@ -1009,7 +1009,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
           </div>
           <div className="flex flex-col gap-2 pt-6 text-xs text-white/40 sm:flex-row sm:items-center sm:justify-between">
             <p>© 2026 Bunal.club. All rights reserved.</p>
-            <p>Bohol, Philippines</p>
+            <p>Philippines</p>
           </div>
         </div>
       </footer>

@@ -22,7 +22,7 @@ export function welcomeEmailContent(input: WelcomeEmailContentInput): {
     const subject = "Welcome to Bunal.club — let's play";
     const paragraphs = [
       `Hi ${input.name}, your player account is ready.`,
-      "Discover sports hubs across Bohol, compare courts, and book the hours that suit your game.",
+      "Discover sports hubs across the Philippines, compare courts, and book the hours that suit your game.",
     ];
     const note =
       "You're receiving this because a Bunal.club player account was created for this email address.";

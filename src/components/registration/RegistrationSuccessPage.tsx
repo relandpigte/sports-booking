@@ -69,7 +69,7 @@ export function RegistrationSuccessPage({
 
           <div className="mt-10 hidden lg:block">
             <h2 className="text-3xl font-extrabold leading-tight tracking-tight text-white">
-              Bohol&apos;s courts,
+              Courts across the Philippines,
               <br />
               <span className="text-accent">booked in seconds.</span>
             </h2>

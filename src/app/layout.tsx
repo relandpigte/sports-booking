@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   applicationName: SITE_NAME,
   title: {
-    default: "Book Sports Courts in Bohol | Bunal.club",
+    default: "Book Sports Courts in the Philippines | Bunal.club",
     // Every page already sets its own complete title, so no template here.
     template: "%s",
   },
@@ -56,7 +56,7 @@ export const metadata: Metadata = {
     ? { google: process.env.GOOGLE_SITE_VERIFICATION }
     : undefined,
   openGraph: {
-    title: "Book Sports Courts in Bohol | Bunal.club",
+    title: "Book Sports Courts in the Philippines | Bunal.club",
     description: SITE_DESCRIPTION,
     url: SITE_URL,
     siteName: SITE_NAME,
@@ -66,7 +66,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Book Sports Courts in Bohol | Bunal.club",
+    title: "Book Sports Courts in the Philippines | Bunal.club",
     description: SITE_DESCRIPTION,
     images: [DEFAULT_SOCIAL_IMAGE],
   },

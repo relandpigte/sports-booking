@@ -102,7 +102,7 @@ export function transactionalEmailHtml({
             <tr>
               <td align="center" style="padding:24px 16px 0;">
                 <p style="margin:0;color:#10243a;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;letter-spacing:1.6px;line-height:1.5;text-transform:uppercase;">Play <span style="color:#a3ce3c;">·</span> Compete <span style="color:#a3ce3c;">·</span> Connect</p>
-                <p style="margin:8px 0 0;color:#8a929d;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.6;"><a href="${escapeEmailHtml(homeUrl)}" target="_blank" style="color:#5b6470;text-decoration:underline;">Bunal.club</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="${escapeEmailHtml(privacyUrl)}" target="_blank" style="color:#5b6470;text-decoration:underline;">Privacy</a><br>Bohol, Philippines</p>
+                <p style="margin:8px 0 0;color:#8a929d;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.6;"><a href="${escapeEmailHtml(homeUrl)}" target="_blank" style="color:#5b6470;text-decoration:underline;">Bunal.club</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="${escapeEmailHtml(privacyUrl)}" target="_blank" style="color:#5b6470;text-decoration:underline;">Privacy</a><br>Philippines</p>
               </td>
             </tr>
           </table>

@@ -28,11 +28,11 @@ export const metadata: Metadata = {
     template: "%s",
   },
   description:
-    "Book volleyball, badminton and pickleball courts across Bohol. Find a hub, pick your hours, and pay the venue directly.",
+    "Book volleyball, badminton and pickleball courts across the Philippines. Find a hub, pick your hours, and pay the venue directly.",
   openGraph: {
     title: "Bunal.club — Play. Compete. Connect.",
     description:
-      "Book volleyball, badminton and pickleball courts across Bohol.",
+      "Book volleyball, badminton and pickleball courts across the Philippines.",
     url: "https://bunal.club",
     siteName: "Bunal.club",
     images: ["/bunal-logo-transparent.png"],
@@ -185,7 +185,7 @@ export function AuthLayout({
 
           <div className="mt-10 hidden lg:block">
             <h2 className="text-3xl font-extrabold leading-tight text-white">
-              Bohol&apos;s courts,
+              Courts across the Philippines,
               <br />
               <span className="text-accent">booked in seconds.</span>
             </h2>

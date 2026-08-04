@@ -11,13 +11,13 @@ import {
 } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "Book Pickleball, Badminton & Volleyball Courts in Bohol | Bunal.club",
+  title: "Book Sports Courts in the Philippines | Bunal.club",
   description: SITE_DESCRIPTION,
   alternates: {
     canonical: "/",
   },
   openGraph: {
-    title: "Book Sports Courts Across Bohol | Bunal.club",
+    title: "Book Sports Courts Across the Philippines | Bunal.club",
     description: SITE_DESCRIPTION,
     url: "/",
     siteName: SITE_NAME,
@@ -37,8 +37,8 @@ const homeJsonLd = {
       logo: absoluteUrl("/bunal-logo-v2-wordmark.png"),
       description: SITE_DESCRIPTION,
       areaServed: {
-        "@type": "AdministrativeArea",
-        name: "Bohol, Philippines",
+        "@type": "Country",
+        name: "Philippines",
       },
     },
     {
@@ -54,7 +54,7 @@ const homeJsonLd = {
       "@type": "WebPage",
       "@id": `${SITE_URL}/#webpage`,
       url: SITE_URL,
-      name: "Book sports courts across Bohol",
+      name: "Book sports courts across the Philippines",
       description: SITE_DESCRIPTION,
       isPartOf: { "@id": `${SITE_URL}/#website` },
       about: { "@id": `${SITE_URL}/#organization` },

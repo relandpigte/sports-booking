@@ -2,8 +2,8 @@
 
 ## Product and audience
 
-Bunal.club is Bohol's court discovery, booking, payment, and venue operations
-platform for volleyball, badminton, and pickleball. The public homepage must
+Bunal.club is the Philippines' court discovery, booking, payment, and venue
+operations platform for volleyball, badminton, pickleball, and tennis. The public homepage must
 serve two journeys clearly:
 
 1. Players discover a local hub, choose available hours, book, pay through
@@ -20,7 +20,7 @@ court directory.
 
 Use the actual transparent Bunal.club logo at
 `public/bunal-logo-transparent.png`. The badge combines a near-black
-shield/navy wordmark, court green, lime, ocean blue, and the Bohol landscape.
+shield/navy wordmark, court green, lime, ocean blue, and Philippine sports culture.
 The homepage should feel energetic, local, sunny, and operationally
 trustworthy—sports-club energy with payment-product clarity.
 
@@ -86,7 +86,7 @@ hierarchy.
 
 1. Sticky navigation: logo; How it works, Payments, Features, For partners;
    Browse courts; a session-aware Log in or Dashboard account link.
-2. Hero: Bohol/local eyebrow; outcome headline about finding, booking, and
+2. Hero: Philippines/nationwide eyebrow; outcome headline about finding, booking, and
    paying for courts; player CTA to `/hubs`; partner CTA to
    `/register/partner`; visual booking/payment preview.
 3. Fast benefit rail: live availability, flexible hour selection, instant

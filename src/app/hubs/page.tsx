@@ -14,7 +14,6 @@ import {
 } from "@/lib/constants";
 import { listPublicHubDirectory } from "@/lib/hubs";
 import {
-  SITE_DESCRIPTION,
   SITE_NAME,
   SITE_URL,
   absoluteUrl,
@@ -22,17 +21,17 @@ import {
 import { isValidDateString, manilaToday } from "@/lib/time";
 
 const directoryDescription =
-  "Discover pickleball, badminton, volleyball, and tennis hubs across Bohol. Compare rates, see upcoming venues, and book verified courts securely online.";
+  "Discover pickleball, badminton, volleyball, and tennis hubs across the Philippines. Compare rates, see upcoming venues, and book verified courts securely online.";
 
 export const metadata: Metadata = {
-  title: "Find & Book Sports Courts in Bohol | Bunal.club",
+  title: "Find & Book Sports Courts Across the Philippines | Bunal.club",
   description: directoryDescription,
   alternates: {
     canonical: "/hubs",
   },
   openGraph: {
-    title: "Find & Book Sports Courts in Bohol | Bunal.club",
-    description: SITE_DESCRIPTION,
+    title: "Find & Book Sports Courts Across the Philippines | Bunal.club",
+    description: directoryDescription,
     url: "/hubs",
     siteName: SITE_NAME,
     locale: "en_PH",
@@ -47,7 +46,7 @@ const directoryJsonLd = {
       "@type": "CollectionPage",
       "@id": `${absoluteUrl("/hubs")}#webpage`,
       url: absoluteUrl("/hubs"),
-      name: "Sports courts and hubs in Bohol",
+      name: "Sports courts and hubs across the Philippines",
       description: directoryDescription,
       isPartOf: { "@id": `${SITE_URL}/#website` },
       inLanguage: "en-PH",

@@ -15,12 +15,12 @@ import {
 } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "Open Play Events in Bohol — Bunal.club",
+  title: "Open Play Sports Events in the Philippines | Bunal.club",
   description:
     "Browse today's and upcoming open play sessions hosted by Bunal.club venue partners.",
   alternates: { canonical: absoluteUrl("/events") },
   openGraph: {
-    title: "Open Play Events in Bohol — Bunal.club",
+    title: "Open Play Sports Events in the Philippines | Bunal.club",
     description:
       "Browse today's and upcoming open play sessions hosted by Bunal.club venue partners.",
     url: absoluteUrl("/events"),
@@ -64,9 +64,9 @@ export default async function EventsPage({
             Events
           </h1>
           <p className="mt-3 text-base leading-7 text-slate-500 sm:text-lg">
-            Browse open play sessions hosted by Bohol&apos;s court communities.
-            View every event publicly, then sign in as a player when you&apos;re
-            ready to join.
+            Browse open play sessions hosted by court communities across the
+            Philippines. View every event publicly, then sign in as a player
+            when you&apos;re ready to join.
           </p>
         </header>
 

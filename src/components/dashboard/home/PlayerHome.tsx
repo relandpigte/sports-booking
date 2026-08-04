@@ -224,7 +224,7 @@ export function PlayerHome({
             </h2>
             <p className="relative mt-1 text-sm leading-6 text-white/60">
               Browse volleyball, badminton, pickleball, and tennis venues
-              across Bohol.
+              across the Philippines.
             </p>
             <p className="relative mt-5 text-sm font-bold text-accent">
               Browse hubs →

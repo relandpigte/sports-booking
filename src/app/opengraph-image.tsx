@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ImageResponse } from "next/og";
 
-export const alt = "Bunal.club — Book sports courts across Bohol";
+export const alt = "Bunal.club — Book sports courts across the Philippines";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -72,7 +72,7 @@ export default async function OpenGraphImage() {
               textTransform: "uppercase",
             }}
           >
-            Bohol, Philippines
+            Philippines
           </div>
           <div
             style={{

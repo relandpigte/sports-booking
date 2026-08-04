@@ -178,7 +178,7 @@ export function HubDirectory({
         />
         <div className="relative max-w-2xl">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-accent">
-            Discover Bohol sports
+            Discover Philippine sports
           </p>
           <h1 className="mt-3 text-4xl font-black tracking-[-0.045em] text-white sm:text-5xl">
             Find your next hub.
@@ -362,10 +362,10 @@ export function HubDirectory({
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
-              Discover Bohol courts
+              Discover courts nationwide
             </p>
             <h2 className="mt-1 text-2xl font-black tracking-[-0.025em] text-navy">
-              Explore local hubs
+              Explore sports hubs
             </h2>
           </div>
           <p className="text-sm text-slate-500">
@@ -417,7 +417,7 @@ function EmptyDirectoryState() {
           <div className="max-w-lg">
             <span className="inline-flex items-center gap-2 rounded-full bg-primary-soft px-3 py-1.5 text-xs font-bold text-primary">
               <span className="h-2 w-2 rounded-full bg-accent" />
-              Growing across Bohol
+              Growing across the Philippines
             </span>
             <h3 className="mt-6 text-3xl font-black tracking-[-0.035em] text-navy sm:text-4xl">
               Local hubs are joining the club.

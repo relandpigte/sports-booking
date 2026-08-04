@@ -5,7 +5,7 @@ export const SITE_URL = "https://www.bunal.club";
 export const DEFAULT_SOCIAL_IMAGE = `${SITE_URL}/opengraph-image`;
 
 export const SITE_DESCRIPTION =
-  "Find and book pickleball, badminton, volleyball, and tennis courts across Bohol. Check live availability and pay securely online.";
+  "Find and book pickleball, badminton, volleyball, and tennis courts across the Philippines. Check live availability and pay securely online.";
 
 export function absoluteUrl(path = "/"): string {
   return new URL(path, SITE_URL).toString();

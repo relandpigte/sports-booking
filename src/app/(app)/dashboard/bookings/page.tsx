@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { getCurrentUser } from "@/lib/dal";
@@ -8,9 +7,11 @@ import { listMyHubs } from "@/lib/hubs";
 import { BookingCard } from "@/components/bookings/BookingCard";
 import { PartnerBookingListRow } from "@/components/bookings/PartnerBookingListRow";
 import { PartnerBookingsView } from "@/components/bookings/PartnerBookingsView";
-import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { PlayerBookingsView } from "@/components/bookings/PlayerBookingsView";
+import { PlayerEventRegistrationCard } from "@/components/bookings/PlayerEventRegistrationCard";
 import { manilaNowHour, manilaToday } from "@/lib/time";
 import { getCurrentPartnerImpersonation } from "@/lib/impersonation";
+import { listMyEventRegistrations } from "@/lib/events";
 
 export const metadata: Metadata = {
   title: "Bookings — Bunal.club",
@@ -87,56 +88,45 @@ export default async function BookingsPage() {
     );
   }
 
-  const { upcoming, past } = await listMyBookings();
+  const [courtBookings, eventRegistrations] = await Promise.all([
+    listMyBookings(),
+    listMyEventRegistrations(),
+  ]);
 
   return (
-    <div>
-      <DashboardPageHeader
-        eyebrow="Your schedule"
-        title="Bookings"
-        description="Reserve courts and manage your upcoming game sessions."
-      />
-
-      <section className="mt-6">
-        <h2 className="text-base font-semibold text-gray-900">
-          Upcoming ({upcoming.length})
-        </h2>
-        {upcoming.length > 0 ? (
-          <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
-            {upcoming.map((b) => (
-              <BookingCard key={b.id} booking={b} view="player" cancellable />
-            ))}
-          </div>
-        ) : (
-          <div className="mt-3 rounded-2xl border border-dashed border-gray-300 p-8 text-center">
-            <p className="text-sm text-gray-500">
-              You have no upcoming bookings.
-            </p>
-            <Link
-              href="/hubs"
-              className="mt-3 inline-block rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover"
-            >
-              Find a court
-            </Link>
-          </div>
-        )}
-      </section>
-
-      {past.length > 0 && (
-        <section className="mt-8">
-          <h2 className="text-base font-semibold text-gray-900">History</h2>
-          <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
-            {past.map((b) => (
-              <BookingCard
-                key={b.id}
-                booking={b}
-                view="player"
-                cancellable={false}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-    </div>
+    <PlayerBookingsView
+      upcomingCourtCount={courtBookings.upcoming.length}
+      pastCourtCount={courtBookings.past.length}
+      upcomingEventCount={eventRegistrations.upcoming.length}
+      pastEventCount={eventRegistrations.past.length}
+      upcomingCourts={courtBookings.upcoming.map((booking) => (
+        <BookingCard
+          key={booking.id}
+          booking={booking}
+          view="player"
+          cancellable
+        />
+      ))}
+      pastCourts={courtBookings.past.map((booking) => (
+        <BookingCard
+          key={booking.id}
+          booking={booking}
+          view="player"
+          cancellable={false}
+        />
+      ))}
+      upcomingEvents={eventRegistrations.upcoming.map((registration) => (
+        <PlayerEventRegistrationCard
+          key={registration.id}
+          registration={registration}
+        />
+      ))}
+      pastEvents={eventRegistrations.past.map((registration) => (
+        <PlayerEventRegistrationCard
+          key={registration.id}
+          registration={registration}
+        />
+      ))}
+    />
   );
 }

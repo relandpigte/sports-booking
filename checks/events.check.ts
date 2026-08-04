@@ -236,7 +236,9 @@ async function check() {
   await prisma.eventRegistration.create({
     data: { eventId: event.id, userId: players[2].id, status: "WAITLISTED" },
   });
-  const { getPublicEvent, listPublicEvents } = await import("@/lib/events");
+  stubRequestContext(players[0]);
+  const { getPublicEvent, listMyEventRegistrations, listPublicEvents } =
+    await import("@/lib/events");
   const publicEvent = await getPublicEvent(event.publicId);
   ok(
     "the public event reports capacity and a free waitlist without exposing emails",
@@ -250,6 +252,19 @@ async function check() {
     "the upcoming discovery view includes the next published event",
     upcomingEvents.some((item) => item.publicId === event.publicId)
   );
+
+  const playerRegistrations = await listMyEventRegistrations();
+  ok(
+    "a player sees confirmed events with payment details under My Bookings",
+    playerRegistrations.upcoming.some(
+      (item) =>
+        item.event.publicId === event.publicId &&
+        item.status === "CONFIRMED" &&
+        item.payment?.status === "SUCCEEDED" &&
+        item.event.courts.length === 2
+    )
+  );
+  stubRequestContext(partner);
 
   const { buildEventMetadata } = await import("@/lib/event-metadata");
   const eventMetadata = buildEventMetadata({

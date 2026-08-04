@@ -4,6 +4,7 @@ import { Prisma, type EventRegistrationStatus, type EventStatus } from "@prisma/
 
 import type { OperatingHours } from "@/lib/constants";
 import { prisma } from "@/lib/db";
+import { getViewer } from "@/lib/dal";
 import { buildSlots } from "@/lib/slots";
 import { manilaNowHour, manilaToday } from "@/lib/time";
 
@@ -106,6 +107,39 @@ export type OwnerEventRegistrationView = {
     id: string;
     status: "PENDING" | "SUCCEEDED" | "FAILED" | "REFUNDED";
     amount: number;
+  } | null;
+};
+
+export type PlayerEventRegistrationView = {
+  id: string;
+  status: EventRegistrationStatus;
+  holdExpiresAt: Date | null;
+  secondsLeft: number;
+  cancelReason: string | null;
+  createdAt: Date;
+  event: {
+    publicId: string;
+    title: string;
+    sport: string;
+    date: string;
+    startHour: number;
+    endHour: number;
+    startsAt: Date;
+    endsAt: Date;
+    registrationFee: number;
+    status: EventStatus;
+    cancelReason: string | null;
+    hub: {
+      name: string;
+      logo: string | null;
+    };
+    courts: EventCourtView[];
+  };
+  payment: {
+    id: string;
+    status: "PENDING" | "SUCCEEDED" | "FAILED" | "REFUNDED";
+    amount: number;
+    platformFee: number;
   } | null;
 };
 
@@ -350,6 +384,120 @@ export async function listMyEvents(ownerId: string): Promise<MyEventView[]> {
       );
     return { ...mapped, expectedRevenue };
   });
+}
+
+const playerEventRegistrationSelect = {
+  id: true,
+  status: true,
+  holdExpiresAt: true,
+  cancelReason: true,
+  createdAt: true,
+  event: {
+    select: {
+      publicId: true,
+      title: true,
+      sport: true,
+      date: true,
+      startHour: true,
+      endHour: true,
+      startsAt: true,
+      endsAt: true,
+      registrationFee: true,
+      status: true,
+      cancelReason: true,
+      hub: { select: { name: true, logo: true } },
+      courts: {
+        orderBy: { court: { createdAt: "asc" as const } },
+        select: {
+          court: { select: { id: true, name: true, courtType: true } },
+        },
+      },
+    },
+  },
+  payment: {
+    select: {
+      id: true,
+      status: true,
+      amount: true,
+      platformFee: true,
+    },
+  },
+} as const;
+
+type PlayerEventRegistrationRow = Prisma.EventRegistrationGetPayload<{
+  select: typeof playerEventRegistrationSelect;
+}>;
+
+function mapPlayerEventRegistration(
+  row: PlayerEventRegistrationRow,
+  now: Date
+): PlayerEventRegistrationView {
+  return {
+    ...row,
+    status:
+      row.status === "PENDING" &&
+      row.holdExpiresAt != null &&
+      row.holdExpiresAt <= now
+        ? "EXPIRED"
+        : row.status,
+    secondsLeft: row.holdExpiresAt
+      ? Math.max(
+          0,
+          Math.ceil((row.holdExpiresAt.getTime() - now.getTime()) / 1000)
+        )
+      : 0,
+    event: {
+      ...row.event,
+      registrationFee: Number(row.event.registrationFee),
+      courts: row.event.courts.map(({ court }) => court),
+    },
+    payment: row.payment
+      ? {
+          ...row.payment,
+          amount: Number(row.payment.amount),
+          platformFee: Number(row.payment.platformFee),
+        }
+      : null,
+  };
+}
+
+export async function listMyEventRegistrations(): Promise<{
+  upcoming: PlayerEventRegistrationView[];
+  past: PlayerEventRegistrationView[];
+}> {
+  const viewer = await getViewer();
+  if (!viewer) return { upcoming: [], past: [] };
+
+  const now = new Date();
+  const [upcoming, past] = await Promise.all([
+    prisma.eventRegistration.findMany({
+      where: {
+        userId: viewer.id,
+        status: { not: "CANCELLED" },
+        event: { endsAt: { gte: now }, status: { not: "CANCELLED" } },
+      },
+      orderBy: { event: { startsAt: "asc" } },
+      select: playerEventRegistrationSelect,
+    }),
+    prisma.eventRegistration.findMany({
+      where: {
+        userId: viewer.id,
+        OR: [
+          { status: "CANCELLED" },
+          { event: { endsAt: { lt: now } } },
+          { event: { status: "CANCELLED" } },
+        ],
+      },
+      orderBy: { event: { startsAt: "desc" } },
+      take: 50,
+      select: playerEventRegistrationSelect,
+    }),
+  ]);
+
+  return {
+    upcoming: upcoming.map((row) => mapPlayerEventRegistration(row, now)),
+    past: past.map((row) => mapPlayerEventRegistration(row, now)),
+  };
 }
 
 export async function listEventFormHubs(

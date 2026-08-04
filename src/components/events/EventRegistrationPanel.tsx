@@ -29,6 +29,7 @@ export function EventRegistrationPanel({
   registration: {
     status: "PENDING" | "CONFIRMED" | "WAITLISTED" | "CANCELLED" | "EXPIRED";
     paymentId: string | null;
+    paymentStatus: "PENDING" | "SUCCEEDED" | "FAILED" | "REFUNDED" | null;
   } | null;
   full: boolean;
   closed: boolean;
@@ -104,6 +105,13 @@ export function EventRegistrationPanel({
             <StatusBox tone="success">
               You&apos;re on the free waitlist. Check back if a spot opens.
             </StatusBox>
+          ) : registration?.status === "EXPIRED" &&
+            registration.paymentStatus === "SUCCEEDED" &&
+            full ? (
+            <StatusBox tone="neutral">
+              Your payment was received, but the event is now full. Contact
+              support so your payment can be resolved.
+            </StatusBox>
           ) : !signedIn ? (
             <div className="space-y-3">
               <Link
@@ -131,6 +139,9 @@ export function EventRegistrationPanel({
               >
                 {pending
                   ? "Saving your spot…"
+                  : registration?.status === "EXPIRED" &&
+                      registration.paymentStatus === "SUCCEEDED"
+                    ? "Restore paid registration"
                   : registration?.status === "WAITLISTED" && !full
                     ? "Claim available spot"
                     : full

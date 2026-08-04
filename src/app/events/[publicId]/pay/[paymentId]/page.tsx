@@ -42,6 +42,7 @@ export default async function PayEventRegistrationPage({
 
   const { payment, venueName } = screen;
   const event = payment.event!;
+  const registrationConfirmed = event.registrationStatus === "CONFIRMED";
   const holdLive = payment.status === "PENDING" && payment.secondsLeft > 0;
   const activeCheckoutUrl =
     holdLive && payment.chargeInFlight ? payment.redirectUrl : null;
@@ -61,7 +62,9 @@ export default async function PayEventRegistrationPage({
                 </p>
                 <h1 className="mt-2 text-2xl font-black tracking-tight">
                   {payment.status === "SUCCEEDED"
-                    ? "Registration confirmed"
+                    ? registrationConfirmed
+                      ? "Registration confirmed"
+                      : "Payment received"
                     : payment.status === "REFUNDED"
                       ? "Registration refunded"
                       : holdLive
@@ -102,13 +105,24 @@ export default async function PayEventRegistrationPage({
             </dl>
 
             <div className="mt-7">
-              {payment.status === "SUCCEEDED" ? (
+              {payment.status === "SUCCEEDED" && registrationConfirmed ? (
                 <div className="space-y-4">
                   <p className="rounded-2xl bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">
                     Paid. Your name is now on the confirmed player list.
                   </p>
                   <Link href={`/events/${publicId}`} className="block rounded-2xl bg-primary px-4 py-3.5 text-center text-sm font-bold text-white hover:bg-primary-hover">
                     View event
+                  </Link>
+                </div>
+              ) : payment.status === "SUCCEEDED" ? (
+                <div className="space-y-4">
+                  <p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+                    Your payment was received, but the registration still needs
+                    to be restored. Return to the event and choose Restore paid
+                    registration. You will not be charged again.
+                  </p>
+                  <Link href={`/events/${publicId}`} className="block rounded-2xl bg-primary px-4 py-3.5 text-center text-sm font-bold text-white hover:bg-primary-hover">
+                    Restore registration
                   </Link>
                 </div>
               ) : payment.status === "REFUNDED" ? (

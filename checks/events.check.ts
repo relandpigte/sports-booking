@@ -52,7 +52,7 @@ async function check() {
           passwordHash: "x",
           role: "PLAYER",
         },
-        select: { id: true },
+        select: { id: true, email: true },
       })
     )
   );
@@ -173,7 +173,9 @@ async function check() {
     select: { id: true },
   });
 
-  const { settleBookingPayment } = await import("@/lib/booking-payments");
+  const { recoverPaidEventRegistration, settleBookingPayment } = await import(
+    "@/lib/booking-payments"
+  );
   const settled = await settleBookingPayment(payment.id);
   const settledAgain = await settleBookingPayment(payment.id);
   const registration = await prisma.eventRegistration.findUnique({
@@ -190,9 +192,47 @@ async function check() {
       (await prisma.serviceFeeEntry.count({ where: { bookingPaymentId: payment.id } })) === 1
   );
 
-  await prisma.eventRegistration.create({
-    data: { eventId: event.id, userId: players[1].id, status: "CONFIRMED", confirmedAt: new Date() },
+  const latePayment = await prisma.bookingPayment.create({
+    data: {
+      partnerId: partner.id,
+      gatewayId: gateway.id,
+      userId: players[1].id,
+      hubId: hub.id,
+      amount: 515,
+      venueAmount: 500,
+      platformFee: 15,
+      method: "GCASH",
+      status: "SUCCEEDED",
+      provider: "paymongo",
+      providerPaymentId: "cs_late_event_check",
+      expiresAt: new Date(Date.now() - 30_000),
+      paidAt: new Date(),
+      eventRegistration: {
+        create: {
+          eventId: event.id,
+          userId: players[1].id,
+          status: "EXPIRED",
+        },
+      },
+    },
+    select: { id: true },
   });
+  const recovered = await recoverPaidEventRegistration({
+    eventId: event.id,
+    userId: players[1].id,
+  });
+  const recoveredRegistration = await prisma.eventRegistration.findUnique({
+    where: { bookingPaymentId: latePayment.id },
+    select: { status: true },
+  });
+  ok(
+    "a paid expired registration is restored when event capacity remains",
+    recovered.status === "confirmed" &&
+      recoveredRegistration?.status === "CONFIRMED" &&
+      (await prisma.serviceFeeEntry.count({
+        where: { bookingPaymentId: latePayment.id },
+      })) === 1
+  );
   await prisma.eventRegistration.create({
     data: { eventId: event.id, userId: players[2].id, status: "WAITLISTED" },
   });

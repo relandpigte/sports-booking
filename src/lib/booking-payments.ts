@@ -1,8 +1,16 @@
 import "server-only";
 
-import { Prisma, type PaymentMethodType, type PaymentStatus } from "@prisma/client";
+import {
+  Prisma,
+  type EventRegistrationStatus,
+  type PaymentMethodType,
+  type PaymentStatus,
+} from "@prisma/client";
 
-import { BOOKING_HOLD_MINUTES } from "@/lib/constants";
+import {
+  BOOKING_HOLD_MINUTES,
+  PAYMENT_COMPLETION_GRACE_MINUTES,
+} from "@/lib/constants";
 import { prisma } from "@/lib/db";
 import { loadGatewayCredentials } from "@/lib/partner-gateway";
 import { getVenueGateway, UnknownVenueGateway } from "@/lib/payments/venue";
@@ -64,6 +72,7 @@ export type BookingPaymentView = {
   lines: BookingPaymentLine[];
   event: {
     registrationId: string;
+    registrationStatus: EventRegistrationStatus;
     publicId: string;
     title: string;
     date: string;
@@ -107,6 +116,7 @@ const paymentSelect = {
   eventRegistration: {
     select: {
       id: true,
+      status: true,
       event: {
         select: {
           publicId: true,
@@ -160,6 +170,7 @@ export function mapBookingPayment(row: PaymentRow): BookingPaymentView {
     event: row.eventRegistration
       ? {
           registrationId: row.eventRegistration.id,
+          registrationStatus: row.eventRegistration.status,
           ...row.eventRegistration.event,
         }
       : null,
@@ -301,6 +312,7 @@ export async function settleBookingPayment(
     where: { id: paymentId },
     select: {
       id: true,
+      userId: true,
       status: true,
       partnerId: true,
       platformFee: true,
@@ -345,11 +357,23 @@ export async function settleBookingPayment(
         where: { id: registration.id, status: "PENDING" },
         data: { status: "EXPIRED", holdExpiresAt: null },
       });
+      const recovered = await recoverPaidEventRegistration({
+        eventId: registration.event.id,
+        userId: payment.userId,
+      });
+      if (recovered.status === "confirmed") {
+        return {
+          status: "confirmed",
+          bookingIds: [],
+          registrationId: recovered.registrationId,
+        };
+      }
       const refund = await refundBookingPayment({
         paymentId,
         reason:
           "The event registration hold expired or the event closed before payment completed.",
       });
+      await recordAutomaticRefundFailure(paymentId, refund);
       return { status: "lost", refunded: refund.ok };
     }
 
@@ -380,10 +404,22 @@ export async function settleBookingPayment(
         where: { id: registration.id, status: "PENDING" },
         data: { status: "EXPIRED", holdExpiresAt: null },
       });
+      const recovered = await recoverPaidEventRegistration({
+        eventId: registration.event.id,
+        userId: payment.userId,
+      });
+      if (recovered.status === "confirmed") {
+        return {
+          status: "confirmed",
+          bookingIds: [],
+          registrationId: recovered.registrationId,
+        };
+      }
       const refund = await refundBookingPayment({
         paymentId,
         reason: "The event registration hold expired before payment completed.",
       });
+      await recordAutomaticRefundFailure(paymentId, refund);
       return { status: "lost", refunded: refund.ok };
     }
 
@@ -447,10 +483,99 @@ export async function settleBookingPayment(
       paymentId,
       reason: "We couldn't hold your court — the reservation expired before payment completed.",
     });
+    await recordAutomaticRefundFailure(paymentId, refund);
     return { status: "lost", refunded: refund.ok };
   }
 
   return { status: "confirmed", bookingIds: ids };
+}
+
+export type PaidEventRecoveryOutcome =
+  | { status: "confirmed"; registrationId: string }
+  | { status: "full" }
+  | { status: "not-recoverable" };
+
+// Repairs the narrow case where PayMongo accepted money just after the event
+// hold expired and the automatic refund could not complete. Capacity is
+// re-checked under the same event lock used by ordinary registration, so a
+// paid player is restored only when doing so cannot oversell the event.
+export async function recoverPaidEventRegistration(args: {
+  eventId: string;
+  userId: string;
+}): Promise<PaidEventRecoveryOutcome> {
+  const now = new Date();
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw(
+      Prisma.sql`SELECT "id" FROM "Event" WHERE "id" = ${args.eventId} FOR UPDATE`
+    );
+
+    const event = await tx.event.findUnique({
+      where: { id: args.eventId },
+      select: { capacity: true, status: true, startsAt: true },
+    });
+    if (
+      !event ||
+      event.status !== "PUBLISHED" ||
+      event.startsAt <= now
+    ) {
+      return { status: "not-recoverable" };
+    }
+
+    const registration = await tx.eventRegistration.findFirst({
+      where: {
+        eventId: args.eventId,
+        userId: args.userId,
+        status: "EXPIRED",
+        payment: { status: "SUCCEEDED" },
+      },
+      select: {
+        id: true,
+        payment: {
+          select: {
+            id: true,
+            partnerId: true,
+            platformFee: true,
+            paidAt: true,
+          },
+        },
+      },
+    });
+    if (!registration?.payment) return { status: "not-recoverable" };
+
+    const occupied = await tx.eventRegistration.count({
+      where: {
+        eventId: args.eventId,
+        OR: [
+          { status: "CONFIRMED" },
+          { status: "PENDING", holdExpiresAt: { gt: now } },
+        ],
+      },
+    });
+    if (occupied >= event.capacity) return { status: "full" };
+
+    const restored = await tx.eventRegistration.updateMany({
+      where: {
+        id: registration.id,
+        status: "EXPIRED",
+        bookingPaymentId: registration.payment.id,
+      },
+      data: {
+        status: "CONFIRMED",
+        holdExpiresAt: null,
+        confirmedAt: now,
+        cancelledAt: null,
+        cancelReason: null,
+      },
+    });
+    if (restored.count !== 1) return { status: "not-recoverable" };
+
+    await tx.bookingPayment.updateMany({
+      where: { id: registration.payment.id, status: "SUCCEEDED" },
+      data: { failureCode: null, failureMessage: null },
+    });
+    await ensureServiceFeeCharge(tx, registration.payment);
+    return { status: "confirmed", registrationId: registration.id };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -501,16 +626,52 @@ export async function chargeBookingPayment(args: {
   // whoever flips chargeStartedAt from null wins, everyone else is told the
   // charge is already in flight. Cleared again by a decline.
   const attempt = payment.attempt + 1;
-  const claim = await prisma.bookingPayment.updateMany({
-    where: {
-      id: paymentId,
-      status: "PENDING",
-      chargeStartedAt: null,
-      attempt: payment.attempt,
-    },
-    // `method` is deliberately untouched: the player chooses card, GCash or
-    // Maya on PayMongo's page, and the webhook tells us which afterwards.
-    data: { chargeStartedAt: now, attempt, redirectUrl: null },
+  const graceExpiresAt =
+    payment.attempt === 0
+      ? new Date(
+          Math.max(
+            payment.expiresAt.getTime(),
+            now.getTime() + PAYMENT_COMPLETION_GRACE_MINUTES * 60_000
+          )
+        )
+      : payment.expiresAt;
+  const claim = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.bookingPayment.updateMany({
+      where: {
+        id: paymentId,
+        status: "PENDING",
+        chargeStartedAt: null,
+        attempt: payment.attempt,
+      },
+      // `method` is deliberately untouched: the player chooses card, GCash or
+      // Maya on PayMongo's page, and the webhook tells us which afterwards.
+      data: {
+        chargeStartedAt: now,
+        attempt,
+        redirectUrl: null,
+        expiresAt: graceExpiresAt,
+      },
+    });
+    if (claimed.count !== 1) return claimed;
+
+    const bookingIds = payment.bookings.map((booking) => booking.id);
+    if (bookingIds.length > 0) {
+      await tx.booking.updateMany({
+        where: { id: { in: bookingIds }, status: "PENDING" },
+        data: { holdExpiresAt: graceExpiresAt },
+      });
+      await tx.bookingSlot.updateMany({
+        where: { bookingId: { in: bookingIds } },
+        data: { holdExpiresAt: graceExpiresAt },
+      });
+    }
+    if (payment.eventRegistration) {
+      await tx.eventRegistration.updateMany({
+        where: { id: payment.eventRegistration.id, status: "PENDING" },
+        data: { holdExpiresAt: graceExpiresAt },
+      });
+    }
+    return claimed;
   });
   if (claim.count !== 1) return { status: "in-flight" };
 
@@ -617,6 +778,20 @@ export async function pollBookingPayment(
 export type RefundOutcome =
   | { ok: true; alreadyRefunded: boolean }
   | { ok: false; message: string };
+
+async function recordAutomaticRefundFailure(
+  paymentId: string,
+  refund: RefundOutcome
+): Promise<void> {
+  if (refund.ok) return;
+  await prisma.bookingPayment.updateMany({
+    where: { id: paymentId, status: "SUCCEEDED" },
+    data: {
+      failureCode: "automatic_refund_failed",
+      failureMessage: `Automatic refund failed: ${refund.message}`,
+    },
+  });
+}
 
 // Works for a DISCONNECTED gateway too: the ciphertext is deliberately kept on
 // disconnect precisely so a partner can still refund what they already took.

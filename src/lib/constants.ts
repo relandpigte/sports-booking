@@ -132,6 +132,12 @@ export const MONTHS = [
 // before it goes back on sale.
 export const BOOKING_HOLD_MINUTES = 10;
 
+// A player who reaches PayMongo before the hold expires gets a short window
+// to finish wallet, QR, or 3DS authorization. This is applied only after the
+// checkout session is claimed, so an abandoned booking cannot reserve capacity
+// merely by sitting on Bunal.club's payment page.
+export const PAYMENT_COMPLETION_GRACE_MINUTES = 5;
+
 // Bunal.club's percentage fee, added ON TOP of the venue's court total. It is
 // charged once per checkout even when gaps split the selected hours into
 // separate Booking rows. Joining is free.

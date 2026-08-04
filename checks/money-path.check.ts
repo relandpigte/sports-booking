@@ -13,7 +13,12 @@ import { PrismaClient } from "@prisma/client";
 
 import { ok, run } from "./harness";
 import { installPaymongoMock, mockPaidEvent, payMockSession } from "./paymongo-mock";
-import { bookingServiceFeeFor, grossFor } from "@/lib/constants";
+import {
+  BOOKING_HOLD_MINUTES,
+  PAYMENT_COMPLETION_GRACE_MINUTES,
+  bookingServiceFeeFor,
+  grossFor,
+} from "@/lib/constants";
 
 const prisma = new PrismaClient();
 
@@ -47,8 +52,12 @@ async function check() {
   });
   if (!court || !player) throw new Error("Seed a hub with a court and a player first.");
 
-  const baselinePayments = await prisma.bookingPayment.count();
-  const baselineGateways = await prisma.partnerGateway.count();
+  const baselinePaymentIds = (
+    await prisma.bookingPayment.findMany({ select: { id: true } })
+  ).map((payment) => payment.id);
+  const baselineGatewayIds = (
+    await prisma.partnerGateway.findMany({ select: { id: true } })
+  ).map((gateway) => gateway.id);
 
   // Two throwaway partners, each with their own PayMongo account, so the
   // isolation assertions have something real to isolate.
@@ -76,8 +85,12 @@ async function check() {
   const b = await makePartner(TEMP_EMAILS[1], "sk_test_bbbbbbbbbb", "whsk_bbbbbbbbbbbb");
 
   // A booking holding its hours, with a payment waiting on it.
-  async function scaffold(hours: number[], owner = a) {
-    const expiresAt = new Date(Date.now() + 15 * 60_000);
+  async function scaffold(
+    hours: number[],
+    owner = a,
+    holdMs = BOOKING_HOLD_MINUTES * 60_000
+  ) {
+    const expiresAt = new Date(Date.now() + holdMs);
     const venueAmount = 250 * hours.length;
     const payment = await prisma.bookingPayment.create({
       data: {
@@ -124,7 +137,8 @@ async function check() {
   }
 
   // --- 1. Starting a payment ------------------------------------------------
-  const one = await scaffold([6, 7]);
+  const one = await scaffold([6, 7], a, 30_000);
+  const checkoutStartedAfter = Date.now();
   const started = await chargeBookingPayment({
     paymentId: one.payment.id,
     userId: player.id,
@@ -161,6 +175,20 @@ async function check() {
   ok("the session id is stored", row!.providerPaymentId?.startsWith("cs_") === true);
   ok("the row stays PENDING until they pay", row!.status === "PENDING");
   ok("the claim is held while they're away", row!.chargeStartedAt !== null);
+  const heldBooking = await prisma.booking.findUnique({
+    where: { id: one.booking.id },
+    include: { slots: true },
+  });
+  const minimumGraceExpiry =
+    checkoutStartedAfter + PAYMENT_COMPLETION_GRACE_MINUTES * 60_000;
+  ok(
+    "starting PayMongo extends a nearly expired hold through payment authorization",
+    row!.expiresAt.getTime() >= minimumGraceExpiry &&
+      heldBooking?.holdExpiresAt?.getTime() === row!.expiresAt.getTime() &&
+      heldBooking.slots.every(
+        (slot) => slot.holdExpiresAt?.getTime() === row!.expiresAt.getTime()
+      )
+  );
   ok(
     "the booking is not confirmed yet",
     (await prisma.booking.findUnique({ where: { id: one.booking.id } }))!.status ===
@@ -377,11 +405,15 @@ async function check() {
   await cleanup();
   ok(
     "the real payments are untouched",
-    (await prisma.bookingPayment.count()) === baselinePayments
+    (await prisma.bookingPayment.count({
+      where: { id: { in: baselinePaymentIds } },
+    })) === baselinePaymentIds.length
   );
   ok(
     "and the real gateways",
-    (await prisma.partnerGateway.count()) === baselineGateways
+    (await prisma.partnerGateway.count({
+      where: { id: { in: baselineGatewayIds } },
+    })) === baselineGatewayIds.length
   );
 }
 

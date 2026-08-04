@@ -12,7 +12,10 @@ import { getViewer, requireActivePartner } from "@/lib/dal";
 import { prisma } from "@/lib/db";
 import { getEventCourtAvailability } from "@/lib/events";
 import { getActivePartnerGateway } from "@/lib/partner-gateway";
-import { refundBookingPayment } from "@/lib/booking-payments";
+import {
+  recoverPaidEventRegistration,
+  refundBookingPayment,
+} from "@/lib/booking-payments";
 import { isServiceFeeOverdue } from "@/lib/service-fees";
 import { isValidDateString, manilaInstant, manilaToday } from "@/lib/time";
 import { firstErrors } from "@/lib/zod-errors";
@@ -380,6 +383,21 @@ export async function registerForEventAction(
     return { message: "Registration has closed for this event." };
   }
 
+  const paidRecovery = await recoverPaidEventRegistration({
+    eventId: event.id,
+    userId: viewer.id,
+  });
+  if (paidRecovery.status === "confirmed") {
+    revalidateEventSurfaces(event.publicId, event.hubId);
+    return { success: "Your paid registration is now confirmed." };
+  }
+  if (paidRecovery.status === "full") {
+    return {
+      message:
+        "Your payment was received, but the event is now full. Contact support so your payment can be resolved.",
+    };
+  }
+
   const fee = Number(event.registrationFee);
   const [gateway, overdue] =
     fee > 0
@@ -476,10 +494,6 @@ export async function registerForEventAction(
         },
       });
     }
-    if (existing?.payment?.status === "SUCCEEDED") {
-      return { kind: "paid-closed" as const, paymentId: null };
-    }
-
     const occupied = await tx.eventRegistration.count({
       where: {
         eventId: event.id,
@@ -489,6 +503,10 @@ export async function registerForEventAction(
         ],
       },
     });
+    if (existing?.payment?.status === "SUCCEEDED") {
+      return { kind: "paid-closed" as const, paymentId: null };
+    }
+
     if (occupied >= event.capacity) {
       await tx.eventRegistration.upsert({
         where: { eventId_userId: { eventId: event.id, userId: viewer.id } },
@@ -573,7 +591,7 @@ export async function registerForEventAction(
   if (outcome.kind === "paid-closed") {
     return {
       message:
-        "This paid registration was previously closed. Contact the organizer before registering again.",
+        "Your payment was received, but this registration could not be restored automatically. Contact support so your payment can be resolved.",
     };
   }
   return outcome.kind === "waitlist"

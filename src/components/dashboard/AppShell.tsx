@@ -5,7 +5,7 @@ import type { PartnerStatus, Role } from "@prisma/client";
 import { Logo } from "@/components/Logo";
 import { Avatar } from "@/components/ui/Avatar";
 import { DashboardNav } from "@/components/dashboard/DashboardNav";
-import { MobileDashboardNav } from "@/components/dashboard/MobileDashboardNav";
+import { MobileDashboardMenu } from "@/components/dashboard/MobileDashboardMenu";
 import { logoutAction } from "@/lib/actions";
 import { stopPartnerImpersonationAction } from "@/lib/impersonation-actions";
 
@@ -50,35 +50,40 @@ export function AppShell({
         : "Player workspace";
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#f7faf8] md:flex-row">
-      <aside className="z-40 flex flex-col border-b border-slate-200 bg-white md:sticky md:top-0 md:h-screen md:w-[272px] md:shrink-0 md:border-b-0 md:bg-navy md:p-4">
-        <div className="flex items-center justify-between gap-3 px-4 py-3 md:block md:px-0 md:py-0">
+    <div className="flex min-h-screen w-full min-w-0 flex-col overflow-x-clip bg-[#f7faf8] md:flex-row">
+      <header className="sticky top-0 z-40 flex min-w-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] md:hidden">
+        <div className="flex min-w-0 items-center gap-3">
+          <MobileDashboardMenu
+            role={user.role}
+            partnerStatus={impersonation ? "ACTIVE" : user.partnerStatus}
+            displayName={displayName}
+            email={user.email}
+            image={user.image}
+            workspaceLabel={workspaceLabel}
+          />
           <Link
             href="/dashboard"
             aria-label="Bunal.club dashboard home"
-            className="block w-fit md:p-2.5"
+            className="block w-fit"
           >
             <Logo />
           </Link>
+        </div>
+        <Avatar src={user.image} name={displayName} size={38} />
+      </header>
 
-          <div className="flex items-center gap-2 md:hidden">
-            <Avatar src={user.image} name={displayName} size={34} />
-            {user.role === "ADMIN" && (
-              <form action={logoutAction}>
-                <button
-                  type="submit"
-                  title="Log out"
-                  aria-label="Log out"
-                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-navy"
-                >
-                  <LogoutIcon />
-                </button>
-              </form>
-            )}
-          </div>
+      <aside className="z-40 hidden flex-col bg-navy p-4 md:sticky md:top-0 md:flex md:h-screen md:w-[272px] md:shrink-0">
+        <div>
+          <Link
+            href="/dashboard"
+            aria-label="Bunal.club dashboard home"
+            className="block w-fit p-2.5"
+          >
+            <Logo />
+          </Link>
         </div>
 
-        <p className="hidden px-3 pt-7 text-[11px] font-bold uppercase tracking-[0.2em] text-white/35 md:block">
+        <p className="px-3 pt-7 text-[11px] font-bold uppercase tracking-[0.2em] text-white/35">
           {workspaceLabel}
         </p>
 
@@ -114,9 +119,7 @@ export function AppShell({
       </aside>
 
       <main
-        className={`min-w-0 flex-1 px-4 pt-6 sm:px-6 md:px-8 md:py-10 ${
-          user.role === "ADMIN" ? "pb-6" : "pb-28 md:pb-10"
-        }`}
+        className="min-w-0 flex-1 px-4 pb-8 pt-6 sm:px-6 md:px-8 md:py-10"
       >
         <div className={`mx-auto w-full ${maxWidth}`}>
           {impersonation && (
@@ -144,10 +147,6 @@ export function AppShell({
           {children}
         </div>
       </main>
-      <MobileDashboardNav
-        role={user.role}
-        partnerStatus={impersonation ? "ACTIVE" : user.partnerStatus}
-      />
     </div>
   );
 }

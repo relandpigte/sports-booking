@@ -196,7 +196,7 @@ async function check() {
   await prisma.eventRegistration.create({
     data: { eventId: event.id, userId: players[2].id, status: "WAITLISTED" },
   });
-  const { getPublicEvent } = await import("@/lib/events");
+  const { getPublicEvent, listPublicEvents } = await import("@/lib/events");
   const publicEvent = await getPublicEvent(event.publicId);
   ok(
     "the public event reports capacity and a free waitlist without exposing emails",
@@ -204,6 +204,28 @@ async function check() {
       publicEvent.confirmedCount === 2 &&
       publicEvent.waitlistedCount === 1 &&
       publicEvent.attendees.every((attendee) => !("email" in attendee))
+  );
+  const upcomingEvents = await listPublicEvents("upcoming");
+  ok(
+    "the upcoming discovery view includes the next published event",
+    upcomingEvents.some((item) => item.publicId === event.publicId)
+  );
+
+  const { buildEventMetadata } = await import("@/lib/event-metadata");
+  const eventMetadata = buildEventMetadata({
+    publicId: event.publicId,
+    title: "Friday Night Open Play",
+    description: "Check fixture event.",
+  });
+  const openGraph = eventMetadata.openGraph as
+    | { title?: string; url?: string }
+    | undefined;
+  ok(
+    "shared event metadata keeps Messenger on the exact event page",
+    eventMetadata.alternates?.canonical ===
+      `https://www.bunal.club/events/${event.publicId}` &&
+      openGraph?.url === `https://www.bunal.club/events/${event.publicId}` &&
+      openGraph.title === "Friday Night Open Play — Bunal.club"
   );
 
   const { cancelEventAction } = await import("@/lib/event-actions");

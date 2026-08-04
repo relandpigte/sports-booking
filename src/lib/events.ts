@@ -234,6 +234,7 @@ export async function listPublicEvents(
   period: PublicEventPeriod = "all"
 ): Promise<PublicEventView[]> {
   const today = manilaToday();
+  const now = new Date();
   const rows = await prisma.event.findMany({
     where: {
       status: "PUBLISHED",
@@ -241,16 +242,15 @@ export async function listPublicEvents(
       ...(period === "today"
         ? { date: today }
         : period === "upcoming"
-          ? { date: { gt: today } }
+          ? { endsAt: { gt: now } }
           : period === "past"
-            ? { date: { lt: today } }
+            ? { endsAt: { lte: now } }
             : {}),
     },
     orderBy: { startsAt: period === "past" ? "desc" : "asc" },
     take: 120,
     select: eventSelect,
   });
-  const now = new Date();
   return rows.map((row) => mapPublicEvent(row, now));
 }
 

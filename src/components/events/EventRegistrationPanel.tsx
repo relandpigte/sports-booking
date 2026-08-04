@@ -46,6 +46,15 @@ export function EventRegistrationPanel({
           Join event
         </h2>
 
+        {full && !closed && (
+          <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="text-sm font-bold text-amber-900">Event is full</p>
+            <p className="mt-1 text-xs leading-5 text-amber-700">
+              New players can join the free waitlist and claim a spot if one opens.
+            </p>
+          </div>
+        )}
+
         <dl className="mt-6 space-y-3 text-sm">
           <div className="flex justify-between gap-4">
             <dt className="text-slate-500">Registration fee</dt>
@@ -91,19 +100,23 @@ export function EventRegistrationPanel({
             >
               Complete payment
             </Link>
+          ) : registration?.status === "WAITLISTED" && full ? (
+            <StatusBox tone="success">
+              You&apos;re on the free waitlist. Check back if a spot opens.
+            </StatusBox>
           ) : !signedIn ? (
             <div className="space-y-3">
               <Link
                 href={`/register?next=${encodeURIComponent(`/events/${publicId}`)}`}
                 className="block rounded-2xl bg-primary px-4 py-4 text-center text-sm font-bold text-white transition-colors hover:bg-primary-hover"
               >
-                Create account to register
+                {full ? "Create account to join waitlist" : "Create account to register"}
               </Link>
               <Link
                 href={`/login?next=${encodeURIComponent(`/events/${publicId}`)}`}
                 className="block rounded-2xl border border-navy px-4 py-3.5 text-center text-sm font-bold text-navy transition-colors hover:bg-navy-soft"
               >
-                Log in to your account
+                {full ? "Log in to join waitlist" : "Log in to your account"}
               </Link>
             </div>
           ) : viewerRole !== "PLAYER" ? (

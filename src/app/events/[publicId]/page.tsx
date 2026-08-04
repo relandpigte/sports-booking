@@ -9,7 +9,9 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { bookingServiceFeeFor } from "@/lib/constants";
 import { getViewer } from "@/lib/dal";
+import { buildEventMetadata } from "@/lib/event-metadata";
 import { getPublicEvent } from "@/lib/events";
+import { absoluteUrl } from "@/lib/site";
 import {
   formatManilaDateLong,
   formatSlotRange,
@@ -23,12 +25,14 @@ export async function generateMetadata({
   const { publicId } = await params;
   const event = await getPublicEvent(publicId);
   if (!event) return { title: "Event not found — Bunal.club" };
-  return {
-    title: `${event.title} — Bunal.club`,
-    description:
-      event.description ??
-      `${event.sport} open play at ${event.hub.name} on ${formatManilaDateLong(event.date)}.`,
-  };
+  const description =
+    event.description ??
+    `${event.sport} open play at ${event.hub.name} on ${formatManilaDateLong(event.date)}.`;
+  return buildEventMetadata({
+    publicId: event.publicId,
+    title: event.title,
+    description,
+  });
 }
 
 export default async function EventDetailPage({
@@ -47,21 +51,21 @@ export default async function EventDetailPage({
   const courtNames = event.courts.map((court) => court.name).join(", ");
   const duration = event.endHour - event.startHour;
   const serviceFee = bookingServiceFeeFor(event.registrationFee);
+  const eventUrl = absoluteUrl(`/events/${event.publicId}`);
 
   return (
     <PageShell maxWidth="max-w-7xl">
-      <div className="py-8 sm:py-12">
-        <div className="grid gap-10 lg:grid-cols-12 lg:gap-12">
-          <div className="space-y-10 lg:col-span-8">
-            <section>
-              <div className="relative flex aspect-[21/9] min-h-52 items-center justify-center overflow-hidden rounded-3xl bg-navy">
+      <div className="min-w-0 py-6 sm:py-12">
+        <div className="grid min-w-0 gap-8 lg:grid-cols-12 lg:gap-12">
+            <section className="order-1 min-w-0 lg:col-span-8">
+              <div className="relative flex aspect-video w-full min-w-0 items-center justify-center overflow-hidden rounded-3xl bg-navy sm:aspect-[21/9] sm:min-h-52">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(163,206,60,0.2)_1px,transparent_0)] bg-[size:24px_24px]" />
                 <div className="absolute inset-0 bg-gradient-to-br from-primary/35 via-transparent to-ocean/35" />
                 <p className="relative text-5xl font-black lowercase tracking-[-0.08em] text-white/10 sm:text-7xl">
                   bunal.club
                 </p>
                 <div className="absolute right-5 top-5">
-                  <ShareEventButton title={event.title} />
+                  <ShareEventButton title={event.title} url={eventUrl} />
                 </div>
               </div>
 
@@ -77,7 +81,7 @@ export default async function EventDetailPage({
                     {event.hub.name}
                   </Link>
                 </div>
-                <h1 className="mt-5 text-4xl font-black uppercase leading-[1.05] tracking-[-0.045em] text-navy sm:text-5xl">
+                <h1 className="mt-5 break-words text-3xl font-black uppercase leading-[1.08] tracking-[-0.04em] text-navy sm:text-5xl">
                   {event.title}
                 </h1>
                 {event.description && (
@@ -93,7 +97,7 @@ export default async function EventDetailPage({
               </div>
             </section>
 
-            <section className="grid gap-4 sm:grid-cols-2">
+            <section className="order-2 grid min-w-0 gap-4 sm:grid-cols-2 lg:col-span-8">
               <EventFact icon={<CalendarIcon />} label="Date & time">
                 <strong>{formatManilaDateLong(event.date)}</strong>
                 <span>{formatSlotRange(event.startHour, event.endHour)} ({duration}h)</span>
@@ -104,7 +108,11 @@ export default async function EventDetailPage({
               </EventFact>
               <EventFact icon={<PlayersIcon />} label="Attendance">
                 <strong>{event.capacity} player capacity</strong>
-                <span>{event.confirmedCount} registered · {event.remainingSpots} remaining</span>
+                <span>
+                  {event.confirmedCount} confirmed
+                  {event.pendingCount > 0 && ` · ${event.pendingCount} in checkout`}
+                </span>
+                <span>{event.remainingSpots} available</span>
               </EventFact>
               <EventFact icon={<StatusIcon />} label="Status">
                 <strong>{closed ? "Registration closed" : event.full ? "Waitlist open" : "Registration open"}</strong>
@@ -112,7 +120,32 @@ export default async function EventDetailPage({
               </EventFact>
             </section>
 
-            <section>
+            <aside className="order-3 min-w-0 lg:col-span-4 lg:col-start-9 lg:row-span-4 lg:row-start-1">
+              <div className="lg:sticky lg:top-24 lg:space-y-6">
+                <div className="min-w-0">
+                  <EventRegistrationPanel
+                    publicId={event.publicId}
+                    fee={event.registrationFee}
+                    serviceFee={serviceFee}
+                    signedIn={Boolean(viewer)}
+                    viewerRole={viewer?.role}
+                    registration={event.viewerRegistration}
+                    full={event.full}
+                    closed={closed}
+                  />
+                </div>
+
+                <div className="hidden lg:block">
+                  <EventOrganizerCard
+                    publicId={event.publicId}
+                    hub={event.hub}
+                    canManage={viewer?.id === event.ownerId}
+                  />
+                </div>
+              </div>
+            </aside>
+
+            <section className="order-4 min-w-0 lg:col-span-8">
               <div className="flex items-end justify-between gap-4">
                 <h2 className="text-2xl font-black uppercase tracking-tight text-navy">
                   Who&apos;s coming
@@ -145,7 +178,7 @@ export default async function EventDetailPage({
               )}
             </section>
 
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8">
+            <section className="order-5 min-w-0 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 lg:col-span-8">
               <h2 className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">
                 Hub policy
               </h2>
@@ -154,60 +187,76 @@ export default async function EventDetailPage({
                 by the hub owner. Contact the organizer if your plans change.
               </p>
             </section>
-          </div>
 
-          <aside className="space-y-6 lg:col-span-4">
-            <div className="lg:sticky lg:top-24 lg:space-y-6">
-              <EventRegistrationPanel
+            <div className="order-6 min-w-0 lg:hidden">
+              <EventOrganizerCard
                 publicId={event.publicId}
-                fee={event.registrationFee}
-                serviceFee={serviceFee}
-                signedIn={Boolean(viewer)}
-                viewerRole={viewer?.role}
-                registration={event.viewerRegistration}
-                full={event.full}
-                closed={closed}
+                hub={event.hub}
+                canManage={viewer?.id === event.ownerId}
               />
-
-              <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8">
-                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
-                  Organizer
-                </p>
-                <div className="mt-5 flex items-center gap-4">
-                  <Avatar src={event.hub.logo} name={event.hub.name} size={54} shape="rounded" />
-                  <div className="min-w-0">
-                    <p className="truncate font-black uppercase text-navy">{event.hub.name}</p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {event.hub.verified ? "Verified venue partner" : "Venue partner"}
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-5 border-t border-slate-100 pt-5">
-                  <Link href={`/hubs/${event.hub.slug ?? event.hub.id}`} className="text-sm font-bold text-primary hover:underline">
-                    View venue profile →
-                  </Link>
-                  {viewer?.id === event.ownerId && (
-                    <Link href={`/dashboard/events/${event.publicId}/edit`} className="mt-3 block text-sm font-bold text-navy hover:underline">
-                      Manage this event →
-                    </Link>
-                  )}
-                </div>
-              </div>
             </div>
-          </aside>
         </div>
       </div>
     </PageShell>
   );
 }
 
+function EventOrganizerCard({
+  publicId,
+  hub,
+  canManage,
+}: {
+  publicId: string;
+  hub: {
+    id: string;
+    slug: string | null;
+    name: string;
+    logo: string | null;
+    verified: boolean;
+  };
+  canManage: boolean;
+}) {
+  return (
+    <div className="min-w-0 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 lg:mt-6">
+      <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
+        Organizer
+      </p>
+      <div className="mt-5 flex min-w-0 items-center gap-4">
+        <Avatar src={hub.logo} name={hub.name} size={54} shape="rounded" />
+        <div className="min-w-0">
+          <p className="truncate font-black uppercase text-navy">{hub.name}</p>
+          <p className="mt-1 text-xs text-slate-500">
+            {hub.verified ? "Verified venue partner" : "Venue partner"}
+          </p>
+        </div>
+      </div>
+      <div className="mt-5 border-t border-slate-100 pt-5">
+        <Link
+          href={`/hubs/${hub.slug ?? hub.id}`}
+          className="text-sm font-bold text-primary hover:underline"
+        >
+          View venue profile →
+        </Link>
+        {canManage && (
+          <Link
+            href={`/dashboard/events/${publicId}/edit`}
+            className="mt-3 block text-sm font-bold text-navy hover:underline"
+          >
+            Manage this event →
+          </Link>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function EventFact({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-4 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+    <div className="flex min-w-0 items-start gap-4 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
       <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary-soft text-primary">{icon}</span>
       <div className="min-w-0">
         <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{label}</p>
-        <div className="mt-1.5 flex flex-col gap-0.5 text-sm text-slate-500 [&_strong]:text-navy">{children}</div>
+        <div className="mt-1.5 flex min-w-0 flex-col gap-0.5 break-words text-sm text-slate-500 [&_strong]:text-navy">{children}</div>
       </div>
     </div>
   );

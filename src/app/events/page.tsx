@@ -2,13 +2,33 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { PageShell } from "@/components/PageShell";
-import { EventCard } from "@/components/events/EventCard";
+import {
+  CompactEventCard,
+  EventCard,
+  FeaturedEventCard,
+} from "@/components/events/EventCard";
 import { listPublicEvents } from "@/lib/events";
+import {
+  DEFAULT_SOCIAL_IMAGE,
+  SITE_NAME,
+  absoluteUrl,
+} from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Open Play Events in Bohol — Bunal.club",
   description:
     "Browse today's and upcoming open play sessions hosted by Bunal.club venue partners.",
+  alternates: { canonical: absoluteUrl("/events") },
+  openGraph: {
+    title: "Open Play Events in Bohol — Bunal.club",
+    description:
+      "Browse today's and upcoming open play sessions hosted by Bunal.club venue partners.",
+    url: absoluteUrl("/events"),
+    siteName: SITE_NAME,
+    images: [DEFAULT_SOCIAL_IMAGE],
+    locale: "en_PH",
+    type: "website",
+  },
 };
 
 const tabs = [
@@ -28,17 +48,19 @@ export default async function EventsPage({
   const requested = Array.isArray(query.view) ? query.view[0] : query.view;
   const view: EventView = tabs.some((tab) => tab.value === requested)
     ? (requested as EventView)
-    : "today";
+    : "upcoming";
   const events = await listPublicEvents(view);
+  const featured = view === "upcoming" ? events[0] : undefined;
+  const remaining = featured ? events.slice(1) : [];
 
   return (
     <PageShell maxWidth="max-w-7xl">
-      <div className="py-10 sm:py-14">
+      <div className="min-w-0 py-8 sm:py-14">
         <header className="max-w-3xl">
           <p className="text-[11px] font-black uppercase tracking-[0.2em] text-primary">
             Play · compete · connect
           </p>
-          <h1 className="mt-3 text-4xl font-black tracking-[-0.045em] text-navy sm:text-5xl">
+          <h1 className="mt-3 text-3xl font-black tracking-[-0.045em] text-navy sm:text-5xl">
             Events
           </h1>
           <p className="mt-3 text-base leading-7 text-slate-500 sm:text-lg">
@@ -48,7 +70,10 @@ export default async function EventsPage({
           </p>
         </header>
 
-        <nav className="mt-8 inline-flex rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm" aria-label="Event periods">
+        <nav
+          className="mt-7 grid w-full max-w-md grid-cols-3 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm"
+          aria-label="Event periods"
+        >
           {tabs.map((tab) => {
             const active = tab.value === view;
             return (
@@ -56,7 +81,7 @@ export default async function EventsPage({
                 key={tab.value}
                 href={`/events?view=${tab.value}`}
                 aria-current={active ? "page" : undefined}
-                className={`rounded-xl px-4 py-2.5 text-sm font-bold transition-colors sm:px-6 ${
+                className={`min-w-0 rounded-xl px-2 py-2.5 text-center text-xs font-bold transition-colors sm:px-6 sm:text-sm ${
                   active
                     ? "bg-navy text-white shadow-sm"
                     : "text-slate-500 hover:bg-slate-50 hover:text-navy"
@@ -68,8 +93,34 @@ export default async function EventsPage({
           })}
         </nav>
 
-        {events.length > 0 ? (
-          <div className="mt-8 grid gap-6 lg:grid-cols-2">
+        {featured ? (
+          <div className="mt-8 min-w-0">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
+                Featured next
+              </h2>
+              <span className="inline-flex items-center gap-2 text-xs font-bold text-primary">
+                <span className="h-2 w-2 rounded-full bg-accent" />
+                {featured.full ? "Waitlist open" : "Registration open"}
+              </span>
+            </div>
+            <FeaturedEventCard event={featured} />
+
+            {remaining.length > 0 && (
+              <section className="mt-8 min-w-0">
+                <h2 className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
+                  More upcoming
+                </h2>
+                <div className="mt-4 grid min-w-0 gap-3 lg:grid-cols-2">
+                  {remaining.map((event) => (
+                    <CompactEventCard key={event.id} event={event} />
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+        ) : events.length > 0 ? (
+          <div className="mt-8 grid min-w-0 gap-6 lg:grid-cols-2">
             {events.map((event) => (
               <EventCard key={event.id} event={event} past={view === "past"} />
             ))}

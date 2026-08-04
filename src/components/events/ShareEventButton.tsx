@@ -2,11 +2,10 @@
 
 import { useState } from "react";
 
-export function ShareEventButton({ title }: { title: string }) {
+export function ShareEventButton({ title, url }: { title: string; url: string }) {
   const [copied, setCopied] = useState(false);
 
   async function share() {
-    const url = window.location.href;
     if (navigator.share) {
       try {
         await navigator.share({ title, url });

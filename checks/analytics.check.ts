@@ -14,6 +14,7 @@ const prisma = new PrismaClient();
 const req = createRequire(import.meta.url);
 const root = process.cwd();
 const HUB = "tmp-analytics-hub";
+const EVENT_HUB = "tmp-analytics-event-hub";
 
 async function main() {
   const admin = await prisma.user.findFirst({
@@ -44,8 +45,13 @@ async function main() {
     paths: [],
   } as unknown as NodeModule;
 
-  const { venueRevenue, marketplaceRevenue, monthRange, monthsRange } =
-    await import("@/lib/analytics");
+  const {
+    venueRevenue,
+    venueRevenueBreakdown,
+    marketplaceRevenue,
+    monthRange,
+    monthsRange,
+  } = await import("@/lib/analytics");
   const { manilaDateOf } = await import("@/lib/time");
 
   const [partnerA, partnerB] = await prisma.user.findMany({
@@ -62,7 +68,14 @@ async function main() {
     throw new Error("need two partners, a player and a gateway");
   }
 
-  const baselineBookingPayments = await prisma.bookingPayment.count();
+  // Remove only abandoned fixtures from an interrupted prior run.
+  await prisma.hub.deleteMany({ where: { id: EVENT_HUB } });
+  await prisma.bookingPayment.deleteMany({
+    where: { hubId: { in: [HUB, EVENT_HUB, "some-other-hub"] } },
+  });
+  const baselinePaymentIds = (
+    await prisma.bookingPayment.findMany({ select: { id: true } })
+  ).map((payment) => payment.id);
 
   const make = (args: {
     partnerId: string;
@@ -78,9 +91,9 @@ async function main() {
         gatewayId: gateway.id,
         userId: player.id,
         hubId: args.hubId ?? HUB,
-        // A venue's report is about the COURT amount, so the fixture carries
-        // the split a real payment now has: the player paid the gross, the
-        // venue keeps `amount`.
+        // A venue's report is about its share, so the fixture carries the split
+        // a real court or event payment has: the player paid the gross, while
+        // the venue keeps `amount`.
         amount: grossFor(args.amount),
         venueAmount: args.amount,
         platformFee: bookingServiceFeeFor(args.amount),
@@ -203,6 +216,78 @@ async function main() {
     (await marketplaceRevenue(monthRange(2026, 6))).totals.gross >= 2300 + 9999
   );
 
+  // --- Court and event revenue stay distinguishable ------------------------
+  await prisma.hub.create({
+    data: {
+      id: EVENT_HUB,
+      ownerId: partnerA.id,
+      name: "Analytics event hub",
+      coverPhotos: [],
+      games: ["pickleball"],
+    },
+  });
+  const event = await prisma.event.create({
+    data: {
+      publicId: `analytics-event-${partnerA.id}`,
+      hubId: EVENT_HUB,
+      title: "Analytics Open Play",
+      sport: "pickleball",
+      date: "2026-06-22",
+      startHour: 18,
+      endHour: 20,
+      startsAt: new Date("2026-06-22T10:00:00.000Z"),
+      endsAt: new Date("2026-06-22T12:00:00.000Z"),
+      capacity: 12,
+      registrationFee: 600,
+      status: "PUBLISHED",
+      publishedAt: new Date("2026-06-01T00:00:00.000Z"),
+    },
+    select: { id: true },
+  });
+  const eventPayment = await make({
+    partnerId: partnerA.id,
+    hubId: EVENT_HUB,
+    amount: 600,
+    paidAt: new Date("2026-06-22T09:00:00.000Z"),
+  });
+  await prisma.eventRegistration.create({
+    data: {
+      eventId: event.id,
+      userId: player.id,
+      status: "CONFIRMED",
+      confirmedAt: new Date("2026-06-22T09:00:00.000Z"),
+      bookingPaymentId: eventPayment.id,
+    },
+  });
+
+  const sources = await venueRevenueBreakdown({
+    partnerId: partnerA.id,
+    range: monthRange(2026, 6),
+  });
+  ok(
+    "the combined partner report includes court bookings and event registrations",
+    sources.all.totals.gross === 2900 && sources.all.totals.count === 4
+  );
+  ok(
+    "court booking revenue remains available as its own report source",
+    sources.court.totals.gross === 2300 && sources.court.totals.count === 3
+  );
+  ok(
+    "paid event registrations appear as their own report source",
+    sources.event.totals.gross === 600 && sources.event.totals.count === 1
+  );
+  const eventHubSources = await venueRevenueBreakdown({
+    partnerId: partnerA.id,
+    hubId: EVENT_HUB,
+    range: monthRange(2026, 6),
+  });
+  ok(
+    "the hub filter also scopes event revenue",
+    eventHubSources.all.totals.gross === 600 &&
+      eventHubSources.court.totals.gross === 0 &&
+      eventHubSources.event.totals.gross === 600
+  );
+
   // --- A hub filter, and a quiet period ------------------------------------
   const otherHub = await venueRevenue({
     partnerId: partnerA.id,
@@ -221,14 +306,16 @@ async function main() {
   ok("and an average of zero, not NaN", quiet.totals.average === 0);
 
   // --- cleanup --------------------------------------------------------------
+  await prisma.hub.deleteMany({ where: { id: EVENT_HUB } });
   await prisma.bookingPayment.deleteMany({
-    where: { OR: [{ hubId: HUB }, { hubId: "some-other-hub" }] },
+    where: { hubId: { in: [HUB, EVENT_HUB, "some-other-hub"] } },
   });
   ok(
     "left the real payments alone",
-    (await prisma.bookingPayment.count()) === baselineBookingPayments
+    (await prisma.bookingPayment.count({
+      where: { id: { in: baselinePaymentIds } },
+    })) === baselinePaymentIds.length
   );
-
 }
 
 void run(main, async () => {

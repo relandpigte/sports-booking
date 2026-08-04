@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin";
 import { addDays, manilaDateOf, manilaInstant, manilaMonthOf } from "@/lib/time";
 
-// Revenue over time for venue booking payments.
+// Revenue over time for venue court bookings and paid event registrations.
 //
 // Deliberately reads the PAYMENT LEDGER, not the booking table: this answers
 // "what money actually moved", which is a different question from "what was
@@ -189,14 +189,14 @@ function ledgerWhere(range: RevenueRange) {
 
 // --- Players paying a venue -------------------------------------------------
 
-// Scoped to one partner, whose id the caller has already proved. `hubId`
-// narrows to a single venue for a partner who owns several.
-export async function venueRevenue(args: {
+type VenueRevenueArgs = {
   partnerId: string;
   hubId?: string;
   range: RevenueRange;
-}): Promise<RevenueSeries> {
-  const rows = await prisma.bookingPayment.findMany({
+};
+
+async function venueLedgerRows(args: VenueRevenueArgs) {
+  return prisma.bookingPayment.findMany({
     where: {
       partnerId: args.partnerId,
       ...(args.hubId ? { hubId: args.hubId } : {}),
@@ -208,23 +208,63 @@ export async function venueRevenue(args: {
       venueAmount: true,
       paidAt: true,
       refundedAt: true,
+      // Event payments share BookingPayment with court bookings. This relation
+      // is the durable source marker; no title or amount heuristic is needed.
+      eventRegistration: { select: { id: true } },
     },
   });
+}
 
-  return buildSeries(
-    rows.map((r) => ({
-      // The COURT amount: what the venue actually keeps. The service fee the
-      // player also paid is Bunal.club's, and showing it here would flatter
-      // every venue's numbers by the service-fee rate.
-      amount: Number(r.venueAmount),
-      paidAt: r.paidAt,
-      refundedAt: r.refundedAt,
-      // A refund reverses the gross, so the venue's share of it is what comes
-      // back off their line.
-      refundedAmount: r.refundedAt ? Number(r.venueAmount) : null,
-    })),
-    args.range
-  );
+type VenueLedgerDatabaseRow = Awaited<
+  ReturnType<typeof venueLedgerRows>
+>[number];
+
+function venueLedgerRow(row: VenueLedgerDatabaseRow): LedgerRow {
+  return {
+    // The advertised court or event amount is what the venue actually keeps.
+    // The service fee the player also paid is Bunal.club's, and showing it
+    // here would flatter every venue's numbers by the service-fee rate.
+    amount: Number(row.venueAmount),
+    paidAt: row.paidAt,
+    refundedAt: row.refundedAt,
+    // A refund reverses the gross, so the venue's share of it is what comes
+    // back off their line.
+    refundedAmount: row.refundedAt ? Number(row.venueAmount) : null,
+  };
+}
+
+export type VenueRevenueBreakdown = {
+  all: RevenueSeries;
+  court: RevenueSeries;
+  event: RevenueSeries;
+};
+
+// Scoped to one partner, whose id the caller has already proved. `hubId`
+// narrows to a single venue for a partner who owns several.
+export async function venueRevenue(args: {
+  partnerId: string;
+  hubId?: string;
+  range: RevenueRange;
+}): Promise<RevenueSeries> {
+  const rows = await venueLedgerRows(args);
+  return buildSeries(rows.map(venueLedgerRow), args.range);
+}
+
+// One ledger read powers the combined report and both source filters. A
+// payment without an event registration is a court payment, including legacy
+// rows created before the event relation existed.
+export async function venueRevenueBreakdown(
+  args: VenueRevenueArgs
+): Promise<VenueRevenueBreakdown> {
+  const rows = await venueLedgerRows(args);
+  const court = rows.filter((row) => row.eventRegistration === null);
+  const event = rows.filter((row) => row.eventRegistration !== null);
+
+  return {
+    all: buildSeries(rows.map(venueLedgerRow), args.range),
+    court: buildSeries(court.map(venueLedgerRow), args.range),
+    event: buildSeries(event.map(venueLedgerRow), args.range),
+  };
 }
 
 // --- Every venue, for the admin ---------------------------------------------

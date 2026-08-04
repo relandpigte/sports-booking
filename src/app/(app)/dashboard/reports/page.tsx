@@ -7,7 +7,11 @@ import { RevenueReport, type StatTile } from "@/components/reports/RevenueReport
 import { requireActivePartner } from "@/lib/dal";
 import { listMyHubs } from "@/lib/hubs";
 import { getActivePartnerGateway } from "@/lib/partner-gateway";
-import { monthRange, monthsRange, venueRevenue } from "@/lib/analytics";
+import {
+  monthRange,
+  monthsRange,
+  venueRevenueBreakdown,
+} from "@/lib/analytics";
 import { formatPHP } from "@/lib/currency";
 import { MONTHS } from "@/lib/constants";
 
@@ -25,6 +29,7 @@ export default async function PartnerReportsPage({
     month?: string;
     grain?: string;
     hub?: string;
+    source?: string;
   }>;
 }) {
   const partner = await requireActivePartner();
@@ -34,6 +39,8 @@ export default async function PartnerReportsPage({
   const year = Number(sp.year) || now.getUTCFullYear();
   const month = Number(sp.month) || now.getUTCMonth() + 1;
   const grain = sp.grain === "month" ? "month" : "day";
+  const source =
+    sp.source === "court" || sp.source === "event" ? sp.source : "all";
 
   const hubs = await listMyHubs();
   // An unknown hub id would silently show everything, which is worse than
@@ -42,39 +49,53 @@ export default async function PartnerReportsPage({
 
   const range =
     grain === "month" ? monthsRange(year, month, 12) : monthRange(year, month);
-  const [series, gateway] = await Promise.all([
-    venueRevenue({ partnerId: partner.id, hubId, range }),
+  const [breakdown, gateway] = await Promise.all([
+    venueRevenueBreakdown({ partnerId: partner.id, hubId, range }),
     getActivePartnerGateway(partner.id),
   ]);
+  const series = breakdown[source];
 
   const periodLabel =
     grain === "month"
       ? `12 months to ${MONTHS[month - 1]} ${year}`
       : `${MONTHS[month - 1]} ${year}`;
 
+  const sourceLabel =
+    source === "court"
+      ? "court bookings"
+      : source === "event"
+        ? "event registrations"
+        : "court bookings and event registrations";
   const tiles: StatTile[] = [
     {
-      label: "Court revenue",
-      value: formatPHP(series.totals.gross),
-      hint: `After service-fee settlement · ${periodLabel}`,
+      label: "Total collected",
+      value: formatPHP(breakdown.all.totals.gross),
+      hint: `${breakdown.all.totals.count} paid ${
+        breakdown.all.totals.count === 1 ? "transaction" : "transactions"
+      } · ${periodLabel}`,
       emphasis: true,
     },
     {
-      label: "Refunded",
-      value: series.totals.refunds > 0 ? `−${formatPHP(series.totals.refunds)}` : "—",
-      hint: "On the day it was issued",
+      label: "Court bookings",
+      value: formatPHP(breakdown.court.totals.gross),
+      hint: `${breakdown.court.totals.count} paid ${
+        breakdown.court.totals.count === 1 ? "booking" : "bookings"
+      }`,
     },
     {
-      label: "Net",
-      value: formatPHP(series.totals.net),
-      hint: "Collected less refunds",
+      label: "Event registrations",
+      value: formatPHP(breakdown.event.totals.gross),
+      hint: `${breakdown.event.totals.count} paid ${
+        breakdown.event.totals.count === 1 ? "registration" : "registrations"
+      }`,
     },
     {
-      label: "Payments",
-      value: String(series.totals.count),
-      hint: series.totals.count
-        ? `${formatPHP(series.totals.average)} on an average ${grain === "month" ? "month" : "day"}`
-        : "None yet",
+      label: "Net revenue",
+      value: formatPHP(breakdown.all.totals.net),
+      hint:
+        breakdown.all.totals.refunds > 0
+          ? `${formatPHP(breakdown.all.totals.refunds)} refunded`
+          : "No refunds in this period",
     },
   ];
 
@@ -83,30 +104,42 @@ export default async function PartnerReportsPage({
       <DashboardPageHeader
         eyebrow="Venue performance"
         title="Reports"
-        description="Court payments that reached your own PayMongo account."
+        description="Court bookings and paid event registrations that reached your PayMongo account."
         actions={
           <PeriodPicker
             action="/dashboard/reports"
             year={year}
             month={month}
             grain={grain}
-            hidden={{ hub: hubId }}
+            hidden={{ hub: hubs.length <= 1 ? hubId : undefined }}
             extra={
-              hubs.length > 1 ? (
+              <>
                 <select
-                  name="hub"
-                  defaultValue={hubId ?? ""}
-                  aria-label="Hub"
+                  name="source"
+                  defaultValue={source}
+                  aria-label="Revenue source"
                   className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary focus:outline-none"
                 >
-                  <option value="">All hubs</option>
-                  {hubs.map((hub) => (
-                    <option key={hub.id} value={hub.id}>
-                      {hub.name}
-                    </option>
-                  ))}
+                  <option value="all">All revenue</option>
+                  <option value="court">Court bookings</option>
+                  <option value="event">Event registrations</option>
                 </select>
-              ) : null
+                {hubs.length > 1 ? (
+                  <select
+                    name="hub"
+                    defaultValue={hubId ?? ""}
+                    aria-label="Hub"
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary focus:outline-none"
+                  >
+                    <option value="">All hubs</option>
+                    {hubs.map((hub) => (
+                      <option key={hub.id} value={hub.id}>
+                        {hub.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+              </>
             }
           />
         }
@@ -115,15 +148,21 @@ export default async function PartnerReportsPage({
       <div className="mt-6">
         <RevenueReport
           chartId="venue"
-          title={grain === "month" ? "Monthly revenue" : "Daily revenue"}
-          subtitle={`Court payments ${grain === "month" ? "by month" : "by day"} · ${periodLabel}`}
+          title={`${grain === "month" ? "Monthly" : "Daily"} ${
+            source === "all"
+              ? "revenue"
+              : source === "court"
+                ? "court revenue"
+                : "event revenue"
+          }`}
+          subtitle={`${sourceLabel} ${grain === "month" ? "by month" : "by day"} · ${periodLabel}`}
           series={series}
           tiles={tiles}
           empty={
             gateway ? (
               <p className="text-sm text-gray-500">
-                No online payments in {periodLabel}. Bookings settled at the
-                venue don&apos;t appear here — only money that reached your
+                No online {sourceLabel} in {periodLabel}. Payments settled at
+                the venue don&apos;t appear here — only money that reached your
                 gateway.
               </p>
             ) : (
@@ -132,7 +171,7 @@ export default async function PartnerReportsPage({
               <div className="flex flex-col items-center gap-2">
                 <p className="text-sm text-gray-500">
                   This hub settles at the venue, so there are no online payments
-                  to report.
+                  from court bookings or events to report.
                 </p>
                 <Link
                   href="/dashboard/payments"

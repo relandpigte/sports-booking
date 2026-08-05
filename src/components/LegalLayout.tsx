@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { ClosingCta } from "@/components/ClosingCta";
 import { Logo } from "@/components/Logo";
+import { SiteFooter } from "@/components/SiteFooter";
 
 interface LegalLayoutProps {
   title: string;
@@ -10,9 +12,9 @@ interface LegalLayoutProps {
 
 export function LegalLayout({ title, updated, children }: LegalLayoutProps) {
   return (
-    <main className="min-h-screen bg-white px-4 py-8 sm:py-12">
-      <div className="mx-auto w-full max-w-2xl">
-        <Link href="/register" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">
+    <div>
+      <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:py-12">
+        <Link href="/" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <line x1="19" y1="12" x2="5" y2="12" />
             <polyline points="12 19 5 12 12 5" />
@@ -42,7 +44,12 @@ export function LegalLayout({ title, updated, children }: LegalLayoutProps) {
           </Link>
         </div>
       </div>
-    </main>
+
+      <div className="mt-8">
+        <ClosingCta />
+      </div>
+      <SiteFooter />
+    </div>
   );
 }
 

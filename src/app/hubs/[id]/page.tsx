@@ -10,7 +10,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { getPublicHub, type Hub } from "@/lib/hubs";
 import { getViewer } from "@/lib/dal";
 import { getHubCourtOccupancies } from "@/lib/bookings";
-import { formatTime, summarizeOperatingHours } from "@/lib/hours";
+import { summarizeOperatingHours } from "@/lib/hours";
 import { formatPHP } from "@/lib/currency";
 import { hubPublicPath } from "@/lib/hub-slug";
 import {
@@ -179,7 +179,6 @@ export default async function PublicHubPage({
   // The partner previewing their own hub, or an admin looking at it.
   const isOwner = viewer?.id === hub.ownerId || viewer?.role === "ADMIN";
 
-  const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   const hasCoords = hub.latitude != null && hub.longitude != null;
   const mapsQuery = hasCoords
     ? `${hub.latitude},${hub.longitude}`
@@ -333,7 +332,12 @@ export default async function PublicHubPage({
             </div>
 
             {hub.address ? (
-              <p className="mt-3 flex items-start gap-2 text-sm leading-relaxed text-gray-500 sm:text-base">
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 flex items-start gap-2 text-sm leading-relaxed text-gray-500 hover:text-primary sm:text-base"
+              >
                 <svg
                   className="mt-0.5 shrink-0 text-primary"
                   width="18"
@@ -349,8 +353,10 @@ export default async function PublicHubPage({
                   <path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z" />
                   <circle cx="12" cy="10" r="3" />
                 </svg>
-                <span>{hub.address}</span>
-              </p>
+                <span className="underline-offset-2 hover:underline">
+                  {hub.address}
+                </span>
+              </a>
             ) : (
               <p className="mt-2 text-sm text-gray-500">Bunal.club hub</p>
             )}
@@ -463,63 +469,6 @@ export default async function PublicHubPage({
               </section>
             )}
 
-            {(hub.address || hasCoords) && (
-              <section>
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
-                  Location &amp; map
-                </p>
-                <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200 bg-white">
-                  {mapsKey && hasCoords ? (
-                    <iframe
-                      title={`Map of ${hub.name}`}
-                      loading="lazy"
-                      referrerPolicy="no-referrer-when-downgrade"
-                      className="h-80 w-full"
-                      src={`https://www.google.com/maps/embed/v1/place?key=${mapsKey}&q=${hub.latitude},${hub.longitude}&zoom=16`}
-                    />
-                  ) : (
-                    <div className="flex min-h-64 flex-col items-center justify-center bg-navy-soft/60 px-6 text-center">
-                      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-primary shadow-sm">
-                        <svg
-                          width="22"
-                          height="22"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden="true"
-                        >
-                          <path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z" />
-                          <circle cx="12" cy="10" r="3" />
-                        </svg>
-                      </span>
-                      {hub.address && (
-                        <p className="mt-4 max-w-md text-sm font-medium text-navy">
-                          {hub.address}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                  <div className="flex flex-col gap-3 border-t border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                    {hub.address && (
-                      <p className="text-sm text-gray-500">{hub.address}</p>
-                    )}
-                    <a
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                        mapsQuery
-                      )}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex min-h-11 shrink-0 items-center text-sm font-semibold text-primary hover:underline"
-                    >
-                      Open in Google Maps →
-                    </a>
-                  </div>
-                </div>
-              </section>
-            )}
           </div>
 
           <aside className="space-y-6">
@@ -603,29 +552,41 @@ export default async function PublicHubPage({
 
             <section className="rounded-2xl border border-gray-200 bg-white p-6">
               <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
-                Operating hours
+                Court details
               </h2>
-              {hours ? (
-                <dl className="mt-5 space-y-3 text-sm">
-                  {WEEKDAYS.map(({ value, label }) => {
-                    const day = hours[value as Weekday];
-                    return (
-                      <div
-                        key={value}
-                        className="flex items-center justify-between gap-4"
-                      >
-                        <dt className="text-gray-500">{label}</dt>
-                        <dd className="text-right font-semibold text-navy">
-                          {!day || day.closed
-                            ? "Closed"
-                            : `${formatTime(day.open)} – ${formatTime(day.close)}`}
+              {hub.courts.length > 0 ? (
+                <dl className="mt-5 space-y-4 text-sm">
+                  {hub.courts.map((court) => (
+                    <div
+                      key={court.id}
+                      className="flex items-start justify-between gap-4 border-b border-gray-100 pb-4 last:border-0 last:pb-0"
+                    >
+                      <div className="min-w-0">
+                        <dt className="font-semibold text-navy">
+                          {court.name}
+                        </dt>
+                        <dd className="mt-1 inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-gray-600">
+                          {COURT_TYPE_LABELS[court.courtType] ??
+                            court.courtType}
                         </dd>
                       </div>
-                    );
-                  })}
+                      <dd className="shrink-0 text-right font-semibold text-primary">
+                        {court.hourlyRate != null
+                          ? formatPHP(court.hourlyRate)
+                          : "On request"}
+                        {court.hourlyRate != null && (
+                          <span className="block text-[10px] font-normal text-gray-400">
+                            / hour
+                          </span>
+                        )}
+                      </dd>
+                    </div>
+                  ))}
                 </dl>
               ) : (
-                <p className="mt-5 text-sm text-gray-400">Hours not set.</p>
+                <p className="mt-5 text-sm text-gray-400">
+                  No courts added yet.
+                </p>
               )}
             </section>
           </aside>

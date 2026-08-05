@@ -395,8 +395,8 @@ export default async function PublicHubPage({
       </div>
 
       <div className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
-        <div className="grid grid-cols-1 gap-12 lg:grid-cols-3">
-          <div className="space-y-12 lg:col-span-2">
+        <div className="grid grid-cols-1 gap-12 lg:grid-cols-2">
+          <div className="space-y-12">
             {hub.about && (
               <section>
                 <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">

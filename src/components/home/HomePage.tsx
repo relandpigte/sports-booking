@@ -741,7 +741,12 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
               </p>
               <p className="inline-flex items-center gap-2">
                 <Icon name="card" className="h-4 w-4 text-primary" />
-                Processing fees may be added by PayMongo at checkout.
+                PayMongo&apos;s processing fee varies by payment method and is
+                shown before you pay —{" "}
+                <a href="#partners" className="font-bold text-primary hover:underline">
+                  see current rates
+                </a>
+                .
               </p>
             </div>
           </div>

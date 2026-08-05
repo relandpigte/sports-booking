@@ -74,7 +74,8 @@ export function EventRegistrationPanel({
         </dl>
         {fee > 0 && (
           <p className="mt-4 text-xs leading-5 text-slate-400">
-            PayMongo may add a method-specific processing fee on its hosted checkout.
+            PayMongo adds a processing fee that varies by payment method —
+            you&apos;ll see the exact amount before you confirm.
           </p>
         )}
 

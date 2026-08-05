@@ -293,8 +293,14 @@ export default async function PublicHubPage({
     >
       <JsonLd data={hubJsonLd} />
 
-      <div className="mx-auto mt-4 w-full max-w-5xl px-4 sm:px-6">
-        <div className="flex flex-col items-start gap-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-7 md:flex-row md:items-center md:gap-6">
+      <HubPhotoGallery
+        photos={hub.coverPhotos}
+        hubName={hub.name}
+        comingSoon={hub.comingSoon}
+      />
+
+      <div className="relative z-10 mx-auto mt-4 w-full max-w-5xl px-4 sm:px-6 md:-mt-10 md:mt-0 lg:-mt-12">
+        <div className="flex flex-col items-start gap-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-xl shadow-navy/10 sm:p-7 md:flex-row md:items-center md:gap-6">
           <Avatar
             src={hub.logo}
             name={hub.name}
@@ -384,12 +390,6 @@ export default async function PublicHubPage({
           </div>
         )}
       </div>
-
-      <HubPhotoGallery
-        photos={hub.coverPhotos}
-        hubName={hub.name}
-        comingSoon={hub.comingSoon}
-      />
 
       <div className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-3">

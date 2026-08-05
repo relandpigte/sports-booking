@@ -9,6 +9,7 @@ import {
   authenticatePassword,
   completeMfaSetupChallenge,
   consumeLoginGrant,
+  createGoogleLoginSession,
   createLoginGrant,
   createSecurityChallenge,
   getSecurityChallenge,
@@ -82,6 +83,21 @@ async function check() {
     )
   );
 
+  const googleLogin = await createGoogleLoginSession({
+    userId: user.id,
+    context: { ...context, deviceHash: "google-device-hash" },
+  });
+  ok(
+    "Google login creates the same kind of managed session",
+    Boolean(
+      googleLogin?.sessionId &&
+        (await validateManagedSession({
+          userId: user.id,
+          sessionId: googleLogin.sessionId,
+        }))
+    )
+  );
+
   const setupToken = await createSecurityChallenge({
     userId: user.id,
     purpose: "ACCOUNT_MFA_SETUP",
@@ -115,6 +131,16 @@ async function check() {
   ok(
     "an acknowledged setup challenge is consumed",
     (await getSecurityChallenge(setupToken)) === null
+  );
+
+  const deferredGoogleLogin = await createGoogleLoginSession({
+    userId: user.id,
+    context,
+  });
+  ok(
+    "Google login defers managed-session creation when MFA is enabled",
+    deferredGoogleLogin?.mfaVerified === false &&
+      deferredGoogleLogin.sessionId === undefined
   );
 
   const loginChallengeToken = await createSecurityChallenge({

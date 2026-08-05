@@ -1,7 +1,7 @@
 # Auth & Database Setup
 
-This app uses **Auth.js (NextAuth v5)** with a **Credentials** provider for
-email/password login, and **Prisma** against **Postgres** for storage.
+This app uses **Auth.js (NextAuth v5)** with **Credentials** and **Google**
+providers, and **Prisma** against **Postgres** for storage.
 
 ## 1. Environment variables
 
@@ -11,6 +11,8 @@ Copy `.env.example` to `.env` and fill in:
 | ---------------- | --------------------------------------------------------------------- |
 | `DATABASE_URL`   | Postgres connection string (Neon, Supabase, RDS, or local Postgres).  |
 | `AUTH_SECRET`    | Secret used to sign session JWTs. Generate with the command below.   |
+| `AUTH_GOOGLE_ID` | Google OAuth Web application client ID.                              |
+| `AUTH_GOOGLE_SECRET` | Google OAuth Web application client secret.                      |
 | `RESEND_API_KEY` | Resend API key used by the server for transactional account email.    |
 | `EMAIL_FROM`     | Sender on the exact verified Resend domain, with an optional name.    |
 | `ENCRYPTION_KEY` | AES key for authenticator MFA secrets and payment credentials.        |
@@ -25,6 +27,14 @@ status is `Verified`. Use the raw API key as the environment-variable value—do
 not include `Bearer`, the variable name, or quotes entered as literal text.
 Production environment changes require a new deployment before they take
 effect.
+
+In Google Cloud, add the following authorized redirect URIs to the OAuth Web
+application (using the actual production origin):
+
+```text
+http://localhost:3000/api/auth/callback/google
+https://www.bunal.club/api/auth/callback/google
+```
 
 > A development `AUTH_SECRET` is already present in `.env`. **Generate a fresh
 > one for production.** `.env` is gitignored (`.env*`), so it is never committed.
@@ -50,7 +60,7 @@ npm run dev
 
 - `/register` — create a player account (password is hashed with bcrypt).
 - `/register/partner` — apply for a partner account; an admin must activate it.
-- `/login` — sign in.
+- `/login` — sign in with email/password or Google.
 - `/login/mfa` — complete authenticator or recovery-code verification.
 - `/forgot-password` — request an expiring password-reset link.
 - `/reset-password?token=…` — choose a new password with a single-use token.
@@ -63,9 +73,10 @@ npm run dev
 | -------------------------------------- | ---------------------------------------------------------------- |
 | `prisma/schema.prisma`                 | `User` + Auth.js adapter models (`Account`, `Session`, …).       |
 | `src/lib/db.ts`                        | Singleton `PrismaClient`.                                        |
-| `src/lib/auth.ts`                      | NextAuth config: Credentials provider, JWT sessions, callbacks.  |
+| `src/lib/auth.ts`                      | NextAuth config: Credentials/Google providers and JWT callbacks. |
 | `src/app/api/auth/[...nextauth]/route.ts` | NextAuth request handlers (`GET`/`POST`).                      |
-| `src/lib/actions.ts`                   | Server Actions: `registerAction`, `loginAction`, `logoutAction`. |
+| `src/lib/actions.ts`                   | Registration, password login, Google login, and logout actions.  |
+| `src/app/api/auth/google/complete/route.ts` | Google redirect and MFA handoff.                         |
 | `src/lib/password-reset.ts`            | Hashed reset tokens, throttling, expiry, and password update.     |
 | `src/lib/password-reset-actions.ts`    | Server Actions for requesting and completing a reset.             |
 | `src/lib/email.ts`                     | Resend adapter for password-reset and welcome email delivery.       |
@@ -104,10 +115,12 @@ operation. `requirePartner()` is reserved for pages a pending partner may see.
 ### Notes & next steps
 
 - **Sessions are JWT**, which the Credentials provider requires. The Prisma
-  adapter is wired in so you can add OAuth providers (Google, etc.) later with
-  database sessions if desired.
-- The **profile photo** on the registration form is preview-only right now — it
-  isn't persisted (no blob storage configured yet).
+  adapter persists Google account links, while `AuthSession` keeps both login
+  methods revocable from the account security page.
+- Google identities are linked to an existing account only after Google reports
+  a verified email. First-time Google users are created as players. Google
+  sign-ins use the same revocable managed-session registry as password sign-ins;
+  admins and users with MFA enabled still complete authenticator verification.
 - `src/proxy.ts` does an **optimistic** cookie check only. The authoritative
   check is `verifySession()` in the DAL, which every protected page/server
   action should call.

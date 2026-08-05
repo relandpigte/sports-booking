@@ -1,21 +1,31 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import Google from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import type { Role } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
-import { consumeLoginGrant } from "@/lib/account-security";
+import {
+  consumeLoginGrant,
+  createGoogleLoginSession,
+} from "@/lib/account-security";
+import { getSecurityRequestContext } from "@/lib/security-context";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
-  // Credentials-based auth requires JWT sessions (the database session
-  // strategy is only used by OAuth/email providers).
+  // Credentials auth requires JWT sessions. Google shares that strategy so
+  // both providers can use the app's managed, revocable session registry.
   session: { strategy: "jwt" },
   trustHost: true,
   pages: {
     signIn: "/login",
   },
   providers: [
+    Google({
+      // Google only returns verified email identities to the callback below,
+      // so matching an existing password account by email is safe here.
+      allowDangerousEmailAccountLinking: true,
+    }),
     Credentials({
       credentials: {
         grant: { label: "Single-use login grant", type: "password" },
@@ -44,13 +54,32 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    jwt({ token, user }) {
+    signIn({ account, profile }) {
+      if (account?.provider !== "google") return true;
+      return profile?.email_verified === true && Boolean(profile.email);
+    },
+    async jwt({ token, user, account }) {
       if (user) {
-        token.id = user.id;
-        token.role = user.role;
-        token.sessionVersion = user.sessionVersion;
-        token.sessionId = user.sessionId;
-        token.mfaVerified = user.mfaVerified;
+        if (account?.provider === "google") {
+          const userId = user.id ?? token.sub;
+          if (!userId) return null;
+          const googleLogin = await createGoogleLoginSession({
+            userId,
+            context: await getSecurityRequestContext(),
+          });
+          if (!googleLogin) return null;
+          token.id = googleLogin.id;
+          token.role = googleLogin.role;
+          token.sessionVersion = googleLogin.sessionVersion;
+          token.sessionId = googleLogin.sessionId;
+          token.mfaVerified = googleLogin.mfaVerified;
+        } else {
+          token.id = user.id;
+          token.role = user.role;
+          token.sessionVersion = user.sessionVersion;
+          token.sessionId = user.sessionId;
+          token.mfaVerified = user.mfaVerified;
+        }
       }
       // Keep the cookie small — never persist an avatar in the JWT.
       if (token.picture) token.picture = undefined;

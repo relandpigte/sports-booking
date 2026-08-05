@@ -513,6 +513,16 @@ export async function loginAction(
   return {};
 }
 
+export async function googleLoginAction(formData: FormData): Promise<void> {
+  const requestedRedirect = String(formData.get("redirectTo") ?? "");
+  const redirectTo = safeInternalPath(requestedRedirect) ?? "/dashboard";
+  const completionUrl = `/api/auth/google/complete?next=${encodeURIComponent(
+    redirectTo
+  )}`;
+
+  await signIn("google", { redirectTo: completionUrl });
+}
+
 export async function logoutAction() {
   await endImpersonationForLogout();
   const session = await auth();

@@ -344,6 +344,136 @@ export async function consumeLoginGrant(token: string): Promise<{
   };
 }
 
+// Google sign-ins still use the app's revocable session registry. Users who
+// require authenticator MFA receive only a provisional Auth.js JWT here; the
+// OAuth completion route starts their existing MFA flow, which creates the
+// managed session after the second factor succeeds.
+export async function createGoogleLoginSession({
+  userId,
+  context,
+}: {
+  userId: string;
+  context: SecurityRequestContext;
+}): Promise<{
+  id: string;
+  email: string;
+  name: string | null;
+  role: Role;
+  sessionVersion: number;
+  sessionId?: string;
+  mfaVerified: boolean;
+} | null> {
+  const now = new Date();
+  const existing = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      sessionVersion: true,
+      loginCount: true,
+      emailVerified: true,
+      mfaEnabledAt: true,
+    },
+  });
+  if (!existing) return null;
+
+  const requiresMfa =
+    existing.role === "ADMIN" || existing.mfaEnabledAt !== null;
+  if (requiresMfa) {
+    if (!existing.emailVerified) {
+      await prisma.user.update({
+        where: { id: existing.id },
+        data: { emailVerified: now },
+      });
+    }
+    return {
+      id: existing.id,
+      email: existing.email,
+      name: existing.name,
+      role: existing.role,
+      sessionVersion: existing.sessionVersion,
+      mfaVerified: false,
+    };
+  }
+
+  const rawSessionToken = randomToken();
+  const result = await prisma.$transaction(async (tx) => {
+    const knownDevice = await tx.authSession.count({
+      where: { userId: existing.id, deviceHash: context.deviceHash },
+    });
+    const session = await tx.authSession.create({
+      data: {
+        tokenHash: hashSecurityToken(rawSessionToken),
+        userId: existing.id,
+        mfaVerified: true,
+        ...context,
+        expiresAt: addDays(now, SESSION_DAYS),
+      },
+    });
+    const user = await tx.user.update({
+      where: { id: existing.id },
+      data: {
+        emailVerified: existing.emailVerified ?? now,
+        lastLoginAt: now,
+        loginCount: { increment: 1 },
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        sessionVersion: true,
+      },
+    });
+    await tx.securityEvent.create({
+      data: {
+        userId: existing.id,
+        type: knownDevice === 0 ? "LOGIN_NEW_DEVICE" : "LOGIN_SUCCESS",
+        deviceLabel: context.deviceLabel,
+        location: context.location,
+        ipHash: context.ipHash,
+        metadata: { mfaVerified: true, provider: "google" },
+      },
+    });
+    return {
+      ...user,
+      sessionDatabaseId: session.id,
+      shouldAlert: knownDevice === 0 && existing.loginCount > 0,
+    };
+  });
+
+  if (result.shouldAlert && emailDeliveryConfigured()) {
+    try {
+      await sendNewDeviceLoginEmail({
+        to: result.email,
+        name: result.name ?? result.email,
+        device: context.deviceLabel,
+        location: context.location,
+        occurredAt: now,
+        securityUrl: appUrl("/dashboard/account?tab=security"),
+        idempotencyKey: `new-device-${result.sessionDatabaseId}`,
+      });
+    } catch (error) {
+      console.error(
+        "New-device security email delivery failed:",
+        error instanceof Error ? error.message : "Unknown provider error"
+      );
+    }
+  }
+
+  return {
+    id: result.id,
+    email: result.email,
+    name: result.name,
+    role: result.role,
+    sessionVersion: result.sessionVersion,
+    sessionId: rawSessionToken,
+    mfaVerified: true,
+  };
+}
+
 export async function createSecurityChallenge({
   userId,
   purpose,

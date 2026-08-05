@@ -299,7 +299,7 @@ export default async function PublicHubPage({
         comingSoon={hub.comingSoon}
       />
 
-      <div className="relative z-10 mx-auto mt-4 w-full max-w-5xl px-4 sm:px-6 md:-mt-10 md:mt-0 lg:-mt-12">
+      <div className="relative z-10 mx-auto mt-4 w-full max-w-5xl px-4 sm:px-6 md:-mt-10 md:px-8 lg:-mt-12 lg:px-12 xl:px-16">
         <div className="flex flex-col items-start gap-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-xl shadow-navy/10 sm:p-7 md:flex-row md:items-center md:gap-6">
           <Avatar
             src={hub.logo}
@@ -314,24 +314,22 @@ export default async function PublicHubPage({
               <h1 className="text-3xl font-extrabold tracking-tight text-navy sm:text-4xl">
                 {hub.name}
               </h1>
-              {hub.verified && <VerifiedBadge size="regular" />}
-              {hub.comingSoon && (
-                <span className="inline-flex h-8 w-fit items-center rounded-full bg-navy px-3 text-[11px] font-black uppercase tracking-[0.12em] text-accent">
-                  Coming soon
-                </span>
-              )}
-              {hub.games.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {hub.games.map((game) => (
-                    <span
-                      key={game}
-                      className="inline-flex h-8 items-center rounded-full bg-primary-soft px-3 text-[11px] font-bold uppercase tracking-wider text-primary"
-                    >
-                      {GAME_LABELS[game] ?? game}
-                    </span>
-                  ))}
-                </div>
-              )}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {hub.verified && <VerifiedBadge size="regular" />}
+                {hub.comingSoon && (
+                  <span className="inline-flex h-8 w-fit items-center rounded-full bg-navy px-3 text-[11px] font-black uppercase tracking-[0.12em] text-accent">
+                    Coming soon
+                  </span>
+                )}
+                {hub.games.map((game) => (
+                  <span
+                    key={game}
+                    className="inline-flex h-8 items-center rounded-full bg-primary-soft px-3 text-[11px] font-bold uppercase tracking-wider text-primary"
+                  >
+                    {GAME_LABELS[game] ?? game}
+                  </span>
+                ))}
+              </div>
             </div>
 
             {hub.address ? (

@@ -200,7 +200,7 @@ function CourtComparisonGrid({
         <table className="w-full min-w-[680px] border-separate border-spacing-0">
           <thead>
             <tr>
-              <th className="sticky left-0 z-20 w-40 border-b border-r border-gray-200 bg-gray-50 px-4 py-4 text-left text-[10px] font-black uppercase tracking-[0.16em] text-gray-400">
+              <th className="sticky left-0 z-20 w-40 border-b border-r border-gray-200 bg-gray-50 px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-[0.16em] text-gray-400">
                 Time
               </th>
               {courts.map((court) => {
@@ -208,20 +208,20 @@ function CourtComparisonGrid({
                 return (
                   <th
                     key={court.id}
-                    className={`min-w-40 border-b border-r border-gray-200 px-3 py-3 text-center last:border-r-0 ${
+                    className={`min-w-32 border-b border-r border-gray-200 px-2 py-1.5 text-center last:border-r-0 ${
                       active ? "bg-primary-soft/70" : "bg-gray-50"
                     }`}
                   >
                     <button
                       type="button"
                       onClick={() => onSelectCourt(court.id)}
-                      className="min-h-11 w-full rounded-lg px-2 py-1"
+                      className="min-h-9 w-full rounded-lg px-2 py-1"
                       aria-pressed={active}
                     >
                       <span className="block truncate text-sm font-extrabold text-navy">
                         {court.name}
                       </span>
-                      <span className="mt-1 inline-flex">
+                      <span className="mt-0.5 inline-flex">
                         <CourtTypeBadge courtType={court.courtType} />
                       </span>
                     </button>
@@ -237,7 +237,7 @@ function CourtComparisonGrid({
                 .find((slot) => slot.hour === hour)?.label;
               return (
                 <tr key={hour}>
-                  <th className="sticky left-0 z-10 border-b border-r border-gray-200 bg-white px-4 py-3 text-left text-xs font-bold text-navy last:border-b-0">
+                  <th className="sticky left-0 z-10 border-b border-r border-gray-200 bg-white px-4 py-2 text-left text-xs font-bold text-navy last:border-b-0">
                     {label}
                   </th>
                   {courts.map((court) => {
@@ -245,7 +245,7 @@ function CourtComparisonGrid({
                     return (
                       <td
                         key={court.id}
-                        className="border-b border-r border-gray-100 p-1.5 last:border-r-0"
+                        className="border-b border-r border-gray-100 p-1 last:border-r-0"
                       >
                         {slot ? (
                           <SlotCell
@@ -255,10 +255,11 @@ function CourtComparisonGrid({
                               selectedByCourt[court.id]?.includes(slot.hour) ??
                               false
                             }
+                            compact
                             onToggle={onToggle}
                           />
                         ) : (
-                          <span className="flex min-h-14 items-center justify-center rounded-lg bg-gray-50 text-xs text-gray-300">
+                          <span className="flex min-h-10 items-center justify-center rounded-lg bg-gray-50 text-xs text-gray-300">
                             —
                           </span>
                         )}
@@ -283,12 +284,14 @@ function SlotCell({
   slot,
   selected,
   showTime = false,
+  compact = false,
   onToggle,
 }: {
   court: BrowserCourt;
   slot: Slot;
   selected: boolean;
   showTime?: boolean;
+  compact?: boolean;
   onToggle: (courtId: string, hour: number) => void;
 }) {
   const openPlay = slot.reason === "openPlay";
@@ -303,27 +306,30 @@ function SlotCell({
       aria-label={`${court.name}, ${slot.label}, ${status}`}
       title={title}
       onClick={() => onToggle(court.id, slot.hour)}
-      className={`min-h-14 w-full rounded-xl border-2 px-2 py-2 text-xs font-bold transition-all ${slotClasses(
-        slot,
-        selected
-      )}`}
+      className={`w-full rounded-lg text-xs font-bold leading-tight transition-all ${
+        compact ? "min-h-10 border px-1.5 py-1" : "min-h-14 rounded-xl border-2 px-2 py-2"
+      } ${slotClasses(slot, selected)}`}
     >
       {showTime && <span className="block text-[11px]">{slot.label}</span>}
       <span className={`block ${showTime ? "mt-0.5" : ""}`}>{status}</span>
       {slot.available && slot.hourlyRate != null ? (
         <span
-          className={`mt-0.5 block text-[10px] font-semibold ${
+          className={`block text-[10px] font-semibold ${compact ? "" : "mt-0.5"} ${
             selected ? "text-white/80" : "text-gray-400"
           }`}
         >
           {formatPHP(slot.hourlyRate)}
         </span>
       ) : openPlay ? (
-        <span className="mt-0.5 block text-[10px] font-semibold text-ocean/75">
+        <span
+          className={`block text-[10px] font-semibold text-ocean/75 ${compact ? "" : "mt-0.5"}`}
+        >
           Event time
         </span>
       ) : slot.reason === "closed" && slot.closureReason ? (
-        <span className="mt-0.5 block truncate text-[10px] font-semibold text-gray-400">
+        <span
+          className={`block truncate text-[10px] font-semibold text-gray-400 ${compact ? "" : "mt-0.5"}`}
+        >
           {slot.closureReason}
         </span>
       ) : null}

@@ -10,7 +10,6 @@ import { Avatar } from "@/components/ui/Avatar";
 import { getPublicHub, type Hub } from "@/lib/hubs";
 import { getViewer } from "@/lib/dal";
 import { getHubCourtOccupancies } from "@/lib/bookings";
-import { summarizeOperatingHours } from "@/lib/hours";
 import { formatPHP } from "@/lib/currency";
 import { hubPublicPath } from "@/lib/hub-slug";
 import {
@@ -409,185 +408,127 @@ export default async function PublicHubPage({
               </section>
             )}
 
-            {hub.courts.length > 0 && (
-              <section>
-                <div className="flex items-end justify-between gap-4">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
-                    Courts
-                  </p>
-                  <span className="text-sm font-medium text-gray-400">
-                    {hub.courts.length}{" "}
-                    {hub.courts.length === 1 ? "court" : "courts"}
-                  </span>
-                </div>
-                <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  {hub.courts.map((court) => (
-                    <article
-                      key={court.id}
-                      className="rounded-xl border border-gray-200 bg-white p-5 transition-shadow hover:shadow-md"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <h2 className="text-lg font-bold text-navy">
-                          {court.name}
-                        </h2>
-                        <span className="rounded-md bg-gray-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-600">
-                          {COURT_TYPE_LABELS[court.courtType] ??
-                            court.courtType}
-                        </span>
-                      </div>
-                      <p className="mt-2 text-xl font-bold text-primary">
-                        {court.hourlyRate != null
-                          ? formatPHP(court.hourlyRate)
-                          : "Rate on request"}
-                        {court.hourlyRate != null && (
-                          <span className="text-xs font-normal text-gray-400">
-                            {" "}
-                            / hour
-                          </span>
-                        )}
-                      </p>
-                      {hours && (
-                        <dl className="mt-4 space-y-1 border-t border-gray-100 pt-4 text-xs text-gray-500">
-                          {summarizeOperatingHours(hours).map(
-                            (segment, index) => (
-                              <div
-                                key={index}
-                                className="flex justify-between gap-3"
-                              >
-                                <dt>{segment.label}</dt>
-                                <dd className="text-right font-medium text-gray-700">
-                                  {segment.value}
-                                </dd>
-                              </div>
-                            )
-                          )}
-                        </dl>
-                      )}
-                    </article>
-                  ))}
-                </div>
-              </section>
-            )}
-
           </div>
 
-          <aside className="space-y-6">
-            <section className="rounded-2xl border border-gray-200 bg-white p-6">
-              <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
-                Contact information
-              </h2>
-              <dl className="mt-5 space-y-5">
-                {hub.phone && (
-                  <div className="flex items-start gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden="true"
-                      >
-                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-                      </svg>
-                    </span>
-                    <div className="min-w-0">
-                      <dt className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
-                        Phone
-                      </dt>
-                      <dd className="mt-1">
-                        <a
-                          href={`tel:${hub.phone}`}
-                          className="break-words text-sm font-semibold text-navy hover:text-primary"
+          <aside>
+            <section className="divide-y divide-gray-100 rounded-2xl border border-gray-200 bg-white">
+              <div className="p-6">
+                <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
+                  Contact information
+                </h2>
+                <dl className="mt-5 space-y-5">
+                  {hub.phone && (
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
                         >
-                          {hub.phone}
-                        </a>
-                      </dd>
-                    </div>
-                  </div>
-                )}
-                {hub.email && (
-                  <div className="flex items-start gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden="true"
-                      >
-                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                        <polyline points="22,6 12,13 2,6" />
-                      </svg>
-                    </span>
-                    <div className="min-w-0">
-                      <dt className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
-                        Email
-                      </dt>
-                      <dd className="mt-1">
-                        <a
-                          href={`mailto:${hub.email}`}
-                          className="break-words text-sm font-semibold text-navy hover:text-primary"
-                        >
-                          {hub.email}
-                        </a>
-                      </dd>
-                    </div>
-                  </div>
-                )}
-                {!hub.phone && !hub.email && (
-                  <p className="text-sm text-gray-400">
-                    No contact information provided.
-                  </p>
-                )}
-              </dl>
-            </section>
-
-            <section className="rounded-2xl border border-gray-200 bg-white p-6">
-              <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
-                Court details
-              </h2>
-              {hub.courts.length > 0 ? (
-                <dl className="mt-5 space-y-4 text-sm">
-                  {hub.courts.map((court) => (
-                    <div
-                      key={court.id}
-                      className="flex items-start justify-between gap-4 border-b border-gray-100 pb-4 last:border-0 last:pb-0"
-                    >
+                          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                        </svg>
+                      </span>
                       <div className="min-w-0">
-                        <dt className="font-semibold text-navy">
-                          {court.name}
+                        <dt className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                          Phone
                         </dt>
-                        <dd className="mt-1 inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-gray-600">
-                          {COURT_TYPE_LABELS[court.courtType] ??
-                            court.courtType}
+                        <dd className="mt-1">
+                          <a
+                            href={`tel:${hub.phone}`}
+                            className="break-words text-sm font-semibold text-navy hover:text-primary"
+                          >
+                            {hub.phone}
+                          </a>
                         </dd>
                       </div>
-                      <dd className="shrink-0 text-right font-semibold text-primary">
-                        {court.hourlyRate != null
-                          ? formatPHP(court.hourlyRate)
-                          : "On request"}
-                        {court.hourlyRate != null && (
-                          <span className="block text-[10px] font-normal text-gray-400">
-                            / hour
-                          </span>
-                        )}
-                      </dd>
                     </div>
-                  ))}
+                  )}
+                  {hub.email && (
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                          <polyline points="22,6 12,13 2,6" />
+                        </svg>
+                      </span>
+                      <div className="min-w-0">
+                        <dt className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                          Email
+                        </dt>
+                        <dd className="mt-1">
+                          <a
+                            href={`mailto:${hub.email}`}
+                            className="break-words text-sm font-semibold text-navy hover:text-primary"
+                          >
+                            {hub.email}
+                          </a>
+                        </dd>
+                      </div>
+                    </div>
+                  )}
+                  {!hub.phone && !hub.email && (
+                    <p className="text-sm text-gray-400">
+                      No contact information provided.
+                    </p>
+                  )}
                 </dl>
-              ) : (
-                <p className="mt-5 text-sm text-gray-400">
-                  No courts added yet.
-                </p>
-              )}
+              </div>
+
+              <div className="p-6">
+                <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
+                  Court details
+                </h2>
+                {hub.courts.length > 0 ? (
+                  <dl className="mt-5 space-y-4 text-sm">
+                    {hub.courts.map((court) => (
+                      <div
+                        key={court.id}
+                        className="flex items-start justify-between gap-4 border-b border-gray-100 pb-4 last:border-0 last:pb-0"
+                      >
+                        <div className="min-w-0">
+                          <dt className="font-semibold text-navy">
+                            {court.name}
+                          </dt>
+                          <dd className="mt-1 inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-gray-600">
+                            {COURT_TYPE_LABELS[court.courtType] ??
+                              court.courtType}
+                          </dd>
+                        </div>
+                        <dd className="shrink-0 text-right font-semibold text-primary">
+                          {court.hourlyRate != null
+                            ? formatPHP(court.hourlyRate)
+                            : "On request"}
+                          {court.hourlyRate != null && (
+                            <span className="block text-[10px] font-normal text-gray-400">
+                              / hour
+                            </span>
+                          )}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : (
+                  <p className="mt-5 text-sm text-gray-400">
+                    No courts added yet.
+                  </p>
+                )}
+              </div>
             </section>
           </aside>
         </div>

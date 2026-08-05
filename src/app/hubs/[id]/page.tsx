@@ -299,7 +299,7 @@ export default async function PublicHubPage({
         comingSoon={hub.comingSoon}
       />
 
-      <div className="relative z-10 mx-auto -mt-10 w-full max-w-6xl px-4 sm:px-6 md:-mt-16">
+      <div className="mx-auto mt-6 w-full max-w-6xl px-4 sm:px-6">
         <div className="flex flex-col items-start gap-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-7 md:flex-row md:items-center md:gap-6">
           <Avatar
             src={hub.logo}
@@ -314,9 +314,9 @@ export default async function PublicHubPage({
               <h1 className="text-3xl font-extrabold tracking-tight text-navy sm:text-4xl">
                 {hub.name}
               </h1>
-              {hub.verified && <VerifiedBadge />}
+              {hub.verified && <VerifiedBadge size="regular" />}
               {hub.comingSoon && (
-                <span className="inline-flex w-fit items-center rounded-full bg-navy px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-accent">
+                <span className="inline-flex h-8 w-fit items-center rounded-full bg-navy px-3 text-[11px] font-black uppercase tracking-[0.12em] text-accent">
                   Coming soon
                 </span>
               )}
@@ -325,7 +325,7 @@ export default async function PublicHubPage({
                   {hub.games.map((game) => (
                     <span
                       key={game}
-                      className="rounded-full bg-primary-soft px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-primary"
+                      className="inline-flex h-8 items-center rounded-full bg-primary-soft px-3 text-[11px] font-bold uppercase tracking-wider text-primary"
                     >
                       {GAME_LABELS[game] ?? game}
                     </span>

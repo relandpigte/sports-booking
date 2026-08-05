@@ -287,10 +287,21 @@ function ClockIcon() {
   );
 }
 
-export function VerifiedBadge({ className = "" }: { className?: string }) {
+export function VerifiedBadge({
+  className = "",
+  size = "compact",
+}: {
+  className?: string;
+  size?: "compact" | "regular";
+}) {
+  const sizing =
+    size === "regular"
+      ? "h-8 gap-1.5 px-3 text-[11px]"
+      : "gap-1 px-2 py-0.5 text-[10px]";
+
   return (
     <span
-      className={`inline-flex w-fit items-center gap-1 rounded-full bg-primary-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-primary ${className}`}
+      className={`inline-flex w-fit items-center rounded-full bg-primary-soft font-bold uppercase tracking-[0.08em] text-primary ${sizing} ${className}`}
     >
       <svg
         viewBox="0 0 24 24"

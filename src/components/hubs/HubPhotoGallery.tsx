@@ -103,7 +103,6 @@ export function HubPhotoGallery({
                 alt={`${hubName} cover photo`}
                 label={`Open ${hubName} photo 1 of ${photos.length}`}
                 onClick={() => openViewer(0)}
-                contained
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-sm font-medium text-slate-400">

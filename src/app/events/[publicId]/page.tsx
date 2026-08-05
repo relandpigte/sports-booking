@@ -52,8 +52,8 @@ export default async function EventDetailPage({
   const duration = event.endHour - event.startHour;
   const serviceFee = bookingServiceFeeFor(event.registrationFee);
   const eventUrl = absoluteUrl(`/events/${event.publicId}`);
-  const featuredAttendees = event.attendees.slice(0, 8);
-  const remainingAttendees = event.attendees.slice(8);
+  const featuredAttendees = event.attendees.slice(0, 4);
+  const remainingAttendees = event.attendees.slice(4);
 
   return (
     <PageShell maxWidth="max-w-7xl">
@@ -178,8 +178,8 @@ export default async function EventDetailPage({
 
                   {remainingAttendees.length > 0 && (
                     <details className="group mt-4">
-                      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-2xl border border-primary/15 bg-white px-4 py-2.5 text-sm font-bold text-primary transition-colors hover:bg-white/70 [&::-webkit-details-marker]:hidden">
-                        <span className="flex min-w-0 items-center gap-3">
+                      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-2xl border border-primary/15 bg-white px-3 py-2.5 text-xs font-bold text-primary transition-colors hover:bg-white/70 sm:gap-3 sm:px-4 sm:text-sm [&::-webkit-details-marker]:hidden">
+                        <span className="flex min-w-0 items-center gap-2 sm:gap-3">
                           <span className="flex shrink-0 -space-x-2" aria-hidden="true">
                             {event.attendees.slice(0, 3).map((player) => {
                               const displayName = player.playerName ?? player.name ?? "Player";

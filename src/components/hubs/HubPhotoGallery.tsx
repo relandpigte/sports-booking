@@ -91,7 +91,7 @@ export function HubPhotoGallery({
     <>
       <section
         aria-label={`${hubName} photo gallery`}
-        className="mx-auto mt-4 w-full max-w-7xl px-2 sm:px-4"
+        className="mx-auto mt-4 w-full max-w-5xl px-2 sm:px-4"
       >
         <div className="grid h-[220px] grid-cols-1 gap-2 md:h-[300px] md:grid-cols-3 md:gap-3">
           <div

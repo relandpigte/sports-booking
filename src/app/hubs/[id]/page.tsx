@@ -293,7 +293,7 @@ export default async function PublicHubPage({
     >
       <JsonLd data={hubJsonLd} />
 
-      <div className="mx-auto mt-4 w-full max-w-6xl px-4 sm:px-6">
+      <div className="mx-auto mt-4 w-full max-w-5xl px-4 sm:px-6">
         <div className="flex flex-col items-start gap-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-7 md:flex-row md:items-center md:gap-6">
           <Avatar
             src={hub.logo}
@@ -391,7 +391,7 @@ export default async function PublicHubPage({
         comingSoon={hub.comingSoon}
       />
 
-      <div className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
+      <div className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-3">
           <div className="space-y-12 lg:col-span-2">
             {hub.about && (

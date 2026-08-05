@@ -91,9 +91,9 @@ export function HubPhotoGallery({
     <>
       <section
         aria-label={`${hubName} photo gallery`}
-        className="mx-auto mt-2 w-full max-w-7xl px-2 sm:px-4"
+        className="mx-auto mt-4 w-full max-w-7xl px-2 sm:px-4"
       >
-        <div className="grid h-[300px] grid-cols-1 gap-2 md:h-[380px] md:grid-cols-3 md:gap-3">
+        <div className="grid h-[220px] grid-cols-1 gap-2 md:h-[300px] md:grid-cols-3 md:gap-3">
           <div
             className={`relative overflow-hidden rounded-2xl bg-slate-200 ${visiblePhotos.length > 1 ? "md:col-span-2" : "md:col-span-3"}`}
           >

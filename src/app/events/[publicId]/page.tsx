@@ -52,6 +52,8 @@ export default async function EventDetailPage({
   const duration = event.endHour - event.startHour;
   const serviceFee = bookingServiceFeeFor(event.registrationFee);
   const eventUrl = absoluteUrl(`/events/${event.publicId}`);
+  const featuredAttendees = event.attendees.slice(0, 8);
+  const remainingAttendees = event.attendees.slice(8);
 
   return (
     <PageShell maxWidth="max-w-7xl">
@@ -155,21 +157,78 @@ export default async function EventDetailPage({
                 </span>
               </div>
               {event.attendees.length > 0 ? (
-                <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                  {event.attendees.map((player) => {
-                    const displayName = player.playerName ?? player.name ?? "Player";
-                    return (
-                      <div key={player.id} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4">
-                        <Avatar src={player.image} name={displayName} size={46} shape="rounded" />
-                        <div className="min-w-0">
-                          <p className="truncate font-bold text-navy">{displayName}</p>
-                          <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.15em] text-primary">
-                            Confirmed player
-                          </p>
-                        </div>
+                <div className="mt-5 rounded-3xl border border-primary/15 bg-primary-soft/40 p-4 sm:p-5">
+                  <div className="mb-4 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-primary">
+                    <span className="h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
+                    Confirmed roster
+                  </div>
+
+                  <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4">
+                    {featuredAttendees.map((player) => {
+                      const displayName = player.playerName ?? player.name ?? "Player";
+                      return (
+                        <EventAttendeeChip
+                          key={player.id}
+                          image={player.image}
+                          displayName={displayName}
+                        />
+                      );
+                    })}
+                  </div>
+
+                  {remainingAttendees.length > 0 && (
+                    <details className="group mt-4">
+                      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-2xl border border-primary/15 bg-white px-4 py-2.5 text-sm font-bold text-primary transition-colors hover:bg-white/70 [&::-webkit-details-marker]:hidden">
+                        <span className="flex min-w-0 items-center gap-3">
+                          <span className="flex shrink-0 -space-x-2" aria-hidden="true">
+                            {event.attendees.slice(0, 3).map((player) => {
+                              const displayName = player.playerName ?? player.name ?? "Player";
+                              return (
+                                <Avatar
+                                  key={player.id}
+                                  src={player.image}
+                                  name={displayName}
+                                  size={28}
+                                  className="ring-2 ring-white"
+                                />
+                              );
+                            })}
+                          </span>
+                          <span className="truncate group-open:hidden">
+                            View all {event.confirmedCount} players
+                          </span>
+                          <span className="hidden truncate group-open:inline">
+                            Show fewer players
+                          </span>
+                        </span>
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          aria-hidden="true"
+                          className="shrink-0 transition-transform group-open:rotate-180"
+                        >
+                          <path d="m6 9 6 6 6-6" />
+                        </svg>
+                      </summary>
+
+                      <div className="mt-3 grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4">
+                        {remainingAttendees.map((player) => {
+                          const displayName = player.playerName ?? player.name ?? "Player";
+                          return (
+                            <EventAttendeeChip
+                              key={player.id}
+                              image={player.image}
+                              displayName={displayName}
+                            />
+                          );
+                        })}
                       </div>
-                    );
-                  })}
+                    </details>
+                  )}
                 </div>
               ) : (
                 <p className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-8 text-sm text-slate-500">
@@ -258,6 +317,23 @@ function EventFact({ icon, label, children }: { icon: React.ReactNode; label: st
         <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{label}</p>
         <div className="mt-1.5 flex min-w-0 flex-col gap-0.5 break-words text-sm text-slate-500 [&_strong]:text-navy">{children}</div>
       </div>
+    </div>
+  );
+}
+
+function EventAttendeeChip({
+  image,
+  displayName,
+}: {
+  image: string | null;
+  displayName: string;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-2 rounded-xl border border-white/80 bg-white/90 p-2.5 shadow-sm shadow-navy/5">
+      <Avatar src={image} name={displayName} size={32} />
+      <p className="min-w-0 truncate text-sm font-bold text-navy">
+        {displayName}
+      </p>
     </div>
   );
 }

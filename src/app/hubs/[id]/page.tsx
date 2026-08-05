@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { JsonLd } from "@/components/JsonLd";
 import { PageShell } from "@/components/PageShell";
 import { BookCourtPanel } from "@/components/hubs/BookCourtPanel";
+import { HubPhotoGallery } from "@/components/hubs/HubPhotoGallery";
 import { VerifiedBadge } from "@/components/hubs/HubCard";
 import { Avatar } from "@/components/ui/Avatar";
 import { getPublicHub, type Hub } from "@/lib/hubs";
@@ -156,7 +157,6 @@ export default async function PublicHubPage({
     notFound();
   }
 
-  const [cover, ...moreCovers] = hub.coverPhotos;
   const hours = hub.operatingHours;
 
   // This page is public, so getViewer (which returns null when signed out)
@@ -285,9 +285,6 @@ export default async function PublicHubPage({
       ...(localBusiness ? [localBusiness] : []),
     ],
   };
-  const galleryCovers = moreCovers.slice(0, 2);
-  const hiddenPhotoCount = Math.max(moreCovers.length - galleryCovers.length, 0);
-
   return (
     <PageShell
       maxWidth="max-w-none"
@@ -296,63 +293,11 @@ export default async function PublicHubPage({
     >
       <JsonLd data={hubJsonLd} />
 
-      <div className="mt-2 grid h-[300px] w-full grid-cols-1 gap-2 px-2 md:h-[480px] md:grid-cols-4">
-        <div
-          className={`relative overflow-hidden rounded-2xl bg-gray-100 ${galleryCovers.length > 0 ? "md:col-span-3" : "md:col-span-4"}`}
-        >
-          {cover ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={cover}
-              alt={`${hub.name} cover`}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-sm text-gray-400">
-              No cover photo
-            </div>
-          )}
-          {hub.comingSoon && (
-            <div className="absolute -left-20 top-12 z-10 w-72 -rotate-45 bg-navy/95 py-3 text-center shadow-xl">
-              <span className="text-xs font-black uppercase tracking-[0.22em] text-accent sm:text-sm">
-                Coming soon
-              </span>
-            </div>
-          )}
-        </div>
-
-        {galleryCovers.length > 0 && (
-          <div
-            className={`hidden gap-2 md:grid ${galleryCovers.length > 1 ? "grid-rows-2" : "grid-rows-1"}`}
-          >
-            {galleryCovers.map((src, index) => {
-              const showCount =
-                index === galleryCovers.length - 1 && hiddenPhotoCount > 0;
-
-              return (
-                <div
-                  key={src}
-                  className="relative overflow-hidden rounded-2xl bg-gray-100"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={src}
-                    alt={`${hub.name} photo ${index + 2}`}
-                    className="h-full w-full object-cover"
-                  />
-                  {showCount && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-navy/45">
-                      <span className="rounded-full bg-white/90 px-3 py-1.5 text-sm font-semibold text-navy">
-                        +{hiddenPhotoCount} more
-                      </span>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      <HubPhotoGallery
+        photos={hub.coverPhotos}
+        hubName={hub.name}
+        comingSoon={hub.comingSoon}
+      />
 
       <div className="relative z-10 mx-auto -mt-10 w-full max-w-6xl px-4 sm:px-6 md:-mt-16">
         <div className="flex flex-col items-start gap-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-7 md:flex-row md:items-center md:gap-6">

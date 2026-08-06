@@ -25,45 +25,45 @@ enum PartnerStatus {
 }
 
 model User {
-  id                   String         @id @default(cuid())
-  name                 String?
-  playerName           String?
-  email                String         @unique
-  emailVerified        DateTime?
-  phone                String?
+  id                      String         @id @default(cuid())
+  name                    String?
+  playerName              String?
+  email                   String         @unique
+  emailVerified           DateTime?
+  phone                   String?
   // A venue's Facebook page, canonicalised to https://www.facebook.com/<page>
   // by src/lib/social.ts. For most Philippine venues this is their whole web
   // presence, so it is asked for at partner signup — optional, because
   // requiring it would turn away a venue that hasn't made one.
-  facebookPage         String?
-  image                String?
-  passwordHash         String?
-  role                 Role           @default(PLAYER)
-  skillLevel           String         @default("intermediate")
-  privateProfile       Boolean        @default(false)
+  facebookPage            String?
+  image                   String?
+  passwordHash            String?
+  role                    Role           @default(PLAYER)
+  skillLevel              String         @default("intermediate")
+  privateProfile          Boolean        @default(false)
   // Existing and password-created accounts default to complete. The Auth.js
   // adapter explicitly writes null for a brand-new Google identity until its
   // app role has been selected.
-  registrationCompletedAt DateTime?   @default(now())
+  registrationCompletedAt DateTime?      @default(now())
   // Incremented after a password reset. JWTs carry the version they were
   // issued with, so the DAL can reject sessions created before the reset.
-  sessionVersion       Int            @default(0)
+  sessionVersion          Int            @default(0)
   // Successful credential authentications only. The count is incremented
   // atomically so simultaneous sign-ins cannot lose an update.
-  lastLoginAt          DateTime?
-  loginCount           Int            @default(0)
+  lastLoginAt             DateTime?
+  loginCount              Int            @default(0)
   // Authenticator-app MFA. The secret is AES-256-GCM ciphertext; recovery
   // codes are stored as one-way hashes in MfaRecoveryCode.
-  mfaEnabledAt         DateTime?
-  mfaSecretEnc         String?        @db.Text
+  mfaEnabledAt            DateTime?
+  mfaSecretEnc            String?        @db.Text
   // Only meaningful when role=PARTNER. Public signups start DRAFT, move to
   // PENDING after venue onboarding, then become ACTIVE after admin review.
-  partnerStatus        PartnerStatus?
-  partnerActivatedAt   DateTime?
+  partnerStatus           PartnerStatus?
+  partnerActivatedAt      DateTime?
   // Scalar by design: deleting an admin must not erase who approved a partner.
-  partnerActivatedById String?
-  createdAt            DateTime       @default(now())
-  updatedAt            DateTime       @updatedAt
+  partnerActivatedById    String?
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
 
   accounts           Account[]
   sessions           Session[]
@@ -80,6 +80,7 @@ model User {
   bookingPayments       BookingPayment[]       @relation("PlayerBookingPayments")
   venuePayments         BookingPayment[]       @relation("PartnerBookingPayments")
   eventRegistrations    EventRegistration[]
+  organizerEventGuests  EventOrganizerGuest[]  @relation("OrganizerEventGuestCreator")
   serviceFeeEntries     ServiceFeeEntry[]      @relation("PartnerServiceFeeEntries")
   serviceFeeSettlements ServiceFeeSettlement[] @relation("PartnerServiceFeeSettlements")
 }
@@ -777,10 +778,11 @@ model Event {
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
-  hub           Hub                 @relation(fields: [hubId], references: [id], onDelete: Cascade)
-  courts        EventCourt[]
-  slots         BookingSlot[]
-  registrations EventRegistration[]
+  hub             Hub                   @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  courts          EventCourt[]
+  slots           BookingSlot[]
+  registrations   EventRegistration[]
+  organizerGuests EventOrganizerGuest[]
 
   @@index([hubId, startsAt])
   @@index([status, startsAt])
@@ -813,9 +815,9 @@ model EventRegistration {
   createdAt        DateTime                @default(now())
   updatedAt        DateTime                @updatedAt
 
-  event   Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  payment BookingPayment? @relation(fields: [bookingPaymentId], references: [id])
+  event   Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payment BookingPayment?  @relation(fields: [bookingPaymentId], references: [id])
   guests  EventGuestSlot[]
 
   @@unique([eventId, userId])
@@ -839,11 +841,32 @@ model EventGuestSlot {
   updatedAt           DateTime                @updatedAt
 
   registration EventRegistration @relation(fields: [eventRegistrationId], references: [id], onDelete: Cascade)
-  payment      BookingPayment?    @relation(fields: [bookingPaymentId], references: [id])
+  payment      BookingPayment?   @relation(fields: [bookingPaymentId], references: [id])
 
   @@index([eventRegistrationId, status, createdAt])
   @@index([bookingPaymentId])
   @@index([status, holdExpiresAt])
+}
+
+// A complimentary capacity spot created manually by the venue partner. It is
+// deliberately separate from EventRegistration and EventGuestSlot: there is
+// no player account, payment, refund, or checkout associated with this spot.
+model EventOrganizerGuest {
+  id          String                  @id @default(cuid())
+  eventId     String
+  createdById String
+  name        String
+  status      EventRegistrationStatus @default(CONFIRMED)
+  confirmedAt DateTime                @default(now())
+  cancelledAt DateTime?
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  event     Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdBy User  @relation("OrganizerEventGuestCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([eventId, status, createdAt])
+  @@index([createdById, createdAt])
 }
 
 model Account {

@@ -88,6 +88,10 @@ const ManageRegistrationSchema = z.object({
   refund: z.enum(["full", "none"]).catch("full"),
 });
 
+const OrganizerGuestSchema = z.object({
+  guestId: z.string().min(1),
+});
+
 const GuestNamesSchema = z
   .array(
     z
@@ -96,7 +100,7 @@ const GuestNamesSchema = z
       .min(1, { error: "Enter a name for every guest spot." })
       .max(80, { error: "Keep each guest name under 80 characters." })
   )
-  .max(50, { error: "Add at most 50 guest spots in one checkout." });
+  .max(50, { error: "Add at most 50 guest spots at once." });
 
 export type EventFormState = {
   errors?: Record<string, string>;
@@ -171,7 +175,7 @@ async function occupiedEventSpots(
   eventId: string,
   now: Date
 ): Promise<number> {
-  const [leadPlayers, guests] = await Promise.all([
+  const [leadPlayers, guests, organizerGuests] = await Promise.all([
     tx.eventRegistration.count({
       where: {
         eventId,
@@ -190,8 +194,11 @@ async function occupiedEventSpots(
         ],
       },
     }),
+    tx.eventOrganizerGuest.count({
+      where: { eventId, status: "CONFIRMED" },
+    }),
   ]);
-  return leadPlayers + guests;
+  return leadPlayers + guests + organizerGuests;
 }
 
 export async function saveEventAction(
@@ -945,6 +952,129 @@ export async function addEventGuestSlotsAction(
   return { success: `${guests.names.length} guest spot${guests.names.length === 1 ? "" : "s"} added.` };
 }
 
+export async function addOrganizerEventGuestsAction(
+  _previous: EventFormState,
+  formData: FormData
+): Promise<EventFormState> {
+  const partner = await requireActivePartner();
+  const eventId = String(formData.get("eventId") ?? "");
+  const guests = guestNamesFrom(formData);
+  if (!eventId) return { message: "Event not found." };
+  if (!guests.ok) return { message: guests.message };
+  if (guests.names.length === 0) {
+    return { message: "Add at least one guest name." };
+  }
+
+  const now = new Date();
+  const outcome = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw(
+      Prisma.sql`SELECT "id" FROM "Event" WHERE "id" = ${eventId} FOR UPDATE`
+    );
+
+    const event = await tx.event.findFirst({
+      where: { id: eventId, hub: { ownerId: partner.id } },
+      select: {
+        id: true,
+        publicId: true,
+        hubId: true,
+        status: true,
+        startsAt: true,
+        capacity: true,
+      },
+    });
+    if (!event) return { kind: "missing" as const };
+    if (event.status !== "PUBLISHED" || event.startsAt <= now) {
+      return { kind: "closed" as const, event };
+    }
+
+    await expireEventCapacityHolds(tx, event.id, now);
+    const occupied = await occupiedEventSpots(tx, event.id, now);
+    const available = Math.max(0, event.capacity - occupied);
+    if (guests.names.length > available) {
+      return { kind: "insufficient" as const, event, available };
+    }
+
+    await tx.eventOrganizerGuest.createMany({
+      data: guests.names.map((name) => ({
+        eventId: event.id,
+        createdById: partner.id,
+        name,
+        status: "CONFIRMED" as const,
+        confirmedAt: now,
+      })),
+    });
+    return { kind: "created" as const, event };
+  });
+
+  if (outcome.kind === "missing") return { message: "Event not found." };
+  revalidateEventSurfaces(outcome.event.publicId, outcome.event.hubId);
+  if (outcome.kind === "closed") {
+    return { message: "Guests can be added only before a published event starts." };
+  }
+  if (outcome.kind === "insufficient") {
+    return {
+      message:
+        outcome.available === 0
+          ? "No spots are available for complimentary guests."
+          : `Only ${outcome.available} spot${outcome.available === 1 ? " is" : "s are"} available. Reduce the guest list and try again.`,
+    };
+  }
+
+  await recordImpersonatedAction({
+    action: "EVENT_ORGANIZER_GUESTS_ADDED",
+    targetType: "Event",
+    targetId: outcome.event.id,
+    metadata: { guestCount: guests.names.length },
+  });
+  return {
+    success: `${guests.names.length} complimentary guest${guests.names.length === 1 ? "" : "s"} added.`,
+  };
+}
+
+export async function removeOrganizerEventGuestAction(
+  _previous: EventFormState,
+  formData: FormData
+): Promise<EventFormState> {
+  const partner = await requireActivePartner();
+  const parsed = OrganizerGuestSchema.safeParse({
+    guestId: String(formData.get("guestId") ?? ""),
+  });
+  if (!parsed.success) return { message: "Guest not found." };
+
+  const guest = await prisma.eventOrganizerGuest.findFirst({
+    where: {
+      id: parsed.data.guestId,
+      event: { hub: { ownerId: partner.id } },
+    },
+    select: {
+      id: true,
+      status: true,
+      event: { select: { id: true, publicId: true, hubId: true } },
+    },
+  });
+  if (!guest) return { message: "Guest not found." };
+  if (guest.status !== "CONFIRMED") {
+    return { message: "That complimentary guest has already been removed." };
+  }
+
+  const removed = await prisma.eventOrganizerGuest.updateMany({
+    where: { id: guest.id, status: "CONFIRMED" },
+    data: { status: "CANCELLED", cancelledAt: new Date() },
+  });
+  if (removed.count !== 1) {
+    return { message: "That complimentary guest has already been removed." };
+  }
+
+  revalidateEventSurfaces(guest.event.publicId, guest.event.hubId);
+  await recordImpersonatedAction({
+    action: "EVENT_ORGANIZER_GUEST_REMOVED",
+    targetType: "EventOrganizerGuest",
+    targetId: guest.id,
+    metadata: { eventId: guest.event.id },
+  });
+  return { success: "Complimentary guest removed." };
+}
+
 export async function cancelEventAction(
   _previous: EventFormState,
   formData: FormData
@@ -1013,6 +1143,10 @@ export async function cancelEventAction(
         holdExpiresAt: null,
         cancelledAt: new Date(),
       },
+    }),
+    prisma.eventOrganizerGuest.updateMany({
+      where: { eventId: event.id, status: "CONFIRMED" },
+      data: { status: "CANCELLED", cancelledAt: new Date() },
     }),
   ]);
 

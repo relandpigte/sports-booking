@@ -720,7 +720,7 @@ async function occupiedEventSpotCount(
   eventId: string,
   now: Date
 ): Promise<number> {
-  const [registrations, guests] = await Promise.all([
+  const [registrations, guests, organizerGuests] = await Promise.all([
     tx.eventRegistration.count({
       where: {
         eventId,
@@ -739,8 +739,11 @@ async function occupiedEventSpotCount(
         ],
       },
     }),
+    tx.eventOrganizerGuest.count({
+      where: { eventId, status: "CONFIRMED" },
+    }),
   ]);
-  return registrations + guests;
+  return registrations + guests + organizerGuests;
 }
 
 // Repairs the narrow case where PayMongo accepted money just after the event

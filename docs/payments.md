@@ -41,6 +41,12 @@ is held only when every requested spot is available. Confirmed players can add
 more named guests later through an incremental QR payment; an expired or
 failed add-on never changes the already-confirmed registration.
 
+Venue partners may also add named complimentary guests from the event player
+list. These organizer-managed spots confirm immediately, count against event
+capacity, and are intentionally excluded from PayMongo, service-fee, and refund
+ledgers. They are labeled separately from player-paid registrations and can be
+removed by the organizer to release capacity.
+
 ## Partner gateway setup
 
 Each venue uses its own PayMongo account so player booking proceeds go directly

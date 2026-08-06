@@ -9,7 +9,11 @@ import { notFound } from "next/navigation";
 import { CancelEventPanel } from "@/components/events/CancelEventPanel";
 import { DeleteCancelledEventButton } from "@/components/events/DeleteCancelledEventButton";
 import { EventForm } from "@/components/events/EventForm";
-import { OwnerEventRegistrations } from "@/components/events/OwnerEventRegistrations";
+import { OrganizerGuestPanel } from "@/components/events/OrganizerGuestPanel";
+import {
+  OwnerEventRegistrations,
+  type OwnerEventParticipant,
+} from "@/components/events/OwnerEventRegistrations";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { formatPHP } from "@/lib/currency";
 import { requireActivePartner } from "@/lib/dal";
@@ -155,6 +159,27 @@ export default async function PartnerEventDetailsPage({
       !registrationStatus || registration.status === registrationStatus;
     return matchesQuery && matchesStatus;
   });
+  const matchingOrganizerGuests = event.organizerGuests.filter((guest) => {
+    const matchesQuery =
+      !query || guest.name.toLowerCase().includes(query.toLowerCase());
+    const matchesStatus =
+      !registrationStatus || guest.status === registrationStatus;
+    return matchesQuery && matchesStatus;
+  });
+  const matchingParticipants: OwnerEventParticipant[] = [
+    ...matchingPlayers.map((registration) => ({
+      kind: "registration" as const,
+      createdAt: registration.createdAt,
+      registration,
+    })),
+    ...matchingOrganizerGuests.map((guest) => ({
+      kind: "organizerGuest" as const,
+      createdAt: guest.createdAt,
+      guest,
+    })),
+  ].sort(
+    (left, right) => left.createdAt.getTime() - right.createdAt.getTime()
+  );
   const matchingPayments = event.registrations
     .flatMap((registration) => [
       ...(registration.payment
@@ -191,10 +216,11 @@ export default async function PartnerEventDetailsPage({
         (right.payment.paidAt ?? right.registration.createdAt).getTime() -
         (left.payment.paidAt ?? left.registration.createdAt).getTime()
     );
-  const resultSet = tab === "payments" ? matchingPayments : matchingPlayers;
+  const resultSet =
+    tab === "payments" ? matchingPayments : matchingParticipants;
   const pageCount = Math.max(1, Math.ceil(resultSet.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
-  const visiblePlayers = matchingPlayers.slice(
+  const visibleParticipants = matchingParticipants.slice(
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE
   );
@@ -412,10 +438,17 @@ export default async function PartnerEventDetailsPage({
                 Search players, review registration status, and manage spots.
               </p>
             </div>
-            <span className="text-sm font-bold text-slate-500">
-              {matchingPlayers.length} result
-              {matchingPlayers.length === 1 ? "" : "s"}
-            </span>
+            {event.status === "PUBLISHED" && event.startsAt > new Date() ? (
+              <OrganizerGuestPanel
+                eventId={event.id}
+                remainingSpots={event.remainingSpots}
+              />
+            ) : (
+              <span className="text-sm font-bold text-slate-500">
+                {matchingParticipants.length} result
+                {matchingParticipants.length === 1 ? "" : "s"}
+              </span>
+            )}
           </div>
           <EventFilter
             publicId={event.publicId}
@@ -425,7 +458,7 @@ export default async function PartnerEventDetailsPage({
             statuses={registrationStatuses}
           />
           <div className="mt-5">
-            <OwnerEventRegistrations registrations={visiblePlayers} />
+            <OwnerEventRegistrations participants={visibleParticipants} />
           </div>
           <Pagination
             publicId={event.publicId}
@@ -671,7 +704,7 @@ function EventFilter({
           defaultValue={query}
           placeholder={
             tab === "players"
-              ? "Search player or email"
+              ? "Search player, email, or guest"
               : "Search player, email, or reference"
           }
           className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-navy outline-none focus:border-primary focus:ring-4 focus:ring-primary/10"

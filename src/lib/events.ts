@@ -127,6 +127,13 @@ export type OwnerEventRegistrationView = {
   }[];
 };
 
+export type OwnerEventOrganizerGuestView = {
+  id: string;
+  name: string;
+  status: EventRegistrationStatus;
+  createdAt: Date;
+};
+
 export type OwnerEventDetailView = EventEditorView & {
   startsAt: Date;
   endsAt: Date;
@@ -142,6 +149,7 @@ export type OwnerEventDetailView = EventEditorView & {
   };
   courts: EventCourtView[];
   registrations: OwnerEventRegistrationView[];
+  organizerGuests: OwnerEventOrganizerGuestView[];
   finance: {
     successfulPayments: number;
     pendingPayments: number;
@@ -264,6 +272,15 @@ const eventSelect = {
     },
     orderBy: { createdAt: "asc" },
   },
+  organizerGuests: {
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: "asc" },
+  },
 } as const;
 
 type EventRow = Prisma.EventGetPayload<{ select: typeof eventSelect }>;
@@ -292,7 +309,11 @@ function registrationCounts(row: EventRow, now = new Date()) {
         guest.holdExpiresAt > now
     )
   );
-  const confirmedCount = confirmed.length + confirmedGuests.length;
+  const confirmedOrganizerGuests = row.organizerGuests.filter(
+    (guest) => guest.status === "CONFIRMED"
+  );
+  const confirmedCount =
+    confirmed.length + confirmedGuests.length + confirmedOrganizerGuests.length;
   const pendingCount = pending.length + pendingGuests.length;
   const occupied = confirmedCount + pendingCount;
   return {
@@ -300,6 +321,7 @@ function registrationCounts(row: EventRow, now = new Date()) {
     pending,
     waitlisted,
     confirmedGuests,
+    confirmedOrganizerGuests,
     pendingGuests,
     confirmedCount,
     pendingCount,
@@ -407,36 +429,46 @@ export async function getPublicEvent(
     ...mapped,
     ownerId: row.hub.ownerId,
     cancelReason: row.cancelReason,
-    attendees: row.registrations
-      .filter((registration) => registration.status === "CONFIRMED")
-      .flatMap((registration) => {
-        const lead = registration.user.privateProfile
-          ? {
-              id: registration.user.id,
+    attendees: [
+      ...row.registrations
+        .filter((registration) => registration.status === "CONFIRMED")
+        .flatMap((registration) => {
+          const lead = registration.user.privateProfile
+            ? {
+                id: registration.user.id,
+                name: null,
+                playerName: "Private player",
+                image: null,
+              }
+            : {
+                id: registration.user.id,
+                name: registration.user.name,
+                playerName: registration.user.playerName,
+                image: registration.user.image,
+              };
+          const leadName =
+            registration.user.playerName ?? registration.user.name ?? "Player";
+          const guests = registration.guests
+            .filter((guest) => guest.status === "CONFIRMED")
+            .map((guest) => ({
+              id: guest.id,
               name: null,
-              playerName: "Private player",
+              playerName: registration.user.privateProfile
+                ? "Guest player"
+                : `Guest of ${leadName}`,
               image: null,
-            }
-          : {
-              id: registration.user.id,
-              name: registration.user.name,
-              playerName: registration.user.playerName,
-              image: registration.user.image,
-            };
-        const leadName =
-          registration.user.playerName ?? registration.user.name ?? "Player";
-        const guests = registration.guests
-          .filter((guest) => guest.status === "CONFIRMED")
-          .map((guest) => ({
-            id: guest.id,
-            name: null,
-            playerName: registration.user.privateProfile
-              ? "Guest player"
-              : `Guest of ${leadName}`,
-            image: null,
-          }));
-        return [lead, ...guests];
-      }),
+            }));
+          return [lead, ...guests];
+        }),
+      ...row.organizerGuests
+        .filter((guest) => guest.status === "CONFIRMED")
+        .map((guest) => ({
+          id: guest.id,
+          name: null,
+          playerName: "Guest of organizer",
+          image: null,
+        })),
+    ],
     viewerRegistration: viewer
       ? {
           id: viewer.id,
@@ -916,6 +948,15 @@ export async function getOwnerEventDetails(
           },
         },
       },
+      organizerGuests: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          createdAt: true,
+        },
+      },
     },
   });
   if (!row) return null;
@@ -988,13 +1029,22 @@ export async function getOwnerEventDetails(
       })),
     })
   );
-  const confirmedCount = registrations.reduce(
-    (total, registration) =>
-      total +
-      (registration.status === "CONFIRMED" ? 1 : 0) +
-      registration.guestNames.length,
-    0
-  );
+  const organizerGuests: OwnerEventOrganizerGuestView[] =
+    row.organizerGuests.map((guest) => ({
+      id: guest.id,
+      name: guest.name,
+      status: guest.status,
+      createdAt: guest.createdAt,
+    }));
+  const confirmedCount =
+    registrations.reduce(
+      (total, registration) =>
+        total +
+        (registration.status === "CONFIRMED" ? 1 : 0) +
+        registration.guestNames.length,
+      0
+    ) +
+    organizerGuests.filter((guest) => guest.status === "CONFIRMED").length;
   const pendingCount = registrations.reduce(
     (total, registration) =>
       total +
@@ -1052,6 +1102,7 @@ export async function getOwnerEventDetails(
     hub: row.hub,
     courts: row.courts.map(({ court }) => court),
     registrations,
+    organizerGuests,
     finance: {
       successfulPayments: successfulPayments.length,
       pendingPayments: pendingPayments.length,

@@ -297,6 +297,95 @@ async function check() {
     hiddenFromAnotherOwner === null
   );
 
+  const organizerEvent = await prisma.event.create({
+    data: {
+      publicId: `check-organizer-${crypto.randomBytes(8).toString("hex")}`,
+      hubId: hub.id,
+      title: "Organizer guest capacity check",
+      sport: "pickleball",
+      date: DATE,
+      startHour: 13,
+      endHour: 14,
+      startsAt: manilaInstant(DATE, 13),
+      endsAt: manilaInstant(DATE, 14),
+      capacity: 2,
+      registrationFee: 500,
+      status: "PUBLISHED",
+      publishedAt: new Date(),
+    },
+    select: { id: true, publicId: true },
+  });
+  const {
+    addOrganizerEventGuestsAction,
+    cancelEventAction,
+    deleteCancelledEventAction,
+    removeOrganizerEventGuestAction,
+  } = await import("@/lib/event-actions");
+  const paymentsBeforeOrganizerGuests = await prisma.bookingPayment.count();
+  const addOrganizerGuestsForm = new FormData();
+  addOrganizerGuestsForm.set("eventId", organizerEvent.id);
+  addOrganizerGuestsForm.append("guestName", "Complimentary Guest One");
+  addOrganizerGuestsForm.append("guestName", "Complimentary Guest Two");
+  const organizerGuestsAdded = await addOrganizerEventGuestsAction(
+    {},
+    addOrganizerGuestsForm
+  );
+  const organizerGuestRows = await prisma.eventOrganizerGuest.findMany({
+    where: { eventId: organizerEvent.id },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, name: true, status: true },
+  });
+  ok(
+    "the event owner can add named complimentary guests without a payment",
+    organizerGuestsAdded.success?.includes("2 complimentary guests") === true &&
+      organizerGuestRows.length === 2 &&
+      organizerGuestRows.every((guest) => guest.status === "CONFIRMED") &&
+      (await prisma.bookingPayment.count()) === paymentsBeforeOrganizerGuests
+  );
+
+  const overCapacityForm = new FormData();
+  overCapacityForm.set("eventId", organizerEvent.id);
+  overCapacityForm.append("guestName", "One guest too many");
+  const overCapacity = await addOrganizerEventGuestsAction(
+    {},
+    overCapacityForm
+  );
+  const fullOrganizerEvent = await getPublicEvent(organizerEvent.publicId);
+  ok(
+    "organizer guests use atomic event capacity and cannot oversell the event",
+    overCapacity.message?.includes("No spots") === true &&
+      (await prisma.eventOrganizerGuest.count({
+        where: { eventId: organizerEvent.id, status: "CONFIRMED" },
+      })) === 2 &&
+      fullOrganizerEvent?.confirmedCount === 2 &&
+      fullOrganizerEvent.remainingSpots === 0 &&
+      fullOrganizerEvent.attendees.every(
+        (attendee) =>
+          attendee.name === null && attendee.playerName === "Guest of organizer"
+      )
+  );
+
+  const removeOrganizerGuestForm = new FormData();
+  removeOrganizerGuestForm.set("guestId", organizerGuestRows[0].id);
+  const organizerGuestRemoved = await removeOrganizerEventGuestAction(
+    {},
+    removeOrganizerGuestForm
+  );
+  const organizerEventAfterRemoval = await getOwnerEventDetails(
+    organizerEvent.publicId,
+    partner.id
+  );
+  ok(
+    "removing a complimentary guest releases capacity without a refund",
+    organizerGuestRemoved.success?.includes("removed") === true &&
+      organizerEventAfterRemoval?.confirmedCount === 1 &&
+      organizerEventAfterRemoval.remainingSpots === 1 &&
+      organizerEventAfterRemoval.organizerGuests.some(
+        (guest) => guest.status === "CANCELLED"
+      ) &&
+      (await prisma.bookingPayment.count()) === paymentsBeforeOrganizerGuests
+  );
+
   const { buildEventMetadata } = await import("@/lib/event-metadata");
   const eventMetadata = buildEventMetadata({
     publicId: event.publicId,
@@ -314,9 +403,6 @@ async function check() {
       openGraph.title === "Friday Night Open Play — Bunal.club"
   );
 
-  const { cancelEventAction, deleteCancelledEventAction } = await import(
-    "@/lib/event-actions"
-  );
   const form = new FormData();
   form.set("eventId", event.id);
   form.set("reason", "Venue maintenance check.");

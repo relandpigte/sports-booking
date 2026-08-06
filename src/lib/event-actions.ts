@@ -16,6 +16,7 @@ import {
   chargeBookingPayment,
   recoverPaidEventRegistration,
   refundBookingPayment,
+  settleBookingPayment,
 } from "@/lib/booking-payments";
 import { isServiceFeeOverdue } from "@/lib/service-fees";
 import { isValidDateString, manilaInstant, manilaToday } from "@/lib/time";
@@ -87,6 +88,16 @@ const ManageRegistrationSchema = z.object({
   refund: z.enum(["full", "none"]).catch("full"),
 });
 
+const GuestNamesSchema = z
+  .array(
+    z
+      .string()
+      .trim()
+      .min(1, { error: "Enter a name for every guest spot." })
+      .max(80, { error: "Keep each guest name under 80 characters." })
+  )
+  .max(50, { error: "Add at most 50 guest spots in one checkout." });
+
 export type EventFormState = {
   errors?: Record<string, string>;
   message?: string;
@@ -111,6 +122,76 @@ function sameIds(left: string[], right: string[]) {
   const a = [...new Set(left)].sort();
   const b = [...new Set(right)].sort();
   return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+function guestNamesFrom(formData: FormData):
+  | { ok: true; names: string[] }
+  | { ok: false; message: string } {
+  const parsed = GuestNamesSchema.safeParse(
+    formData.getAll("guestName").map(String)
+  );
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message:
+        parsed.error.issues[0]?.message ??
+        "Check the names entered for the guest spots.",
+    };
+  }
+  return { ok: true, names: parsed.data };
+}
+
+async function expireEventCapacityHolds(
+  tx: Prisma.TransactionClient,
+  eventId: string,
+  now: Date
+) {
+  await Promise.all([
+    tx.eventRegistration.updateMany({
+      where: {
+        eventId,
+        status: "PENDING",
+        holdExpiresAt: { lte: now },
+      },
+      data: { status: "EXPIRED", holdExpiresAt: null },
+    }),
+    tx.eventGuestSlot.updateMany({
+      where: {
+        registration: { eventId },
+        status: "PENDING",
+        holdExpiresAt: { lte: now },
+      },
+      data: { status: "EXPIRED", holdExpiresAt: null },
+    }),
+  ]);
+}
+
+async function occupiedEventSpots(
+  tx: Prisma.TransactionClient,
+  eventId: string,
+  now: Date
+): Promise<number> {
+  const [leadPlayers, guests] = await Promise.all([
+    tx.eventRegistration.count({
+      where: {
+        eventId,
+        OR: [
+          { status: "CONFIRMED" },
+          { status: "PENDING", holdExpiresAt: { gt: now } },
+        ],
+      },
+    }),
+    tx.eventGuestSlot.count({
+      where: {
+        registration: { eventId },
+        OR: [
+          { status: "CONFIRMED" },
+          { status: "PENDING", holdExpiresAt: { gt: now } },
+        ],
+      },
+    }),
+  ]);
+  return leadPlayers + guests;
 }
 
 export async function saveEventAction(
@@ -183,7 +264,18 @@ export async function saveEventAction(
                 { status: "PENDING", holdExpiresAt: { gt: new Date() } },
               ],
             },
-            select: { id: true },
+            select: {
+              id: true,
+              guests: {
+                where: {
+                  OR: [
+                    { status: "CONFIRMED" },
+                    { status: "PENDING", holdExpiresAt: { gt: new Date() } },
+                  ],
+                },
+                select: { id: true },
+              },
+            },
           },
         },
       })
@@ -193,7 +285,11 @@ export async function saveEventAction(
     return { message: "A cancelled event cannot be edited." };
   }
 
-  const occupied = existing?.registrations.length ?? 0;
+  const occupied =
+    existing?.registrations.reduce(
+      (total, registration) => total + 1 + registration.guests.length,
+      0
+    ) ?? 0;
   if (values.capacity < occupied) {
     return {
       errors: {
@@ -360,6 +456,9 @@ export async function registerForEventAction(
 
   const publicId = String(formData.get("publicId") ?? "");
   if (!publicId) return { message: "Event not found." };
+  const guests = guestNamesFrom(formData);
+  if (!guests.ok) return { message: guests.message };
+  const requestedSpots = 1 + guests.names.length;
 
   const event = await prisma.event.findUnique({
     where: { publicId },
@@ -429,14 +528,7 @@ export async function registerForEventAction(
       Prisma.sql`SELECT "id" FROM "Event" WHERE "id" = ${event.id} FOR UPDATE`
     );
 
-    await tx.eventRegistration.updateMany({
-      where: {
-        eventId: event.id,
-        status: "PENDING",
-        holdExpiresAt: { lte: now },
-      },
-      data: { status: "EXPIRED", holdExpiresAt: null },
-    });
+    await expireEventCapacityHolds(tx, event.id, now);
 
     const existing = await tx.eventRegistration.findUnique({
       where: { eventId_userId: { eventId: event.id, userId: viewer.id } },
@@ -498,20 +590,20 @@ export async function registerForEventAction(
         },
       });
     }
-    const occupied = await tx.eventRegistration.count({
-      where: {
-        eventId: event.id,
-        OR: [
-          { status: "CONFIRMED" },
-          { status: "PENDING", holdExpiresAt: { gt: now } },
-        ],
-      },
-    });
+    const occupied = await occupiedEventSpots(tx, event.id, now);
     if (existing?.payment?.status === "SUCCEEDED") {
       return { kind: "paid-closed" as const, paymentId: null };
     }
 
-    if (occupied >= event.capacity) {
+    const available = Math.max(0, event.capacity - occupied);
+    if (requestedSpots > available) {
+      if (requestedSpots > 1 || available > 0) {
+        return {
+          kind: "insufficient" as const,
+          paymentId: null,
+          available,
+        };
+      }
       await tx.eventRegistration.upsert({
         where: { eventId_userId: { eventId: event.id, userId: viewer.id } },
         create: {
@@ -531,7 +623,7 @@ export async function registerForEventAction(
     }
 
     if (fee <= 0) {
-      await tx.eventRegistration.upsert({
+      const registration = await tx.eventRegistration.upsert({
         where: { eventId_userId: { eventId: event.id, userId: viewer.id } },
         create: {
           eventId: event.id,
@@ -547,19 +639,33 @@ export async function registerForEventAction(
           cancelledAt: null,
           cancelReason: null,
         },
+        select: { id: true },
       });
+      if (guests.names.length > 0) {
+        await tx.eventGuestSlot.createMany({
+          data: guests.names.map((name) => ({
+            eventRegistrationId: registration.id,
+            name,
+            status: "CONFIRMED" as const,
+            confirmedAt: now,
+          })),
+        });
+      }
       return { kind: "confirmed" as const, paymentId: null };
     }
 
+    const venueAmount = fee * requestedSpots;
     const payment = await tx.bookingPayment.create({
       data: {
         partnerId: event.hub.ownerId,
         gatewayId: gateway!.id,
         userId: viewer.id,
         hubId: event.hubId,
-        amount: new Prisma.Decimal(grossFor(fee)),
-        venueAmount: new Prisma.Decimal(fee),
-        platformFee: new Prisma.Decimal(bookingServiceFeeFor(fee)),
+        amount: new Prisma.Decimal(grossFor(venueAmount)),
+        venueAmount: new Prisma.Decimal(venueAmount),
+        platformFee: new Prisma.Decimal(
+          bookingServiceFeeFor(venueAmount)
+        ),
         method: "QRPH",
         status: "PENDING",
         expiresAt: holdExpiresAt,
@@ -567,7 +673,7 @@ export async function registerForEventAction(
       },
       select: { id: true },
     });
-    await tx.eventRegistration.upsert({
+    const registration = await tx.eventRegistration.upsert({
       where: { eventId_userId: { eventId: event.id, userId: viewer.id } },
       create: {
         eventId: event.id,
@@ -584,7 +690,19 @@ export async function registerForEventAction(
         cancelledAt: null,
         cancelReason: null,
       },
+      select: { id: true },
     });
+    if (guests.names.length > 0) {
+      await tx.eventGuestSlot.createMany({
+        data: guests.names.map((name) => ({
+          eventRegistrationId: registration.id,
+          bookingPaymentId: payment.id,
+          name,
+          status: "PENDING" as const,
+          holdExpiresAt,
+        })),
+      });
+    }
     return { kind: "payment" as const, paymentId: payment.id };
   });
 
@@ -604,9 +722,227 @@ export async function registerForEventAction(
         "Your payment was received, but this registration could not be restored automatically. Contact support so your payment can be resolved.",
     };
   }
+  if (outcome.kind === "insufficient") {
+    return {
+      message:
+        outcome.available === 0
+          ? "This event no longer has enough spots for your group."
+          : `Only ${outcome.available} spot${outcome.available === 1 ? " is" : "s are"} available. Reduce your group and try again.`,
+    };
+  }
   return outcome.kind === "waitlist"
     ? { success: "You're on the free waitlist. Check back when a spot opens." }
     : { success: "You're registered for this event." };
+}
+
+export async function addEventGuestSlotsAction(
+  _previous: EventFormState,
+  formData: FormData
+): Promise<EventFormState> {
+  const viewer = await getViewer();
+  if (!viewer || viewer.role !== "PLAYER") {
+    return { message: "Sign in with the confirmed player account." };
+  }
+
+  const publicId = String(formData.get("publicId") ?? "");
+  const guests = guestNamesFrom(formData);
+  if (!publicId) return { message: "Event not found." };
+  if (!guests.ok) return { message: guests.message };
+  if (guests.names.length === 0) {
+    return { message: "Add at least one guest name." };
+  }
+
+  const event = await prisma.event.findUnique({
+    where: { publicId },
+    select: {
+      id: true,
+      publicId: true,
+      hubId: true,
+      status: true,
+      startsAt: true,
+      capacity: true,
+      registrationFee: true,
+      hub: {
+        select: { ownerId: true, owner: { select: { partnerStatus: true } } },
+      },
+    },
+  });
+  if (
+    !event ||
+    event.status !== "PUBLISHED" ||
+    event.startsAt <= new Date() ||
+    event.hub.owner.partnerStatus !== "ACTIVE"
+  ) {
+    return { message: "Registration has closed for this event." };
+  }
+
+  const unsettledPayment = await prisma.bookingPayment.findFirst({
+    where: {
+      userId: viewer.id,
+      status: "SUCCEEDED",
+      eventGuestSlots: {
+        some: {
+          status: { in: ["PENDING", "EXPIRED"] },
+          registration: { eventId: event.id, userId: viewer.id },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+  if (unsettledPayment) {
+    await settleBookingPayment(unsettledPayment.id);
+  }
+
+  const fee = Number(event.registrationFee);
+  const [gateway, overdue] =
+    fee > 0
+      ? await Promise.all([
+          getActivePartnerGateway(event.hub.ownerId),
+          isServiceFeeOverdue(event.hub.ownerId),
+        ])
+      : [null, false];
+  if (fee > 0 && !gateway) {
+    return { message: "The organizer's payment account is not available." };
+  }
+  if (overdue) {
+    return {
+      message:
+        "Registration is temporarily unavailable while the organizer updates billing.",
+    };
+  }
+
+  const now = new Date();
+  const holdExpiresAt = new Date(
+    now.getTime() + BOOKING_HOLD_MINUTES * 60_000
+  );
+  const outcome = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw(
+      Prisma.sql`SELECT "id" FROM "Event" WHERE "id" = ${event.id} FOR UPDATE`
+    );
+    await expireEventCapacityHolds(tx, event.id, now);
+
+    const registration = await tx.eventRegistration.findUnique({
+      where: { eventId_userId: { eventId: event.id, userId: viewer.id } },
+      select: {
+        id: true,
+        status: true,
+        guests: {
+          where: {
+            status: { in: ["PENDING", "EXPIRED"] },
+            bookingPaymentId: { not: null },
+            payment: { status: "PENDING" },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: {
+            bookingPaymentId: true,
+            status: true,
+            holdExpiresAt: true,
+            payment: {
+              select: {
+                status: true,
+                chargeStartedAt: true,
+                providerPaymentId: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!registration || registration.status !== "CONFIRMED") {
+      return { kind: "not-confirmed" as const, paymentId: null };
+    }
+
+    const pendingGuest = registration.guests[0];
+    if (
+      pendingGuest?.bookingPaymentId &&
+      pendingGuest.payment?.status === "PENDING" &&
+      ((pendingGuest.status === "PENDING" &&
+        pendingGuest.holdExpiresAt != null &&
+        pendingGuest.holdExpiresAt > now) ||
+        pendingGuest.payment.chargeStartedAt != null ||
+        pendingGuest.payment.providerPaymentId != null)
+    ) {
+      return {
+        kind: "payment" as const,
+        paymentId: pendingGuest.bookingPaymentId,
+      };
+    }
+
+    const occupied = await occupiedEventSpots(tx, event.id, now);
+    const available = Math.max(0, event.capacity - occupied);
+    if (guests.names.length > available) {
+      return {
+        kind: "insufficient" as const,
+        paymentId: null,
+        available,
+      };
+    }
+
+    if (fee <= 0) {
+      await tx.eventGuestSlot.createMany({
+        data: guests.names.map((name) => ({
+          eventRegistrationId: registration.id,
+          name,
+          status: "CONFIRMED" as const,
+          confirmedAt: now,
+        })),
+      });
+      return { kind: "confirmed" as const, paymentId: null };
+    }
+
+    const venueAmount = fee * guests.names.length;
+    const payment = await tx.bookingPayment.create({
+      data: {
+        partnerId: event.hub.ownerId,
+        gatewayId: gateway!.id,
+        userId: viewer.id,
+        hubId: event.hubId,
+        amount: new Prisma.Decimal(grossFor(venueAmount)),
+        venueAmount: new Prisma.Decimal(venueAmount),
+        platformFee: new Prisma.Decimal(
+          bookingServiceFeeFor(venueAmount)
+        ),
+        method: "QRPH",
+        status: "PENDING",
+        expiresAt: holdExpiresAt,
+        provider: gateway!.provider,
+      },
+      select: { id: true },
+    });
+    await tx.eventGuestSlot.createMany({
+      data: guests.names.map((name) => ({
+        eventRegistrationId: registration.id,
+        bookingPaymentId: payment.id,
+        name,
+        status: "PENDING" as const,
+        holdExpiresAt,
+      })),
+    });
+    return { kind: "payment" as const, paymentId: payment.id };
+  });
+
+  revalidateEventSurfaces(event.publicId, event.hubId);
+  if (outcome.kind === "payment") {
+    await chargeBookingPayment({
+      paymentId: outcome.paymentId,
+      userId: viewer.id,
+    });
+    redirect(`/events/${event.publicId}/pay/${outcome.paymentId}`);
+  }
+  if (outcome.kind === "insufficient") {
+    return {
+      message:
+        outcome.available === 0
+          ? "No additional spots are available."
+          : `Only ${outcome.available} additional spot${outcome.available === 1 ? " is" : "s are"} available.`,
+    };
+  }
+  if (outcome.kind === "not-confirmed") {
+    return { message: "Confirm your own registration before adding guests." };
+  }
+  return { success: `${guests.names.length} guest spot${guests.names.length === 1 ? "" : "s"} added.` };
 }
 
 export async function cancelEventAction(
@@ -629,8 +965,16 @@ export async function cancelEventAction(
       hubId: true,
       status: true,
       registrations: {
-        where: { payment: { status: "SUCCEEDED" } },
-        select: { bookingPaymentId: true },
+        select: {
+          bookingPaymentId: true,
+          payment: { select: { status: true } },
+          guests: {
+            select: {
+              bookingPaymentId: true,
+              payment: { select: { status: true } },
+            },
+          },
+        },
       },
     },
   });
@@ -659,14 +1003,41 @@ export async function cancelEventAction(
         cancelReason: parsed.data.reason,
       },
     }),
+    prisma.eventGuestSlot.updateMany({
+      where: {
+        registration: { eventId: event.id },
+        status: { in: ["PENDING", "CONFIRMED"] },
+      },
+      data: {
+        status: "CANCELLED",
+        holdExpiresAt: null,
+        cancelledAt: new Date(),
+      },
+    }),
   ]);
 
   let failedRefunds = 0;
   if (parsed.data.refund === "full") {
+    const paymentIds = new Set<string>();
     for (const registration of event.registrations) {
-      if (!registration.bookingPaymentId) continue;
+      if (
+        registration.bookingPaymentId &&
+        registration.payment?.status === "SUCCEEDED"
+      ) {
+        paymentIds.add(registration.bookingPaymentId);
+      }
+      for (const guest of registration.guests) {
+        if (
+          guest.bookingPaymentId &&
+          guest.payment?.status === "SUCCEEDED"
+        ) {
+          paymentIds.add(guest.bookingPaymentId);
+        }
+      }
+    }
+    for (const paymentId of paymentIds) {
       const refund = await refundBookingPayment({
-        paymentId: registration.bookingPaymentId,
+        paymentId,
         reason: parsed.data.reason,
         refundedById: partner.id,
       });
@@ -717,7 +1088,12 @@ export async function deleteCancelledEventAction(
         title: true,
         status: true,
         registrations: {
-          where: { bookingPaymentId: { not: null } },
+          where: {
+            OR: [
+              { bookingPaymentId: { not: null } },
+              { guests: { some: { bookingPaymentId: { not: null } } } },
+            ],
+          },
           take: 1,
           select: { id: true },
         },
@@ -778,6 +1154,12 @@ export async function cancelEventRegistrationAction(
       status: true,
       bookingPaymentId: true,
       payment: { select: { status: true } },
+      guests: {
+        select: {
+          bookingPaymentId: true,
+          payment: { select: { status: true } },
+        },
+      },
       event: { select: { publicId: true, hubId: true } },
     },
   });
@@ -786,28 +1168,55 @@ export async function cancelEventRegistrationAction(
     return { message: "That registration is already closed." };
   }
 
-  await prisma.eventRegistration.update({
-    where: { id: registration.id },
-    data: {
-      status: "CANCELLED",
-      holdExpiresAt: null,
-      cancelledAt: new Date(),
-      cancelReason: parsed.data.reason || "Cancelled by the organizer.",
-    },
-  });
+  await prisma.$transaction([
+    prisma.eventRegistration.update({
+      where: { id: registration.id },
+      data: {
+        status: "CANCELLED",
+        holdExpiresAt: null,
+        cancelledAt: new Date(),
+        cancelReason: parsed.data.reason || "Cancelled by the organizer.",
+      },
+    }),
+    prisma.eventGuestSlot.updateMany({
+      where: {
+        eventRegistrationId: registration.id,
+        status: { in: ["PENDING", "CONFIRMED"] },
+      },
+      data: {
+        status: "CANCELLED",
+        holdExpiresAt: null,
+        cancelledAt: new Date(),
+      },
+    }),
+  ]);
 
   let refundMessage = "";
-  if (
-    parsed.data.refund === "full" &&
-    registration.payment?.status === "SUCCEEDED" &&
-    registration.bookingPaymentId
-  ) {
-    const refund = await refundBookingPayment({
-      paymentId: registration.bookingPaymentId,
-      reason: parsed.data.reason,
-      refundedById: partner.id,
-    });
-    if (!refund.ok) refundMessage = ` Refund failed: ${refund.message}`;
+  if (parsed.data.refund === "full") {
+    const paymentIds = new Set<string>();
+    if (
+      registration.bookingPaymentId &&
+      registration.payment?.status === "SUCCEEDED"
+    ) {
+      paymentIds.add(registration.bookingPaymentId);
+    }
+    for (const guest of registration.guests) {
+      if (guest.bookingPaymentId && guest.payment?.status === "SUCCEEDED") {
+        paymentIds.add(guest.bookingPaymentId);
+      }
+    }
+    const failures: string[] = [];
+    for (const paymentId of paymentIds) {
+      const refund = await refundBookingPayment({
+        paymentId,
+        reason: parsed.data.reason,
+        refundedById: partner.id,
+      });
+      if (!refund.ok) failures.push(refund.message);
+    }
+    if (failures.length > 0) {
+      refundMessage = ` ${failures.length} refund${failures.length === 1 ? "" : "s"} failed: ${failures.join(" ")}`;
+    }
   }
 
   revalidateEventSurfaces(

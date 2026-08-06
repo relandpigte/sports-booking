@@ -1,8 +1,8 @@
 # Payments
 
 Bunal.club has no partner plans, subscriptions, or monthly charges. Partners use
-the application for free. The only payment flow is a player paying a venue for
-a court booking through that partner's own PayMongo account.
+the application for free. Player court bookings and paid event registrations go
+through the venue's own PayMongo account.
 
 ## Partner activation
 
@@ -32,6 +32,14 @@ app grosses up the exact QR amount using PayMongo's published 1.34% QR Ph rate
 plus VAT. `PAYMONGO_QRPH_PROCESSING_RATE` can override the VAT-inclusive rate
 for negotiated merchant pricing. For example, a ₱257.50 booking subtotal adds
 ₱3.92 and generates a ₱261.42 QR.
+
+For open play and other paid events, the registration fee is per person. A
+lead player may include named guests in the first checkout, so a ₱100 event
+with two guests charges `₱100 × 3`, plus the 3% service fee and PayMongo's QR
+processing fee. The entire group is capacity-checked under one event lock and
+is held only when every requested spot is available. Confirmed players can add
+more named guests later through an incremental QR payment; an expired or
+failed add-on never changes the already-confirmed registration.
 
 ## Partner gateway setup
 
@@ -134,7 +142,7 @@ the admin reviews it; rejection restores the overdue block.
 
 ## Booking settlement
 
-A paid booking begins as a 15-minute hold. The app creates the payment ledger
+A paid booking or event group begins as a 15-minute hold. The app creates the payment ledger
 before calling PayMongo and claims the charge atomically to prevent duplicate
 Payment Intents. It creates a single-use QR Ph Payment Method with the same
 expiry, stores PayMongo's Base64 QR image, and renders it directly on the court

@@ -94,7 +94,10 @@ export default async function PayEventRegistrationPage({
 
             <dl className="mt-6 space-y-3 border-t border-slate-100 pt-5 text-sm">
               <div className="flex justify-between gap-4">
-                <dt className="text-slate-500">Registration fee</dt>
+                <dt className="text-slate-500">
+                  {event.addOn ? "Additional guest spots" : "Registration fee"}
+                  {event.spotCount > 1 && ` · ${event.spotCount} spots`}
+                </dt>
                 <dd className="font-semibold text-navy">{formatPHP(payment.venueAmount)}</dd>
               </div>
               <div className="flex justify-between gap-4">
@@ -115,11 +118,26 @@ export default async function PayEventRegistrationPage({
               </div>
             </dl>
 
+            {event.guestNames.length > 0 && (
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                  Guest names
+                </p>
+                <ul className="mt-2 space-y-1 text-sm font-semibold text-navy">
+                  {event.guestNames.map((name, index) => (
+                    <li key={`${name}-${index}`}>{name}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <div className="mt-7">
               {payment.status === "SUCCEEDED" && registrationConfirmed ? (
                 <div className="space-y-4">
                   <p className="rounded-2xl bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">
-                    Paid. Your name is now on the confirmed player list.
+                    {event.addOn
+                      ? "Paid. Your guest spots are confirmed."
+                      : "Paid. Your group is now on the confirmed player list."}
                   </p>
                   <Link href={`/events/${publicId}`} className="block rounded-2xl bg-primary px-4 py-3.5 text-center text-sm font-bold text-white hover:bg-primary-hover">
                     View event

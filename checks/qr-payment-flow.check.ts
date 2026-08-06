@@ -14,11 +14,14 @@ import { manilaInstant } from "@/lib/time";
 const prisma = new PrismaClient();
 const PARTNER_EMAIL = "check-qr-flow-partner@example.test";
 const PLAYER_EMAIL = "check-qr-flow-player@example.test";
+const SECOND_PLAYER_EMAIL = "check-qr-flow-player-2@example.test";
 const DATE = "2099-12-20";
 
 async function cleanup() {
   await prisma.user.deleteMany({
-    where: { email: { in: [PARTNER_EMAIL, PLAYER_EMAIL] } },
+    where: {
+      email: { in: [PARTNER_EMAIL, PLAYER_EMAIL, SECOND_PLAYER_EMAIL] },
+    },
   });
 }
 
@@ -42,6 +45,15 @@ async function check() {
     data: {
       name: "QR flow player",
       email: PLAYER_EMAIL,
+      passwordHash: "x",
+      role: "PLAYER",
+    },
+    select: { id: true, email: true, role: true },
+  });
+  const secondPlayer = await prisma.user.create({
+    data: {
+      name: "QR flow second player",
+      email: SECOND_PLAYER_EMAIL,
       passwordHash: "x",
       role: "PLAYER",
     },
@@ -96,6 +108,8 @@ async function check() {
   const { registerForEventAction } = await import("@/lib/event-actions");
   const form = new FormData();
   form.set("publicId", event.publicId);
+  form.append("guestName", "Guest One");
+  form.append("guestName", "Guest Two");
 
   const startedAfter = Date.now();
   let redirected = false;
@@ -108,7 +122,7 @@ async function check() {
 
   const registration = await prisma.eventRegistration.findUnique({
     where: { eventId_userId: { eventId: event.id, userId: player.id } },
-    include: { payment: true },
+    include: { payment: true, guests: { orderBy: { createdAt: "asc" } } },
   });
   const intent = paymongo.requests.find((request) =>
     request.url.endsWith("/v1/payment_intents")
@@ -129,12 +143,20 @@ async function check() {
     ).length === 1 && JSON.stringify(methods) === JSON.stringify(["qrph"])
   );
   ok(
-    "the event spot and QR Ph payment share the configured 15-minute hold",
+    "all named event spots and the QR Ph payment share one 15-minute hold",
     registration?.status === "PENDING" &&
+      registration.guests.length === 2 &&
+      registration.guests.every(
+        (guest) =>
+          guest.status === "PENDING" &&
+          guest.holdExpiresAt?.getTime() === registration.holdExpiresAt?.getTime()
+      ) &&
       registration.payment?.method === "QRPH" &&
+      Number(registration.payment.venueAmount) === 1_500 &&
+      Number(registration.payment.platformFee) === 45 &&
       registration.payment.providerPaymentId?.startsWith("pi_") === true &&
       registration.payment.qrImageUrl?.startsWith("data:image/") === true &&
-      Number(registration.payment.processingFee) === 7.85 &&
+      Number(registration.payment.processingFee) === 23.54 &&
       registration.holdExpiresAt != null &&
       registration.holdExpiresAt.getTime() >=
         startedAfter + BOOKING_HOLD_MINUTES * 60_000 &&
@@ -172,6 +194,132 @@ async function check() {
   ok(
     "the status route does not expose another payment id",
     missingStatus.status === 404
+  );
+
+  const initialIntentId = registration!.payment!.providerPaymentId!;
+  const initialIntent = paymongo.intents.get(initialIntentId)!;
+  paymongo.intents.set(initialIntentId, {
+    ...initialIntent,
+    status: "succeeded",
+    paymentId: "pay_qr_flow_initial",
+  });
+  await getPaymentStatus(
+    new Request("https://www.bunal.club/api/payments/status"),
+    { params: Promise.resolve({ paymentId: registration!.bookingPaymentId! }) }
+  );
+  const confirmedGroup = await prisma.eventRegistration.findUnique({
+    where: { id: registration!.id },
+    include: { guests: true },
+  });
+  ok(
+    "successful group payment confirms the lead and every named guest",
+    confirmedGroup?.status === "CONFIRMED" &&
+      confirmedGroup.guests.every((guest) => guest.status === "CONFIRMED")
+  );
+
+  const { addEventGuestSlotsAction } = await import("@/lib/event-actions");
+  const addForm = new FormData();
+  addForm.set("publicId", event.publicId);
+  addForm.append("guestName", "Guest Three");
+  addForm.append("guestName", "Guest Four");
+  let addOnRedirected = false;
+  try {
+    await addEventGuestSlotsAction({}, addForm);
+  } catch (error) {
+    addOnRedirected = error instanceof Error && error.message.includes("redirect");
+  }
+  const addOnPayment = await prisma.bookingPayment.findFirst({
+    where: {
+      userId: player.id,
+      eventGuestSlots: {
+        some: { registration: { eventId: event.id, userId: player.id } },
+      },
+      id: { not: registration!.bookingPaymentId! },
+    },
+    orderBy: { createdAt: "desc" },
+    include: { eventGuestSlots: true },
+  });
+  ok(
+    "a confirmed player can hold named guest add-ons in one incremental payment",
+    addOnRedirected &&
+      addOnPayment?.eventGuestSlots.length === 2 &&
+      addOnPayment.eventGuestSlots.every(
+        (guest) => guest.status === "PENDING"
+      ) &&
+      Number(addOnPayment.venueAmount) === 1_000 &&
+      Number(addOnPayment.platformFee) === 30
+  );
+
+  const capacityEvent = await prisma.event.create({
+    data: {
+      publicId: `qr-capacity-${crypto.randomBytes(8).toString("hex")}`,
+      hubId: hub.id,
+      title: "QR Capacity Event",
+      sport: "pickleball",
+      date: DATE,
+      startHour: 12,
+      endHour: 14,
+      startsAt: manilaInstant(DATE, 12),
+      endsAt: manilaInstant(DATE, 14),
+      capacity: 8,
+      registrationFee: 500,
+      status: "PUBLISHED",
+      publishedAt: new Date(),
+      registrations: {
+        create: {
+          userId: secondPlayer.id,
+          status: "CONFIRMED",
+          confirmedAt: new Date(),
+          guests: {
+            create: ["Existing A", "Existing B", "Existing C", "Existing D"].map(
+              (name) => ({ name, status: "CONFIRMED", confirmedAt: new Date() })
+            ),
+          },
+        },
+      },
+    },
+  });
+  const oversizedForm = new FormData();
+  oversizedForm.set("publicId", capacityEvent.publicId);
+  for (const name of ["A", "B", "C", "D"]) {
+    oversizedForm.append("guestName", name);
+  }
+  const oversized = await registerForEventAction({}, oversizedForm);
+  const oversizedRegistrationCount = await prisma.eventRegistration.count({
+    where: { eventId: capacityEvent.id, userId: player.id },
+  });
+  ok(
+    "a group is rejected atomically when all requested spots do not fit",
+    oversized.message?.includes("Only 3 spots are available") === true &&
+      oversizedRegistrationCount === 0
+  );
+
+  const addOnIntentId = addOnPayment!.providerPaymentId!;
+  const addOnIntent = paymongo.intents.get(addOnIntentId)!;
+  paymongo.intents.set(addOnIntentId, {
+    ...addOnIntent,
+    status: "succeeded",
+    paymentId: "pay_qr_flow_add_on",
+  });
+  stubRequestContext(player);
+  await getPaymentStatus(
+    new Request("https://www.bunal.club/api/payments/status"),
+    { params: Promise.resolve({ paymentId: addOnPayment!.id }) }
+  );
+  const { getPublicEvent } = await import("@/lib/events");
+  const publicEvent = await getPublicEvent(event.publicId, player.id);
+  const settledAddOn = await prisma.bookingPayment.findUnique({
+    where: { id: addOnPayment!.id },
+    select: { status: true },
+  });
+  ok(
+    "paid add-ons confirm capacity once without a refund",
+    publicEvent?.confirmedCount === 5 &&
+      publicEvent.remainingSpots === 3 &&
+      publicEvent.viewerRegistration?.confirmedGuestNames.length === 4 &&
+      publicEvent.viewerRegistration.confirmedSlotCount === 5 &&
+      settledAddOn?.status === "SUCCEEDED" &&
+      paymongo.refunds.length === 0
   );
 }
 

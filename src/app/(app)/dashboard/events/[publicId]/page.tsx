@@ -16,7 +16,6 @@ import { requireActivePartner } from "@/lib/dal";
 import {
   getOwnerEventDetails,
   listEventFormHubs,
-  type OwnerEventRegistrationView,
 } from "@/lib/events";
 import {
   formatManilaDateLong,
@@ -89,8 +88,7 @@ function statusTone(status: string): BadgeTone {
   return "neutral";
 }
 
-function paymentDate(registration: OwnerEventRegistrationView): string {
-  const value = registration.payment?.paidAt ?? registration.createdAt;
+function paymentDate(value: Date): string {
   return new Intl.DateTimeFormat("en-PH", {
     timeZone: "Asia/Manila",
     month: "short",
@@ -146,14 +144,29 @@ export default async function PartnerEventDetailsPage({
     const matchesQuery =
       !query ||
       name.includes(query.toLowerCase()) ||
-      registration.player.email.toLowerCase().includes(query.toLowerCase());
+      registration.player.email.toLowerCase().includes(query.toLowerCase()) ||
+      registration.guestNames.some((guest) =>
+        guest.toLowerCase().includes(query.toLowerCase())
+      ) ||
+      registration.pendingGuestNames.some((guest) =>
+        guest.toLowerCase().includes(query.toLowerCase())
+      );
     const matchesStatus =
       !registrationStatus || registration.status === registrationStatus;
     return matchesQuery && matchesStatus;
   });
   const matchingPayments = event.registrations
-    .filter((registration) => {
-      if (!registration.payment) return false;
+    .flatMap((registration) => [
+      ...(registration.payment
+        ? [{ registration, payment: registration.payment, addOn: false }]
+        : []),
+      ...registration.additionalPayments.map((payment) => ({
+        registration,
+        payment,
+        addOn: true,
+      })),
+    ])
+    .filter(({ registration, payment }) => {
       const name = (
         registration.player.playerName ??
         registration.player.name ??
@@ -163,17 +176,20 @@ export default async function PartnerEventDetailsPage({
         !query ||
         name.includes(query.toLowerCase()) ||
         registration.player.email.toLowerCase().includes(query.toLowerCase()) ||
-        registration.payment.providerRef?.toLowerCase().includes(
+        registration.guestNames.some((guest) =>
+          guest.toLowerCase().includes(query.toLowerCase())
+        ) ||
+        payment.providerRef?.toLowerCase().includes(
           query.toLowerCase()
         );
       const matchesStatus =
-        !paymentStatus || registration.payment.status === paymentStatus;
+        !paymentStatus || payment.status === paymentStatus;
       return matchesQuery && matchesStatus;
     })
     .sort(
       (left, right) =>
-        (right.payment?.paidAt ?? right.createdAt).getTime() -
-        (left.payment?.paidAt ?? left.createdAt).getTime()
+        (right.payment.paidAt ?? right.registration.createdAt).getTime() -
+        (left.payment.paidAt ?? left.registration.createdAt).getTime()
     );
   const resultSet = tab === "payments" ? matchingPayments : matchingPlayers;
   const pageCount = Math.max(1, Math.ceil(resultSet.length / PAGE_SIZE));
@@ -464,19 +480,20 @@ export default async function PartnerEventDetailsPage({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {visiblePayments.map((registration) => {
-                    const payment = registration.payment;
-                    if (!payment) return null;
+                  {visiblePayments.map(({ registration, payment, addOn }) => {
                     const name =
                       registration.player.playerName ??
                       registration.player.name ??
                       "Player";
                     return (
-                      <tr key={registration.id}>
+                      <tr key={payment.id}>
                         <td className="px-6 py-4">
                           <p className="font-bold text-navy">{name}</p>
                           <p className="mt-1 text-xs text-slate-400">
-                            {paymentDate(registration)}
+                            {paymentDate(
+                              payment.paidAt ?? registration.createdAt
+                            )}
+                            {addOn && " · Guest add-on"}
                           </p>
                         </td>
                         <td className="px-4 py-4">

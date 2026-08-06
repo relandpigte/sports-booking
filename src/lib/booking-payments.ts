@@ -78,6 +78,9 @@ export type BookingPaymentView = {
   event: {
     registrationId: string;
     registrationStatus: EventRegistrationStatus;
+    guestNames: string[];
+    spotCount: number;
+    addOn: boolean;
     publicId: string;
     title: string;
     date: string;
@@ -135,6 +138,29 @@ const paymentSelect = {
       },
     },
   },
+  eventGuestSlots: {
+    orderBy: { createdAt: "asc" as const },
+    select: {
+      name: true,
+      status: true,
+      holdExpiresAt: true,
+      registration: {
+        select: {
+          id: true,
+          status: true,
+          event: {
+            select: {
+              publicId: true,
+              title: true,
+              date: true,
+              startHour: true,
+              endHour: true,
+            },
+          },
+        },
+      },
+    },
+  },
 } as const;
 
 type PaymentRow = Prisma.BookingPaymentGetPayload<{
@@ -142,6 +168,8 @@ type PaymentRow = Prisma.BookingPaymentGetPayload<{
 }>;
 
 export function mapBookingPayment(row: PaymentRow): BookingPaymentView {
+  const guestRegistration = row.eventGuestSlots[0]?.registration;
+  const eventRegistration = row.eventRegistration ?? guestRegistration;
   return {
     id: row.id,
     status: row.status,
@@ -177,11 +205,15 @@ export function mapBookingPayment(row: PaymentRow): BookingPaymentView {
       endHour: b.endHour,
       hours: b.hours,
     })),
-    event: row.eventRegistration
+    event: eventRegistration
       ? {
-          registrationId: row.eventRegistration.id,
-          registrationStatus: row.eventRegistration.status,
-          ...row.eventRegistration.event,
+          registrationId: eventRegistration.id,
+          registrationStatus: eventRegistration.status,
+          guestNames: row.eventGuestSlots.map((guest) => guest.name),
+          spotCount:
+            row.eventGuestSlots.length + (row.eventRegistration ? 1 : 0),
+          addOn: row.eventRegistration == null,
+          ...eventRegistration.event,
         }
       : null,
   };
@@ -376,6 +408,26 @@ export async function settleBookingPayment(
           },
         },
       },
+      eventGuestSlots: {
+        select: {
+          id: true,
+          status: true,
+          holdExpiresAt: true,
+          registration: {
+            select: {
+              id: true,
+              status: true,
+              event: {
+                select: {
+                  id: true,
+                  status: true,
+                  startsAt: true,
+                },
+              },
+            },
+          },
+        },
+      },
     },
   });
   if (!payment) return { status: "missing" };
@@ -384,23 +436,40 @@ export async function settleBookingPayment(
 
   if (payment.eventRegistration) {
     const registration = payment.eventRegistration;
-    if (registration.status === "CONFIRMED") {
+    const pendingGuests = payment.eventGuestSlots.filter(
+      (guest) => guest.status === "PENDING"
+    );
+    if (
+      registration.status === "CONFIRMED" &&
+      pendingGuests.length === 0
+    ) {
       await prisma.$transaction((tx) => ensureServiceFeeCharge(tx, payment));
       return { status: "already" };
     }
 
     const holdLive =
-      registration.status === "PENDING" &&
-      registration.holdExpiresAt != null &&
-      registration.holdExpiresAt > new Date() &&
+      (registration.status === "CONFIRMED" ||
+        (registration.status === "PENDING" &&
+          registration.holdExpiresAt != null &&
+          registration.holdExpiresAt > new Date())) &&
+      pendingGuests.every(
+        (guest) =>
+          guest.holdExpiresAt != null && guest.holdExpiresAt > new Date()
+      ) &&
       registration.event.status === "PUBLISHED" &&
       registration.event.startsAt > new Date();
 
     if (!holdLive) {
-      await prisma.eventRegistration.updateMany({
-        where: { id: registration.id, status: "PENDING" },
-        data: { status: "EXPIRED", holdExpiresAt: null },
-      });
+      await prisma.$transaction([
+        prisma.eventRegistration.updateMany({
+          where: { id: registration.id, status: "PENDING" },
+          data: { status: "EXPIRED", holdExpiresAt: null },
+        }),
+        prisma.eventGuestSlot.updateMany({
+          where: { bookingPaymentId: payment.id, status: "PENDING" },
+          data: { status: "EXPIRED", holdExpiresAt: null },
+        }),
+      ]);
       const recovered = await recoverPaidEventRegistration({
         eventId: registration.event.id,
         userId: payment.userId,
@@ -426,28 +495,51 @@ export async function settleBookingPayment(
         await tx.$queryRaw(
           Prisma.sql`SELECT "id" FROM "Event" WHERE "id" = ${registration.event.id} FOR UPDATE`
         );
-        const updated = await tx.eventRegistration.updateMany({
-          where: {
-            id: registration.id,
-            status: "PENDING",
-            holdExpiresAt: { gt: new Date() },
-            event: { status: "PUBLISHED", startsAt: { gt: new Date() } },
-          },
-          data: {
-            status: "CONFIRMED",
-            holdExpiresAt: null,
-            confirmedAt: new Date(),
-          },
-        });
-        if (updated.count !== 1) throw new LostHold();
+        if (registration.status === "PENDING") {
+          const updated = await tx.eventRegistration.updateMany({
+            where: {
+              id: registration.id,
+              status: "PENDING",
+              holdExpiresAt: { gt: new Date() },
+              event: { status: "PUBLISHED", startsAt: { gt: new Date() } },
+            },
+            data: {
+              status: "CONFIRMED",
+              holdExpiresAt: null,
+              confirmedAt: new Date(),
+            },
+          });
+          if (updated.count !== 1) throw new LostHold();
+        }
+        if (pendingGuests.length > 0) {
+          const updatedGuests = await tx.eventGuestSlot.updateMany({
+            where: {
+              id: { in: pendingGuests.map((guest) => guest.id) },
+              status: "PENDING",
+              holdExpiresAt: { gt: new Date() },
+            },
+            data: {
+              status: "CONFIRMED",
+              holdExpiresAt: null,
+              confirmedAt: new Date(),
+            },
+          });
+          if (updatedGuests.count !== pendingGuests.length) throw new LostHold();
+        }
         await ensureServiceFeeCharge(tx, payment);
       });
     } catch (error) {
       if (!(error instanceof LostHold)) throw error;
-      await prisma.eventRegistration.updateMany({
-        where: { id: registration.id, status: "PENDING" },
-        data: { status: "EXPIRED", holdExpiresAt: null },
-      });
+      await prisma.$transaction([
+        prisma.eventRegistration.updateMany({
+          where: { id: registration.id, status: "PENDING" },
+          data: { status: "EXPIRED", holdExpiresAt: null },
+        }),
+        prisma.eventGuestSlot.updateMany({
+          where: { bookingPaymentId: payment.id, status: "PENDING" },
+          data: { status: "EXPIRED", holdExpiresAt: null },
+        }),
+      ]);
       const recovered = await recoverPaidEventRegistration({
         eventId: registration.event.id,
         userId: payment.userId,
@@ -472,6 +564,90 @@ export async function settleBookingPayment(
       bookingIds: [],
       registrationId: registration.id,
     };
+  }
+
+  if (payment.eventGuestSlots.length > 0) {
+    const registration = payment.eventGuestSlots[0].registration;
+    const pendingGuests = payment.eventGuestSlots.filter(
+      (guest) => guest.status === "PENDING"
+    );
+    if (
+      payment.eventGuestSlots.every(
+        (guest) => guest.status === "CONFIRMED"
+      )
+    ) {
+      await prisma.$transaction((tx) => ensureServiceFeeCharge(tx, payment));
+      return { status: "already" };
+    }
+
+    const now = new Date();
+    const holdLive =
+      pendingGuests.length > 0 &&
+      registration.status === "CONFIRMED" &&
+      registration.event.status === "PUBLISHED" &&
+      registration.event.startsAt > now &&
+      payment.eventGuestSlots.every(
+        (guest) =>
+          guest.status === "CONFIRMED" ||
+          (guest.status === "PENDING" &&
+            guest.holdExpiresAt != null &&
+            guest.holdExpiresAt > now)
+      );
+
+    if (holdLive) {
+      try {
+        await prisma.$transaction(async (tx) => {
+          await tx.$queryRaw(
+            Prisma.sql`SELECT "id" FROM "Event" WHERE "id" = ${registration.event.id} FOR UPDATE`
+          );
+          const updated = await tx.eventGuestSlot.updateMany({
+            where: {
+              id: { in: pendingGuests.map((guest) => guest.id) },
+              status: "PENDING",
+              holdExpiresAt: { gt: new Date() },
+              registration: {
+                status: "CONFIRMED",
+                event: { status: "PUBLISHED", startsAt: { gt: new Date() } },
+              },
+            },
+            data: {
+              status: "CONFIRMED",
+              holdExpiresAt: null,
+              confirmedAt: new Date(),
+            },
+          });
+          if (updated.count !== pendingGuests.length) throw new LostHold();
+          await ensureServiceFeeCharge(tx, payment);
+        });
+        return {
+          status: "confirmed",
+          bookingIds: [],
+          registrationId: registration.id,
+        };
+      } catch (error) {
+        if (!(error instanceof LostHold)) throw error;
+      }
+    }
+
+    await prisma.eventGuestSlot.updateMany({
+      where: { bookingPaymentId: payment.id, status: "PENDING" },
+      data: { status: "EXPIRED", holdExpiresAt: null },
+    });
+    const recovered = await recoverPaidEventGuestSlots(payment.id);
+    if (recovered.status === "confirmed") {
+      return {
+        status: "confirmed",
+        bookingIds: [],
+        registrationId: recovered.registrationId,
+      };
+    }
+    const refund = await refundBookingPayment({
+      paymentId,
+      reason:
+        "The additional event spots expired or became unavailable before payment completed.",
+    });
+    await recordAutomaticRefundFailure(paymentId, refund);
+    return { status: "lost", refunded: refund.ok };
   }
 
   const pending = payment.bookings.filter((b) => b.status === "PENDING");
@@ -539,6 +715,34 @@ export type PaidEventRecoveryOutcome =
   | { status: "full" }
   | { status: "not-recoverable" };
 
+async function occupiedEventSpotCount(
+  tx: Prisma.TransactionClient,
+  eventId: string,
+  now: Date
+): Promise<number> {
+  const [registrations, guests] = await Promise.all([
+    tx.eventRegistration.count({
+      where: {
+        eventId,
+        OR: [
+          { status: "CONFIRMED" },
+          { status: "PENDING", holdExpiresAt: { gt: now } },
+        ],
+      },
+    }),
+    tx.eventGuestSlot.count({
+      where: {
+        registration: { eventId },
+        OR: [
+          { status: "CONFIRMED" },
+          { status: "PENDING", holdExpiresAt: { gt: now } },
+        ],
+      },
+    }),
+  ]);
+  return registrations + guests;
+}
+
 // Repairs the narrow case where PayMongo accepted money just after the event
 // hold expired and the automatic refund could not complete. Capacity is
 // re-checked under the same event lock used by ordinary registration, so a
@@ -548,78 +752,251 @@ export async function recoverPaidEventRegistration(args: {
   userId: string;
 }): Promise<PaidEventRecoveryOutcome> {
   const now = new Date();
-  return prisma.$transaction(async (tx) => {
-    await tx.$queryRaw(
-      Prisma.sql`SELECT "id" FROM "Event" WHERE "id" = ${args.eventId} FOR UPDATE`
-    );
+  try {
+    return await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(
+        Prisma.sql`SELECT "id" FROM "Event" WHERE "id" = ${args.eventId} FOR UPDATE`
+      );
 
-    const event = await tx.event.findUnique({
-      where: { id: args.eventId },
-      select: { capacity: true, status: true, startsAt: true },
-    });
-    if (
-      !event ||
-      event.status !== "PUBLISHED" ||
-      event.startsAt <= now
-    ) {
-      return { status: "not-recoverable" };
-    }
+      const event = await tx.event.findUnique({
+        where: { id: args.eventId },
+        select: { capacity: true, status: true, startsAt: true },
+      });
+      if (
+        !event ||
+        event.status !== "PUBLISHED" ||
+        event.startsAt <= now
+      ) {
+        return { status: "not-recoverable" };
+      }
 
-    const registration = await tx.eventRegistration.findFirst({
-      where: {
-        eventId: args.eventId,
-        userId: args.userId,
-        status: "EXPIRED",
-        payment: { status: "SUCCEEDED" },
-      },
-      select: {
-        id: true,
-        payment: {
-          select: {
-            id: true,
-            partnerId: true,
-            platformFee: true,
-            paidAt: true,
+      const registration = await tx.eventRegistration.findFirst({
+        where: {
+          eventId: args.eventId,
+          userId: args.userId,
+          payment: { status: "SUCCEEDED" },
+        },
+        select: {
+          id: true,
+          status: true,
+          guests: {
+            select: { id: true, bookingPaymentId: true, status: true },
+          },
+          payment: {
+            select: {
+              id: true,
+              partnerId: true,
+              platformFee: true,
+              paidAt: true,
+            },
           },
         },
-      },
-    });
-    if (!registration?.payment) return { status: "not-recoverable" };
+      });
+      if (!registration?.payment) return { status: "not-recoverable" };
 
-    const occupied = await tx.eventRegistration.count({
-      where: {
-        eventId: args.eventId,
-        OR: [
-          { status: "CONFIRMED" },
-          { status: "PENDING", holdExpiresAt: { gt: now } },
-        ],
-      },
-    });
-    if (occupied >= event.capacity) return { status: "full" };
+      const paymentGuests = registration.guests.filter(
+        (guest) => guest.bookingPaymentId === registration.payment!.id
+      );
+      if (
+        registration.status === "CONFIRMED" &&
+        paymentGuests.every((guest) => guest.status === "CONFIRMED")
+      ) {
+        await ensureServiceFeeCharge(tx, registration.payment);
+        return { status: "confirmed", registrationId: registration.id };
+      }
+      if (registration.status !== "EXPIRED") {
+        return { status: "not-recoverable" };
+      }
 
-    const restored = await tx.eventRegistration.updateMany({
-      where: {
-        id: registration.id,
-        status: "EXPIRED",
-        bookingPaymentId: registration.payment.id,
-      },
-      data: {
-        status: "CONFIRMED",
-        holdExpiresAt: null,
-        confirmedAt: now,
-        cancelledAt: null,
-        cancelReason: null,
-      },
-    });
-    if (restored.count !== 1) return { status: "not-recoverable" };
+      const occupied = await occupiedEventSpotCount(tx, args.eventId, now);
+      const requestedSpots = 1 + paymentGuests.length;
+      if (occupied + requestedSpots > event.capacity) {
+        return { status: "full" };
+      }
 
-    await tx.bookingPayment.updateMany({
-      where: { id: registration.payment.id, status: "SUCCEEDED" },
-      data: { failureCode: null, failureMessage: null },
+      const restored = await tx.eventRegistration.updateMany({
+        where: {
+          id: registration.id,
+          status: "EXPIRED",
+          bookingPaymentId: registration.payment.id,
+        },
+        data: {
+          status: "CONFIRMED",
+          holdExpiresAt: null,
+          confirmedAt: now,
+          cancelledAt: null,
+          cancelReason: null,
+        },
+      });
+      if (restored.count !== 1) throw new LostHold();
+
+      if (paymentGuests.length > 0) {
+        const restoredGuests = await tx.eventGuestSlot.updateMany({
+          where: {
+            id: { in: paymentGuests.map((guest) => guest.id) },
+            status: { in: ["PENDING", "EXPIRED"] },
+          },
+          data: {
+            status: "CONFIRMED",
+            holdExpiresAt: null,
+            confirmedAt: now,
+            cancelledAt: null,
+          },
+        });
+        if (restoredGuests.count !== paymentGuests.length) {
+          throw new LostHold();
+        }
+      }
+
+      await tx.bookingPayment.updateMany({
+        where: { id: registration.payment.id, status: "SUCCEEDED" },
+        data: { failureCode: null, failureMessage: null },
+      });
+      await ensureServiceFeeCharge(tx, registration.payment);
+      return { status: "confirmed", registrationId: registration.id };
     });
-    await ensureServiceFeeCharge(tx, registration.payment);
-    return { status: "confirmed", registrationId: registration.id };
-  });
+  } catch (error) {
+    if (error instanceof LostHold) return { status: "not-recoverable" };
+    throw error;
+  }
+}
+
+async function recoverPaidEventGuestSlots(
+  paymentId: string
+): Promise<PaidEventRecoveryOutcome> {
+  const now = new Date();
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const initialPayment = await tx.bookingPayment.findFirst({
+        where: {
+          id: paymentId,
+          status: "SUCCEEDED",
+          eventGuestSlots: { some: {} },
+        },
+        select: {
+          id: true,
+          partnerId: true,
+          platformFee: true,
+          paidAt: true,
+          eventGuestSlots: {
+            take: 1,
+            select: {
+              id: true,
+              registration: {
+                select: {
+                  id: true,
+                  status: true,
+                  event: {
+                    select: {
+                      id: true,
+                      capacity: true,
+                      status: true,
+                      startsAt: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+      const first = initialPayment?.eventGuestSlots[0];
+      if (!initialPayment || !first) return { status: "not-recoverable" };
+
+      await tx.$queryRaw(
+        Prisma.sql`SELECT "id" FROM "Event" WHERE "id" = ${first.registration.event.id} FOR UPDATE`
+      );
+      const payment = await tx.bookingPayment.findFirst({
+        where: { id: paymentId, status: "SUCCEEDED" },
+        select: {
+          id: true,
+          partnerId: true,
+          platformFee: true,
+          paidAt: true,
+          eventGuestSlots: {
+            where: { status: { in: ["PENDING", "EXPIRED"] } },
+            select: {
+              id: true,
+              registration: {
+                select: {
+                  id: true,
+                  status: true,
+                  event: {
+                    select: {
+                      id: true,
+                      capacity: true,
+                      status: true,
+                      startsAt: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+      const lockedFirst = payment?.eventGuestSlots[0];
+      if (!payment || !lockedFirst) {
+        const confirmed = await tx.eventGuestSlot.findFirst({
+          where: { bookingPaymentId: paymentId, status: "CONFIRMED" },
+          select: { eventRegistrationId: true },
+        });
+        if (!confirmed) return { status: "not-recoverable" };
+        await ensureServiceFeeCharge(tx, initialPayment);
+        return {
+          status: "confirmed",
+          registrationId: confirmed.eventRegistrationId,
+        };
+      }
+
+      const registration = lockedFirst.registration;
+      if (
+        registration.status !== "CONFIRMED" ||
+        registration.event.status !== "PUBLISHED" ||
+        registration.event.startsAt <= now
+      ) {
+        return { status: "not-recoverable" };
+      }
+
+      const occupied = await occupiedEventSpotCount(
+        tx,
+        registration.event.id,
+        now
+      );
+      if (
+        occupied + payment.eventGuestSlots.length >
+        registration.event.capacity
+      ) {
+        return { status: "full" };
+      }
+
+      const restored = await tx.eventGuestSlot.updateMany({
+        where: {
+          id: { in: payment.eventGuestSlots.map((guest) => guest.id) },
+          status: { in: ["PENDING", "EXPIRED"] },
+        },
+        data: {
+          status: "CONFIRMED",
+          holdExpiresAt: null,
+          confirmedAt: now,
+          cancelledAt: null,
+        },
+      });
+      if (restored.count !== payment.eventGuestSlots.length) {
+        throw new LostHold();
+      }
+
+      await tx.bookingPayment.update({
+        where: { id: payment.id },
+        data: { failureCode: null, failureMessage: null },
+      });
+      await ensureServiceFeeCharge(tx, payment);
+      return { status: "confirmed", registrationId: registration.id };
+    });
+  } catch (error) {
+    if (error instanceof LostHold) return { status: "not-recoverable" };
+    throw error;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -730,6 +1107,12 @@ export async function chargeBookingPayment(args: {
         data: { holdExpiresAt: graceExpiresAt },
       });
     }
+    if (payment.eventGuestSlots.length > 0) {
+      await tx.eventGuestSlot.updateMany({
+        where: { bookingPaymentId: payment.id, status: "PENDING" },
+        data: { holdExpiresAt: graceExpiresAt },
+      });
+    }
     return claimed;
   });
   if (claim.count !== 1) return { status: "in-flight" };
@@ -742,7 +1125,9 @@ export async function chargeBookingPayment(args: {
     endHour: b.endHour,
     hours: b.hours,
   }));
-  const event = payment.eventRegistration?.event;
+  const event =
+    payment.eventRegistration?.event ??
+    payment.eventGuestSlots[0]?.registration.event;
 
   let result: ChargeResult;
   try {
@@ -998,6 +1383,7 @@ export async function markBookingPaymentRefunded(args: {
 export async function expireBookingHolds(now: Date = new Date()): Promise<{
   bookings: number;
   eventRegistrations: number;
+  eventGuestSlots: number;
   slots: number;
   payments: number;
 }> {
@@ -1054,6 +1440,10 @@ export async function expireBookingHolds(now: Date = new Date()): Promise<{
     where: { status: "PENDING", holdExpiresAt: { lte: now } },
     data: { status: "EXPIRED", holdExpiresAt: null },
   });
+  const eventGuestSlots = await prisma.eventGuestSlot.updateMany({
+    where: { status: "PENDING", holdExpiresAt: { lte: now } },
+    data: { status: "EXPIRED", holdExpiresAt: null },
+  });
 
   // A payment whose hold is gone can never be settled, so it's terminal now —
   // this is the ONLY place a BookingPayment becomes FAILED. Rows with a charge
@@ -1071,6 +1461,7 @@ export async function expireBookingHolds(now: Date = new Date()): Promise<{
   return {
     bookings: swept.bookings,
     eventRegistrations: eventRegistrations.count,
+    eventGuestSlots: eventGuestSlots.count,
     slots: swept.slots,
     payments: payments.count,
   };

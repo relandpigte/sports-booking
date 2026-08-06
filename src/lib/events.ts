@@ -20,6 +20,9 @@ export type EventRegistrationView = {
   holdExpiresAt: Date | null;
   paymentId: string | null;
   paymentStatus: "PENDING" | "SUCCEEDED" | "FAILED" | "REFUNDED" | null;
+  confirmedGuestNames: string[];
+  confirmedSlotCount: number;
+  pendingGuestPaymentId: string | null;
 };
 
 export type PublicEventView = {
@@ -92,6 +95,9 @@ export type OwnerEventRegistrationView = {
   id: string;
   status: EventRegistrationStatus;
   createdAt: Date;
+  guestNames: string[];
+  pendingGuestNames: string[];
+  slotCount: number;
   player: {
     id: string;
     name: string | null;
@@ -109,6 +115,16 @@ export type OwnerEventRegistrationView = {
     paidAt: Date | null;
     refundedAt: Date | null;
   } | null;
+  additionalPayments: {
+    id: string;
+    status: "PENDING" | "SUCCEEDED" | "FAILED" | "REFUNDED";
+    amount: number;
+    venueAmount: number;
+    platformFee: number;
+    providerRef: string | null;
+    paidAt: Date | null;
+    refundedAt: Date | null;
+  }[];
 };
 
 export type OwnerEventDetailView = EventEditorView & {
@@ -144,6 +160,8 @@ export type PlayerEventRegistrationView = {
   secondsLeft: number;
   cancelReason: string | null;
   createdAt: Date;
+  guestNames: string[];
+  slotCount: number;
   event: {
     publicId: string;
     title: string;
@@ -217,6 +235,23 @@ const eventSelect = {
       holdExpiresAt: true,
       bookingPaymentId: true,
       payment: { select: { status: true } },
+      guests: {
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          holdExpiresAt: true,
+          bookingPaymentId: true,
+          payment: {
+            select: {
+              status: true,
+              chargeStartedAt: true,
+              providerPaymentId: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      },
       user: {
         select: {
           id: true,
@@ -246,11 +281,28 @@ function registrationCounts(row: EventRow, now = new Date()) {
   const waitlisted = row.registrations.filter(
     (registration) => registration.status === "WAITLISTED"
   );
-  const occupied = confirmed.length + pending.length;
+  const confirmedGuests = row.registrations.flatMap((registration) =>
+    registration.guests.filter((guest) => guest.status === "CONFIRMED")
+  );
+  const pendingGuests = row.registrations.flatMap((registration) =>
+    registration.guests.filter(
+      (guest) =>
+        guest.status === "PENDING" &&
+        guest.holdExpiresAt != null &&
+        guest.holdExpiresAt > now
+    )
+  );
+  const confirmedCount = confirmed.length + confirmedGuests.length;
+  const pendingCount = pending.length + pendingGuests.length;
+  const occupied = confirmedCount + pendingCount;
   return {
     confirmed,
     pending,
     waitlisted,
+    confirmedGuests,
+    pendingGuests,
+    confirmedCount,
+    pendingCount,
     remaining: Math.max(0, row.capacity - occupied),
     full: occupied >= row.capacity,
   };
@@ -272,8 +324,8 @@ function mapPublicEvent(row: EventRow, now = new Date()): PublicEventView {
     capacity: row.capacity,
     registrationFee: Number(row.registrationFee),
     status: row.status,
-    confirmedCount: counts.confirmed.length,
-    pendingCount: counts.pending.length,
+    confirmedCount: counts.confirmedCount,
+    pendingCount: counts.pendingCount,
     waitlistedCount: counts.waitlisted.length,
     remainingSpots: counts.remaining,
     full: counts.full,
@@ -357,8 +409,8 @@ export async function getPublicEvent(
     cancelReason: row.cancelReason,
     attendees: row.registrations
       .filter((registration) => registration.status === "CONFIRMED")
-      .map((registration) =>
-        registration.user.privateProfile
+      .flatMap((registration) => {
+        const lead = registration.user.privateProfile
           ? {
               id: registration.user.id,
               name: null,
@@ -370,8 +422,21 @@ export async function getPublicEvent(
               name: registration.user.name,
               playerName: registration.user.playerName,
               image: registration.user.image,
-            }
-      ),
+            };
+        const leadName =
+          registration.user.playerName ?? registration.user.name ?? "Player";
+        const guests = registration.guests
+          .filter((guest) => guest.status === "CONFIRMED")
+          .map((guest) => ({
+            id: guest.id,
+            name: null,
+            playerName: registration.user.privateProfile
+              ? "Guest player"
+              : `Guest of ${leadName}`,
+            image: null,
+          }));
+        return [lead, ...guests];
+      }),
     viewerRegistration: viewer
       ? {
           id: viewer.id,
@@ -384,6 +449,23 @@ export async function getPublicEvent(
           holdExpiresAt: viewer.holdExpiresAt,
           paymentId: viewer.bookingPaymentId,
           paymentStatus: viewer.payment?.status ?? null,
+          confirmedGuestNames: viewer.guests
+            .filter((guest) => guest.status === "CONFIRMED")
+            .map((guest) => guest.name),
+          confirmedSlotCount:
+            (viewer.status === "CONFIRMED" ? 1 : 0) +
+            viewer.guests.filter((guest) => guest.status === "CONFIRMED")
+              .length,
+          pendingGuestPaymentId:
+            viewer.guests.find(
+              (guest) =>
+                (guest.status === "PENDING" || guest.status === "EXPIRED") &&
+                guest.payment?.status === "PENDING" &&
+                ((guest.holdExpiresAt != null &&
+                  guest.holdExpiresAt > new Date()) ||
+                  guest.payment.chargeStartedAt != null ||
+                  guest.payment.providerPaymentId != null)
+            )?.bookingPaymentId ?? null,
         }
       : null,
   };
@@ -405,6 +487,11 @@ const playerEventRegistrationSelect = {
   holdExpiresAt: true,
   cancelReason: true,
   createdAt: true,
+  guests: {
+    where: { status: "CONFIRMED" as const },
+    orderBy: { createdAt: "asc" as const },
+    select: { name: true },
+  },
   event: {
     select: {
       publicId: true,
@@ -447,6 +534,9 @@ function mapPlayerEventRegistration(
 ): PlayerEventRegistrationView {
   return {
     ...row,
+    guestNames: row.guests.map((guest) => guest.name),
+    slotCount:
+      (row.status === "CONFIRMED" ? 1 : 0) + row.guests.length,
     status:
       row.status === "PENDING" &&
       row.holdExpiresAt != null &&
@@ -642,6 +732,26 @@ export async function listOwnerEventRegistrations(
               refundedAt: true,
             },
           },
+          guests: {
+            orderBy: { createdAt: "asc" },
+            select: {
+              name: true,
+              status: true,
+              holdExpiresAt: true,
+              payment: {
+                select: {
+                  id: true,
+                  status: true,
+                  amount: true,
+                  venueAmount: true,
+                  platformFee: true,
+                  providerRef: true,
+                  paidAt: true,
+                  refundedAt: true,
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -657,6 +767,31 @@ export async function listOwnerEventRegistrations(
         ? "EXPIRED"
         : registration.status,
     createdAt: registration.createdAt,
+    guestNames: registration.guests
+      .filter((guest) => guest.status === "CONFIRMED")
+      .map((guest) => guest.name),
+    pendingGuestNames: registration.guests
+      .filter(
+        (guest) =>
+          guest.status === "PENDING" &&
+          guest.holdExpiresAt != null &&
+          guest.holdExpiresAt > now
+      )
+      .map((guest) => guest.name),
+    slotCount:
+      (registration.status === "CONFIRMED" ||
+      (registration.status === "PENDING" &&
+        registration.holdExpiresAt != null &&
+        registration.holdExpiresAt > now)
+        ? 1
+        : 0) +
+      registration.guests.filter(
+        (guest) =>
+          guest.status === "CONFIRMED" ||
+          (guest.status === "PENDING" &&
+            guest.holdExpiresAt != null &&
+            guest.holdExpiresAt > now)
+      ).length,
     player: registration.user,
     payment: registration.payment
       ? {
@@ -670,6 +805,23 @@ export async function listOwnerEventRegistrations(
           refundedAt: registration.payment.refundedAt,
         }
       : null,
+    additionalPayments: Array.from(
+      new Map(
+        registration.guests
+          .flatMap((guest) => (guest.payment ? [guest.payment] : []))
+          .filter((payment) => payment.id !== registration.payment?.id)
+          .map((payment) => [payment.id, payment])
+      ).values()
+    ).map((payment) => ({
+      id: payment.id,
+      status: payment.status,
+      amount: Number(payment.amount),
+      venueAmount: Number(payment.venueAmount),
+      platformFee: Number(payment.platformFee),
+      providerRef: payment.providerRef,
+      paidAt: payment.paidAt,
+      refundedAt: payment.refundedAt,
+    })),
   }));
 }
 
@@ -742,6 +894,26 @@ export async function getOwnerEventDetails(
               refundedAt: true,
             },
           },
+          guests: {
+            orderBy: { createdAt: "asc" },
+            select: {
+              name: true,
+              status: true,
+              holdExpiresAt: true,
+              payment: {
+                select: {
+                  id: true,
+                  status: true,
+                  amount: true,
+                  venueAmount: true,
+                  platformFee: true,
+                  providerRef: true,
+                  paidAt: true,
+                  refundedAt: true,
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -759,6 +931,31 @@ export async function getOwnerEventDetails(
           ? "EXPIRED"
           : registration.status,
       createdAt: registration.createdAt,
+      guestNames: registration.guests
+        .filter((guest) => guest.status === "CONFIRMED")
+        .map((guest) => guest.name),
+      pendingGuestNames: registration.guests
+        .filter(
+          (guest) =>
+            guest.status === "PENDING" &&
+            guest.holdExpiresAt != null &&
+            guest.holdExpiresAt > now
+        )
+        .map((guest) => guest.name),
+      slotCount:
+        (registration.status === "CONFIRMED" ||
+        (registration.status === "PENDING" &&
+          registration.holdExpiresAt != null &&
+          registration.holdExpiresAt > now)
+          ? 1
+          : 0) +
+        registration.guests.filter(
+          (guest) =>
+            guest.status === "CONFIRMED" ||
+            (guest.status === "PENDING" &&
+              guest.holdExpiresAt != null &&
+              guest.holdExpiresAt > now)
+        ).length,
       player: registration.user,
       payment: registration.payment
         ? {
@@ -770,27 +967,62 @@ export async function getOwnerEventDetails(
             providerRef: registration.payment.providerRef,
             paidAt: registration.payment.paidAt,
             refundedAt: registration.payment.refundedAt,
-          }
+        }
         : null,
+      additionalPayments: Array.from(
+        new Map(
+          registration.guests
+            .flatMap((guest) => (guest.payment ? [guest.payment] : []))
+            .filter((payment) => payment.id !== registration.payment?.id)
+            .map((payment) => [payment.id, payment])
+        ).values()
+      ).map((payment) => ({
+        id: payment.id,
+        status: payment.status,
+        amount: Number(payment.amount),
+        venueAmount: Number(payment.venueAmount),
+        platformFee: Number(payment.platformFee),
+        providerRef: payment.providerRef,
+        paidAt: payment.paidAt,
+        refundedAt: payment.refundedAt,
+      })),
     })
   );
-  const confirmedCount = registrations.filter(
-    (registration) => registration.status === "CONFIRMED"
-  ).length;
-  const pendingCount = registrations.filter(
-    (registration) => registration.status === "PENDING"
-  ).length;
+  const confirmedCount = registrations.reduce(
+    (total, registration) =>
+      total +
+      (registration.status === "CONFIRMED" ? 1 : 0) +
+      registration.guestNames.length,
+    0
+  );
+  const pendingCount = registrations.reduce(
+    (total, registration) =>
+      total +
+      (registration.status === "PENDING" ? 1 : 0) +
+      registration.pendingGuestNames.length,
+    0
+  );
   const waitlistedCount = registrations.filter(
     (registration) => registration.status === "WAITLISTED"
   ).length;
-  const successfulPayments = registrations.filter(
-    (registration) => registration.payment?.status === "SUCCEEDED"
+  const payments = Array.from(
+    new Map(
+      registrations
+        .flatMap((registration) => [
+          ...(registration.payment ? [registration.payment] : []),
+          ...registration.additionalPayments,
+        ])
+        .map((payment) => [payment.id, payment])
+    ).values()
   );
-  const pendingPayments = registrations.filter(
-    (registration) => registration.payment?.status === "PENDING"
+  const successfulPayments = payments.filter(
+    (payment) => payment.status === "SUCCEEDED"
   );
-  const refundedPayments = registrations.filter(
-    (registration) => registration.payment?.status === "REFUNDED"
+  const pendingPayments = payments.filter(
+    (payment) => payment.status === "PENDING"
+  );
+  const refundedPayments = payments.filter(
+    (payment) => payment.status === "REFUNDED"
   );
 
   return {
@@ -825,22 +1057,19 @@ export async function getOwnerEventDetails(
       pendingPayments: pendingPayments.length,
       refundedPayments: refundedPayments.length,
       partnerRevenue: successfulPayments.reduce(
-        (total, registration) =>
-          total + (registration.payment?.venueAmount ?? 0),
+        (total, payment) => total + payment.venueAmount,
         0
       ),
       platformFees: successfulPayments.reduce(
-        (total, registration) =>
-          total + (registration.payment?.platformFee ?? 0),
+        (total, payment) => total + payment.platformFee,
         0
       ),
       checkoutSubtotal: successfulPayments.reduce(
-        (total, registration) => total + (registration.payment?.amount ?? 0),
+        (total, payment) => total + payment.amount,
         0
       ),
       refundedPartnerRevenue: refundedPayments.reduce(
-        (total, registration) =>
-          total + (registration.payment?.venueAmount ?? 0),
+        (total, payment) => total + payment.venueAmount,
         0
       ),
     },

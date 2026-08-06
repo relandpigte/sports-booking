@@ -7,7 +7,6 @@ import { EventRegistrationPanel } from "@/components/events/EventRegistrationPan
 import { ShareEventButton } from "@/components/events/ShareEventButton";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
-import { bookingServiceFeeFor } from "@/lib/constants";
 import { getViewer } from "@/lib/dal";
 import { buildEventMetadata } from "@/lib/event-metadata";
 import { getPublicEvent } from "@/lib/events";
@@ -50,7 +49,6 @@ export default async function EventDetailPage({
   const closed = cancelled || ended;
   const courtNames = event.courts.map((court) => court.name).join(", ");
   const duration = event.endHour - event.startHour;
-  const serviceFee = bookingServiceFeeFor(event.registrationFee);
   const eventUrl = absoluteUrl(`/events/${event.publicId}`);
   const featuredAttendees = event.attendees.slice(0, 4);
   const remainingAttendees = event.attendees.slice(4);
@@ -128,10 +126,13 @@ export default async function EventDetailPage({
                   <EventRegistrationPanel
                     publicId={event.publicId}
                     fee={event.registrationFee}
-                    serviceFee={serviceFee}
                     signedIn={Boolean(viewer)}
+                    viewerName={
+                      viewer?.playerName ?? viewer?.name ?? "Player"
+                    }
                     viewerRole={viewer?.role}
                     registration={event.viewerRegistration}
+                    remainingSpots={event.remainingSpots}
                     full={event.full}
                     closed={closed}
                   />

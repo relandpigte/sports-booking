@@ -26,15 +26,22 @@ export async function payForEventAction(
   const publicId = String(formData.get("publicId") ?? "");
   if (!paymentId || !publicId) return { message: "Registration not found." };
 
-  const registration = await prisma.eventRegistration.findFirst({
+  const payment = await prisma.bookingPayment.findFirst({
     where: {
-      bookingPaymentId: paymentId,
+      id: paymentId,
       userId: viewer.id,
-      event: { publicId },
+      OR: [
+        { eventRegistration: { event: { publicId } } },
+        {
+          eventGuestSlots: {
+            some: { registration: { event: { publicId } } },
+          },
+        },
+      ],
     },
     select: { id: true },
   });
-  if (!registration) return { message: "Registration payment not found." };
+  if (!payment) return { message: "Registration payment not found." };
 
   const outcome = await chargeBookingPayment({
     paymentId,

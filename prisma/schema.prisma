@@ -370,6 +370,7 @@ model BookingPayment {
   gateway           PartnerGateway     @relation(fields: [gatewayId], references: [id])
   bookings          Booking[]
   eventRegistration EventRegistration?
+  eventGuestSlots   EventGuestSlot[]
   serviceFeeEntries ServiceFeeEntry[]
 
   @@index([partnerId, createdAt])
@@ -796,10 +797,9 @@ model EventCourt {
   @@index([courtId])
 }
 
-// PENDING registrations reserve one capacity spot while their QR Ph code is
-// live. WAITLISTED rows are free and carry no payment. The payment model is
-// shared with court bookings so venue deposits, refunds and the service-fee
-// ledger keep one idempotent path.
+// A registration always represents the signed-in lead player. Named guests
+// live in EventGuestSlot so a lead can buy more capacity later without
+// replacing or mutating the original successful payment.
 model EventRegistration {
   id               String                  @id @default(cuid())
   eventId          String
@@ -816,10 +816,34 @@ model EventRegistration {
   event   Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
   user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   payment BookingPayment? @relation(fields: [bookingPaymentId], references: [id])
+  guests  EventGuestSlot[]
 
   @@unique([eventId, userId])
   @@index([eventId, status, createdAt])
   @@index([userId, createdAt])
+}
+
+// One capacity spot for a named guest. Initial guests share the lead player's
+// BookingPayment; guests added after confirmation share a separate incremental
+// payment. PENDING rows reserve capacity only while holdExpiresAt is live.
+model EventGuestSlot {
+  id                  String                  @id @default(cuid())
+  eventRegistrationId String
+  bookingPaymentId    String?
+  name                String
+  status              EventRegistrationStatus @default(PENDING)
+  holdExpiresAt       DateTime?
+  confirmedAt         DateTime?
+  cancelledAt         DateTime?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+
+  registration EventRegistration @relation(fields: [eventRegistrationId], references: [id], onDelete: Cascade)
+  payment      BookingPayment?    @relation(fields: [bookingPaymentId], references: [id])
+
+  @@index([eventRegistrationId, status, createdAt])
+  @@index([bookingPaymentId])
+  @@index([status, holdExpiresAt])
 }
 
 model Account {

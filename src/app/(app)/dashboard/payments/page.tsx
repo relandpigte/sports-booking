@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { GatewayPanel } from "@/components/partner/GatewayPanel";
+import { ManualPaymentSettings } from "@/components/partner/ManualPaymentSettings";
 import { ServiceFeePanel } from "@/components/partner/ServiceFeePanel";
 import { requireActivePartner } from "@/lib/dal";
 import { getGatewayView } from "@/lib/partner-gateway";
@@ -15,6 +16,7 @@ import { getPartnerServiceFeeView } from "@/lib/service-fees";
 import { getCurrentPartnerImpersonation } from "@/lib/impersonation";
 import { getActivePartnerGateway } from "@/lib/partner-gateway";
 import { formatPHP } from "@/lib/currency";
+import { getPartnerManualPaymentSettings } from "@/lib/manual-payments";
 
 export const metadata: Metadata = {
   title: "Payments — Bunal.club",
@@ -82,9 +84,10 @@ export default async function PaymentsPage({
     // unavailable webhook: merely reopening Payments reconciles with PayMongo.
     await pollLatestServiceFeeCheckout(partner.id);
   }
-  const [gateway, serviceFees] = await Promise.all([
+  const [gateway, serviceFees, paymentSettings] = await Promise.all([
     getGatewayView(partner.id),
     getPartnerServiceFeeView(partner.id),
+    getPartnerManualPaymentSettings(partner.id),
   ]);
   const paymongoSettlementEnabled = await platformPaymongoConfigured();
 
@@ -110,7 +113,7 @@ export default async function PaymentsPage({
           >
             {gateway?.connected
               ? "PayMongo is connected"
-              : "Connect PayMongo to open online bookings"}
+              : "Finish a payment setup to open online bookings"}
           </p>
           <p
             className={`mt-0.5 text-sm ${
@@ -119,7 +122,7 @@ export default async function PaymentsPage({
           >
             {gateway?.connected
               ? "Your verified venues can accept player payments and online bookings."
-              : "Your published hubs can remain visible as Coming soon. Connect the PayMongo account that will receive booking proceeds when you are ready to open reservations."}
+              : "Your published hubs can remain visible as Coming soon. Connect PayMongo or add manual payment networks, then select the mode you want for new reservations."}
           </p>
           {gateway?.connected && (
             <Link
@@ -132,6 +135,10 @@ export default async function PaymentsPage({
         </div>
       )}
       <div className="mt-6 flex flex-col gap-5">
+        <ManualPaymentSettings
+          mode={paymentSettings.mode}
+          methods={paymentSettings.methods}
+        />
         <GatewayPanel gateway={gateway} />
         <ServiceFeePanel
           balance={serviceFees.balance}

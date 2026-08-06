@@ -44,15 +44,16 @@ export default function TermsPage() {
           <p>
             Court bookings are subject to real-time availability and the
             rules of the participating venue. When a venue takes payment
-            online, checkout is handled by PayMongo: your selected hours are
-            held for a limited window while you pay, the total includes the
-            venue&apos;s court rate plus Bunal.club&apos;s service fee, and
-            PayMongo may add its own processing fee — shown before you
-            confirm. Payment goes directly to that venue&apos;s own
-            connected PayMongo account. Refunds for online payments are
-            returned through PayMongo. Bunal.club&apos;s service fee is
-            non-refundable; all other refund and no-show handling follows the
-            participating venue&apos;s own policy.
+            online, the venue selects either automatic PayMongo QR Ph or
+            partner-reviewed manual transfer. Selected hours are held for a
+            limited window while you pay. Automatic checkout may include the
+            Bunal.club service fee and PayMongo processing fee shown before
+            confirmation. Manual checkout requires an on-time receipt upload,
+            remains pending until venue approval, and adds neither fee.
+            Automatic refunds are returned through PayMongo; manual refunds
+            are returned by the venue through the original network.
+            Bunal.club&apos;s automatic-checkout service fee is non-refundable;
+            all other refund and no-show handling follows the venue&apos;s policy.
           </p>
         </LegalSection>
 

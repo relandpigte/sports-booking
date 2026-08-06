@@ -44,7 +44,8 @@ export function EventForm({
     () => hubs.find((candidate) => candidate.id === hubId) ?? hubs[0],
     [hubId, hubs]
   );
-  const serviceFee = Math.round(fee * 3) / 100;
+  const serviceFee =
+    hub?.paymentMode === "MANUAL" ? 0 : Math.round(fee * 3) / 100;
   const checkoutTotal = Math.round((fee + serviceFee) * 100) / 100;
   const locked = event?.status === "CANCELLED";
 
@@ -214,12 +215,12 @@ export function EventForm({
         {state.errors?.courtIds && <p className="mt-2 text-sm font-medium text-red-600">{state.errors.courtIds}</p>}
       </FormSection>
 
-      <FormSection number="04" title="Capacity & price" description="Players pay the registration fee plus Bunal's 3% service fee. PayMongo processing is handled separately.">
+      <FormSection number="04" title="Capacity & price" description={hub?.paymentMode === "MANUAL" ? "Players transfer the exact registration fee to you and upload a receipt for review." : "Players pay the registration fee plus Bunal's 3% service fee. PayMongo processing is handled separately."}>
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Player capacity" error={state.errors?.capacity}>
             <input name="capacity" type="number" min={2} max={500} defaultValue={event?.capacity ?? 16} disabled={locked} className={inputClass} />
           </Field>
-          <Field label="Registration fee per player" error={state.errors?.registrationFee} hint={hub && !hub.paymentReady ? "This hub can publish free events. Connect PayMongo to charge a fee." : "Enter 0 for a free event."}>
+          <Field label="Registration fee per player" error={state.errors?.registrationFee} hint={hub && !hub.paymentReady ? "This hub can publish free events. Finish the selected payment setup to charge a fee." : "Enter 0 for a free event."}>
             <div className="relative">
               <span className="pointer-events-none absolute left-4 top-3.5 font-bold text-slate-400">₱</span>
               <input name="registrationFee" type="number" min={0} step="0.01" value={fee} onChange={(input) => setFee(Number(input.target.value))} disabled={locked} className={`${inputClass} pl-9`} />
@@ -228,9 +229,9 @@ export function EventForm({
         </div>
         <div className="mt-5 rounded-2xl bg-navy p-5 text-white">
           <div className="flex items-center justify-between text-sm"><span className="text-white/60">Registration fee</span><strong>₱{fee.toFixed(2)}</strong></div>
-          <div className="mt-2 flex items-center justify-between text-sm"><span className="text-white/60">Bunal service fee (3%)</span><strong>₱{serviceFee.toFixed(2)}</strong></div>
+          <div className="mt-2 flex items-center justify-between text-sm"><span className="text-white/60">Bunal service fee{hub?.paymentMode === "MANUAL" ? "" : " (3%)"}</span><strong>₱{serviceFee.toFixed(2)}</strong></div>
           <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-4"><span className="font-bold">Player checkout total</span><strong className="text-xl text-accent">₱{checkoutTotal.toFixed(2)}</strong></div>
-          <p className="mt-2 text-xs text-white/45">The registration fee is paid directly to your connected venue account.</p>
+          <p className="mt-2 text-xs text-white/45">{hub?.paymentMode === "MANUAL" ? "Manual payments stay pending until you approve the player's receipt." : "The registration fee is paid directly to your connected venue account."}</p>
         </div>
       </FormSection>
 

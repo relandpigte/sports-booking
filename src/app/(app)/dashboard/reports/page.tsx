@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { PeriodPicker } from "@/components/reports/PeriodPicker";
 import { RevenueReport, type StatTile } from "@/components/reports/RevenueReport";
 import { requireActivePartner } from "@/lib/dal";
 import { listMyHubs } from "@/lib/hubs";
-import { getActivePartnerGateway } from "@/lib/partner-gateway";
+import { getPartnerPaymentSetup } from "@/lib/manual-payments";
 import {
   monthRange,
   monthsRange,
@@ -20,7 +19,7 @@ export const metadata: Metadata = {
 };
 
 // The partner's own takings. Reads the payment ledger, so it shows money that
-// actually reached their gateway — not what was booked.
+// actually settled through the selected collection mode — not what was booked.
 export default async function PartnerReportsPage({
   searchParams,
 }: {
@@ -49,9 +48,9 @@ export default async function PartnerReportsPage({
 
   const range =
     grain === "month" ? monthsRange(year, month, 12) : monthRange(year, month);
-  const [breakdown, gateway] = await Promise.all([
+  const [breakdown, paymentSetup] = await Promise.all([
     venueRevenueBreakdown({ partnerId: partner.id, hubId, range }),
-    getActivePartnerGateway(partner.id),
+    getPartnerPaymentSetup(partner.id),
   ]);
   const series = breakdown[source];
 
@@ -104,7 +103,7 @@ export default async function PartnerReportsPage({
       <DashboardPageHeader
         eyebrow="Venue performance"
         title="Reports"
-        description="Court bookings and paid event registrations that reached your PayMongo account."
+        description="Confirmed court-booking and event-registration payments across automatic and manual collection."
         actions={
           <PeriodPicker
             action="/dashboard/reports"
@@ -159,28 +158,10 @@ export default async function PartnerReportsPage({
           series={series}
           tiles={tiles}
           empty={
-            gateway ? (
-              <p className="text-sm text-gray-500">
-                No online {sourceLabel} in {periodLabel}. Payments settled at
-                the venue don&apos;t appear here — only money that reached your
-                gateway.
-              </p>
-            ) : (
-              // The honest version of an empty chart: it isn't broken, this
-              // venue simply doesn't take money online yet.
-              <div className="flex flex-col items-center gap-2">
-                <p className="text-sm text-gray-500">
-                  This hub settles at the venue, so there are no online payments
-                  from court bookings or events to report.
-                </p>
-                <Link
-                  href="/dashboard/payments"
-                  className="text-sm font-semibold text-primary hover:underline"
-                >
-                  Connect PayMongo to take payments online →
-                </Link>
-              </div>
-            )
+            <p className="text-sm text-gray-500">
+              No confirmed {sourceLabel} in {periodLabel} through your current
+              {paymentSetup.mode === "MANUAL" ? " manual payment setup" : " PayMongo setup"}.
+            </p>
           }
         />
       </div>

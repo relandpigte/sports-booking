@@ -6,6 +6,7 @@ import { HoldCountdown } from "@/components/bookings/HoldCountdown";
 import { PayMongoCheckout } from "@/components/bookings/PayMongoCheckout";
 import { PaymentStatusPoller } from "@/components/bookings/PaymentStatusPoller";
 import { EventPaymentPanel } from "@/components/events/EventPaymentPanel";
+import { ManualPaymentCheckout } from "@/components/bookings/ManualPaymentCheckout";
 import { PageShell } from "@/components/PageShell";
 import {
   getBookingPaymentScreen,
@@ -33,6 +34,7 @@ export default async function PayEventRegistrationPage({
   if (!screen || screen.payment.event?.publicId !== publicId) notFound();
 
   if (
+    screen.payment.collectionMode === "AUTOMATIC" &&
     screen.payment.status === "PENDING" &&
     screen.payment.providerPaymentId
   ) {
@@ -41,7 +43,7 @@ export default async function PayEventRegistrationPage({
     if (!screen || screen.payment.event?.publicId !== publicId) notFound();
   }
 
-  const { payment, venueName } = screen;
+  const { payment, venueName, manualMethods } = screen;
   const event = payment.event!;
   const registrationConfirmed = event.registrationStatus === "CONFIRMED";
   const holdLive = payment.status === "PENDING" && payment.secondsLeft > 0;
@@ -72,12 +74,14 @@ export default async function PayEventRegistrationPage({
                       : "Payment received"
                     : payment.status === "REFUNDED"
                       ? "Registration refunded"
-                      : holdLive
+                      : payment.manualSubmittedAt
+                        ? "Pending registration"
+                        : holdLive
                         ? "Complete payment"
                         : "Registration hold expired"}
                 </h1>
               </div>
-              {holdLive && (
+              {holdLive && payment.collectionMode === "AUTOMATIC" && (
                 <HoldCountdown
                   expiresAt={payment.expiresAt.toISOString()}
                   initialSeconds={payment.secondsLeft}
@@ -162,13 +166,33 @@ export default async function PayEventRegistrationPage({
                 <div className="space-y-4">
                   <p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-700">
                     {payment.refundReason ?? "This registration was refunded."}{" "}
-                    {formatPHP(refundedAmount)} was returned; the{" "}
-                    {formatPHP(payment.platformFee)} service fee was retained.
+                    {formatPHP(refundedAmount)} was returned
+                    {payment.platformFee > 0
+                      ? `; the ${formatPHP(payment.platformFee)} service fee was retained.`
+                      : ". No service fee applied to this manual payment."}
                   </p>
                   <Link href="/events" className="block rounded-2xl bg-primary px-4 py-3.5 text-center text-sm font-bold text-white hover:bg-primary-hover">
                     Browse events
                   </Link>
                 </div>
+              ) : payment.collectionMode === "MANUAL" && payment.manualSubmittedAt ? (
+                <div className="space-y-4">
+                  <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+                    Payment proof submitted. Your event spots are protected while
+                    the organizer reviews the receipt. The registration remains pending.
+                  </p>
+                  <Link href={`/events/${publicId}`} className="block rounded-2xl bg-navy px-4 py-3.5 text-center text-sm font-bold text-white">
+                    View event
+                  </Link>
+                </div>
+              ) : payment.collectionMode === "MANUAL" && holdLive ? (
+                <ManualPaymentCheckout
+                  paymentId={payment.id}
+                  amountLabel={formatPHP(payment.payableAmount)}
+                  expiresAt={payment.expiresAt.toISOString()}
+                  initialSeconds={payment.secondsLeft}
+                  methods={manualMethods}
+                />
               ) : holdLive ? (
                 activeQrImageUrl || activeCheckoutUrl ? (
                   <div className="space-y-4">

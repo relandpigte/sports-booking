@@ -3,6 +3,7 @@ import "server-only";
 import {
   Prisma,
   type EventRegistrationStatus,
+  type PaymentCollectionMode,
   type PaymentMethodType,
   type PaymentStatus,
 } from "@prisma/client";
@@ -21,6 +22,10 @@ import { getVenueGateway, UnknownVenueGateway } from "@/lib/payments/venue";
 import type { ChargeResult } from "@/lib/payments/types";
 import { formatManilaDate, formatSlotRange } from "@/lib/time";
 import { ensureServiceFeeCharge } from "@/lib/service-fees";
+import {
+  getActiveManualPaymentMethods,
+  type ManualPaymentMethodView,
+} from "@/lib/manual-payments";
 
 // Players paying venues through each partner's own gateway.
 //
@@ -48,6 +53,7 @@ export type BookingPaymentView = {
   id: string;
   status: PaymentStatus;
   method: PaymentMethodType;
+  collectionMode: PaymentCollectionMode;
   // Booking subtotal: venueAmount + platformFee.
   amount: number;
   venueAmount: number;
@@ -73,6 +79,12 @@ export type BookingPaymentView = {
   refundedAt: Date | null;
   refundedAmount: number | null;
   refundReason: string | null;
+  manualReceiptImage: string | null;
+  manualMethodLabel: string | null;
+  manualPaymentRef: string | null;
+  manualSubmittedAt: Date | null;
+  manualReviewedAt: Date | null;
+  manualReviewNote: string | null;
   hubId: string;
   lines: BookingPaymentLine[];
   event: {
@@ -93,6 +105,7 @@ const paymentSelect = {
   id: true,
   status: true,
   method: true,
+  collectionMode: true,
   provider: true,
   amount: true,
   venueAmount: true,
@@ -111,6 +124,13 @@ const paymentSelect = {
   refundedAt: true,
   refundedAmount: true,
   refundReason: true,
+  manualReceiptImage: true,
+  manualMethodLabel: true,
+  manualPaymentRef: true,
+  manualSubmittedAt: true,
+  manualReviewedAt: true,
+  manualReviewNote: true,
+  partnerId: true,
   hubId: true,
   bookings: {
     select: {
@@ -174,6 +194,7 @@ export function mapBookingPayment(row: PaymentRow): BookingPaymentView {
     id: row.id,
     status: row.status,
     method: row.method,
+    collectionMode: row.collectionMode,
     amount: Number(row.amount),
     venueAmount: Number(row.venueAmount),
     platformFee: Number(row.platformFee),
@@ -196,6 +217,12 @@ export function mapBookingPayment(row: PaymentRow): BookingPaymentView {
     refundedAt: row.refundedAt,
     refundedAmount: row.refundedAmount != null ? Number(row.refundedAmount) : null,
     refundReason: row.refundReason,
+    manualReceiptImage: row.manualReceiptImage,
+    manualMethodLabel: row.manualMethodLabel,
+    manualPaymentRef: row.manualPaymentRef,
+    manualSubmittedAt: row.manualSubmittedAt,
+    manualReviewedAt: row.manualReviewedAt,
+    manualReviewNote: row.manualReviewNote,
     hubId: row.hubId,
     lines: row.bookings.map((b) => ({
       bookingId: b.id,
@@ -238,15 +265,28 @@ export async function getBookingPaymentForPlayer(
 export async function getBookingPaymentScreen(
   paymentId: string,
   userId: string
-): Promise<{ payment: BookingPaymentView; venueName: string } | null> {
+): Promise<{
+  payment: BookingPaymentView;
+  venueName: string;
+  manualMethods: ManualPaymentMethodView[];
+} | null> {
   const payment = await getBookingPaymentForPlayer(paymentId, userId);
   if (!payment) return null;
 
-  const hub = await prisma.hub.findUnique({
-    where: { id: payment.hubId },
-    select: { name: true },
-  });
-  return { payment, venueName: hub?.name ?? "the venue" };
+  const [hub, manualMethods] = await Promise.all([
+    prisma.hub.findUnique({
+      where: { id: payment.hubId },
+      select: { name: true },
+    }),
+    payment.collectionMode === "MANUAL" && !payment.manualSubmittedAt
+      ? prisma.bookingPayment
+          .findUnique({ where: { id: payment.id }, select: { partnerId: true } })
+          .then((row) =>
+            row ? getActiveManualPaymentMethods(row.partnerId) : []
+          )
+      : Promise.resolve([]),
+  ]);
+  return { payment, venueName: hub?.name ?? "the venue", manualMethods };
 }
 
 export async function getBookingPaymentStatus(
@@ -393,6 +433,8 @@ export async function settleBookingPayment(
       partnerId: true,
       platformFee: true,
       paidAt: true,
+      collectionMode: true,
+      manualSubmittedAt: true,
       bookings: { select: { id: true, status: true, hours: true } },
       eventRegistration: {
         select: {
@@ -447,17 +489,21 @@ export async function settleBookingPayment(
       return { status: "already" };
     }
 
+    const manualUnderReview =
+      payment.collectionMode === "MANUAL" && payment.manualSubmittedAt != null;
     const holdLive =
       (registration.status === "CONFIRMED" ||
         (registration.status === "PENDING" &&
-          registration.holdExpiresAt != null &&
-          registration.holdExpiresAt > new Date())) &&
+          (manualUnderReview ||
+            (registration.holdExpiresAt != null &&
+              registration.holdExpiresAt > new Date())))) &&
       pendingGuests.every(
         (guest) =>
-          guest.holdExpiresAt != null && guest.holdExpiresAt > new Date()
+          manualUnderReview ||
+          (guest.holdExpiresAt != null && guest.holdExpiresAt > new Date())
       ) &&
       registration.event.status === "PUBLISHED" &&
-      registration.event.startsAt > new Date();
+      (manualUnderReview || registration.event.startsAt > new Date());
 
     if (!holdLive) {
       await prisma.$transaction([
@@ -500,8 +546,13 @@ export async function settleBookingPayment(
             where: {
               id: registration.id,
               status: "PENDING",
-              holdExpiresAt: { gt: new Date() },
-              event: { status: "PUBLISHED", startsAt: { gt: new Date() } },
+              ...(manualUnderReview
+                ? {}
+                : { holdExpiresAt: { gt: new Date() } }),
+              event: {
+                status: "PUBLISHED",
+                ...(manualUnderReview ? {} : { startsAt: { gt: new Date() } }),
+              },
             },
             data: {
               status: "CONFIRMED",
@@ -516,7 +567,9 @@ export async function settleBookingPayment(
             where: {
               id: { in: pendingGuests.map((guest) => guest.id) },
               status: "PENDING",
-              holdExpiresAt: { gt: new Date() },
+              ...(manualUnderReview
+                ? {}
+                : { holdExpiresAt: { gt: new Date() } }),
             },
             data: {
               status: "CONFIRMED",
@@ -581,17 +634,19 @@ export async function settleBookingPayment(
     }
 
     const now = new Date();
+    const manualUnderReview =
+      payment.collectionMode === "MANUAL" && payment.manualSubmittedAt != null;
     const holdLive =
       pendingGuests.length > 0 &&
       registration.status === "CONFIRMED" &&
       registration.event.status === "PUBLISHED" &&
-      registration.event.startsAt > now &&
+      (manualUnderReview || registration.event.startsAt > now) &&
       payment.eventGuestSlots.every(
         (guest) =>
           guest.status === "CONFIRMED" ||
           (guest.status === "PENDING" &&
-            guest.holdExpiresAt != null &&
-            guest.holdExpiresAt > now)
+            (manualUnderReview ||
+              (guest.holdExpiresAt != null && guest.holdExpiresAt > now)))
       );
 
     if (holdLive) {
@@ -604,10 +659,15 @@ export async function settleBookingPayment(
             where: {
               id: { in: pendingGuests.map((guest) => guest.id) },
               status: "PENDING",
-              holdExpiresAt: { gt: new Date() },
+              ...(manualUnderReview
+                ? {}
+                : { holdExpiresAt: { gt: new Date() } }),
               registration: {
                 status: "CONFIRMED",
-                event: { status: "PUBLISHED", startsAt: { gt: new Date() } },
+                event: {
+                  status: "PUBLISHED",
+                  ...(manualUnderReview ? {} : { startsAt: { gt: new Date() } }),
+                },
               },
             },
             data: {
@@ -727,6 +787,10 @@ async function occupiedEventSpotCount(
         OR: [
           { status: "CONFIRMED" },
           { status: "PENDING", holdExpiresAt: { gt: now } },
+          {
+            status: "PENDING",
+            payment: { collectionMode: "MANUAL", manualSubmittedAt: { not: null } },
+          },
         ],
       },
     }),
@@ -736,6 +800,10 @@ async function occupiedEventSpotCount(
         OR: [
           { status: "CONFIRMED" },
           { status: "PENDING", holdExpiresAt: { gt: now } },
+          {
+            status: "PENDING",
+            payment: { collectionMode: "MANUAL", manualSubmittedAt: { not: null } },
+          },
         ],
       },
     }),
@@ -1044,6 +1112,12 @@ export async function chargeBookingPayment(args: {
     return { status: "already-paid" };
   }
   if (payment.status !== "PENDING") return { status: "expired" };
+  if (payment.collectionMode === "MANUAL") {
+    return {
+      status: "declined",
+      message: "This venue reviews manual transfer receipts instead of charging through PayMongo.",
+    };
+  }
 
   const now = new Date();
   // Checked before any money moves, not after — a charge against a dead hold
@@ -1134,6 +1208,9 @@ export async function chargeBookingPayment(args: {
 
   let result: ChargeResult;
   try {
+    if (!payment.gatewayId) {
+      throw new Error("Automatic payment is missing its venue gateway.");
+    }
     const creds = await loadGatewayCredentialsForCharge(payment.gatewayId);
     result = await getVenueGateway(creds).charge({
       amount: {
@@ -1215,6 +1292,7 @@ export async function pollBookingPayment(
     return { status: "unresolved" };
   }
 
+  if (!payment.gatewayId) return { status: "unresolved" };
   const creds = await loadGatewayCredentials(payment.gatewayId);
   const result = await getVenueGateway(creds).getCharge(payment.providerPaymentId);
   if (result.status === "pending") return { status: "unresolved" };
@@ -1261,6 +1339,7 @@ export async function refundBookingPayment(args: {
       amount: true,
       platformFee: true,
       processingFee: true,
+      collectionMode: true,
       gatewayId: true,
       providerPaymentId: true,
     },
@@ -1269,6 +1348,13 @@ export async function refundBookingPayment(args: {
   if (payment.status === "REFUNDED") return { ok: true, alreadyRefunded: true };
   if (payment.status !== "SUCCEEDED") {
     return { ok: false, message: "That payment has not settled yet." };
+  }
+  if (payment.collectionMode === "MANUAL") {
+    return {
+      ok: false,
+      message:
+        "Return the full venue amount through the original network, then record the external refund.",
+    };
   }
   if (!payment.providerPaymentId) {
     return { ok: false, message: "That payment has no gateway reference to refund." };
@@ -1279,6 +1365,9 @@ export async function refundBookingPayment(args: {
   const amount = Number(
     payment.amount.minus(payment.platformFee).plus(payment.processingFee).toFixed(2)
   );
+  if (!payment.gatewayId) {
+    return { ok: false, message: "That automatic payment has no gateway." };
+  }
   const creds = await loadGatewayCredentials(payment.gatewayId);
 
   let gateway;
@@ -1442,7 +1531,12 @@ export async function expireBookingHolds(now: Date = new Date()): Promise<{
   // still in flight are left alone: their webhook may yet land, and settle
   // handles that case by refunding.
   const payments = await prisma.bookingPayment.updateMany({
-    where: { status: "PENDING", expiresAt: { lte: now }, chargeStartedAt: null },
+    where: {
+      status: "PENDING",
+      expiresAt: { lte: now },
+      chargeStartedAt: null,
+      manualSubmittedAt: null,
+    },
     data: {
       status: "FAILED",
       failureCode: "hold_expired",

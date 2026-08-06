@@ -61,6 +61,13 @@ export type BookingView = {
     platformFee: number;
     processingFee: number;
     refundedAmount: number | null;
+    collectionMode: "AUTOMATIC" | "MANUAL";
+    manualReceiptImage: string | null;
+    manualMethodLabel: string | null;
+    manualPaymentRef: string | null;
+    manualSubmittedAt: Date | null;
+    manualReviewNote: string | null;
+    refundedAt: Date | null;
   } | null;
   court: { id: string; name: string; courtType: string };
   hub: {
@@ -110,6 +117,13 @@ const bookingSelect = {
       platformFee: true,
       processingFee: true,
       refundedAmount: true,
+      collectionMode: true,
+      manualReceiptImage: true,
+      manualMethodLabel: true,
+      manualPaymentRef: true,
+      manualSubmittedAt: true,
+      manualReviewNote: true,
+      refundedAt: true,
     },
   },
   court: { select: { id: true, name: true, courtType: true } },
@@ -129,10 +143,12 @@ type BookingRow = Prisma.BookingGetPayload<{ select: typeof bookingSelect }>;
 function effectiveStatus(row: {
   status: BookingStatus;
   holdExpiresAt: Date | null;
+  bookingPayment: { manualSubmittedAt: Date | null } | null;
 }): BookingStatus {
   return row.status === "PENDING" &&
     row.holdExpiresAt != null &&
-    row.holdExpiresAt <= new Date()
+    row.holdExpiresAt <= new Date() &&
+    row.bookingPayment?.manualSubmittedAt == null
     ? "EXPIRED"
     : row.status;
 }
@@ -194,6 +210,13 @@ function mapBooking(row: BookingRow): BookingView {
             bookingPayment.refundedAmount == null
               ? null
               : Number(bookingPayment.refundedAmount),
+          collectionMode: bookingPayment.collectionMode,
+          manualReceiptImage: bookingPayment.manualReceiptImage,
+          manualMethodLabel: bookingPayment.manualMethodLabel,
+          manualPaymentRef: bookingPayment.manualPaymentRef,
+          manualSubmittedAt: bookingPayment.manualSubmittedAt,
+          manualReviewNote: bookingPayment.manualReviewNote,
+          refundedAt: bookingPayment.refundedAt,
         }
       : null,
     player: user,
@@ -221,6 +244,13 @@ export function liveBookingWhere(
     OR: [
       { status: "CONFIRMED" },
       { status: "PENDING", holdExpiresAt: { gt: now } },
+      {
+        status: "PENDING",
+        bookingPayment: {
+          collectionMode: "MANUAL",
+          manualSubmittedAt: { not: null },
+        },
+      },
     ],
   };
 }
@@ -234,7 +264,11 @@ export function endedBookingWhere(
     OR: [
       { endsAt: { lt: now } },
       { status: { in: ["CANCELLED", "EXPIRED"] } },
-      { status: "PENDING", holdExpiresAt: { lte: now } },
+      {
+        status: "PENDING",
+        holdExpiresAt: { lte: now },
+        bookingPayment: { manualSubmittedAt: null },
+      },
     ],
   };
 }
@@ -409,7 +443,13 @@ export const getCourtForBooking = cache(async (courtId: string) => {
           owner: {
             select: {
               partnerStatus: true,
+              partnerPaymentMode: true,
               partnerGateway: { select: { disconnectedAt: true } },
+              manualPaymentMethods: {
+                where: { active: true },
+                take: 1,
+                select: { id: true },
+              },
             },
           },
         },
@@ -419,8 +459,12 @@ export const getCourtForBooking = cache(async (courtId: string) => {
   if (!row) return null;
   const approved = row.hub.owner.partnerStatus === "ACTIVE";
   const connected = row.hub.owner.partnerGateway?.disconnectedAt === null;
+  const paymentReady =
+    row.hub.owner.partnerPaymentMode === "MANUAL"
+      ? row.hub.owner.manualPaymentMethods.length > 0
+      : connected;
   const overdue =
-    approved && connected
+    approved && connected && row.hub.owner.partnerPaymentMode === "AUTOMATIC"
       ? await isServiceFeeOverdue(row.hub.ownerId)
       : false;
   return {
@@ -440,7 +484,7 @@ export const getCourtForBooking = cache(async (courtId: string) => {
       name: row.hub.name,
       ownerId: row.hub.ownerId,
       operatingHours: (row.hub.operatingHours as OperatingHours | null) ?? null,
-      bookable: approved && connected && !overdue,
+      bookable: approved && paymentReady && !overdue,
     },
   };
 });

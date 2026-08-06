@@ -74,6 +74,7 @@ export function BookCourtPanel({
   initialAvailability,
   viewerRole,
   paymentRequired,
+  paymentMode,
 }: {
   hubId: string;
   courts: PanelCourt[];
@@ -86,6 +87,7 @@ export function BookCourtPanel({
   // confirming them. False for every venue that hasn't — and then every word
   // below is exactly what it was before payments existed.
   paymentRequired: boolean;
+  paymentMode: "AUTOMATIC" | "MANUAL";
 }) {
   const [activeCourtId, setActiveCourtId] = useState(courts[0]?.id ?? "");
   const [date, setDate] = useState(today);
@@ -422,7 +424,9 @@ export function BookCourtPanel({
                     ? "Reconnect to book"
                     : pending
                     ? requiresOnlinePayment
-                      ? "Preparing QR Ph…"
+                      ? paymentMode === "MANUAL"
+                        ? "Preparing payment…"
+                        : "Preparing QR Ph…"
                       : "Booking…"
                     : selectedCount === 0
                       ? "Pick your hours"
@@ -450,7 +454,9 @@ export function BookCourtPanel({
                 </svg>
                 <p className="text-[11px] leading-relaxed text-navy/55">
                   {requiresOnlinePayment
-                    ? `Confirm your selection and pay with QR Ph. We'll hold your hours for ${BOOKING_HOLD_MINUTES} minutes while you complete PayMongo's secure checkout.`
+                    ? paymentMode === "MANUAL"
+                      ? `Confirm your selection, transfer the exact venue amount, and upload a receipt within ${BOOKING_HOLD_MINUTES} minutes. The venue confirms after review.`
+                      : `Confirm your selection and pay with QR Ph. We'll hold your hours for ${BOOKING_HOLD_MINUTES} minutes while you complete PayMongo's secure checkout.`
                     : "No payment needed — confirm here and settle at the venue."}
                 </p>
               </div>

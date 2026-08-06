@@ -51,6 +51,7 @@ export type PublicEventView = {
     logo: string | null;
     address: string | null;
     verified: boolean;
+    paymentMode: "AUTOMATIC" | "MANUAL";
   };
   courts: EventCourtView[];
 };
@@ -72,6 +73,7 @@ export type EventFormHub = {
   name: string;
   games: string[];
   paymentReady: boolean;
+  paymentMode: "AUTOMATIC" | "MANUAL";
   courts: EventCourtView[];
 };
 
@@ -114,6 +116,12 @@ export type OwnerEventRegistrationView = {
     providerRef: string | null;
     paidAt: Date | null;
     refundedAt: Date | null;
+    collectionMode: "AUTOMATIC" | "MANUAL";
+    manualReceiptImage: string | null;
+    manualMethodLabel: string | null;
+    manualPaymentRef: string | null;
+    manualSubmittedAt: Date | null;
+    manualReviewNote: string | null;
   } | null;
   additionalPayments: {
     id: string;
@@ -124,6 +132,12 @@ export type OwnerEventRegistrationView = {
     providerRef: string | null;
     paidAt: Date | null;
     refundedAt: Date | null;
+    collectionMode: "AUTOMATIC" | "MANUAL";
+    manualReceiptImage: string | null;
+    manualMethodLabel: string | null;
+    manualPaymentRef: string | null;
+    manualSubmittedAt: Date | null;
+    manualReviewNote: string | null;
   }[];
 };
 
@@ -222,7 +236,13 @@ const eventSelect = {
       owner: {
         select: {
           partnerStatus: true,
+          partnerPaymentMode: true,
           partnerGateway: { select: { disconnectedAt: true } },
+          manualPaymentMethods: {
+            where: { active: true },
+            take: 1,
+            select: { id: true },
+          },
         },
       },
     },
@@ -242,7 +262,7 @@ const eventSelect = {
       status: true,
       holdExpiresAt: true,
       bookingPaymentId: true,
-      payment: { select: { status: true } },
+      payment: { select: { status: true, manualSubmittedAt: true } },
       guests: {
         select: {
           id: true,
@@ -255,6 +275,7 @@ const eventSelect = {
               status: true,
               chargeStartedAt: true,
               providerPaymentId: true,
+              manualSubmittedAt: true,
             },
           },
         },
@@ -292,8 +313,8 @@ function registrationCounts(row: EventRow, now = new Date()) {
   const pending = row.registrations.filter(
     (registration) =>
       registration.status === "PENDING" &&
-      registration.holdExpiresAt != null &&
-      registration.holdExpiresAt > now
+      ((registration.holdExpiresAt != null && registration.holdExpiresAt > now) ||
+        registration.payment?.manualSubmittedAt != null)
   );
   const waitlisted = row.registrations.filter(
     (registration) => registration.status === "WAITLISTED"
@@ -305,8 +326,8 @@ function registrationCounts(row: EventRow, now = new Date()) {
     registration.guests.filter(
       (guest) =>
         guest.status === "PENDING" &&
-        guest.holdExpiresAt != null &&
-        guest.holdExpiresAt > now
+        ((guest.holdExpiresAt != null && guest.holdExpiresAt > now) ||
+          guest.payment?.manualSubmittedAt != null)
     )
   );
   const confirmedOrganizerGuests = row.organizerGuests.filter(
@@ -357,7 +378,11 @@ function mapPublicEvent(row: EventRow, now = new Date()): PublicEventView {
       name: row.hub.name,
       logo: row.hub.logo,
       address: row.hub.address,
-      verified: row.hub.owner.partnerGateway?.disconnectedAt === null,
+      verified:
+        row.hub.owner.partnerPaymentMode === "MANUAL"
+          ? row.hub.owner.manualPaymentMethods.length > 0
+          : row.hub.owner.partnerGateway?.disconnectedAt === null,
+      paymentMode: row.hub.owner.partnerPaymentMode,
     },
     courts: row.courts.map(({ court }) => court),
   };
@@ -475,7 +500,8 @@ export async function getPublicEvent(
           status:
             viewer.status === "PENDING" &&
             viewer.holdExpiresAt != null &&
-            viewer.holdExpiresAt <= new Date()
+            viewer.holdExpiresAt <= new Date() &&
+            viewer.payment?.manualSubmittedAt == null
               ? "EXPIRED"
               : viewer.status,
           holdExpiresAt: viewer.holdExpiresAt,
@@ -496,7 +522,8 @@ export async function getPublicEvent(
                 ((guest.holdExpiresAt != null &&
                   guest.holdExpiresAt > new Date()) ||
                   guest.payment.chargeStartedAt != null ||
-                  guest.payment.providerPaymentId != null)
+                  guest.payment.providerPaymentId != null ||
+                  guest.payment.manualSubmittedAt != null)
             )?.bookingPaymentId ?? null,
         }
       : null,
@@ -552,6 +579,7 @@ const playerEventRegistrationSelect = {
       status: true,
       amount: true,
       platformFee: true,
+      manualSubmittedAt: true,
     },
   },
 } as const;
@@ -572,7 +600,8 @@ function mapPlayerEventRegistration(
     status:
       row.status === "PENDING" &&
       row.holdExpiresAt != null &&
-      row.holdExpiresAt <= now
+      row.holdExpiresAt <= now &&
+      row.payment?.manualSubmittedAt == null
         ? "EXPIRED"
         : row.status,
     secondsLeft: row.holdExpiresAt
@@ -682,6 +711,12 @@ export async function listEventFormHubs(
       owner: {
         select: {
           partnerGateway: { select: { disconnectedAt: true } },
+          partnerPaymentMode: true,
+          manualPaymentMethods: {
+            where: { active: true },
+            take: 1,
+            select: { id: true },
+          },
         },
       },
       courts: {
@@ -694,7 +729,11 @@ export async function listEventFormHubs(
     id: row.id,
     name: row.name,
     games: row.games,
-    paymentReady: row.owner.partnerGateway?.disconnectedAt === null,
+    paymentReady:
+      row.owner.partnerPaymentMode === "MANUAL"
+        ? row.owner.manualPaymentMethods.length > 0
+        : row.owner.partnerGateway?.disconnectedAt === null,
+    paymentMode: row.owner.partnerPaymentMode,
     courts: row.courts,
   }));
 }
@@ -762,6 +801,12 @@ export async function listOwnerEventRegistrations(
               providerRef: true,
               paidAt: true,
               refundedAt: true,
+              collectionMode: true,
+              manualReceiptImage: true,
+              manualMethodLabel: true,
+              manualPaymentRef: true,
+              manualSubmittedAt: true,
+              manualReviewNote: true,
             },
           },
           guests: {
@@ -780,6 +825,12 @@ export async function listOwnerEventRegistrations(
                   providerRef: true,
                   paidAt: true,
                   refundedAt: true,
+                  collectionMode: true,
+                  manualReceiptImage: true,
+                  manualMethodLabel: true,
+                  manualPaymentRef: true,
+                  manualSubmittedAt: true,
+                  manualReviewNote: true,
                 },
               },
             },
@@ -795,7 +846,8 @@ export async function listOwnerEventRegistrations(
     status:
       registration.status === "PENDING" &&
       registration.holdExpiresAt != null &&
-      registration.holdExpiresAt <= now
+      registration.holdExpiresAt <= now &&
+      registration.payment?.manualSubmittedAt == null
         ? "EXPIRED"
         : registration.status,
     createdAt: registration.createdAt,
@@ -806,23 +858,23 @@ export async function listOwnerEventRegistrations(
       .filter(
         (guest) =>
           guest.status === "PENDING" &&
-          guest.holdExpiresAt != null &&
-          guest.holdExpiresAt > now
+          ((guest.holdExpiresAt != null && guest.holdExpiresAt > now) ||
+            guest.payment?.manualSubmittedAt != null)
       )
       .map((guest) => guest.name),
     slotCount:
       (registration.status === "CONFIRMED" ||
       (registration.status === "PENDING" &&
-        registration.holdExpiresAt != null &&
-        registration.holdExpiresAt > now)
+        ((registration.holdExpiresAt != null && registration.holdExpiresAt > now) ||
+          registration.payment?.manualSubmittedAt != null))
         ? 1
         : 0) +
       registration.guests.filter(
         (guest) =>
           guest.status === "CONFIRMED" ||
           (guest.status === "PENDING" &&
-            guest.holdExpiresAt != null &&
-            guest.holdExpiresAt > now)
+            ((guest.holdExpiresAt != null && guest.holdExpiresAt > now) ||
+              guest.payment?.manualSubmittedAt != null))
       ).length,
     player: registration.user,
     payment: registration.payment
@@ -835,6 +887,12 @@ export async function listOwnerEventRegistrations(
           providerRef: registration.payment.providerRef,
           paidAt: registration.payment.paidAt,
           refundedAt: registration.payment.refundedAt,
+          collectionMode: registration.payment.collectionMode,
+          manualReceiptImage: registration.payment.manualReceiptImage,
+          manualMethodLabel: registration.payment.manualMethodLabel,
+          manualPaymentRef: registration.payment.manualPaymentRef,
+          manualSubmittedAt: registration.payment.manualSubmittedAt,
+          manualReviewNote: registration.payment.manualReviewNote,
         }
       : null,
     additionalPayments: Array.from(
@@ -853,6 +911,12 @@ export async function listOwnerEventRegistrations(
       providerRef: payment.providerRef,
       paidAt: payment.paidAt,
       refundedAt: payment.refundedAt,
+      collectionMode: payment.collectionMode,
+      manualReceiptImage: payment.manualReceiptImage,
+      manualMethodLabel: payment.manualMethodLabel,
+      manualPaymentRef: payment.manualPaymentRef,
+      manualSubmittedAt: payment.manualSubmittedAt,
+      manualReviewNote: payment.manualReviewNote,
     })),
   }));
 }
@@ -924,6 +988,12 @@ export async function getOwnerEventDetails(
               providerRef: true,
               paidAt: true,
               refundedAt: true,
+              collectionMode: true,
+              manualReceiptImage: true,
+              manualMethodLabel: true,
+              manualPaymentRef: true,
+              manualSubmittedAt: true,
+              manualReviewNote: true,
             },
           },
           guests: {
@@ -942,6 +1012,12 @@ export async function getOwnerEventDetails(
                   providerRef: true,
                   paidAt: true,
                   refundedAt: true,
+                  collectionMode: true,
+                  manualReceiptImage: true,
+                  manualMethodLabel: true,
+                  manualPaymentRef: true,
+                  manualSubmittedAt: true,
+                  manualReviewNote: true,
                 },
               },
             },
@@ -968,7 +1044,8 @@ export async function getOwnerEventDetails(
       status:
         registration.status === "PENDING" &&
         registration.holdExpiresAt != null &&
-        registration.holdExpiresAt <= now
+        registration.holdExpiresAt <= now &&
+        registration.payment?.manualSubmittedAt == null
           ? "EXPIRED"
           : registration.status,
       createdAt: registration.createdAt,
@@ -979,23 +1056,23 @@ export async function getOwnerEventDetails(
         .filter(
           (guest) =>
             guest.status === "PENDING" &&
-            guest.holdExpiresAt != null &&
-            guest.holdExpiresAt > now
+            ((guest.holdExpiresAt != null && guest.holdExpiresAt > now) ||
+              guest.payment?.manualSubmittedAt != null)
         )
         .map((guest) => guest.name),
       slotCount:
         (registration.status === "CONFIRMED" ||
         (registration.status === "PENDING" &&
-          registration.holdExpiresAt != null &&
-          registration.holdExpiresAt > now)
+          ((registration.holdExpiresAt != null && registration.holdExpiresAt > now) ||
+            registration.payment?.manualSubmittedAt != null))
           ? 1
           : 0) +
         registration.guests.filter(
           (guest) =>
             guest.status === "CONFIRMED" ||
             (guest.status === "PENDING" &&
-              guest.holdExpiresAt != null &&
-              guest.holdExpiresAt > now)
+              ((guest.holdExpiresAt != null && guest.holdExpiresAt > now) ||
+                guest.payment?.manualSubmittedAt != null))
         ).length,
       player: registration.user,
       payment: registration.payment
@@ -1008,6 +1085,12 @@ export async function getOwnerEventDetails(
             providerRef: registration.payment.providerRef,
             paidAt: registration.payment.paidAt,
             refundedAt: registration.payment.refundedAt,
+            collectionMode: registration.payment.collectionMode,
+            manualReceiptImage: registration.payment.manualReceiptImage,
+            manualMethodLabel: registration.payment.manualMethodLabel,
+            manualPaymentRef: registration.payment.manualPaymentRef,
+            manualSubmittedAt: registration.payment.manualSubmittedAt,
+            manualReviewNote: registration.payment.manualReviewNote,
         }
         : null,
       additionalPayments: Array.from(
@@ -1026,6 +1109,12 @@ export async function getOwnerEventDetails(
         providerRef: payment.providerRef,
         paidAt: payment.paidAt,
         refundedAt: payment.refundedAt,
+        collectionMode: payment.collectionMode,
+        manualReceiptImage: payment.manualReceiptImage,
+        manualMethodLabel: payment.manualMethodLabel,
+        manualPaymentRef: payment.manualPaymentRef,
+        manualSubmittedAt: payment.manualSubmittedAt,
+        manualReviewNote: payment.manualReviewNote,
       })),
     })
   );

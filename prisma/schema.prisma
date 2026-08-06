@@ -24,11 +24,28 @@ enum PartnerStatus {
   ACTIVE
 }
 
+enum PartnerPaymentMode {
+  AUTOMATIC
+  MANUAL
+}
+
+enum PaymentCollectionMode {
+  AUTOMATIC
+  MANUAL
+}
+
+enum ManualPaymentNetwork {
+  GCASH
+  MAYA
+  BANK_TRANSFER
+  OTHER
+}
+
 model User {
-  id                      String         @id @default(cuid())
+  id                      String             @id @default(cuid())
   name                    String?
   playerName              String?
-  email                   String         @unique
+  email                   String             @unique
   emailVerified           DateTime?
   phone                   String?
   // A venue's Facebook page, canonicalised to https://www.facebook.com/<page>
@@ -38,32 +55,34 @@ model User {
   facebookPage            String?
   image                   String?
   passwordHash            String?
-  role                    Role           @default(PLAYER)
-  skillLevel              String         @default("intermediate")
-  privateProfile          Boolean        @default(false)
+  role                    Role               @default(PLAYER)
+  skillLevel              String             @default("intermediate")
+  privateProfile          Boolean            @default(false)
   // Existing and password-created accounts default to complete. The Auth.js
   // adapter explicitly writes null for a brand-new Google identity until its
   // app role has been selected.
-  registrationCompletedAt DateTime?      @default(now())
+  registrationCompletedAt DateTime?          @default(now())
   // Incremented after a password reset. JWTs carry the version they were
   // issued with, so the DAL can reject sessions created before the reset.
-  sessionVersion          Int            @default(0)
+  sessionVersion          Int                @default(0)
   // Successful credential authentications only. The count is incremented
   // atomically so simultaneous sign-ins cannot lose an update.
   lastLoginAt             DateTime?
-  loginCount              Int            @default(0)
+  loginCount              Int                @default(0)
   // Authenticator-app MFA. The secret is AES-256-GCM ciphertext; recovery
   // codes are stored as one-way hashes in MfaRecoveryCode.
   mfaEnabledAt            DateTime?
-  mfaSecretEnc            String?        @db.Text
+  mfaSecretEnc            String?            @db.Text
   // Only meaningful when role=PARTNER. Public signups start DRAFT, move to
   // PENDING after venue onboarding, then become ACTIVE after admin review.
   partnerStatus           PartnerStatus?
+  // One checkout policy per partner account, shared by every hub it owns.
+  partnerPaymentMode      PartnerPaymentMode @default(AUTOMATIC)
   partnerActivatedAt      DateTime?
   // Scalar by design: deleting an admin must not erase who approved a partner.
   partnerActivatedById    String?
-  createdAt               DateTime       @default(now())
-  updatedAt               DateTime       @updatedAt
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
 
   accounts           Account[]
   sessions           Session[]
@@ -77,12 +96,13 @@ model User {
   mfaRecoveryCodes   MfaRecoveryCode[]
 
   partnerGateway        PartnerGateway?
-  bookingPayments       BookingPayment[]       @relation("PlayerBookingPayments")
-  venuePayments         BookingPayment[]       @relation("PartnerBookingPayments")
+  manualPaymentMethods  PartnerManualPaymentMethod[]
+  bookingPayments       BookingPayment[]             @relation("PlayerBookingPayments")
+  venuePayments         BookingPayment[]             @relation("PartnerBookingPayments")
   eventRegistrations    EventRegistration[]
-  organizerEventGuests  EventOrganizerGuest[]  @relation("OrganizerEventGuestCreator")
-  serviceFeeEntries     ServiceFeeEntry[]      @relation("PartnerServiceFeeEntries")
-  serviceFeeSettlements ServiceFeeSettlement[] @relation("PartnerServiceFeeSettlements")
+  organizerEventGuests  EventOrganizerGuest[]        @relation("OrganizerEventGuestCreator")
+  serviceFeeEntries     ServiceFeeEntry[]            @relation("PartnerServiceFeeEntries")
+  serviceFeeSettlements ServiceFeeSettlement[]       @relation("PartnerServiceFeeSettlements")
 }
 
 // A short-lived, single-use credential exchanged for an Auth.js JWT. Passwords
@@ -220,6 +240,9 @@ enum PaymentMethodType {
   CARD
   GCASH
   MAYA
+  BANK_TRANSFER
+  OTHER
+  MANUAL
 }
 
 enum PaymentStatus {
@@ -284,6 +307,29 @@ model PartnerGateway {
   payments BookingPayment[]
 }
 
+// A partner-managed destination shown only when their account uses manual
+// collection. QR images and instructions are snapshotted onto each submitted
+// payment so later edits cannot change the evidence the player reviewed.
+model PartnerManualPaymentMethod {
+  id                String               @id @default(cuid())
+  partnerId         String
+  network           ManualPaymentNetwork
+  label             String
+  accountName       String?
+  accountIdentifier String?
+  instructions      String?              @db.Text
+  qrImage           String?              @db.Text
+  active            Boolean              @default(true)
+  sortOrder         Int                  @default(0)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  partner  User             @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  payments BookingPayment[]
+
+  @@index([partnerId, active, sortOrder])
+}
+
 // Bunal.club's own PayMongo account, configured by an admin. This is a
 // singleton in practice (`provider` is unique), separate from partner-owned
 // gateways because it receives service-fee remittances rather than booking
@@ -313,27 +359,28 @@ model BookingPayment {
   // Denormalized like Booking.hubId — the partner's list and the ownership
   // check shouldn't need a join.
   partnerId String
-  gatewayId String
+  gatewayId String?
   userId    String // the player who paid
   // A scalar with no relation ON PURPOSE: deleting a hub must not destroy a
   // financial record.
   hubId     String
 
   // The booking subtotal: court time plus the Bunal.club service fee.
-  amount        Decimal           @db.Decimal(10, 2)
+  amount         Decimal               @db.Decimal(10, 2)
   // The venue's share — the court time they advertised.
-  venueAmount   Decimal           @default(0) @db.Decimal(10, 2)
+  venueAmount    Decimal               @default(0) @db.Decimal(10, 2)
   // Bunal.club's per-booking service fee.
   //
   // All three are stored rather than derived on purpose: the fee schedule can
   // change, and an older payment must keep the fee quoted at checkout.
-  platformFee   Decimal           @default(0) @db.Decimal(10, 2)
+  platformFee    Decimal               @default(0) @db.Decimal(10, 2)
   // The QR Ph processing fee grossed up onto the direct Payment Intent so the
   // partner receives the complete booking subtotal.
-  processingFee Decimal           @default(0) @db.Decimal(10, 2)
-  currency      String            @default("PHP")
-  method        PaymentMethodType
-  status        PaymentStatus     @default(PENDING)
+  processingFee  Decimal               @default(0) @db.Decimal(10, 2)
+  currency       String                @default("PHP")
+  method         PaymentMethodType
+  collectionMode PaymentCollectionMode @default(AUTOMATIC)
+  status         PaymentStatus         @default(PENDING)
 
   // The hold this payment is racing — a snapshot of the bookings'
   // holdExpiresAt, so the checkout page can render a countdown from one read.
@@ -356,6 +403,19 @@ model BookingPayment {
   failureMessage    String? @db.Text
   raw               Json?
 
+  manualPaymentMethodId String?
+  manualMethodLabel     String?
+  manualAccountName     String?
+  manualAccountDetails  String?   @db.Text
+  manualInstructions    String?   @db.Text
+  manualQrImage         String?   @db.Text
+  manualReceiptImage    String?   @db.Text
+  manualPaymentRef      String?
+  manualSubmittedAt     DateTime?
+  manualReviewedAt      DateTime?
+  manualReviewedById    String?
+  manualReviewNote      String?   @db.Text
+
   paidAt         DateTime?
   refundedAt     DateTime?
   refundedAmount Decimal?  @db.Decimal(10, 2)
@@ -366,18 +426,21 @@ model BookingPayment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  partner           User               @relation("PartnerBookingPayments", fields: [partnerId], references: [id], onDelete: Cascade)
-  user              User               @relation("PlayerBookingPayments", fields: [userId], references: [id], onDelete: Cascade)
-  gateway           PartnerGateway     @relation(fields: [gatewayId], references: [id])
-  bookings          Booking[]
-  eventRegistration EventRegistration?
-  eventGuestSlots   EventGuestSlot[]
-  serviceFeeEntries ServiceFeeEntry[]
+  partner             User                        @relation("PartnerBookingPayments", fields: [partnerId], references: [id], onDelete: Cascade)
+  user                User                        @relation("PlayerBookingPayments", fields: [userId], references: [id], onDelete: Cascade)
+  gateway             PartnerGateway?             @relation(fields: [gatewayId], references: [id])
+  manualPaymentMethod PartnerManualPaymentMethod? @relation(fields: [manualPaymentMethodId], references: [id], onDelete: SetNull)
+  bookings            Booking[]
+  eventRegistration   EventRegistration?
+  eventGuestSlots     EventGuestSlot[]
+  serviceFeeEntries   ServiceFeeEntry[]
 
   @@index([partnerId, createdAt])
   @@index([userId, createdAt])
   @@index([hubId, createdAt])
   @@index([providerPaymentId])
+  @@index([manualPaymentMethodId])
+  @@index([partnerId, manualSubmittedAt])
   @@index([status, expiresAt])
 }
 

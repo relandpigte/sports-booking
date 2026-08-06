@@ -166,39 +166,56 @@ export async function listPublicHubs(
       ownerId: true,
       owner: {
         select: {
+          partnerPaymentMode: true,
           partnerGateway: { select: { disconnectedAt: true } },
+          manualPaymentMethods: {
+            where: { active: true },
+            take: 1,
+            select: { id: true },
+          },
         },
       },
     },
   });
-  const connectedOwnerIds = [
+  const automaticOwnerIds = [
     ...new Set(
       rows
         .filter(
-          (row) => row.owner.partnerGateway?.disconnectedAt === null
+          (row) =>
+            row.owner.partnerPaymentMode === "AUTOMATIC" &&
+            row.owner.partnerGateway?.disconnectedAt === null
         )
         .map((row) => row.ownerId)
     ),
   ];
   const overdueByOwner = new Map(
     await Promise.all(
-      connectedOwnerIds.map(async (ownerId) =>
+      automaticOwnerIds.map(async (ownerId) =>
         [ownerId, await isServiceFeeOverdue(ownerId)] as const
       )
     )
   );
   return rows
     .filter((row) => {
-      const connected = row.owner.partnerGateway?.disconnectedAt === null;
-      return !connected || !overdueByOwner.get(row.ownerId);
+      const automaticReady =
+        row.owner.partnerGateway?.disconnectedAt === null;
+      return (
+        row.owner.partnerPaymentMode === "MANUAL" ||
+        !automaticReady ||
+        !overdueByOwner.get(row.ownerId)
+      );
     })
     .map(({ ownerId: _ownerId, owner, ...row }) => {
       const connected = owner.partnerGateway?.disconnectedAt === null;
+      const paymentReady =
+        owner.partnerPaymentMode === "MANUAL"
+          ? owner.manualPaymentMethods.length > 0
+          : connected;
       return {
         ...mapHub(row),
-        bookable: connected,
-        comingSoon: !connected,
-        verified: connected,
+        bookable: paymentReady,
+        comingSoon: !paymentReady,
+        verified: paymentReady,
       };
     });
 }
@@ -329,9 +346,15 @@ const publicHubSelect = {
   owner: {
     select: {
       partnerStatus: true,
+      partnerPaymentMode: true,
       // Only whether one is connected. Nothing secret is selected — see the
       // comment on GatewayView.
       partnerGateway: { select: { disconnectedAt: true } },
+      manualPaymentMethods: {
+        where: { active: true },
+        take: 1,
+        select: { id: true },
+      },
     },
   },
 } as const;
@@ -348,6 +371,7 @@ export type PublicHub = Hub & {
   // bookable — a hub with no gateway takes no bookings at all — but kept
   // separate because it answers a different question for the booking panel.
   paymentRequired: boolean;
+  paymentMode: "AUTOMATIC" | "MANUAL";
   // Why it isn't bookable, so the page can say something true rather than a
   // vague "not right now".
   blockedBy: "approval" | "gateway" | "setup" | "settlement" | null;
@@ -368,11 +392,16 @@ export const getPublicHub = cache(
     const { owner, ownerId, ...rest } = row;
     const approved = owner.partnerStatus === "ACTIVE";
     const connected = owner.partnerGateway?.disconnectedAt === null;
+    const manualReady = owner.manualPaymentMethods.length > 0;
+    const paymentReady =
+      owner.partnerPaymentMode === "MANUAL" ? manualReady : connected;
     const setupComplete = rest.courts.length > 0;
     const overdue =
-      approved && connected ? await isServiceFeeOverdue(ownerId) : false;
-    const bookable = approved && connected && setupComplete && !overdue;
-    const comingSoon = approved && !connected && setupComplete;
+      approved && owner.partnerPaymentMode === "AUTOMATIC" && connected
+        ? await isServiceFeeOverdue(ownerId)
+        : false;
+    const bookable = approved && paymentReady && setupComplete && !overdue;
+    const comingSoon = approved && !paymentReady && setupComplete;
     return {
       ...mapHub(rest),
       bookable,
@@ -380,9 +409,10 @@ export const getPublicHub = cache(
       comingSoon,
       verified: bookable,
       paymentRequired: bookable,
+      paymentMode: owner.partnerPaymentMode,
       blockedBy: !approved
         ? "approval"
-        : !connected
+        : !paymentReady
           ? "gateway"
           : !setupComplete
             ? "setup"

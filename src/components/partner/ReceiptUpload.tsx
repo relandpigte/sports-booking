@@ -4,8 +4,20 @@ import { useRef, useState } from "react";
 
 import { fileToReceiptDataUrl } from "@/lib/image";
 
-export function ReceiptUpload({ error }: { error?: string }) {
-  const [value, setValue] = useState("");
+export function ReceiptUpload({
+  error,
+  name = "receiptImage",
+  label = "Payment receipt",
+  initialValue = "",
+  required = true,
+}: {
+  error?: string;
+  name?: string;
+  label?: string;
+  initialValue?: string;
+  required?: boolean;
+}) {
+  const [value, setValue] = useState(initialValue);
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState<string>();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -27,13 +39,15 @@ export function ReceiptUpload({ error }: { error?: string }) {
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium text-gray-800">Payment receipt</span>
+      <span className="text-sm font-medium text-gray-800">
+        {label}{required ? "" : " (optional)"}
+      </span>
       {value ? (
         <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={value}
-            alt="Settlement receipt preview"
+            alt={`${label} preview`}
             className="max-h-64 w-full object-contain"
           />
           <button
@@ -51,7 +65,7 @@ export function ReceiptUpload({ error }: { error?: string }) {
           onClick={() => inputRef.current?.click()}
           className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-sm font-medium text-gray-500 transition-colors hover:border-primary hover:text-primary disabled:opacity-60"
         >
-          {busy ? "Processing…" : "Upload receipt image"}
+          {busy ? "Processing…" : `Upload ${label.toLowerCase()}`}
         </button>
       )}
       <input
@@ -61,7 +75,7 @@ export function ReceiptUpload({ error }: { error?: string }) {
         className="hidden"
         onChange={handleChange}
       />
-      <input type="hidden" name="receiptImage" value={value} />
+      <input type="hidden" name={name} value={value} />
       {(localError || error) && (
         <p className="text-xs text-red-500">{localError ?? error}</p>
       )}

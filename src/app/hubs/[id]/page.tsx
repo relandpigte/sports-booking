@@ -553,6 +553,7 @@ export default async function PublicHubPage({
           }
           viewerRole={viewer?.role ?? null}
           paymentRequired={hub.paymentRequired}
+          paymentMode={hub.paymentMode}
         />
       ) : (
         <section className="border-y border-gray-200 bg-white py-14">
@@ -575,7 +576,7 @@ export default async function PublicHubPage({
               <p className="mt-5 rounded-xl bg-gray-50 px-4 py-3 text-sm">
                 <span className="text-gray-500">
                   {hub.blockedBy === "gateway"
-                    ? "Your hub is published as Coming soon. Connect PayMongo to verify the venue and open online booking."
+                    ? "Your hub is published as Coming soon. Finish your automatic or manual payment setup to verify the venue and open online booking."
                     : hub.blockedBy === "setup"
                       ? "Add at least one court, its rate, and operating hours before publishing your hub."
                       : hub.blockedBy === "settlement"
@@ -587,7 +588,7 @@ export default async function PublicHubPage({
                     href="/dashboard/payments"
                     className="font-semibold text-primary hover:underline"
                   >
-                    Connect PayMongo →
+                    Configure payments →
                   </Link>
                 )}
                 {hub.blockedBy === "setup" && (

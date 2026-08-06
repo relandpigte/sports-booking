@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/Badge";
 import { CancelBookingButton } from "@/components/bookings/CancelBookingButton";
 import { RefundBookingButton } from "@/components/bookings/RefundBookingButton";
 import { RescheduleBookingButton } from "@/components/bookings/RescheduleBookingButton";
+import { ManualPaymentReview } from "@/components/bookings/ManualPaymentReview";
 import type { BookingView } from "@/lib/bookings";
 import { formatPHP } from "@/lib/currency";
 import { hubPublicPath } from "@/lib/hub-slug";
@@ -174,6 +175,23 @@ export function BookingCard({
         </p>
       )}
 
+      {view === "partner" &&
+        booking.payment?.collectionMode === "MANUAL" &&
+        booking.payment.manualSubmittedAt && (
+          <ManualPaymentReview
+            payment={{
+              id: booking.payment.id,
+              status: booking.payment.status,
+              receiptImage: booking.payment.manualReceiptImage,
+              methodLabel: booking.payment.manualMethodLabel,
+              paymentReference: booking.payment.manualPaymentRef,
+              submittedAt: booking.payment.manualSubmittedAt,
+              reviewNote: booking.payment.manualReviewNote,
+              refundedAt: booking.payment.refundedAt,
+            }}
+          />
+        )}
+
       {/* Amber, not red — a move must never read as a cancellation. */}
       {booking.movedFrom && !cancelled && (
         <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">
@@ -212,7 +230,7 @@ export function BookingCard({
 
       {/* Money can be given back whatever state the booking is in — including
           a cancellation whose refund leg failed at the gateway. */}
-      {view === "partner" && paid && (
+      {view === "partner" && paid && booking.payment?.collectionMode !== "MANUAL" && (
         <div className="mt-3 flex justify-end border-t border-gray-100 pt-3">
           <RefundBookingButton
             bookingId={booking.id}

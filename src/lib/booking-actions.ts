@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 
 import { prisma } from "@/lib/db";
 import { lockPlayerBookingHours } from "@/lib/booking-locks";
-import { getActivePartnerGateway } from "@/lib/partner-gateway";
+import { getPartnerPaymentSetup } from "@/lib/manual-payments";
 import { getViewer } from "@/lib/dal";
 import { firstErrors } from "@/lib/zod-errors";
 import {
@@ -179,9 +179,18 @@ export async function createBookingAction(
 
   // One checkout can span many courts at this hub. Unpriced court-hours are
   // included in the reservation but add nothing to the online subtotal.
-  const gateway = await getActivePartnerGateway(hub.ownerId);
   const total = groups.reduce((sum, group) => sum + (group.total ?? 0), 0);
-  const requiresPayment = gateway != null && total > 0;
+  const paymentSetup = await getPartnerPaymentSetup(hub.ownerId);
+  const requiresPayment = total > 0;
+  const manualPayment =
+    requiresPayment && paymentSetup.mode === "MANUAL";
+  if (
+    requiresPayment &&
+    ((manualPayment && !paymentSetup.manualReady) ||
+      (!manualPayment && !paymentSetup.automaticReady))
+  ) {
+    return { message: "This venue's payment setup is not available right now." };
+  }
   const now = new Date();
   const holdExpiresAt = requiresPayment
     ? new Date(now.getTime() + BOOKING_HOLD_MINUTES * 60_000)
@@ -210,16 +219,22 @@ export async function createBookingAction(
         const payment = await tx.bookingPayment.create({
           data: {
             partnerId: hub.ownerId,
-            gatewayId: gateway!.id,
+            gatewayId: manualPayment ? null : paymentSetup.gateway!.id,
             userId: viewer.id,
             hubId: hub.id,
-            amount: new Prisma.Decimal(grossFor(total)),
+            amount: new Prisma.Decimal(manualPayment ? total : grossFor(total)),
             venueAmount: new Prisma.Decimal(total),
-            platformFee: new Prisma.Decimal(bookingServiceFeeFor(total)),
-            method: "QRPH",
+            platformFee: new Prisma.Decimal(
+              manualPayment ? 0 : bookingServiceFeeFor(total)
+            ),
+            processingFee: new Prisma.Decimal(0),
+            method: manualPayment ? "MANUAL" : "QRPH",
+            collectionMode: manualPayment ? "MANUAL" : "AUTOMATIC",
             status: "PENDING",
             expiresAt: holdExpiresAt!,
-            provider: gateway!.provider,
+            provider: manualPayment
+              ? "manual"
+              : paymentSetup.gateway!.provider,
           },
           select: { id: true },
         });
@@ -285,7 +300,9 @@ export async function createBookingAction(
   if (paymentId) {
     // Prepare the one-time QR Ph checkout before showing the payment page so
     // the player lands directly on the QR instead of facing a second Pay step.
-    await chargeBookingPayment({ paymentId, userId: viewer.id });
+    if (!manualPayment) {
+      await chargeBookingPayment({ paymentId, userId: viewer.id });
+    }
     redirect(`/dashboard/bookings/pay/${paymentId}`);
   }
 
@@ -365,7 +382,7 @@ export async function cancelHubBookingAction(
       endsAt: true,
       holdExpiresAt: true,
       bookingPaymentId: true,
-      bookingPayment: { select: { status: true } },
+      bookingPayment: { select: { status: true, collectionMode: true } },
     },
   });
   if (!booking) return { message: "Booking not found." };
@@ -401,6 +418,12 @@ export async function cancelHubBookingAction(
   const wasPaid = booking.bookingPayment?.status === "SUCCEEDED";
   if (!wasPaid || parsed.data.refund !== "full") {
     return { success: "Booking cancelled and the player notified." };
+  }
+  if (booking.bookingPayment?.collectionMode === "MANUAL") {
+    return {
+      success:
+        "Booking cancelled and the hours were released. Return the full venue amount through the original network, then record the external refund on this booking.",
+    };
   }
 
   // Cancel FIRST, refund second. If the gateway is down, the court is still

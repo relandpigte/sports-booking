@@ -11,6 +11,7 @@ import { HoldCountdown } from "@/components/bookings/HoldCountdown";
 import { PayBookingPanel } from "@/components/bookings/PayBookingPanel";
 import { PayMongoCheckout } from "@/components/bookings/PayMongoCheckout";
 import { PaymentStatusPoller } from "@/components/bookings/PaymentStatusPoller";
+import { ManualPaymentCheckout } from "@/components/bookings/ManualPaymentCheckout";
 import { formatPHP } from "@/lib/currency";
 import { formatManilaDate, formatSlotRange } from "@/lib/time";
 
@@ -39,13 +40,17 @@ export default async function PayBookingPage({
 
   // The return leg. Only worth asking once the gateway has given us something
   // to ask about.
-  if (screen.payment.status === "PENDING" && screen.payment.providerPaymentId) {
+  if (
+    screen.payment.collectionMode === "AUTOMATIC" &&
+    screen.payment.status === "PENDING" &&
+    screen.payment.providerPaymentId
+  ) {
     await pollBookingPayment(paymentId);
     screen = await getBookingPaymentScreen(paymentId, user.id);
     if (!screen) notFound();
   }
 
-  const { payment, venueName } = screen;
+  const { payment, venueName, manualMethods } = screen;
   const holdLive = payment.status === "PENDING" && payment.secondsLeft > 0;
   const refundedAmount =
     payment.refundedAmount ?? payment.venueAmount + payment.processingFee;
@@ -66,13 +71,15 @@ export default async function PayBookingPage({
                 ? "Booking confirmed"
                 : payment.status === "REFUNDED"
                   ? "Refunded"
-                  : holdLive
+                  : payment.manualSubmittedAt
+                    ? "Pending booking"
+                    : holdLive
                     ? "Complete your booking"
                     : "Hold expired"}
             </h1>
             <p className="mt-1 text-sm text-gray-500">{venueName}</p>
           </div>
-          {holdLive && (
+          {holdLive && payment.collectionMode === "AUTOMATIC" && (
             <HoldCountdown
               expiresAt={payment.expiresAt.toISOString()}
               initialSeconds={payment.secondsLeft}
@@ -145,8 +152,10 @@ export default async function PayBookingPage({
             <div className="flex flex-col gap-3">
               <p className="rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-700">
                 {payment.refundReason ?? "This booking was refunded."}{" "}
-                {formatPHP(refundedAmount)} was returned; the{" "}
-                {formatPHP(payment.platformFee)} service fee was retained.
+                {formatPHP(refundedAmount)} was returned
+                {payment.platformFee > 0
+                  ? `; the ${formatPHP(payment.platformFee)} service fee was retained.`
+                  : ". No service fee applied to this manual payment."}
               </p>
               <Link
                 href="/hubs"
@@ -159,7 +168,30 @@ export default async function PayBookingPage({
 
           {payment.status !== "SUCCEEDED" &&
             payment.status !== "REFUNDED" &&
-            (holdLive ? (
+            (payment.collectionMode === "MANUAL" && payment.manualSubmittedAt ? (
+              <div className="flex flex-col gap-3">
+                <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+                  Payment proof submitted. Your hours are protected while {venueName}
+                  reviews the receipt. This booking remains pending until approval.
+                </p>
+                {payment.failureMessage && (
+                  <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">
+                    {payment.failureMessage}
+                  </p>
+                )}
+                <Link href="/dashboard/bookings" className="rounded-xl bg-navy px-4 py-3 text-center text-sm font-bold text-white">
+                  View my bookings
+                </Link>
+              </div>
+            ) : payment.collectionMode === "MANUAL" && holdLive ? (
+              <ManualPaymentCheckout
+                paymentId={payment.id}
+                amountLabel={formatPHP(payment.payableAmount)}
+                expiresAt={payment.expiresAt.toISOString()}
+                initialSeconds={payment.secondsLeft}
+                methods={manualMethods}
+              />
+            ) : holdLive ? (
               activeQrImageUrl || activeCheckoutUrl ? (
                 <div className="flex flex-col gap-3">
                   {activeCheckoutUrl && (

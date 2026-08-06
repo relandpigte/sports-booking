@@ -62,7 +62,7 @@ export function PartnerHome({
     },
     {
       label: "Payments",
-      desc: "Manage PayMongo and settle Bunal.club service fees.",
+      desc: "Choose automatic or manual player payments and manage settlements.",
       href: "/dashboard/payments",
       action: "Manage payments",
       icon: "payment",
@@ -146,7 +146,7 @@ export function PartnerHome({
                 Complete your venue setup
               </h2>
               <p className="mt-1 text-sm leading-6 text-slate-500">
-                Add your first hub now, then connect the account that receives
+                Add your first hub now, then configure automatic or manual
                 player payments to open bookings.
               </p>
             </div>
@@ -198,17 +198,17 @@ export function PartnerHome({
                       : "bg-accent-soft text-primary"
                   }`}
                 >
-                  {isGatewayConnected ? "Connected" : "Required for booking"}
+                  {isGatewayConnected ? "Ready" : "Required for booking"}
                 </span>
               </div>
               <h3 className="mt-4 font-semibold text-gray-900">
-                Connect PayMongo
+                Configure payments
               </h3>
               <p className="mt-1 text-sm leading-6 text-slate-500">
-                Verify your hubs and receive online booking proceeds.
+                Select PayMongo QR Ph or add manual transfer destinations.
               </p>
               <p className="mt-4 text-xs font-bold uppercase tracking-[0.12em] text-primary">
-                {isGatewayConnected ? "Manage connection →" : "Connect now →"}
+                {isGatewayConnected ? "Manage payments →" : "Set up now →"}
               </p>
             </Link>
           </div>

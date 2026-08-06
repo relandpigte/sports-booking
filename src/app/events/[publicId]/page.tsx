@@ -116,7 +116,15 @@ export default async function EventDetailPage({
               </EventFact>
               <EventFact icon={<StatusIcon />} label="Status">
                 <strong>{closed ? "Registration closed" : event.full ? "Waitlist open" : "Registration open"}</strong>
-                <span>{event.full && !closed ? `${event.waitlistedCount} on the waitlist` : event.registrationFee > 0 ? "Paid spots confirm immediately" : "Free spots confirm immediately"}</span>
+                <span>
+                  {event.full && !closed
+                    ? `${event.waitlistedCount} on the waitlist`
+                    : event.registrationFee > 0
+                      ? event.hub.paymentMode === "MANUAL"
+                        ? "Paid spots confirm after venue review"
+                        : "Paid spots confirm immediately"
+                      : "Free spots confirm immediately"}
+                </span>
               </EventFact>
             </section>
 
@@ -126,6 +134,7 @@ export default async function EventDetailPage({
                   <EventRegistrationPanel
                     publicId={event.publicId}
                     fee={event.registrationFee}
+                    paymentMode={event.hub.paymentMode}
                     signedIn={Boolean(viewer)}
                     viewerName={
                       viewer?.playerName ?? viewer?.name ?? "Player"

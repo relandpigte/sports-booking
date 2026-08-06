@@ -11,7 +11,7 @@ import { BOOKING_HOLD_MINUTES, bookingServiceFeeFor, grossFor } from "@/lib/cons
 import { getViewer, requireActivePartner } from "@/lib/dal";
 import { prisma } from "@/lib/db";
 import { getEventCourtAvailability } from "@/lib/events";
-import { getActivePartnerGateway } from "@/lib/partner-gateway";
+import { getPartnerPaymentSetup } from "@/lib/manual-payments";
 import {
   chargeBookingPayment,
   recoverPaidEventRegistration,
@@ -182,6 +182,10 @@ async function occupiedEventSpots(
         OR: [
           { status: "CONFIRMED" },
           { status: "PENDING", holdExpiresAt: { gt: now } },
+          {
+            status: "PENDING",
+            payment: { collectionMode: "MANUAL", manualSubmittedAt: { not: null } },
+          },
         ],
       },
     }),
@@ -191,6 +195,10 @@ async function occupiedEventSpots(
         OR: [
           { status: "CONFIRMED" },
           { status: "PENDING", holdExpiresAt: { gt: now } },
+          {
+            status: "PENDING",
+            payment: { collectionMode: "MANUAL", manualSubmittedAt: { not: null } },
+          },
         ],
       },
     }),
@@ -235,7 +243,13 @@ export async function saveEventAction(
       courts: { select: { id: true } },
       owner: {
         select: {
+          partnerPaymentMode: true,
           partnerGateway: { select: { disconnectedAt: true } },
+          manualPaymentMethods: {
+            where: { active: true },
+            take: 1,
+            select: { id: true },
+          },
         },
       },
     },
@@ -269,6 +283,7 @@ export async function saveEventAction(
               OR: [
                 { status: "CONFIRMED" },
                 { status: "PENDING", holdExpiresAt: { gt: new Date() } },
+                { status: "PENDING", payment: { manualSubmittedAt: { not: null } } },
               ],
             },
             select: {
@@ -278,6 +293,7 @@ export async function saveEventAction(
                   OR: [
                     { status: "CONFIRMED" },
                     { status: "PENDING", holdExpiresAt: { gt: new Date() } },
+                    { status: "PENDING", payment: { manualSubmittedAt: { not: null } } },
                   ],
                 },
                 select: { id: true },
@@ -327,18 +343,21 @@ export async function saveEventAction(
   if (
     willPublish &&
     values.registrationFee > 0 &&
-    hub.owner.partnerGateway?.disconnectedAt !== null
+    (hub.owner.partnerPaymentMode === "MANUAL"
+      ? hub.owner.manualPaymentMethods.length === 0
+      : hub.owner.partnerGateway?.disconnectedAt !== null)
   ) {
     return {
       errors: {
         registrationFee:
-          "Connect PayMongo before publishing a paid event. Free events can be published now.",
+          "Set up the selected payment mode before publishing a paid event. Free events can be published now.",
       },
     };
   }
   if (
     willPublish &&
     values.registrationFee > 0 &&
+    hub.owner.partnerPaymentMode === "AUTOMATIC" &&
     (await isServiceFeeOverdue(partner.id))
   ) {
     return {
@@ -509,14 +528,20 @@ export async function registerForEventAction(
   }
 
   const fee = Number(event.registrationFee);
-  const [gateway, overdue] =
-    fee > 0
-      ? await Promise.all([
-          getActivePartnerGateway(event.hub.ownerId),
-          isServiceFeeOverdue(event.hub.ownerId),
-        ])
-      : [null, false];
-  if (fee > 0 && !gateway) {
+  const paymentSetup =
+    fee > 0 ? await getPartnerPaymentSetup(event.hub.ownerId) : null;
+  const manualPayment = paymentSetup?.mode === "MANUAL";
+  const overdue =
+    fee > 0 && !manualPayment
+      ? await isServiceFeeOverdue(event.hub.ownerId)
+      : false;
+  if (
+    fee > 0 &&
+    (!paymentSetup ||
+      (manualPayment
+        ? !paymentSetup.manualReady
+        : !paymentSetup.automaticReady))
+  ) {
     return { message: "The organizer's payment account is not available." };
   }
   if (overdue) {
@@ -549,6 +574,7 @@ export async function registerForEventAction(
             status: true,
             chargeStartedAt: true,
             providerPaymentId: true,
+            manualSubmittedAt: true,
           },
         },
       },
@@ -571,7 +597,8 @@ export async function registerForEventAction(
       existing?.bookingPaymentId &&
       existing.payment?.status === "PENDING" &&
       (existing.payment.chargeStartedAt != null ||
-        existing.payment.providerPaymentId != null)
+        existing.payment.providerPaymentId != null ||
+        existing.payment.manualSubmittedAt != null)
     ) {
       return {
         kind: "payment" as const,
@@ -665,18 +692,24 @@ export async function registerForEventAction(
     const payment = await tx.bookingPayment.create({
       data: {
         partnerId: event.hub.ownerId,
-        gatewayId: gateway!.id,
+        gatewayId: manualPayment ? null : paymentSetup!.gateway!.id,
         userId: viewer.id,
         hubId: event.hubId,
-        amount: new Prisma.Decimal(grossFor(venueAmount)),
+        amount: new Prisma.Decimal(
+          manualPayment ? venueAmount : grossFor(venueAmount)
+        ),
         venueAmount: new Prisma.Decimal(venueAmount),
         platformFee: new Prisma.Decimal(
-          bookingServiceFeeFor(venueAmount)
+          manualPayment ? 0 : bookingServiceFeeFor(venueAmount)
         ),
-        method: "QRPH",
+        processingFee: new Prisma.Decimal(0),
+        method: manualPayment ? "MANUAL" : "QRPH",
+        collectionMode: manualPayment ? "MANUAL" : "AUTOMATIC",
         status: "PENDING",
         expiresAt: holdExpiresAt,
-        provider: gateway!.provider,
+        provider: manualPayment
+          ? "manual"
+          : paymentSetup!.gateway!.provider,
       },
       select: { id: true },
     });
@@ -717,10 +750,12 @@ export async function registerForEventAction(
   if (outcome.kind === "payment") {
     // Create the QR Ph checkout now so the next screen can display it without
     // asking the player to press a second payment button.
-    await chargeBookingPayment({
-      paymentId: outcome.paymentId,
-      userId: viewer.id,
-    });
+    if (!manualPayment) {
+      await chargeBookingPayment({
+        paymentId: outcome.paymentId,
+        userId: viewer.id,
+      });
+    }
     redirect(`/events/${event.publicId}/pay/${outcome.paymentId}`);
   }
   if (outcome.kind === "paid-closed") {
@@ -802,14 +837,20 @@ export async function addEventGuestSlotsAction(
   }
 
   const fee = Number(event.registrationFee);
-  const [gateway, overdue] =
-    fee > 0
-      ? await Promise.all([
-          getActivePartnerGateway(event.hub.ownerId),
-          isServiceFeeOverdue(event.hub.ownerId),
-        ])
-      : [null, false];
-  if (fee > 0 && !gateway) {
+  const paymentSetup =
+    fee > 0 ? await getPartnerPaymentSetup(event.hub.ownerId) : null;
+  const manualPayment = paymentSetup?.mode === "MANUAL";
+  const overdue =
+    fee > 0 && !manualPayment
+      ? await isServiceFeeOverdue(event.hub.ownerId)
+      : false;
+  if (
+    fee > 0 &&
+    (!paymentSetup ||
+      (manualPayment
+        ? !paymentSetup.manualReady
+        : !paymentSetup.automaticReady))
+  ) {
     return { message: "The organizer's payment account is not available." };
   }
   if (overdue) {
@@ -851,6 +892,7 @@ export async function addEventGuestSlotsAction(
                 status: true,
                 chargeStartedAt: true,
                 providerPaymentId: true,
+                manualSubmittedAt: true,
               },
             },
           },
@@ -869,7 +911,8 @@ export async function addEventGuestSlotsAction(
         pendingGuest.holdExpiresAt != null &&
         pendingGuest.holdExpiresAt > now) ||
         pendingGuest.payment.chargeStartedAt != null ||
-        pendingGuest.payment.providerPaymentId != null)
+        pendingGuest.payment.providerPaymentId != null ||
+        pendingGuest.payment.manualSubmittedAt != null)
     ) {
       return {
         kind: "payment" as const,
@@ -903,18 +946,24 @@ export async function addEventGuestSlotsAction(
     const payment = await tx.bookingPayment.create({
       data: {
         partnerId: event.hub.ownerId,
-        gatewayId: gateway!.id,
+        gatewayId: manualPayment ? null : paymentSetup!.gateway!.id,
         userId: viewer.id,
         hubId: event.hubId,
-        amount: new Prisma.Decimal(grossFor(venueAmount)),
+        amount: new Prisma.Decimal(
+          manualPayment ? venueAmount : grossFor(venueAmount)
+        ),
         venueAmount: new Prisma.Decimal(venueAmount),
         platformFee: new Prisma.Decimal(
-          bookingServiceFeeFor(venueAmount)
+          manualPayment ? 0 : bookingServiceFeeFor(venueAmount)
         ),
-        method: "QRPH",
+        processingFee: new Prisma.Decimal(0),
+        method: manualPayment ? "MANUAL" : "QRPH",
+        collectionMode: manualPayment ? "MANUAL" : "AUTOMATIC",
         status: "PENDING",
         expiresAt: holdExpiresAt,
-        provider: gateway!.provider,
+        provider: manualPayment
+          ? "manual"
+          : paymentSetup!.gateway!.provider,
       },
       select: { id: true },
     });
@@ -932,10 +981,12 @@ export async function addEventGuestSlotsAction(
 
   revalidateEventSurfaces(event.publicId, event.hubId);
   if (outcome.kind === "payment") {
-    await chargeBookingPayment({
-      paymentId: outcome.paymentId,
-      userId: viewer.id,
-    });
+    if (!manualPayment) {
+      await chargeBookingPayment({
+        paymentId: outcome.paymentId,
+        userId: viewer.id,
+      });
+    }
     redirect(`/events/${event.publicId}/pay/${outcome.paymentId}`);
   }
   if (outcome.kind === "insufficient") {

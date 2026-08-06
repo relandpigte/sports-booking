@@ -7,6 +7,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { CancelEventPanel } from "@/components/events/CancelEventPanel";
+import { ManualPaymentReview } from "@/components/bookings/ManualPaymentReview";
 import { DeleteCancelledEventButton } from "@/components/events/DeleteCancelledEventButton";
 import { EventForm } from "@/components/events/EventForm";
 import { OrganizerGuestPanel } from "@/components/events/OrganizerGuestPanel";
@@ -547,6 +548,23 @@ export default async function PartnerEventDetailsPage({
                           <p className="truncate font-mono text-xs text-slate-500">
                             {payment.providerRef ?? "Not available"}
                           </p>
+                          {payment.collectionMode === "MANUAL" &&
+                            payment.manualSubmittedAt && (
+                              <div className="min-w-80">
+                                <ManualPaymentReview
+                                  payment={{
+                                    id: payment.id,
+                                    status: payment.status,
+                                    receiptImage: payment.manualReceiptImage,
+                                    methodLabel: payment.manualMethodLabel,
+                                    paymentReference: payment.manualPaymentRef,
+                                    submittedAt: payment.manualSubmittedAt,
+                                    reviewNote: payment.manualReviewNote,
+                                    refundedAt: payment.refundedAt,
+                                  }}
+                                />
+                              </div>
+                            )}
                         </td>
                       </tr>
                     );

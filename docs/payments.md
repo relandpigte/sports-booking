@@ -1,8 +1,9 @@
 # Payments
 
 Bunal.club has no partner plans, subscriptions, or monthly charges. Partners use
-the application for free. Player court bookings and paid event registrations go
-through the venue's own PayMongo account.
+the application for free. Each partner selects one account-wide collection mode
+for all new court bookings, paid event registrations, and paid guest add-ons:
+automatic PayMongo QR Ph or partner-reviewed manual transfer.
 
 ## Partner activation
 
@@ -10,11 +11,12 @@ Public partner registrations start in `DRAFT`. The partner submits owner and
 first-hub details to move into `PENDING`. An admin reviews the application in
 `/users`, then activates the partner. An `ACTIVE` partner can manage hubs before connecting PayMongo.
 After it has at least one court, the hub appears in the public directory as
-Coming soon. Connecting PayMongo verifies the hub and opens online bookings.
+Coming soon. Completing the selected automatic or manual payment setup verifies
+the hub and opens online bookings.
 
 ## Pricing
 
-The player pays the venue's court rate plus a 3% service fee. The fee is
+In automatic mode, the player pays the venue's court rate plus a 3% service fee. The fee is
 calculated from the complete court total and charged once across the player's
 whole selection, including selections that contain gaps and create separate
 booking sessions. Each `BookingPayment`
@@ -33,6 +35,9 @@ plus VAT. `PAYMONGO_QRPH_PROCESSING_RATE` can override the VAT-inclusive rate
 for negotiated merchant pricing. For example, a ₱257.50 booking subtotal adds
 ₱3.92 and generates a ₱261.42 QR.
 
+In manual mode, the checkout total is exactly `venueAmount`; `platformFee` and
+`processingFee` are both zero. No service-fee ledger entry is created.
+
 For open play and other paid events, the registration fee is per person. A
 lead player may include named guests in the first checkout, so a ₱100 event
 with two guests charges `₱100 × 3`, plus the 3% service fee and PayMongo's QR
@@ -40,6 +45,31 @@ processing fee. The entire group is capacity-checked under one event lock and
 is held only when every requested spot is available. Confirmed players can add
 more named guests later through an incremental QR payment; an expired or
 failed add-on never changes the already-confirmed registration.
+
+## Manual player payments
+
+Partners configure any number of active GCash, Maya, bank-transfer, or custom
+destinations under **Dashboard → Payments**. Each destination can contain a
+display label, account name/details, instructions, and an optional QR image.
+The partner then selects **Manual** as its account-wide checkout mode.
+
+For every manual checkout:
+
+1. The requested court hours or event capacity are held for 15 minutes.
+2. The player chooses one of the partner's destinations, transfers the exact
+   venue amount, uploads a receipt image, and may add a transaction reference.
+3. No upload by the deadline releases the court hours or event capacity.
+4. A valid on-time upload freezes the reservation as **Pending booking** with
+   no second review deadline.
+5. The partner opens the existing booking or event-payment detail, reviews the
+   snapshotted payment instructions and receipt, then approves or declines.
+6. Approval confirms all linked court bookings or named event spots. Decline
+   immediately releases them and may include an optional reason.
+
+Manual refunds happen outside Bunal.club through the original network. After
+returning the full venue amount, the partner records the refund and optional
+reference on the booking or event payment. Manual payments have no service fee
+to retain.
 
 Venue partners may also add named complimentary guests from the event player
 list. These organizer-managed spots confirm immediately, count against event
@@ -151,7 +181,8 @@ the admin reviews it; rejection restores the overdue block.
 ## Booking settlement
 
 A paid booking or event group begins as a 15-minute hold. The app creates the payment ledger
-before calling PayMongo and claims the charge atomically to prevent duplicate
+before either displaying manual destinations or calling PayMongo. Automatic
+payments claim the charge atomically to prevent duplicate
 Payment Intents. It creates a single-use QR Ph Payment Method with the same
 expiry, stores PayMongo's Base64 QR image, and renders it directly on the court
 or event payment screen. A signed `payment.paid` webhook marks the payment
@@ -169,7 +200,8 @@ curl -X POST \
 
 Availability does not depend on the cron: expired holds stop blocking slots
 based on the current time. The sweep removes stale rows and closes their ledger
-records.
+records. Submitted manual proofs are excluded from expiry and continue counting
+against court or event capacity until a partner reviews them.
 
 ## Verification
 

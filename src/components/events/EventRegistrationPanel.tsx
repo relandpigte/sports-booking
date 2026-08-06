@@ -25,6 +25,7 @@ type Registration = {
 export function EventRegistrationPanel({
   publicId,
   fee,
+  paymentMode,
   signedIn,
   viewerName,
   viewerRole,
@@ -35,6 +36,7 @@ export function EventRegistrationPanel({
 }: {
   publicId: string;
   fee: number;
+  paymentMode: "AUTOMATIC" | "MANUAL";
   signedIn: boolean;
   viewerName: string;
   viewerRole?: "ADMIN" | "PLAYER" | "PARTNER";
@@ -110,6 +112,7 @@ export function EventRegistrationPanel({
                   publicId={publicId}
                   viewerName={viewerName}
                   fee={fee}
+                  paymentMode={paymentMode}
                   maxGuests={remainingSpots}
                   mode="add"
                 />
@@ -161,6 +164,7 @@ export function EventRegistrationPanel({
               publicId={publicId}
               viewerName={viewerName}
               fee={fee}
+              paymentMode={paymentMode}
               maxGuests={Math.max(0, remainingSpots - 1)}
               mode="register"
             />
@@ -169,7 +173,9 @@ export function EventRegistrationPanel({
       </div>
       <div className="border-t border-slate-100 bg-navy-soft/30 px-6 py-4 text-center text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
         {fee > 0
-          ? "Secure payments by PayMongo"
+          ? paymentMode === "MANUAL"
+            ? "Direct venue payment · receipt review required"
+            : "Secure payments by PayMongo"
           : "Free registration · no payment required"}
       </div>
     </div>
@@ -183,6 +189,7 @@ function GuestSlotForm({
   publicId,
   viewerName,
   fee,
+  paymentMode,
   maxGuests,
   mode,
 }: {
@@ -192,6 +199,7 @@ function GuestSlotForm({
   publicId: string;
   viewerName: string;
   fee: number;
+  paymentMode: "AUTOMATIC" | "MANUAL";
   maxGuests: number;
   mode: "register" | "add";
 }) {
@@ -199,7 +207,8 @@ function GuestSlotForm({
   const leadIncluded = mode === "register";
   const paidSpotCount = guestNames.length + (leadIncluded ? 1 : 0);
   const venueAmount = fee * paidSpotCount;
-  const serviceFee = bookingServiceFeeFor(venueAmount);
+  const serviceFee =
+    paymentMode === "MANUAL" ? 0 : bookingServiceFeeFor(venueAmount);
   const total = venueAmount + serviceFee;
   const canSubmit = mode === "register" || guestNames.length > 0;
 
@@ -312,8 +321,9 @@ function GuestSlotForm({
 
       {fee > 0 && paidSpotCount > 0 && (
         <p className="text-xs leading-5 text-slate-400">
-          Pay securely with QR Ph through PayMongo. Any processing fee is shown
-          before you complete payment.
+          {paymentMode === "MANUAL"
+            ? "Transfer the exact venue amount and upload a receipt within 15 minutes. The organizer confirms after review; no Bunal or PayMongo fee is added."
+            : "Pay securely with QR Ph through PayMongo. Any processing fee is shown before you complete payment."}
         </p>
       )}
 

@@ -217,12 +217,12 @@ export function GatewayPanel({ gateway }: { gateway: GatewayView | null }) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-gray-900">
-            Getting paid by players
+            Automatic payments · PayMongo
           </h2>
           <p className="mt-1 text-sm text-gray-500">
-            Connect your own payment account. Players pay you directly and you
-            keep your full court rate. A {SERVICE_FEE_PERCENT}% service fee is
-            deposited alongside it and remitted to Bunal.club through the
+            Used when Checkout mode is Automatic. Players pay you directly and
+            you keep your full court rate. A {SERVICE_FEE_PERCENT}% service fee
+            is deposited alongside it and remitted to Bunal.club through the
             settlement panel below.
           </p>
         </div>

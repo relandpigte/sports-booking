@@ -20,6 +20,7 @@ const currentUserSelect = {
   image: true,
   role: true,
   partnerStatus: true,
+  partnerPaymentMode: true,
   skillLevel: true,
   privateProfile: true,
 } as const;

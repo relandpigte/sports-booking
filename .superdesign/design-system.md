@@ -117,6 +117,33 @@ Use 150–250ms color, border, transform, and shadow transitions. Respect
 branching. Maintain visible focus states, semantic headings, descriptive link
 labels, 44px tap targets, sufficient contrast, and server-stable markup.
 
+## Partner-selected player payment mode
+
+- Each partner account uses one payment mode for new bookings: automatic
+  PayMongo QR Ph or manual transfer. Players do not choose between automatic
+  and manual; they follow the mode selected by the venue partner.
+- Automatic mode keeps the existing direct QR Ph checkout, Bunal.club service
+  fee, PayMongo processing fee, and automatic confirmation.
+- Manual mode shows the partner's active GCash, Maya, bank-transfer, and custom
+  networks. Manual payments contain no Bunal.club service fee and no PayMongo
+  processing fee.
+- Manual checkout uses one focused responsive page: booking/event summary,
+  exact amount, 15-minute countdown, payment-network cards with QR/account
+  details, optional transaction reference, receipt upload, and one submission
+  action. Use the supplied Courtogo screenshot only for information hierarchy;
+  retain Bunal.club's own shell, palette, typography, radii, and component
+  language.
+- Before receipt submission, the copy must say that the slot will be released
+  when the 15-minute hold expires. After submission, replace the timer with a
+  clear amber “Pending booking” state explaining that the venue must approve
+  the proof before confirmation.
+- Partner review stays inside existing booking and event detail surfaces. Show
+  expected amount, chosen network, reference, receipt preview, submission time,
+  and Approve/Decline actions. Decline reason is optional and releases the held
+  court or event capacity immediately.
+- Do not imply that Bunal.club verifies manual transfers. The venue partner is
+  responsible for reviewing proof and confirming or declining the booking.
+
 ## Authenticated dashboard architecture
 
 The dashboard must feel like the operational side of the same Bunal.club

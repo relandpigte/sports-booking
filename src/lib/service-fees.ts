@@ -109,7 +109,7 @@ function serviceFeeBalanceFromLedger({
   const paidAmount = money(paid);
   const pendingAmount = money(pending);
   const uncovered = money(earnedAmount - paidAmount - pendingAmount);
-  // A recent refund is allowed to reduce an older unpaid balance.
+  // Negative legacy/manual adjustments reduce the oldest unpaid balance.
   const overdueAmount = money(
     Math.max(
       0,

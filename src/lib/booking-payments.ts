@@ -1183,7 +1183,7 @@ export async function chargeBookingPayment(args: {
       return {
         status: "declined",
         message: settled.refunded
-          ? "Someone else took those hours before your payment finished, so we've refunded the booking subtotal."
+          ? "Someone else took those hours before your payment finished, so we've refunded the venue amount. The service fee is non-refundable."
           : "Someone else took those hours before your payment finished. Your refund is being processed.",
       };
     }
@@ -1259,6 +1259,7 @@ export async function refundBookingPayment(args: {
       id: true,
       status: true,
       amount: true,
+      platformFee: true,
       processingFee: true,
       gatewayId: true,
       providerPaymentId: true,
@@ -1273,7 +1274,11 @@ export async function refundBookingPayment(args: {
     return { ok: false, message: "That payment has no gateway reference to refund." };
   }
 
-  const amount = Number(payment.amount) + Number(payment.processingFee);
+  // The Bunal.club service fee is earned when payment settles and remains
+  // non-refundable. Return the venue amount and the checkout processing fee.
+  const amount = Number(
+    payment.amount.minus(payment.platformFee).plus(payment.processingFee).toFixed(2)
+  );
   const creds = await loadGatewayCredentials(payment.gatewayId);
 
   let gateway;
@@ -1329,7 +1334,7 @@ export async function markBookingPaymentRefunded(args: {
   await prisma.$transaction(async (tx) => {
     const updated = await tx.bookingPayment.updateMany({
       // Re-asserted: two legs can arrive at once, and the loser must not
-      // overwrite the winner's reference or reverse the fee twice.
+      // overwrite the winner's reference or duplicate ledger work.
       where: { id: args.paymentId, status: { not: "REFUNDED" } },
       data: {
         status: "REFUNDED",
@@ -1342,34 +1347,18 @@ export async function markBookingPaymentRefunded(args: {
     });
     if (updated.count !== 1) return;
 
-    const charge = await tx.serviceFeeEntry.findUnique({
-      where: {
-        bookingPaymentId_type: {
-          bookingPaymentId: args.paymentId,
-          type: "CHARGE",
-        },
+    const payment = await tx.bookingPayment.findUnique({
+      where: { id: args.paymentId },
+      select: {
+        id: true,
+        partnerId: true,
+        platformFee: true,
+        paidAt: true,
       },
-      select: { partnerId: true, amount: true },
     });
-    // A paid checkout whose court hold was lost is refunded before it ever
-    // earns a service fee, so it has no charge to reverse.
-    if (!charge) return;
-
-    await tx.serviceFeeEntry.upsert({
-      where: {
-        bookingPaymentId_type: {
-          bookingPaymentId: args.paymentId,
-          type: "REFUND",
-        },
-      },
-      create: {
-        partnerId: charge.partnerId,
-        bookingPaymentId: args.paymentId,
-        type: "REFUND",
-        amount: charge.amount.negated(),
-      },
-      update: {},
-    });
+    // Retain the service fee on every refund path. This also records the fee
+    // for a paid checkout whose court hold was lost before confirmation.
+    if (payment) await ensureServiceFeeCharge(tx, payment);
   });
 }
 

@@ -3,7 +3,7 @@
 //   npm run check:fee
 //
 // The fee quoted to a player must be the fee stored on the payment and reported
-// to admins. Refunded payments must not count as retained service fees.
+// to admins. Refunded payments must continue to count as retained service fees.
 import crypto from "node:crypto";
 
 import { PrismaClient } from "@prisma/client";
@@ -119,7 +119,7 @@ async function check() {
         provider: "paymongo",
         paidAt: opts.paidAt ?? new Date("2026-06-15T04:00:00Z"),
         refundedAt: opts.refunded ? new Date("2026-06-16T04:00:00Z") : null,
-        refundedAmount: opts.refunded ? grossFor(courtTotal) : null,
+        refundedAmount: opts.refunded ? courtTotal : null,
       },
       select: { id: true },
     });
@@ -173,8 +173,8 @@ async function check() {
   );
   const marketplace = await marketplaceRevenue(monthRange(2026, 6));
   ok(
-    "admin reporting includes only retained service fees",
-    marketplace.serviceFees >= 22.5
+    "admin reporting retains the service fee from refunded payments",
+    marketplace.serviceFees >= 52.5
   );
 
   await cleanup();

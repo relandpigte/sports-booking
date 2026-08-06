@@ -302,17 +302,23 @@ export async function marketplaceRevenue(
       amount: Number(r.amount),
       paidAt: r.paidAt,
       refundedAt: r.refundedAt,
-      refundedAmount: r.refundedAmount != null ? Number(r.refundedAmount) : null,
+      // Marketplace gross excludes PayMongo's processing fee. Reverse only
+      // the venue share here so the non-refundable service fee remains net
+      // platform revenue, including when a refund originated in PayMongo.
+      refundedAmount: r.refundedAt ? Number(r.venueAmount) : null,
     })),
     range
   );
 
-  // Refunded payments earn us nothing: the fee went back with the rest.
-  const kept = rows.filter((r) => r.paidAt && !r.refundedAt);
+  const paid = rows.filter((r) => r.paidAt);
+  const keptByVenues = paid.filter((r) => !r.refundedAt);
   return {
     ...series,
-    serviceFees: kept.reduce((sum, r) => sum + Number(r.platformFee), 0),
-    venueShare: kept.reduce((sum, r) => sum + Number(r.venueAmount), 0),
+    serviceFees: paid.reduce((sum, r) => sum + Number(r.platformFee), 0),
+    venueShare: keptByVenues.reduce(
+      (sum, r) => sum + Number(r.venueAmount),
+      0
+    ),
   };
 }
 

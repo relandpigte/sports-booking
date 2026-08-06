@@ -45,6 +45,8 @@ export default async function PayEventRegistrationPage({
   const event = payment.event!;
   const registrationConfirmed = event.registrationStatus === "CONFIRMED";
   const holdLive = payment.status === "PENDING" && payment.secondsLeft > 0;
+  const refundedAmount =
+    payment.refundedAmount ?? payment.venueAmount + payment.processingFee;
   const activeCheckoutUrl =
     holdLive && payment.chargeInFlight ? payment.redirectUrl : null;
   const activeQrImageUrl =
@@ -101,7 +103,9 @@ export default async function PayEventRegistrationPage({
                 <dd className="font-semibold text-navy">{formatPHP(payment.venueAmount)}</dd>
               </div>
               <div className="flex justify-between gap-4">
-                <dt className="text-slate-500">Bunal service fee</dt>
+                <dt className="text-slate-500">
+                  Bunal service fee (non-refundable)
+                </dt>
                 <dd className="font-semibold text-navy">{formatPHP(payment.platformFee)}</dd>
               </div>
               {payment.processingFee > 0 && (
@@ -157,7 +161,9 @@ export default async function PayEventRegistrationPage({
               ) : payment.status === "REFUNDED" ? (
                 <div className="space-y-4">
                   <p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-700">
-                    {payment.refundReason ?? "This registration was refunded."}
+                    {payment.refundReason ?? "This registration was refunded."}{" "}
+                    {formatPHP(refundedAmount)} was returned; the{" "}
+                    {formatPHP(payment.platformFee)} service fee was retained.
                   </p>
                   <Link href="/events" className="block rounded-2xl bg-primary px-4 py-3.5 text-center text-sm font-bold text-white hover:bg-primary-hover">
                     Browse events

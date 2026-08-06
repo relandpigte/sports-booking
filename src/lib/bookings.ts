@@ -50,8 +50,8 @@ export type BookingView = {
   // moved. Assembled here rather than at render time, like the flag below.
   movedFrom: BookingMove | null;
   // Present only for a booking made at a venue that takes payment online.
-  // Deliberately just the id and the state — a card renders "Paid", it never
-  // needs the gateway's side of the story.
+  // Deliberately excludes gateway identifiers. Amount snapshots are included
+  // so booking cards can distinguish a refund from the retained service fee.
   payment: {
     id: string;
     status: PaymentStatus;
@@ -59,6 +59,8 @@ export type BookingView = {
     // PayMongo processing fee is only needed on payment and refund surfaces.
     amount: number;
     platformFee: number;
+    processingFee: number;
+    refundedAmount: number | null;
   } | null;
   court: { id: string; name: string; courtType: string };
   hub: {
@@ -101,7 +103,14 @@ const bookingSelect = {
   prevEndHour: true,
   prevTotalPrice: true,
   bookingPayment: {
-    select: { id: true, status: true, amount: true, platformFee: true },
+    select: {
+      id: true,
+      status: true,
+      amount: true,
+      platformFee: true,
+      processingFee: true,
+      refundedAmount: true,
+    },
   },
   court: { select: { id: true, name: true, courtType: true } },
   hub: {
@@ -180,6 +189,11 @@ function mapBooking(row: BookingRow): BookingView {
           status: bookingPayment.status,
           amount: Number(bookingPayment.amount),
           platformFee: Number(bookingPayment.platformFee),
+          processingFee: Number(bookingPayment.processingFee),
+          refundedAmount:
+            bookingPayment.refundedAmount == null
+              ? null
+              : Number(bookingPayment.refundedAmount),
         }
       : null,
     player: user,

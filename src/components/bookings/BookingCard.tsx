@@ -50,6 +50,11 @@ export function BookingCard({
   const holding = booking.status === "PENDING";
   const paid = booking.payment?.status === "SUCCEEDED";
   const refunded = booking.payment?.status === "REFUNDED";
+  const refundableAmount = booking.payment
+    ? booking.payment.amount -
+      booking.payment.platformFee +
+      booking.payment.processingFee
+    : null;
 
   return (
     <div className="rounded-2xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5 sm:p-6">
@@ -119,7 +124,9 @@ export function BookingCard({
                 PayMongo QR Ph processing fee shown on the payment screen. */}
             {booking.payment.platformFee > 0 && (
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-gray-500">Service fee</dt>
+                <dt className="text-gray-500">
+                  Service fee{refunded ? " (retained)" : ""}
+                </dt>
                 <dd className="text-gray-500">
                   {formatPHP(booking.payment.platformFee)}
                 </dd>
@@ -130,7 +137,11 @@ export function BookingCard({
                 {refunded ? "Refunded" : "Booking subtotal"}
               </dt>
               <dd className="font-medium text-gray-900">
-                {formatPHP(booking.payment.amount)}
+                {formatPHP(
+                  refunded
+                    ? (booking.payment.refundedAmount ?? refundableAmount ?? 0)
+                    : booking.payment.amount
+                )}
               </dd>
             </div>
           </>
@@ -207,7 +218,7 @@ export function BookingCard({
             bookingId={booking.id}
             amountLabel={
               booking.payment
-                ? formatPHP(booking.payment.amount)
+                ? formatPHP(refundableAmount ?? booking.payment.amount)
                 : undefined
             }
           />

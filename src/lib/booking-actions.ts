@@ -415,7 +415,10 @@ export async function cancelHubBookingAction(
       success: `Booking cancelled, but the refund failed: ${refund.message} You can retry the refund from the booking.`,
     };
   }
-  return { success: "Booking cancelled and its subtotal was refunded." };
+  return {
+    success:
+      "Booking cancelled and the refundable amount was returned. The service fee remains non-refundable.",
+  };
 }
 
 // Refunding on its own — the retry when the refund leg of a cancellation
@@ -474,7 +477,7 @@ export async function refundBookingAction(
   return {
     success: refund.alreadyRefunded
       ? "That payment was already refunded."
-      : "The booking subtotal was refunded.",
+      : "The refundable amount was returned. The service fee remains non-refundable.",
   };
 }
 

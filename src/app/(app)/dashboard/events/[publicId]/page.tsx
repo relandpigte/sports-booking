@@ -580,7 +580,8 @@ export default async function PartnerEventDetailsPage({
               <h2 className="text-lg font-black text-navy">Event controls</h2>
               <p className="mb-5 mt-1 text-sm text-slate-500">
                 Cancellation releases every selected court-hour and can refund
-                successful player payments.
+                successful player payments. Bunal.club service fees remain
+                non-refundable.
               </p>
               <CancelEventPanel eventId={event.id} />
             </section>

@@ -47,6 +47,8 @@ export default async function PayBookingPage({
 
   const { payment, venueName } = screen;
   const holdLive = payment.status === "PENDING" && payment.secondsLeft > 0;
+  const refundedAmount =
+    payment.refundedAmount ?? payment.venueAmount + payment.processingFee;
   // Existing hosted sessions and current direct QR intents both remain bound
   // to the same claimed payment row while the hold is live.
   const activeCheckoutUrl =
@@ -102,7 +104,9 @@ export default async function PayBookingPage({
           </div>
           {payment.platformFee > 0 && (
             <div className="flex items-center justify-between">
-              <dt className="text-gray-500">Service fee</dt>
+              <dt className="text-gray-500">
+                Service fee (non-refundable)
+              </dt>
               <dd className="text-gray-900">{formatPHP(payment.platformFee)}</dd>
             </div>
           )}
@@ -140,8 +144,9 @@ export default async function PayBookingPage({
           {payment.status === "REFUNDED" && (
             <div className="flex flex-col gap-3">
               <p className="rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-700">
-                {payment.refundReason ??
-                  "The booking subtotal was refunded."}
+                {payment.refundReason ?? "This booking was refunded."}{" "}
+                {formatPHP(refundedAmount)} was returned; the{" "}
+                {formatPHP(payment.platformFee)} service fee was retained.
               </p>
               <Link
                 href="/hubs"

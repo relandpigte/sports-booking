@@ -79,9 +79,9 @@ export function CancelBookingButton({
             className="mt-0.5"
           />
           <span>
-            Refund the {amountLabel ?? "payment"} booking subtotal. The money
-            goes back from your gateway; PayMongo controls its processing-fee
-            treatment.
+            Refund {amountLabel ?? "the refundable amount"}. The Bunal.club
+            service fee stays charged; the money goes back through your
+            gateway.
           </span>
         </label>
       )}

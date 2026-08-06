@@ -202,24 +202,24 @@ async function check() {
     refundRef: "re_check",
   });
   const refunded = await calculateServiceFeeBalance(prisma, partner.id, NOW);
-  ok("a refund reverses its service fee", refunded.earned === 30);
-  ok("the approved remittance clears the balance", refunded.amountDue === 0);
-  ok("a cleared balance does not block bookings", !refunded.blocked);
+  ok("a refund retains its service fee", refunded.earned === 45);
+  ok("the retained recent fee remains due", refunded.amountDue === 15);
+  ok("a recent retained fee does not block bookings", !refunded.blocked);
   ok(
-    "a paid balance is current",
-    serviceFeeStanding(refunded) === "CURRENT"
+    "the retained recent fee is due soon",
+    serviceFeeStanding(refunded) === "DUE_SOON"
   );
   const adminCurrent = (
     await listAdminPartnerServiceFeeBreakdown(NOW)
   ).find((row) => row.partnerId === partner.id);
   ok(
-    "the owner breakdown shows the cleared balance and latest payment",
-    adminCurrent?.standing === "CURRENT" &&
-      adminCurrent.balance.amountDue === 0 &&
+    "the owner breakdown shows the retained balance and latest payment",
+    adminCurrent?.standing === "DUE_SOON" &&
+      adminCurrent.balance.amountDue === 15 &&
       adminCurrent.lastPaidAmount === 30
   );
   ok(
-    "a cleared balance keeps the hub publicly visible",
+    "a non-overdue balance keeps the hub publicly visible",
     (await listPublicHubs()).some((listed) => listed.id === partnerHub.id)
   );
 }

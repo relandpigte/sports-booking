@@ -110,7 +110,9 @@ Cloudflare Tunnel or ngrok for local webhook testing.
 The partner's PayMongo account receives the complete booking subtotal after
 PayMongo deducts the separately charged QR Ph processing fee. After a
 successful booking is confirmed, an immutable `ServiceFeeEntry` records the
-3% fee owed to Bunal.club; a full refund creates an equal negative entry.
+3% fee owed to Bunal.club. That service fee is non-refundable: an app-managed
+refund returns the venue amount and the separately charged PayMongo processing
+fee, retains the service fee, and does not create a negative ledger entry.
 Partners remit the outstanding balance from `/dashboard/payments`. The primary
 flow opens an exact-amount QR Ph-only PayMongo hosted checkout in Bunal.club's
 own account. A signed

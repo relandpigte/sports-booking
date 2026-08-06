@@ -382,12 +382,30 @@ async function check() {
     where: { id: one.payment.id },
   });
   ok("recorded as REFUNDED", refunded!.status === "REFUNDED");
-  ok("for the full QR amount", Number(refunded!.refundedAmount) === 522.85);
   ok(
-    "the refund reverses the service fee",
+    "the venue and processing amounts are refunded without the service fee",
+    Number(refunded!.refundedAmount) === 507.85
+  );
+  const refundRequest = mock.requests.find(
+    (request) =>
+      request.method === "POST" && request.url.endsWith("/refunds")
+  );
+  ok(
+    "PayMongo receives the partial refund in exact centavos",
+    (
+      refundRequest!.body as {
+        data: { attributes: { amount: number } };
+      }
+    ).data.attributes.amount === 50_785
+  );
+  ok(
+    "the non-refundable service fee remains charged",
+    (await prisma.serviceFeeEntry.count({
+      where: { bookingPaymentId: one.payment.id, type: "CHARGE" },
+    })) === 1 &&
     (await prisma.serviceFeeEntry.count({
       where: { bookingPaymentId: one.payment.id, type: "REFUND" },
-    })) === 1
+    })) === 0
   );
   ok(
     "and refunding twice does not refund twice",

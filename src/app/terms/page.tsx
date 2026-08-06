@@ -50,8 +50,9 @@ export default function TermsPage() {
             PayMongo may add its own processing fee — shown before you
             confirm. Payment goes directly to that venue&apos;s own
             connected PayMongo account. Refunds for online payments are
-            returned through PayMongo; refunds and no-show handling
-            otherwise follow the participating venue&apos;s own policy.
+            returned through PayMongo. Bunal.club&apos;s service fee is
+            non-refundable; all other refund and no-show handling follows the
+            participating venue&apos;s own policy.
           </p>
         </LegalSection>
 

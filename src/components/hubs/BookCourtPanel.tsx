@@ -369,7 +369,7 @@ export function BookCourtPanel({
                   )}
                   {requiresOnlinePayment && (
                     <div className="flex items-center justify-between gap-3 text-navy/65">
-                      <span>Service fee (3%)</span>
+                      <span>Service fee (3%, non-refundable)</span>
                       <span className="shrink-0 font-semibold text-navy">
                         {formatPHP(bookingServiceFeeFor(pricedTotal))}
                       </span>

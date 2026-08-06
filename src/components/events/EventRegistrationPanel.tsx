@@ -297,7 +297,7 @@ function GuestSlotForm({
           </div>
           {serviceFee > 0 && (
             <div className="flex justify-between gap-4 text-primary">
-              <dt>Bunal service fee (3%)</dt>
+              <dt>Bunal service fee (3%, non-refundable)</dt>
               <dd className="font-bold">{formatPHP(serviceFee)}</dd>
             </div>
           )}

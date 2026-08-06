@@ -75,7 +75,7 @@ export function RefundBookingButton({
         >
           {pending
             ? "Refunding…"
-            : `Refund ${amountLabel ?? "booking subtotal"}`}
+            : `Refund ${amountLabel ?? "refundable amount"}`}
         </button>
       </div>
     </form>

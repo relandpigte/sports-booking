@@ -1074,6 +1074,7 @@ export async function getOwnerEventDetails(
   const refundedPayments = payments.filter(
     (payment) => payment.status === "REFUNDED"
   );
+  const feeBearingPayments = [...successfulPayments, ...refundedPayments];
 
   return {
     id: row.id,
@@ -1111,7 +1112,7 @@ export async function getOwnerEventDetails(
         (total, payment) => total + payment.venueAmount,
         0
       ),
-      platformFees: successfulPayments.reduce(
+      platformFees: feeBearingPayments.reduce(
         (total, payment) => total + payment.platformFee,
         0
       ),

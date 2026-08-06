@@ -39,6 +39,11 @@ export function PartnerBookingListRow({
   const holding = booking.status === "PENDING";
   const paid = booking.payment?.status === "SUCCEEDED";
   const refunded = booking.payment?.status === "REFUNDED";
+  const refundableAmount = booking.payment
+    ? booking.payment.amount -
+      booking.payment.platformFee +
+      booking.payment.processingFee
+    : null;
   const playerName =
     booking.player.playerName ?? booking.player.name ?? "Player";
   const hasBookingActions =
@@ -106,7 +111,15 @@ export function PartnerBookingListRow({
           </p>
           {booking.payment && (paid || refunded) && (
             <p className="truncate text-xs text-gray-500">
-              {refunded ? "Refunded" : "Subtotal"}: {formatPHP(booking.payment.amount)}
+              {refunded ? "Refunded" : "Subtotal"}:{" "}
+              {formatPHP(
+                refunded
+                  ? (booking.payment.refundedAmount ?? refundableAmount ?? 0)
+                  : booking.payment.amount
+              )}
+              {refunded && booking.payment.platformFee > 0
+                ? ` · ${formatPHP(booking.payment.platformFee)} fee retained`
+                : ""}
             </p>
           )}
         </div>
@@ -173,7 +186,7 @@ export function PartnerBookingListRow({
               bookingId={booking.id}
               amountLabel={
                 booking.payment
-                  ? formatPHP(booking.payment.amount)
+                  ? formatPHP(refundableAmount ?? booking.payment.amount)
                   : undefined
               }
             />
@@ -202,7 +215,7 @@ export function PartnerBookingListRow({
                 paid={paid}
                 amountLabel={
                   booking.payment
-                    ? formatPHP(booking.payment.amount)
+                    ? formatPHP(refundableAmount ?? booking.payment.amount)
                     : undefined
                 }
               />

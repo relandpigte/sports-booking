@@ -190,7 +190,7 @@ export function EventCard({
             {!past && (
               <p className={`${event.pendingCount > 0 ? "mt-1" : "mt-2"} text-xs text-slate-400`}>
                 {event.registrationFee > 0
-                  ? "+ 3% Bunal service fee at checkout"
+                  ? "+ 3% non-refundable Bunal service fee at checkout"
                   : "Free registration · no checkout required"}
               </p>
             )}

@@ -92,10 +92,10 @@ hierarchy.
 3. Fast benefit rail: live availability, flexible hour selection, instant
    PayMongo confirmation, player/partner dashboards.
 4. Player flow: browse hub, choose court/hours, pay, play.
-5. Payment section: a prominent trust section for PayMongo-hosted checkout
-   with QR Ph, GCash, Maya, and credit/debit cards; participating QR Ph bank
-   and e-wallet apps; 15-minute booking hold; automatic confirmation; no card
-   details stored by Bunal.club; and a three-step visual showing player
+5. Payment section: a prominent trust section for QR Ph-only PayMongo-hosted
+   checkout; participating QR Ph bank and e-wallet apps; 15-minute booking
+   hold; automatic confirmation; no payment details stored by Bunal.club; and
+   a three-step visual showing player
    payment, PayMongo verification, and proceeds landing in the venue's own
    connected PayMongo account.
 6. Feature grid with only existing functionality: venue profiles and maps,

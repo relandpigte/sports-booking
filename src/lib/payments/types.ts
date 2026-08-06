@@ -49,6 +49,6 @@ export type ProviderWebhookEvent = {
   // Present when PayMongo includes the collected amount in the signed event.
   amountCentavos?: number;
   // How they actually paid, when the hosted checkout tells us.
-  methodType?: "CARD" | "GCASH" | "MAYA";
+  methodType?: "QRPH" | "CARD" | "GCASH" | "MAYA";
   raw: unknown;
 };

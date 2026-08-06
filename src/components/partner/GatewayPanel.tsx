@@ -144,16 +144,15 @@ function PayMongoSetupGuide({ connected }: { connected: boolean }) {
             </span>
             <div>
               <p className="text-sm font-medium text-gray-900">
-                Activate each payment method
+                Confirm QR Ph is available
               </p>
               <p className="mt-1 text-xs leading-5 text-gray-500">
                 In PayMongo live mode, open{" "}
                 <span className="font-medium text-gray-700">
                   Settings → Payment Methods
                 </span>
-                . QR Ph is enabled by default. Card, GCash, and Maya appear at
-                checkout only after PayMongo approves and activates them for
-                your account.
+                . Bunal.club uses QR Ph for every player checkout, so confirm
+                that it is available before accepting live bookings.
               </p>
             </div>
           </li>
@@ -237,13 +236,10 @@ export function GatewayPanel({ gateway }: { gateway: GatewayView | null }) {
         {connected && gateway && (
           <>
             <div className="rounded-xl border border-ocean/20 bg-ocean-soft px-4 py-3">
-              <p className="text-sm font-bold text-navy">
-                Seeing only QR Ph at checkout?
-              </p>
+              <p className="text-sm font-bold text-navy">QR Ph-only checkout</p>
               <p className="mt-1 text-xs leading-5 text-slate-600">
-                Bunal.club requests QR Ph, card, GCash, and Maya on every
-                PayMongo checkout. PayMongo displays only the methods activated
-                for this account. Enable your wallet and review{" "}
+                Bunal.club requests only QR Ph for court bookings and paid
+                events. Confirm that QR Ph is available under{" "}
                 <span className="font-semibold text-navy">
                   Settings → Payment Methods
                 </span>{" "}
@@ -255,7 +251,7 @@ export function GatewayPanel({ gateway }: { gateway: GatewayView | null }) {
                 rel="noreferrer"
                 className="mt-2 inline-flex text-xs font-bold text-ocean hover:underline"
               >
-                Read PayMongo&apos;s activation guide ↗
+                Read PayMongo&apos;s payment-method guide ↗
               </a>
             </div>
             <dl className="flex flex-col gap-2 rounded-xl bg-gray-50 px-3 py-3 text-sm">

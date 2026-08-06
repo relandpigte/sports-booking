@@ -20,7 +20,7 @@ export function ClosingCta() {
           </h2>
           <p className="mt-4 text-base leading-7 text-white/65">
             Find a nearby hub, choose your court and hours, and complete your
-            booking with the payment method that works for you.
+            booking securely with QR Ph.
           </p>
         </div>
         <div className="relative mt-8 flex shrink-0 flex-col gap-3 sm:flex-row lg:mt-0">

@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 
 import { PayMongoCheckout } from "@/components/bookings/PayMongoCheckout";
+import { PaymentStatusPoller } from "@/components/bookings/PaymentStatusPoller";
 import { Button } from "@/components/ui/Button";
 import { formatPHP } from "@/lib/currency";
 import {
@@ -29,7 +30,16 @@ export function EventPaymentPanel({
   );
 
   if (state.redirectUrl) {
-    return <PayMongoCheckout checkoutUrl={state.redirectUrl} />;
+    return (
+      <>
+        <PayMongoCheckout checkoutUrl={state.redirectUrl} />
+        <PaymentStatusPoller
+          paymentId={paymentId}
+          initialStatus="PENDING"
+          initialChargeInFlight
+        />
+      </>
+    );
   }
 
   return (
@@ -49,12 +59,14 @@ export function EventPaymentPanel({
       )}
 
       <p className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-600">
-        Pay with QR Ph, card, GCash or Maya on PayMongo&apos;s secure hosted
-        checkout. Payment details never pass through Bunal.club.
+        Pay with QR Ph on PayMongo&apos;s secure hosted checkout. Payment details
+        never pass through Bunal.club.
       </p>
 
       <Button type="submit" disabled={pending} className="rounded-2xl py-4">
-        {pending ? "Taking you to PayMongo…" : `Pay ${formatPHP(amount)}`}
+        {pending
+          ? "Preparing QR Ph…"
+          : `Retry QR Ph payment · ${formatPHP(amount)}`}
       </Button>
 
       <p className="text-center text-xs text-slate-400">

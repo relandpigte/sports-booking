@@ -41,9 +41,9 @@ export async function createServiceFeeCheckout(input: {
       partnerId: input.partnerId,
       partnerName: input.partnerName.slice(0, 120),
     },
-    // Keep every settlement method on PayMongo's hosted page. No card or
-    // wallet details pass through this application.
-    paymentMethodTypes: ["qrph", "card", "gcash", "paymaya"],
+    // QR Ph is the single online payment rail across player payments and
+    // partner service-fee settlements.
+    paymentMethodTypes: ["qrph"],
     // The admin receives the complete service-fee balance. PayMongo shows its
     // processing fee separately to the paying partner.
     passOnFees: true,

@@ -101,7 +101,7 @@ async function check() {
         amount: grossFor(venueAmount),
         venueAmount,
         platformFee: bookingServiceFeeFor(venueAmount),
-        method: "CARD",
+        method: "QRPH",
         status: "PENDING",
         expiresAt,
         provider: "paymongo",
@@ -162,9 +162,9 @@ async function check() {
     .data.attributes;
   ok("in centavos", (attrs.line_items as { amount: number }[])[0].amount === 51500);
   ok(
-    "offering card, GCash, Maya and QR Ph",
+    "offering QR Ph only",
     JSON.stringify(attrs.payment_method_types) ===
-      JSON.stringify(["card", "gcash", "paymaya", "qrph"])
+      JSON.stringify(["qrph"])
   );
   ok("tagged with our payment id", attrs.reference_number === one.payment.id);
   ok("PayMongo processing fees pass through", attrs.pass_on_fees === true);
@@ -238,7 +238,7 @@ async function check() {
   });
   ok("the payment succeeded", paid!.status === "SUCCEEDED");
   ok("the pay_ id is kept, which is what a refund needs", paid!.providerRef === payId);
-  ok("the method the payer actually chose is recorded", paid!.method === "GCASH");
+  ok("the QR Ph payment method is recorded", paid!.method === "QRPH");
   ok(
     "the successful booking accrues one service fee",
     (await prisma.serviceFeeEntry.count({

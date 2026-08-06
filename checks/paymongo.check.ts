@@ -37,7 +37,7 @@ function paidBody(sessionId = "cs_testsession", paymentId = "pay_testpayment") {
             payments: [
               {
                 id: paymentId,
-                attributes: { status: "paid", source: { type: "gcash" } },
+                attributes: { status: "paid", source: { type: "qrph" } },
               },
             ],
           },
@@ -64,7 +64,7 @@ async function main() {
     test?.providerPaymentId === "cs_testsession"
   );
   ok("carries the pay_ id as the reference", test?.reference === "pay_testpayment");
-  ok("reports the method the payer chose", test?.methodType === "GCASH");
+  ok("reports QR Ph as the payment method", test?.methodType === "QRPH");
 
   // --- 2. A valid live-mode signature ---------------------------------------
   // The header component differs (li, not te); verification must not care.

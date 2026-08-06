@@ -22,10 +22,10 @@ import { ensureServiceFeeCharge } from "@/lib/service-fees";
 // Players paying venues through each partner's own gateway.
 //
 // The rule this whole file is built around: a BookingPayment stays PENDING for
-// as long as its hold is alive, however many cards get declined against it.
+// as long as its hold is alive, however many QR Ph attempts fail against it.
 // PENDING means "the hours are still yours and no money has moved"; SUCCEEDED
 // means the money moved; FAILED is terminal and only ever set once the hold is
-// dead. That's what lets a player retry a declined card without us creating a
+// dead. That's what lets a player retry a failed checkout without us creating a
 // second payment row — and without the court being released underneath them.
 
 // ---------------------------------------------------------------------------
@@ -207,6 +207,34 @@ export async function getBookingPaymentScreen(
   return { payment, venueName: hub?.name ?? "the venue" };
 }
 
+export async function getBookingPaymentStatus(
+  paymentId: string,
+  userId: string
+): Promise<{
+  status: PaymentStatus;
+  secondsLeft: number;
+  chargeInFlight: boolean;
+} | null> {
+  const payment = await prisma.bookingPayment.findFirst({
+    where: { id: paymentId, userId },
+    select: {
+      status: true,
+      expiresAt: true,
+      chargeStartedAt: true,
+    },
+  });
+  if (!payment) return null;
+
+  return {
+    status: payment.status,
+    secondsLeft: Math.max(
+      0,
+      Math.round((payment.expiresAt.getTime() - Date.now()) / 1000)
+    ),
+    chargeInFlight: payment.chargeStartedAt != null,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // The ledger
 // ---------------------------------------------------------------------------
@@ -268,7 +296,7 @@ export async function recordBookingChargeResult(
   }
 
   // Declined. No money moved and the hold is still alive, so the row stays
-  // PENDING and the claim is released — the player can try another card
+  // PENDING and the claim is released — the player can retry QR Ph
   // against this same payment. Only expireBookingHolds writes FAILED.
   await prisma.bookingPayment.update({
     where: { id: paymentId },
@@ -643,8 +671,8 @@ export async function chargeBookingPayment(args: {
         chargeStartedAt: null,
         attempt: payment.attempt,
       },
-      // `method` is deliberately untouched: the player chooses card, GCash or
-      // Maya on PayMongo's page, and the webhook tells us which afterwards.
+      // `method` is already QRPH. The webhook still reports the actual source
+      // so historical multi-method sessions remain compatible during rollout.
       data: {
         chargeStartedAt: now,
         attempt,

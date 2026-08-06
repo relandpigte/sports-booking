@@ -133,7 +133,8 @@ export type CheckoutSession = {
 
 export function methodTypeOf(
   source?: string | null
-): "CARD" | "GCASH" | "MAYA" | undefined {
+): "QRPH" | "CARD" | "GCASH" | "MAYA" | undefined {
+  if (source === "qrph") return "QRPH";
   if (source === "card") return "CARD";
   if (source === "gcash") return "GCASH";
   if (source === "paymaya") return "MAYA";
@@ -154,7 +155,7 @@ export async function createCheckoutSession(
     referenceNumber: string;
     returnUrl: string;
     metadata: Record<string, string>;
-    paymentMethodTypes?: ("card" | "gcash" | "paymaya" | "qrph")[];
+    paymentMethodTypes: ("card" | "gcash" | "paymaya" | "qrph")[];
     passOnFees?: boolean;
     idempotencyKey?: string;
   }
@@ -174,12 +175,7 @@ export async function createCheckoutSession(
               quantity: 1,
             },
           ],
-          payment_method_types: input.paymentMethodTypes ?? [
-            "card",
-            "gcash",
-            "paymaya",
-            "qrph",
-          ],
+          payment_method_types: input.paymentMethodTypes,
           description: input.description,
           // Our own id, so a payment in the PayMongo dashboard can be traced
           // back without asking us.

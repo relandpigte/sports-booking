@@ -86,43 +86,21 @@ const FAQS = [
   {
     question: "Which payment methods can players use?",
     answer:
-      "PayMongo's hosted checkout supports QR Ph, GCash, Maya, and credit or debit cards when those channels are enabled for the venue's account.",
+      "Every paid court booking and event registration uses QR Ph through PayMongo's secure hosted checkout.",
   },
 ];
 
 const PAYMENT_METHODS = [
   {
-    name: "GCash",
-    detail: "E-wallet",
-    mark: "G",
-    markClassName: "bg-ocean-soft text-ocean",
-  },
-  {
-    name: "Maya",
-    detail: "E-wallet",
-    mark: "M",
-    markClassName: "bg-primary-soft text-primary",
-  },
-  {
     name: "QR Ph",
-    detail: "Scan to pay",
+    detail: "The only online payment method",
     mark: "QR",
     markClassName: "bg-accent-soft text-primary",
-  },
-  {
-    name: "Visa · Mastercard",
-    detail: "Credit or debit card",
-    mark: "••••",
-    markClassName: "bg-navy-soft text-navy",
   },
 ];
 
 const PAYMONGO_PROCESSING_RATES = [
   { method: "QR Ph online", rate: "1.34%" },
-  { method: "Maya", rate: "1.79%" },
-  { method: "GCash", rate: "2.23%" },
-  { method: "Visa · Mastercard (PH)", rate: "3.125% + ₱13.39" },
-  { method: "Visa · Mastercard (international)", rate: "4.02% + ₱13.39" },
 ];
 
 const QR_PH_APPS = [
@@ -463,7 +441,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
               {
                 icon: "card" as const,
                 title: "Easy payments",
-                copy: "QR Ph, GCash, Maya, or card.",
+                copy: "Secure QR Ph checkout.",
               },
               {
                 icon: "check" as const,
@@ -560,10 +538,9 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                 Pay securely. Get confirmed in seconds.
               </h2>
               <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-slate-600 sm:text-lg">
-                Choose a familiar payment method on PayMongo&apos;s hosted
-                checkout. Bunal.club verifies successful payment automatically
-                and confirms your booking without receipt screenshots or manual
-                follow-up.
+                Pay with QR Ph on PayMongo&apos;s hosted checkout. Bunal.club
+                verifies successful payment automatically and confirms your
+                booking without receipt screenshots or manual follow-up.
               </p>
             </div>
 
@@ -582,7 +559,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                 {
                   icon: "shield" as const,
                   label: "Secure hosted checkout",
-                  copy: "Payment and card details are handled by PayMongo, not Bunal.club.",
+                  copy: "Payment details are handled by PayMongo, not Bunal.club.",
                 },
               ].map((item) => (
                 <article
@@ -610,16 +587,16 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                       Pay with
                     </p>
                     <h3 className="mt-2 text-2xl font-black text-navy">
-                      One checkout. Familiar options.
+                      One checkout. QR Ph only.
                     </h3>
                   </div>
                   <p className="max-w-xs text-sm leading-6 text-slate-500">
-                    Available channels depend on the venue&apos;s activated
-                    PayMongo account.
+                    Scan with a participating Philippine banking or e-wallet
+                    app.
                   </p>
                 </div>
 
-                <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="mt-6 grid gap-3">
                   {PAYMENT_METHODS.map((method) => (
                     <div
                       key={method.name}
@@ -743,8 +720,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
               </p>
               <p className="inline-flex items-center gap-2">
                 <Icon name="card" className="h-4 w-4 text-primary" />
-                PayMongo&apos;s processing fee varies by payment method and is
-                shown before you pay —{" "}
+                PayMongo&apos;s QR Ph processing fee is shown before you pay —{" "}
                 <a href="#partners" className="font-bold text-primary hover:underline">
                   see current rates
                 </a>

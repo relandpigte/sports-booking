@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 
 import { PayMongoCheckout } from "@/components/bookings/PayMongoCheckout";
+import { PaymentStatusPoller } from "@/components/bookings/PaymentStatusPoller";
 import { Button } from "@/components/ui/Button";
 import { usePwa } from "@/components/pwa/PwaProvider";
 import {
@@ -32,7 +33,16 @@ export function PayBookingPanel({
   const { isOnline } = usePwa();
 
   if (state.redirectUrl) {
-    return <PayMongoCheckout checkoutUrl={state.redirectUrl} />;
+    return (
+      <>
+        <PayMongoCheckout checkoutUrl={state.redirectUrl} />
+        <PaymentStatusPoller
+          paymentId={paymentId}
+          initialStatus="PENDING"
+          initialChargeInFlight
+        />
+      </>
+    );
   }
 
   return (
@@ -57,20 +67,17 @@ export function PayBookingPanel({
       )}
 
       <p className="rounded-xl border border-gray-200 px-3 py-3 text-sm text-gray-600">
-        Pay by{" "}
-        <span className="font-medium text-gray-900">
-          QR Ph, card, GCash or Maya
-        </span>{" "}
-        through PayMongo. We&apos;ll give you a QR to scan or a button to
-        continue on this device.
+        Pay by <span className="font-medium text-gray-900">QR Ph</span> through
+        PayMongo. We&apos;ll give you a code to scan or a button to continue on
+        this device.
       </p>
 
       <Button type="submit" disabled={pending || !isOnline}>
         {!isOnline
           ? "Reconnect to pay"
           : pending
-            ? "Taking you to PayMongo…"
-            : `Pay ${formatPHP(amount)}`}
+            ? "Preparing QR Ph…"
+            : `Retry QR Ph payment · ${formatPHP(amount)}`}
       </Button>
 
       <p className="text-center text-xs text-gray-400">

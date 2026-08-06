@@ -5,8 +5,8 @@ import type {
   RefundResult,
 } from "./types";
 
-// The seam for a partner's own gateway. Players pay once per booking; card
-// details stay on the provider's hosted checkout.
+// The seam for a partner's own gateway. Players pay once per booking; QR Ph
+// payment details stay on the provider's hosted checkout.
 
 export type VenueGatewayId = "paymongo";
 
@@ -19,9 +19,8 @@ export type GatewayCredentials = {
   webhookSecret: string;
 };
 
-// No payment source: the gateway hosts the form. The payer picks card, GCash
-// or Maya on PayMongo's own page, which is why no card detail appears anywhere
-// in this file — none of it reaches this server.
+// No payment source: PayMongo hosts the QR Ph checkout, so no payer details
+// appear anywhere in this file or reach this server.
 export type VenueChargeInput = {
   amount: Money;
   // e.g. "Court 1 — 30 Jul, 6:00 PM – 8:00 PM"

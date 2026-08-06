@@ -76,8 +76,8 @@ export default function PrivacyPage() {
 
         <LegalSection heading="4. Payments">
           <p>
-            Bunal.club never sees or stores your card number. Court and event
-            payments are processed by PayMongo, and for a court booking, the
+            Bunal.club never sees or stores your QR Ph payment details. Court
+            and event payments are processed by PayMongo, and for a court booking, the
             proceeds go directly into that venue&apos;s own connected
             PayMongo account — Bunal.club never holds player funds in
             transit. Bunal.club&apos;s own PayMongo account is used only to

@@ -31,13 +31,9 @@ import {
 // that account, and the partner remits Bunal.club's accrued service fee later.
 // and this app never touches it.
 //
-// Hosted Checkout Sessions rather than Payment Intents with our own card form.
-// Two reasons, and the first is the one that matters: a card number never
-// reaches this server, so the app stays out of PCI scope entirely. The second
-// is that PayMongo gates the raw-card API behind a PCI attestation a small
-// venue platform has no business obtaining. The cost is that the player leaves
-// the site for a moment; the hold keeps running while they're away and the
-// return URL brings them straight back.
+// Hosted Checkout Sessions rather than collecting payment details ourselves.
+// PayMongo displays the QR Ph payment step, the player leaves the site only
+// when continuing on the same device, and the return URL brings them back.
 //
 // The reusable PayMongo HTTP and signature helpers live in paymongo-core.
 
@@ -120,6 +116,7 @@ export function paymongoVenueGateway(creds: GatewayCredentials): VenueGateway {
           referenceNumber: input.metadata.paymentId ?? input.idempotencyKey,
           returnUrl: input.returnUrl,
           metadata: input.metadata,
+          paymentMethodTypes: ["qrph"],
         });
 
         if (!session.attributes.checkout_url) {

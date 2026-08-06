@@ -74,8 +74,8 @@ export function EventRegistrationPanel({
         </dl>
         {fee > 0 && (
           <p className="mt-4 text-xs leading-5 text-slate-400">
-            PayMongo adds a processing fee that varies by payment method —
-            you&apos;ll see the exact amount before you confirm.
+            Pay securely with QR Ph through PayMongo. Any processing fee is
+            shown before you complete payment.
           </p>
         )}
 
@@ -100,7 +100,7 @@ export function EventRegistrationPanel({
               href={`/events/${publicId}/pay/${registration.paymentId}`}
               className="block rounded-2xl bg-primary px-4 py-4 text-center text-sm font-bold text-white transition-colors hover:bg-primary-hover"
             >
-              Complete payment
+              Continue QR Ph payment
             </Link>
           ) : registration?.status === "WAITLISTED" && full ? (
             <StatusBox tone="success">
@@ -148,7 +148,7 @@ export function EventRegistrationPanel({
                     : full
                       ? "Join free waitlist"
                       : fee > 0
-                        ? "Register and continue to payment"
+                        ? "Confirm & Pay"
                         : "Register for free"}
               </button>
             </form>

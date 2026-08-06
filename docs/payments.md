@@ -26,8 +26,8 @@ snapshots:
   subtotal.
 
 All three are stored so historical reports do not change when the fee schedule
-changes. Hosted Checkout V2 uses `pass_on_fees`, so PayMongo adds its
-method-specific processing fee to the player after they choose how to pay.
+changes. Hosted Checkout V2 uses `pass_on_fees`, so PayMongo adds its QR Ph
+processing fee to the player before payment is confirmed.
 
 ## Partner gateway setup
 
@@ -91,8 +91,8 @@ The partner's PayMongo account initially receives the court subtotal. After a
 successful booking is confirmed, an immutable `ServiceFeeEntry` records the
 3% fee owed to Bunal.club; a full refund creates an equal negative entry.
 Partners remit the outstanding balance from `/dashboard/payments`. The primary
-flow opens an exact-amount PayMongo hosted checkout in Bunal.club's own account
-with QR Ph, credit/debit card, GCash, and Maya. A signed
+flow opens an exact-amount QR Ph-only PayMongo hosted checkout in Bunal.club's
+own account. A signed
 `checkout_session.payment.paid` webhook marks the settlement paid
 automatically; the browser return leg also checks PayMongo in case it arrives
 before the webhook. Manual transfer reference and receipt submission remains
@@ -127,7 +127,7 @@ the admin reviews it; rejection restores the overdue block.
 
 ## Booking settlement
 
-A paid booking begins as a 10-minute hold. The app creates the payment ledger
+A paid booking begins as a 15-minute hold. The app creates the payment ledger
 before calling PayMongo and claims the charge atomically to prevent duplicate
 checkout sessions. A signed webhook marks the payment successful and confirms
 the associated bookings. `ProviderEvent` prevents webhook replay.

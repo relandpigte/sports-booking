@@ -130,12 +130,11 @@ export const MONTHS = [
 
 // How long an unpaid court booking or event registration reserves capacity
 // before it goes back on sale.
-export const BOOKING_HOLD_MINUTES = 10;
+export const BOOKING_HOLD_MINUTES = 15;
 
 // A player who reaches PayMongo before the hold expires gets a short window
-// to finish wallet, QR, or 3DS authorization. This is applied only after the
-// checkout session is claimed, so an abandoned booking cannot reserve capacity
-// merely by sitting on Bunal.club's payment page.
+// to finish QR Ph authorization. This is applied only after the checkout
+// session is claimed and never shortens the main hold.
 export const PAYMENT_COMPLETION_GRACE_MINUTES = 5;
 
 // Bunal.club's percentage fee, added ON TOP of the venue's court total. It is
@@ -165,7 +164,7 @@ export const VENUE_GATEWAYS = [
   {
     value: "paymongo",
     label: "PayMongo",
-    hint: "QR Ph, cards, GCash and Maya. Booking subtotals land in your account; remit Bunal.club service fees from Payments.",
+    hint: "QR Ph payments. Booking subtotals land in your account; remit Bunal.club service fees from Payments.",
   },
 ] as const;
 

@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { HoldCountdown } from "@/components/bookings/HoldCountdown";
 import { PayMongoCheckout } from "@/components/bookings/PayMongoCheckout";
+import { PaymentStatusPoller } from "@/components/bookings/PaymentStatusPoller";
 import { EventPaymentPanel } from "@/components/events/EventPaymentPanel";
 import { PageShell } from "@/components/PageShell";
 import {
@@ -141,6 +142,11 @@ export default async function PayEventRegistrationPage({
                       Your checkout is still active. Continue where you left off.
                     </p>
                     <PayMongoCheckout checkoutUrl={activeCheckoutUrl} />
+                    <PaymentStatusPoller
+                      paymentId={payment.id}
+                      initialStatus={payment.status}
+                      initialChargeInFlight={payment.chargeInFlight}
+                    />
                   </div>
                 ) : (
                   <EventPaymentPanel

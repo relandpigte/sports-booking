@@ -126,9 +126,9 @@ async function check() {
     created!.body as { data: { attributes: Record<string, unknown> } }
   ).data.attributes;
   ok(
-    "the checkout offers QR Ph, card, GCash and Maya",
+    "the checkout offers QR Ph only",
     JSON.stringify(attributes.payment_method_types) ===
-      JSON.stringify(["qrph", "card", "gcash", "paymaya"])
+      JSON.stringify(["qrph"])
   );
   ok(
     "the exact ₱25 balance is sent in centavos",

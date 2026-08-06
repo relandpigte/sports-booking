@@ -10,6 +10,7 @@ import {
 import { HoldCountdown } from "@/components/bookings/HoldCountdown";
 import { PayBookingPanel } from "@/components/bookings/PayBookingPanel";
 import { PayMongoCheckout } from "@/components/bookings/PayMongoCheckout";
+import { PaymentStatusPoller } from "@/components/bookings/PaymentStatusPoller";
 import { formatPHP } from "@/lib/currency";
 import { formatManilaDate, formatSlotRange } from "@/lib/time";
 
@@ -153,6 +154,11 @@ export default async function PayBookingPage({
                     held — pick up where you left off.
                   </p>
                   <PayMongoCheckout checkoutUrl={activeCheckoutUrl} />
+                  <PaymentStatusPoller
+                    paymentId={payment.id}
+                    initialStatus={payment.status}
+                    initialChargeInFlight={payment.chargeInFlight}
+                  />
                 </div>
               ) : (
                 <div className="flex flex-col gap-4">

@@ -13,6 +13,7 @@ import { prisma } from "@/lib/db";
 import { getEventCourtAvailability } from "@/lib/events";
 import { getActivePartnerGateway } from "@/lib/partner-gateway";
 import {
+  chargeBookingPayment,
   recoverPaidEventRegistration,
   refundBookingPayment,
 } from "@/lib/booking-payments";
@@ -559,7 +560,7 @@ export async function registerForEventAction(
         amount: new Prisma.Decimal(grossFor(fee)),
         venueAmount: new Prisma.Decimal(fee),
         platformFee: new Prisma.Decimal(bookingServiceFeeFor(fee)),
-        method: "CARD",
+        method: "QRPH",
         status: "PENDING",
         expiresAt: holdExpiresAt,
         provider: gateway!.provider,
@@ -589,6 +590,12 @@ export async function registerForEventAction(
 
   revalidateEventSurfaces(event.publicId, event.hubId);
   if (outcome.kind === "payment") {
+    // Create the QR Ph checkout now so the next screen can display it without
+    // asking the player to press a second payment button.
+    await chargeBookingPayment({
+      paymentId: outcome.paymentId,
+      userId: viewer.id,
+    });
     redirect(`/events/${event.publicId}/pay/${outcome.paymentId}`);
   }
   if (outcome.kind === "paid-closed") {

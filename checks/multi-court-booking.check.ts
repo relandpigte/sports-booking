@@ -6,6 +6,7 @@ import crypto from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 
 import { ok, run, stubRequestContext } from "./harness";
+import { installPaymongoMock } from "./paymongo-mock";
 import {
   BOOKING_HOLD_MINUTES,
   WEEKDAYS,
@@ -31,6 +32,8 @@ async function cleanup() {
 }
 
 async function check() {
+  const paymongo = installPaymongoMock();
+  const { CRYPTO_PURPOSE, encrypt } = await import("@/lib/crypto");
   await cleanup();
   const partner = await prisma.user.create({
     data: {
@@ -56,8 +59,14 @@ async function check() {
       userId: partner.id,
       provider: "paymongo",
       publicKey: "pk_test_multi_court",
-      secretKeyEnc: "check",
-      webhookSecretEnc: "check",
+      secretKeyEnc: encrypt(
+        "sk_test_multi_court",
+        CRYPTO_PURPOSE.gatewaySecretKey
+      ),
+      webhookSecretEnc: encrypt(
+        "whsk_multi_court",
+        CRYPTO_PURPOSE.gatewayWebhookSecret
+      ),
       secretKeyHint: "…test",
       webhookToken: crypto.randomBytes(24).toString("base64url"),
     },
@@ -107,6 +116,20 @@ async function check() {
   }
   const holdCreatedBefore = Date.now();
   ok("a paid multi-court cart proceeds to one checkout", redirected);
+  const checkoutRequests = paymongo.requests.filter((request) =>
+    request.url.endsWith("/v2/checkout_sessions")
+  );
+  ok(
+    "the booking action automatically creates one QR Ph checkout",
+    checkoutRequests.length === 1 &&
+      JSON.stringify(
+        (
+          checkoutRequests[0].body as {
+            data: { attributes: { payment_method_types: string[] } };
+          }
+        ).data.attributes.payment_method_types
+      ) === JSON.stringify(["qrph"])
+  );
 
   const payment = await prisma.bookingPayment.findFirst({
     where: { userId: player.id, hubId: hub.id, gatewayId: gateway.id },
@@ -120,8 +143,8 @@ async function check() {
   );
   const configuredHoldMs = BOOKING_HOLD_MINUTES * 60_000;
   ok(
-    "paid carts receive the configured 10-minute hold",
-    BOOKING_HOLD_MINUTES === 10 &&
+    "paid carts receive the configured 15-minute hold",
+    BOOKING_HOLD_MINUTES === 15 &&
       payment != null &&
       payment.expiresAt.getTime() >= holdStartedAfter + configuredHoldMs &&
       payment.expiresAt.getTime() <= holdCreatedBefore + configuredHoldMs &&

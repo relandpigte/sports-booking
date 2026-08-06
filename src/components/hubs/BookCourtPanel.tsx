@@ -422,12 +422,12 @@ export function BookCourtPanel({
                     ? "Reconnect to book"
                     : pending
                     ? requiresOnlinePayment
-                      ? "Holding…"
+                      ? "Preparing QR Ph…"
                       : "Booking…"
                     : selectedCount === 0
                       ? "Pick your hours"
                       : requiresOnlinePayment
-                        ? `Hold ${selectedCount} ${selectedCount === 1 ? "court-hour" : "court-hours"}`
+                        ? "Confirm & Pay"
                         : `Book ${selectedCount} ${selectedCount === 1 ? "court-hour" : "court-hours"}`}
                 </Button>
               )}
@@ -450,7 +450,7 @@ export function BookCourtPanel({
                 </svg>
                 <p className="text-[11px] leading-relaxed text-navy/55">
                   {requiresOnlinePayment
-                    ? `This venue takes payment online. We'll hold your hours for ${BOOKING_HOLD_MINUTES} minutes while you pay. PayMongo adds a processing fee that varies by payment method — you'll see the exact amount before you confirm.`
+                    ? `Confirm your selection and pay with QR Ph. We'll hold your hours for ${BOOKING_HOLD_MINUTES} minutes while you complete PayMongo's secure checkout.`
                     : "No payment needed — confirm here and settle at the venue."}
                 </p>
               </div>

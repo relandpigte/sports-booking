@@ -30,7 +30,10 @@ import {
   RefundBookingSchema,
   RescheduleBookingSchema,
 } from "@/lib/validation";
-import { refundBookingPayment } from "@/lib/booking-payments";
+import {
+  chargeBookingPayment,
+  refundBookingPayment,
+} from "@/lib/booking-payments";
 import {
   BOOKING_HOLD_MINUTES,
   BOOKING_WINDOW_DAYS,
@@ -213,7 +216,7 @@ export async function createBookingAction(
             amount: new Prisma.Decimal(grossFor(total)),
             venueAmount: new Prisma.Decimal(total),
             platformFee: new Prisma.Decimal(bookingServiceFeeFor(total)),
-            method: "CARD",
+            method: "QRPH",
             status: "PENDING",
             expiresAt: holdExpiresAt!,
             provider: gateway!.provider,
@@ -279,7 +282,12 @@ export async function createBookingAction(
   }
 
   revalidateBookingSurfaces(hub.id);
-  if (paymentId) redirect(`/dashboard/bookings/pay/${paymentId}`);
+  if (paymentId) {
+    // Prepare the one-time QR Ph checkout before showing the payment page so
+    // the player lands directly on the QR instead of facing a second Pay step.
+    await chargeBookingPayment({ paymentId, userId: viewer.id });
+    redirect(`/dashboard/bookings/pay/${paymentId}`);
+  }
 
   return {
     success:

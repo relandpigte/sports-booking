@@ -169,9 +169,8 @@ export function ServiceFeePanel({
                 Pay {formatPHP(balance.amountDue)} with PayMongo
               </h3>
               <p className="mt-1 text-xs text-gray-600">
-                Choose QR Ph, credit or debit card, GCash, or Maya in the
-                secure exact-amount checkout. Payment is confirmed
-                automatically.
+                Pay by QR Ph in the secure exact-amount checkout. Payment is
+                confirmed automatically.
               </p>
               <Button
                 type="submit"
@@ -182,7 +181,7 @@ export function ServiceFeePanel({
                   ? "Opening PayMongo…"
                   : awaitingCheckout
                     ? "Continue PayMongo payment"
-                    : "Choose payment method"}
+                    : "Pay with QR Ph"}
               </Button>
             </form>
           )}

@@ -123,7 +123,7 @@ export function installPaymongoMock(): MockState {
                     attributes: {
                       amount: found.amount,
                       status: "paid",
-                      source: { type: "gcash" },
+                      source: { type: "qrph" },
                     },
                   },
                 ]
@@ -187,7 +187,7 @@ export function mockPaidEvent(
                 attributes: {
                   amount,
                   status: "paid",
-                  source: { type: "gcash" },
+                  source: { type: "qrph" },
                 },
               },
             ],

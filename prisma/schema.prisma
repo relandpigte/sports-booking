@@ -215,6 +215,7 @@ model PasswordResetToken {
 }
 
 enum PaymentMethodType {
+  QRPH
   CARD
   GCASH
   MAYA

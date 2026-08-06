@@ -115,8 +115,8 @@ export function BookingCard({
         </div>
         {booking.payment && (paid || refunded) && (
           <>
-            {/* The booking subtotal excludes PayMongo's method-specific
-                pass-on processing fee, which is shown on hosted checkout. */}
+            {/* The booking subtotal excludes the separately snapshotted
+                PayMongo QR Ph processing fee shown on the payment screen. */}
             {booking.payment.platformFee > 0 && (
               <div className="flex items-center justify-between gap-3">
                 <dt className="text-gray-500">Service fee</dt>

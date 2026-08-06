@@ -5,8 +5,8 @@ import type {
   RefundResult,
 } from "./types";
 
-// The seam for a partner's own gateway. Players pay once per booking; QR Ph
-// payment details stay on the provider's hosted checkout.
+// The seam for a partner's own gateway. Players pay once per booking; the
+// provider returns a signed, exact-amount QR Ph image for this app to display.
 
 export type VenueGatewayId = "paymongo";
 
@@ -19,16 +19,15 @@ export type GatewayCredentials = {
   webhookSecret: string;
 };
 
-// No payment source: PayMongo hosts the QR Ph checkout, so no payer details
-// appear anywhere in this file or reach this server.
+// No payer details appear anywhere in this file or reach this server.
 export type VenueChargeInput = {
   amount: Money;
   // e.g. "Court 1 — 30 Jul, 6:00 PM – 8:00 PM"
   description: string;
   // `${paymentId}:${attempt}` — also sent as the gateway's idempotency header.
   idempotencyKey: string;
-  // ABSOLUTE: the browser leaves the site for a wallet approval.
-  returnUrl: string;
+  // The provider QR must never outlive the booking hold.
+  expiresInSeconds: number;
   metadata: Record<string, string>;
 };
 
@@ -43,8 +42,7 @@ export interface VenueGateway {
   >;
 
   charge(input: VenueChargeInput): Promise<ChargeResult>;
-  // The return leg: finish a redirect flow when the browser comes back before
-  // (or instead of) the webhook.
+  // Polling fallback when the browser observes payment before the webhook.
   getCharge(providerPaymentId: string): Promise<ChargeResult>;
   refund(
     providerPaymentId: string,

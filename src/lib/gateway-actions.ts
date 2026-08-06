@@ -14,7 +14,11 @@ import {
   secretHint,
 } from "@/lib/crypto";
 import { getVenueGateway, type VenueGatewayId } from "@/lib/payments/venue";
-import { registerPaymongoWebhook } from "@/lib/payments/paymongo-venue";
+import {
+  PAYMONGO_WEBHOOK_VERSION,
+  VENUE_WEBHOOK_EVENTS,
+  registerPaymongoWebhook,
+} from "@/lib/payments/paymongo-venue";
 import { appUrl } from "@/lib/urls";
 import { isPartnerImpersonationActive } from "@/lib/impersonation";
 
@@ -101,10 +105,12 @@ export async function connectGatewayAction(
   // can't be arranged, NOTHING is stored. Connected-but-deaf is the one state
   // a partner must never be left in.
   let webhookSecret = parsed.data.webhookSecret;
-  if (!webhookSecret && provider === "paymongo") {
+  if (provider === "paymongo") {
     const registered = await registerPaymongoWebhook(
       creds.secretKey,
-      appUrl(`/api/venue-payments/webhook/${webhookToken}`)
+      appUrl(`/api/venue-payments/webhook/${webhookToken}`),
+      webhookSecret,
+      VENUE_WEBHOOK_EVENTS
     );
     if (!registered.ok) {
       return { message: registered.message, needsWebhookSecret: true };
@@ -134,6 +140,7 @@ export async function connectGatewayAction(
       webhookSecretEnc,
       secretKeyHint: secretHint(creds.secretKey),
       webhookToken,
+      webhookVersion: PAYMONGO_WEBHOOK_VERSION,
       accountLabel: check.accountLabel,
     },
     update: {
@@ -143,6 +150,7 @@ export async function connectGatewayAction(
       webhookSecretEnc,
       secretKeyHint: secretHint(creds.secretKey),
       accountLabel: check.accountLabel,
+      webhookVersion: PAYMONGO_WEBHOOK_VERSION,
       // Reconnecting re-enables; the webhook token is intentionally kept so a
       // partner doesn't have to re-paste the URL.
       disconnectedAt: null,

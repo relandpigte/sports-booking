@@ -61,11 +61,27 @@ export async function handleVenueEvent(args: {
       ? { id: args.knownPaymentId, gatewayId }
       : { providerPaymentId: event.providerPaymentId, gatewayId },
     orderBy: { createdAt: "desc" },
-    select: { id: true, status: true, amount: true },
+    select: {
+      id: true,
+      status: true,
+      amount: true,
+      processingFee: true,
+      providerPaymentId: true,
+    },
   });
   if (!payment) return { applied: false, reason: "unknown payment" };
 
   if (event.type === "payment.succeeded") {
+    const expectedCentavos = Math.round(
+      (Number(payment.amount) + Number(payment.processingFee)) * 100
+    );
+    if (
+      payment.providerPaymentId?.startsWith("pi_") &&
+      event.amountCentavos != null &&
+      event.amountCentavos !== expectedCentavos
+    ) {
+      return { applied: false, reason: "amount mismatch" };
+    }
     if (payment.status === "SUCCEEDED") {
       // The browser's return leg beat the webhook. Settling again is safe and
       // covers the case where it got as far as paying but not as far as
@@ -77,9 +93,8 @@ export async function handleVenueEvent(args: {
       return { applied: false, reason: "already settled" };
     }
 
-    // With a hosted checkout this is the first moment we learn how they paid —
-    // the row was created before they had chosen. Written before settling so
-    // the confirmation the player sees names the right method.
+    // Historical hosted sessions learned the method only at settlement. Keep
+    // accepting that field while current direct intents remain QR Ph-only.
     if (event.methodType) {
       await prisma.bookingPayment.update({
         where: { id: payment.id },
@@ -124,7 +139,10 @@ export async function handleVenueEvent(args: {
   }
   await markBookingPaymentRefunded({
     paymentId: payment.id,
-    amount: Number(payment.amount),
+    amount:
+      event.amountCentavos != null
+        ? event.amountCentavos / 100
+        : Number(payment.amount) + Number(payment.processingFee),
     refundRef: event.reference,
     reason: "Refunded from the payment provider.",
   });

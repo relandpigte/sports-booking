@@ -18,21 +18,30 @@ export function EventPaymentPanel({
   publicId,
   amount,
   venueName,
+  expiresAt,
+  initialSeconds,
 }: {
   paymentId: string;
   publicId: string;
   amount: number;
   venueName: string;
+  expiresAt: string;
+  initialSeconds: number;
 }) {
   const [state, formAction, pending] = useActionState(
     payForEventAction,
     initialState
   );
 
-  if (state.redirectUrl) {
+  if (state.qrImageUrl || state.redirectUrl) {
     return (
       <>
-        <PayMongoCheckout checkoutUrl={state.redirectUrl} />
+        <PayMongoCheckout
+          qrImageUrl={state.qrImageUrl}
+          checkoutUrl={state.redirectUrl}
+          expiresAt={expiresAt}
+          initialSeconds={initialSeconds}
+        />
         <PaymentStatusPoller
           paymentId={paymentId}
           initialStatus="PENDING"
@@ -59,8 +68,8 @@ export function EventPaymentPanel({
       )}
 
       <p className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-600">
-        Pay with QR Ph on PayMongo&apos;s secure hosted checkout. Payment details
-        never pass through Bunal.club.
+        Pay with PayMongo&apos;s secure, exact-amount QR Ph code. Confirmation
+        happens automatically and payment details never pass through Bunal.club.
       </p>
 
       <Button type="submit" disabled={pending} className="rounded-2xl py-4">

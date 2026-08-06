@@ -21,10 +21,14 @@ export function PayBookingPanel({
   paymentId,
   amount,
   venueName,
+  expiresAt,
+  initialSeconds,
 }: {
   paymentId: string;
   amount: number;
   venueName: string;
+  expiresAt: string;
+  initialSeconds: number;
 }) {
   const [state, formAction, pending] = useActionState(
     payForBookingAction,
@@ -32,10 +36,15 @@ export function PayBookingPanel({
   );
   const { isOnline } = usePwa();
 
-  if (state.redirectUrl) {
+  if (state.qrImageUrl || state.redirectUrl) {
     return (
       <>
-        <PayMongoCheckout checkoutUrl={state.redirectUrl} />
+        <PayMongoCheckout
+          qrImageUrl={state.qrImageUrl}
+          checkoutUrl={state.redirectUrl}
+          expiresAt={expiresAt}
+          initialSeconds={initialSeconds}
+        />
         <PaymentStatusPoller
           paymentId={paymentId}
           initialStatus="PENDING"
@@ -68,8 +77,7 @@ export function PayBookingPanel({
 
       <p className="rounded-xl border border-gray-200 px-3 py-3 text-sm text-gray-600">
         Pay by <span className="font-medium text-gray-900">QR Ph</span> through
-        PayMongo. We&apos;ll give you a code to scan or a button to continue on
-        this device.
+        PayMongo. The exact-amount code appears here and confirms automatically.
       </p>
 
       <Button type="submit" disabled={pending || !isOnline}>

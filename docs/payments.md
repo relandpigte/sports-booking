@@ -22,12 +22,16 @@ snapshots:
 
 - `venueAmount` — the advertised court total.
 - `platformFee` — the service fee quoted for this booking.
-- `amount` — the court amount plus the service fee sent as the checkout
-  subtotal.
+- `amount` — the court amount plus the service fee (the booking subtotal).
+- `processingFee` — the PayMongo QR Ph fee grossed up at charge time.
 
-All three are stored so historical reports do not change when the fee schedule
-changes. Hosted Checkout V2 uses `pass_on_fees`, so PayMongo adds its QR Ph
-processing fee to the player before payment is confirmed.
+These values are stored so historical reports and refunds do not change when
+either fee schedule changes. Player payments use direct PayMongo Payment
+Intents. Because Payment Intents do not support Checkout V2 `pass_on_fees`, the
+app grosses up the exact QR amount using PayMongo's published 1.34% QR Ph rate
+plus VAT. `PAYMONGO_QRPH_PROCESSING_RATE` can override the VAT-inclusive rate
+for negotiated merchant pricing. For example, a ₱257.50 booking subtotal adds
+₱3.92 and generates a ₱261.42 QR.
 
 ## Partner gateway setup
 
@@ -51,8 +55,9 @@ gateway changes the public hub to Verified and enables online reservations.
 3. In Bunal.club, open **Partner dashboard → Payments → Getting paid by
    players**. Paste the public key into **Publishable key**, paste the matching
    secret into **Secret key**, and select **Connect account**.
-4. The application verifies the credentials and registers the
-   partner-specific `checkout_session.payment.paid` webhook automatically.
+4. The application verifies the credentials and registers the partner-specific
+   `payment.paid`, `payment.failed`, `payment.refunded`, and legacy
+   `checkout_session.payment.paid` webhook events automatically.
    Complete a test booking before going live.
 5. After PayMongo activates the live account, use **Replace keys** and replace
    both test keys with the live pair. Never mix test and live credentials.
@@ -78,6 +83,7 @@ The required environment variables are:
 | `ENCRYPTION_KEYS_PREVIOUS` | Optional old keys used during rotation. |
 | `APP_URL` | Public HTTPS origin used for redirects and webhook URLs. |
 | `BOOKING_SWEEP_SECRET` | Bearer token for the expired-hold sweep. |
+| `PAYMONGO_QRPH_PROCESSING_RATE` | Optional VAT-inclusive decimal rate for direct QR fee gross-up; defaults to `0.015008`. |
 | `PAYMONGO_SECRET_KEY` | Optional legacy fallback for Bunal.club's service-fee PayMongo account. |
 | `BILLING_WEBHOOK_SECRET` | Optional webhook secret paired with the environment fallback. |
 | `SERVICE_FEE_PAYMENT_INSTRUCTIONS` | Fallback manual remittance details shown to partners. |
@@ -87,7 +93,8 @@ Cloudflare Tunnel or ngrok for local webhook testing.
 
 ## Service-fee remittance
 
-The partner's PayMongo account initially receives the court subtotal. After a
+The partner's PayMongo account receives the complete booking subtotal after
+PayMongo deducts the separately charged QR Ph processing fee. After a
 successful booking is confirmed, an immutable `ServiceFeeEntry` records the
 3% fee owed to Bunal.club; a full refund creates an equal negative entry.
 Partners remit the outstanding balance from `/dashboard/payments`. The primary
@@ -129,8 +136,12 @@ the admin reviews it; rejection restores the overdue block.
 
 A paid booking begins as a 15-minute hold. The app creates the payment ledger
 before calling PayMongo and claims the charge atomically to prevent duplicate
-checkout sessions. A signed webhook marks the payment successful and confirms
-the associated bookings. `ProviderEvent` prevents webhook replay.
+Payment Intents. It creates a single-use QR Ph Payment Method with the same
+expiry, stores PayMongo's Base64 QR image, and renders it directly on the court
+or event payment screen. A signed `payment.paid` webhook marks the payment
+successful and confirms the associated booking. Five-second polling is a
+browser fallback, while `ProviderEvent` prevents webhook replay. Existing
+hosted Checkout Sessions remain readable and refundable during rollout.
 
 Point a cron at the cleanup endpoint:
 

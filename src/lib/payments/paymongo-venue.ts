@@ -14,13 +14,15 @@ import type {
 import {
   MIN_CENTAVOS,
   PayMongoRequestError,
-  createCheckoutSession,
+  createQrPhPaymentIntent,
   createRefund,
   getCheckoutSession,
+  getPaymentIntent,
   keyMode,
   methodTypeOf,
   paidPayment,
   parsePaymongoEvent,
+  paymentIntentError,
   paymongoRequest,
   resolvePaymentId,
   toCentavos,
@@ -31,15 +33,16 @@ import {
 // that account, and the partner remits Bunal.club's accrued service fee later.
 // and this app never touches it.
 //
-// Hosted Checkout Sessions rather than collecting payment details ourselves.
-// PayMongo displays the QR Ph payment step, the player leaves the site only
-// when continuing on the same device, and the return URL brings them back.
+// Direct Payment Intents return PayMongo's signed QR image for Bunal.club to
+// display. Existing hosted Checkout Sessions remain readable during rollout.
 //
 // The reusable PayMongo HTTP and signature helpers live in paymongo-core.
 
 // Re-exported so existing importers (and the connect action) don't have to
 // know the code moved.
 export {
+  PAYMONGO_WEBHOOK_VERSION,
+  VENUE_WEBHOOK_EVENTS,
   registerPaymongoWebhook,
   signPaymongoBody,
 } from "./paymongo-core";
@@ -110,34 +113,44 @@ export function paymongoVenueGateway(creds: GatewayCredentials): VenueGateway {
       }
 
       try {
-        const session = await createCheckoutSession(secretKey, {
+        const intent = await createQrPhPaymentIntent(secretKey, {
           amountPesos: input.amount.amount,
           description: input.description,
-          referenceNumber: input.metadata.paymentId ?? input.idempotencyKey,
-          returnUrl: input.returnUrl,
           metadata: input.metadata,
-          paymentMethodTypes: ["qrph"],
+          expiresInSeconds: input.expiresInSeconds,
+          idempotencyKey: input.idempotencyKey,
         });
 
-        if (!session.attributes.checkout_url) {
+        const paid = paidPayment(intent.attributes);
+        if (intent.attributes.status === "succeeded" && paid?.id) {
           return {
-            status: "failed",
-            paymentId: session.id,
-            code: "no_checkout_url",
-            message: "PayMongo didn't return a checkout page. Please try again.",
-            raw: session.attributes,
+            status: "succeeded",
+            paymentId: intent.id,
+            reference: paid.id,
+            raw: intent.attributes,
           };
         }
 
-        // Always requires_action: a hosted checkout is a redirect by
-        // definition. The booking stays PENDING and its hold keeps running
-        // until the webhook or the return-leg poll says otherwise.
+        const qrImageUrl = intent.attributes.next_action?.code?.image_url;
+        if (!qrImageUrl?.startsWith("data:image/")) {
+          return {
+            status: "failed",
+            paymentId: intent.id,
+            code: "no_qr_image",
+            message: "PayMongo didn't return a QR Ph code. Please try again.",
+            raw: intent.attributes,
+          };
+        }
+
+        // The booking stays PENDING and its hold keeps running until the
+        // signed webhook or status poll says the exact-amount QR was paid.
         return {
           status: "requires_action",
-          paymentId: session.id,
-          redirectUrl: session.attributes.checkout_url,
-          clientKey: session.attributes.client_key ?? null,
-          raw: session.attributes,
+          paymentId: intent.id,
+          redirectUrl: null,
+          qrImageUrl,
+          clientKey: intent.attributes.client_key ?? null,
+          raw: intent.attributes,
         };
       } catch (error) {
         if (error instanceof PayMongoRequestError) {
@@ -155,6 +168,41 @@ export function paymongoVenueGateway(creds: GatewayCredentials): VenueGateway {
 
     async getCharge(providerPaymentId: string): Promise<ChargeResult> {
       try {
+        if (providerPaymentId.startsWith("pi_")) {
+          const intent = await getPaymentIntent(secretKey, providerPaymentId);
+          const paid = paidPayment(intent);
+          if (intent.status === "succeeded" && paid?.id) {
+            return {
+              status: "succeeded",
+              paymentId: providerPaymentId,
+              reference: paid.id,
+              raw: intent,
+            };
+          }
+
+          const failure = paymentIntentError(intent);
+          if (failure || intent.status === "awaiting_payment_method") {
+            return {
+              status: "failed",
+              paymentId: providerPaymentId,
+              code: failure?.code ?? "qr_expired",
+              message:
+                failure?.message ??
+                "The QR Ph code expired before payment was completed.",
+              raw: intent,
+            };
+          }
+
+          return {
+            status: "pending",
+            paymentId: providerPaymentId,
+            reference: null,
+            raw: intent,
+          };
+        }
+
+        // Backward compatibility for QR-only hosted sessions created before
+        // direct Payment Intents were deployed.
         const session = await getCheckoutSession(secretKey, providerPaymentId);
         const paid = paidPayment(session);
 
@@ -274,24 +322,48 @@ export function paymongoVenueGateway(creds: GatewayCredentials): VenueGateway {
           methodType: methodTypeOf(
             paid?.attributes?.source?.type ?? session.payment_method_used
           ),
+          amountCentavos: paid?.attributes?.amount,
+          raw: JSON.parse(rawBody),
+        };
+      }
+
+      if (event.type === "payment.paid") {
+        const payment = event.attributes as {
+          amount?: number;
+          payment_intent_id?: string;
+          source?: { type?: string };
+        };
+        if (!payment.payment_intent_id) return null;
+        return {
+          eventId: event.eventId,
+          providerPaymentId: payment.payment_intent_id,
+          type: "payment.succeeded",
+          reference: event.resourceId,
+          failureCode: null,
+          failureMessage: null,
+          amountCentavos: payment.amount,
+          methodType: methodTypeOf(payment.source?.type),
           raw: JSON.parse(rawBody),
         };
       }
 
       if (event.type === "payment.failed" || event.type === "payment.refunded") {
         const payment = event.attributes as {
+          amount?: number;
           last_payment_error?: string;
           source?: { type?: string };
           // Present on a payment created through a checkout session.
           checkout_session_id?: string;
+          // Present on a payment created through a direct Payment Intent.
+          payment_intent_id?: string;
         };
-        // Without a session id we can't match it to a BookingPayment row, and
-        // guessing would risk touching the wrong one.
-        if (!payment.checkout_session_id) return null;
+        const providerPaymentId =
+          payment.payment_intent_id ?? payment.checkout_session_id;
+        if (!providerPaymentId) return null;
 
         return {
           eventId: event.eventId,
-          providerPaymentId: payment.checkout_session_id,
+          providerPaymentId,
           type:
             event.type === "payment.failed"
               ? "payment.failed"
@@ -303,6 +375,7 @@ export function paymongoVenueGateway(creds: GatewayCredentials): VenueGateway {
               ? (payment.last_payment_error ?? "The payment was not completed.")
               : null,
           methodType: methodTypeOf(payment.source?.type),
+          amountCentavos: payment.amount,
           raw: JSON.parse(rawBody),
         };
       }

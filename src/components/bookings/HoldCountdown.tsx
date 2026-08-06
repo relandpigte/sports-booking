@@ -18,10 +18,12 @@ export function HoldCountdown({
   expiresAt,
   initialSeconds,
   tone = "light",
+  label = "Spot held",
 }: {
   expiresAt: string;
   initialSeconds: number;
-  tone?: "light" | "dark";
+  tone?: "light" | "dark" | "qr";
+  label?: string;
 }) {
   const [left, setLeft] = useState(initialSeconds);
   const router = useRouter();
@@ -46,6 +48,8 @@ export function HoldCountdown({
         className={`inline-flex shrink-0 rounded-xl border px-3 py-2 text-sm font-bold ${
           tone === "dark"
             ? "border-red-300/30 bg-red-500/20 text-red-100"
+            : tone === "qr"
+              ? "border-red-300 bg-red-50 text-red-700"
             : "border-red-200 bg-red-50 text-red-700"
         }`}
       >
@@ -61,6 +65,8 @@ export function HoldCountdown({
           ? tone === "dark"
             ? "border-red-300/30 bg-red-500/20 text-red-100"
             : "border-red-200 bg-red-50 text-red-700"
+          : tone === "qr"
+            ? "border-navy bg-navy text-white"
           : tone === "dark"
             ? "border-white/15 bg-white/10 text-white"
             : "border-amber-200 bg-amber-50 text-amber-950"
@@ -74,10 +80,12 @@ export function HoldCountdown({
             ? "text-inherit"
             : tone === "dark"
               ? "text-white/60"
+              : tone === "qr"
+                ? "text-white/70"
               : "text-amber-700"
         }`}
       >
-        Spot held
+        {label}
       </span>
       <span className="text-sm font-black tabular-nums">{mmss(left)}</span>
     </span>

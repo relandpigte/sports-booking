@@ -12,12 +12,18 @@ import crypto from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 
 import { ok, run } from "./harness";
-import { installPaymongoMock, mockPaidEvent, payMockSession } from "./paymongo-mock";
+import {
+  installPaymongoMock,
+  mockPaymentPaidEvent,
+  payMockIntent,
+} from "./paymongo-mock";
 import {
   BOOKING_HOLD_MINUTES,
   PAYMENT_COMPLETION_GRACE_MINUTES,
   bookingServiceFeeFor,
   grossFor,
+  paymongoQrPhProcessingFeeFor,
+  paymongoQrPhTotalFor,
 } from "@/lib/constants";
 
 const prisma = new PrismaClient();
@@ -33,6 +39,7 @@ const TEMP_EMAILS = [
 ];
 
 async function check() {
+  process.env.APP_URL = "https://checks.bunal.club";
   const mock = installPaymongoMock();
 
   // Imported after the mock is installed, so nothing captures the real fetch.
@@ -137,42 +144,76 @@ async function check() {
   }
 
   // --- 1. Starting a payment ------------------------------------------------
-  const one = await scaffold([6, 7], a, 30_000);
+  const one = await scaffold([6, 7]);
   const checkoutStartedAfter = Date.now();
   const started = await chargeBookingPayment({
     paymentId: one.payment.id,
     userId: player.id,
   });
-  ok("a charge hands back a redirect", started.status === "redirect");
+  ok("a charge hands back the direct QR action", started.status === "action");
   ok(
-    "to PayMongo's hosted checkout",
-    started.status === "redirect" && started.url.includes("checkout.paymongo.com")
+    "with PayMongo's QR image",
+    started.status === "action" &&
+      started.qrImageUrl?.startsWith("data:image/") === true
   );
 
-  const created = mock.requests.find((r) => r.url.endsWith("/checkout_sessions"));
+  const created = mock.requests.find((r) => r.url.endsWith("/payment_intents"));
   ok("PayMongo was actually called", created != null);
-  ok("checkout uses PayMongo V2", created!.url.includes("/v2/checkout_sessions"));
+  ok("direct QR uses the Payment Intent API", created!.url.includes("/v1/payment_intents"));
   ok(
     "with the partner's own secret key",
     Buffer.from(created!.auth.replace("Basic ", ""), "base64")
       .toString()
       .startsWith(SECRET)
   );
+  const registeredWebhook = mock.requests.find(
+    (request) =>
+      request.method === "POST" && request.url.endsWith("/webhooks")
+  );
+  const registeredEvents = (
+    registeredWebhook!.body as { data: { attributes: { events: string[] } } }
+  ).data.attributes.events;
+  ok(
+    "existing venue connections are upgraded for direct-payment webhooks",
+    registeredEvents.includes("payment.paid") &&
+      registeredEvents.includes("checkout_session.payment.paid")
+  );
   const attrs = (created!.body as { data: { attributes: Record<string, unknown> } })
     .data.attributes;
-  ok("in centavos", (attrs.line_items as { amount: number }[])[0].amount === 51500);
+  ok("the grossed-up total is sent in centavos", attrs.amount === 52285);
   ok(
     "offering QR Ph only",
-    JSON.stringify(attrs.payment_method_types) ===
+    JSON.stringify(attrs.payment_method_allowed) ===
       JSON.stringify(["qrph"])
   );
-  ok("tagged with our payment id", attrs.reference_number === one.payment.id);
-  ok("PayMongo processing fees pass through", attrs.pass_on_fees === true);
+  ok(
+    "tagged with our payment id",
+    (attrs.metadata as { paymentId?: string }).paymentId === one.payment.id
+  );
+  const methodRequest = mock.requests.find((r) =>
+    r.url.endsWith("/payment_methods")
+  );
+  const methodAttrs = (
+    methodRequest!.body as { data: { attributes: Record<string, unknown> } }
+  ).data.attributes;
+  ok("a QR Ph Payment Method is created", methodAttrs.type === "qrph");
+  ok(
+    "the provider QR expires with the booking hold",
+    Number(methodAttrs.expiry_seconds) >= 895 &&
+      Number(methodAttrs.expiry_seconds) <= 900
+  );
+  ok(
+    "the processing fee is grossed up using the configured rate",
+    paymongoQrPhProcessingFeeFor(515) === 7.85 &&
+      paymongoQrPhTotalFor(515) === 522.85
+  );
 
   const row = await prisma.bookingPayment.findUnique({
     where: { id: one.payment.id },
   });
-  ok("the session id is stored", row!.providerPaymentId?.startsWith("cs_") === true);
+  ok("the Payment Intent id is stored", row!.providerPaymentId?.startsWith("pi_") === true);
+  ok("the exact QR image is stored", row!.qrImageUrl?.startsWith("data:image/") === true);
+  ok("the processing fee is snapshotted", Number(row!.processingFee) === 7.85);
   ok("the row stays PENDING until they pay", row!.status === "PENDING");
   ok("the claim is held while they're away", row!.chargeStartedAt !== null);
   const heldBooking = await prisma.booking.findUnique({
@@ -182,7 +223,7 @@ async function check() {
   const minimumGraceExpiry =
     checkoutStartedAfter + PAYMENT_COMPLETION_GRACE_MINUTES * 60_000;
   ok(
-    "starting PayMongo extends a nearly expired hold through payment authorization",
+    "the direct QR and reservation keep the same live hold",
     row!.expiresAt.getTime() >= minimumGraceExpiry &&
       heldBooking?.holdExpiresAt?.getTime() === row!.expiresAt.getTime() &&
       heldBooking.slots.every(
@@ -201,14 +242,14 @@ async function check() {
   });
   ok("pressing pay twice is refused", again.status === "in-flight");
   ok(
-    "and opens no second checkout session",
-    mock.requests.filter((r) => r.url.endsWith("/checkout_sessions")).length === 1
+    "and opens no second Payment Intent",
+    mock.requests.filter((r) => r.url.endsWith("/payment_intents")).length === 1
   );
 
   // --- 2. The webhook settles it -------------------------------------------
-  const sessionId = row!.providerPaymentId!;
-  const payId = payMockSession(mock, sessionId);
-  const body = mockPaidEvent(sessionId, payId);
+  const intentId = row!.providerPaymentId!;
+  const payId = payMockIntent(mock, intentId);
+  const body = mockPaymentPaidEvent(intentId, payId, 52285);
   const creds = {
     provider: "paymongo" as const,
     publicKey: "pk_test_abcdefgh",
@@ -286,7 +327,7 @@ async function check() {
   const twoRow = await prisma.bookingPayment.findUnique({
     where: { id: two.payment.id },
   });
-  payMockSession(mock, twoRow!.providerPaymentId!);
+  payMockIntent(mock, twoRow!.providerPaymentId!);
   ok(
     "the return-leg poll settles without a webhook",
     (await pollBookingPayment(two.payment.id)).status === "confirmed"
@@ -320,7 +361,7 @@ async function check() {
     paymentId: three.payment.id,
     userId: player.id,
   });
-  ok("the retry gets a checkout", retried.status === "redirect");
+  ok("the retry gets a new direct QR", retried.status === "action");
   ok(
     "on the same payment row",
     (await prisma.bookingPayment.count({
@@ -341,7 +382,7 @@ async function check() {
     where: { id: one.payment.id },
   });
   ok("recorded as REFUNDED", refunded!.status === "REFUNDED");
-  ok("for the full booking subtotal", Number(refunded!.refundedAmount) === 515);
+  ok("for the full QR amount", Number(refunded!.refundedAmount) === 522.85);
   ok(
     "the refund reverses the service fee",
     (await prisma.serviceFeeEntry.count({

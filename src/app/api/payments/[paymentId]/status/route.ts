@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 
-import { getBookingPaymentStatus } from "@/lib/booking-payments";
+import {
+  getBookingPaymentStatus,
+  pollBookingPayment,
+} from "@/lib/booking-payments";
 import { getCurrentUser } from "@/lib/dal";
 
 export async function GET(
@@ -16,9 +19,23 @@ export async function GET(
   }
 
   const { paymentId } = await params;
-  const payment = await getBookingPaymentStatus(paymentId, user.id);
+  let payment = await getBookingPaymentStatus(paymentId, user.id);
   if (!payment) {
     return NextResponse.json({ message: "Payment not found." }, { status: 404 });
+  }
+
+  // Signed webhooks are authoritative, but an account-level delivery delay
+  // must not leave an open payment screen stuck. Poll PayMongo only after the
+  // ownership check and only while a claimed charge is unresolved.
+  if (payment.status === "PENDING" && payment.chargeInFlight) {
+    await pollBookingPayment(paymentId);
+    payment = await getBookingPaymentStatus(paymentId, user.id);
+    if (!payment) {
+      return NextResponse.json(
+        { message: "Payment not found." },
+        { status: 404 }
+      );
+    }
   }
 
   return NextResponse.json(payment, {

@@ -18,6 +18,7 @@ export type PayBookingFormState = {
   // Where PayMongo wants the payer to go. The client sends the browser there;
   // the hold keeps running while they're away.
   redirectUrl?: string;
+  qrImageUrl?: string;
 };
 
 export async function payForBookingAction(
@@ -43,8 +44,11 @@ export async function payForBookingAction(
   revalidatePath("/dashboard");
 
   switch (outcome.status) {
-    case "redirect":
-      return { redirectUrl: outcome.url };
+    case "action":
+      return {
+        redirectUrl: outcome.redirectUrl ?? undefined,
+        qrImageUrl: outcome.qrImageUrl ?? undefined,
+      };
     case "confirmed":
       return { success: "Paid. Your court is confirmed." };
     case "pending":

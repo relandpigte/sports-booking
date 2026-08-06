@@ -55,8 +55,8 @@ export type BookingView = {
   payment: {
     id: string;
     status: PaymentStatus;
-    // The checkout subtotal and our share of it. PayMongo's method-specific
-    // pass-on processing fee is not known until the player chooses a method.
+    // The booking subtotal and our share of it. The separately snapshotted
+    // PayMongo processing fee is only needed on payment and refund surfaces.
     amount: number;
     platformFee: number;
   } | null;

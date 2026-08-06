@@ -86,7 +86,7 @@ const FAQS = [
   {
     question: "Which payment methods can players use?",
     answer:
-      "Every paid court booking and event registration uses QR Ph through PayMongo's secure hosted checkout.",
+      "Every paid court booking and event registration uses an exact-amount QR Ph code generated securely by PayMongo.",
   },
 ];
 
@@ -411,7 +411,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                 {[
                   "No monthly partner fee",
                   "Live availability",
-                  "Secure hosted checkout",
+                  "Secure PayMongo QR Ph",
                 ].map((item) => (
                   <span key={item} className="inline-flex items-center gap-1.5">
                     <Icon name="check" className="h-4 w-4 text-accent" />
@@ -497,7 +497,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                 {
                   number: "03",
                   title: "Pay and play",
-                  copy: "Finish on PayMongo's hosted checkout. Once payment is verified, your booking is confirmed automatically.",
+                  copy: "Scan the PayMongo QR Ph code shown with your booking. Once payment is verified, your booking is confirmed automatically.",
                   icon: "check" as const,
                 },
               ].map((step) => (
@@ -538,9 +538,9 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                 Pay securely. Get confirmed in seconds.
               </h2>
               <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-slate-600 sm:text-lg">
-                Pay with QR Ph on PayMongo&apos;s hosted checkout. Bunal.club
-                verifies successful payment automatically and confirms your
-                booking without receipt screenshots or manual follow-up.
+                Scan PayMongo&apos;s exact-amount QR Ph code directly on your
+                booking. Bunal.club verifies successful payment automatically
+                and confirms it without receipt screenshots or manual follow-up.
               </p>
             </div>
 
@@ -558,8 +558,8 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                 },
                 {
                   icon: "shield" as const,
-                  label: "Secure hosted checkout",
-                  copy: "Payment details are handled by PayMongo, not Bunal.club.",
+                  label: "Secure dynamic QR",
+                  copy: "PayMongo generates the single-use QR; payment details never pass through Bunal.club.",
                 },
               ].map((item) => (
                 <article

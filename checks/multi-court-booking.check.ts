@@ -32,6 +32,7 @@ async function cleanup() {
 }
 
 async function check() {
+  process.env.APP_URL = "https://checks.bunal.club";
   const paymongo = installPaymongoMock();
   const { CRYPTO_PURPOSE, encrypt } = await import("@/lib/crypto");
   await cleanup();
@@ -116,18 +117,18 @@ async function check() {
   }
   const holdCreatedBefore = Date.now();
   ok("a paid multi-court cart proceeds to one checkout", redirected);
-  const checkoutRequests = paymongo.requests.filter((request) =>
-    request.url.endsWith("/v2/checkout_sessions")
+  const intentRequests = paymongo.requests.filter((request) =>
+    request.url.endsWith("/v1/payment_intents")
   );
   ok(
-    "the booking action automatically creates one QR Ph checkout",
-    checkoutRequests.length === 1 &&
+    "the booking action automatically creates one direct QR Ph intent",
+    intentRequests.length === 1 &&
       JSON.stringify(
         (
-          checkoutRequests[0].body as {
-            data: { attributes: { payment_method_types: string[] } };
+          intentRequests[0].body as {
+            data: { attributes: { payment_method_allowed: string[] } };
           }
-        ).data.attributes.payment_method_types
+        ).data.attributes.payment_method_allowed
       ) === JSON.stringify(["qrph"])
   );
 

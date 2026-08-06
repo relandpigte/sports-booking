@@ -23,6 +23,7 @@ async function cleanup() {
 }
 
 async function check() {
+  process.env.APP_URL = "https://checks.bunal.club";
   const paymongo = installPaymongoMock();
   const { CRYPTO_PURPOSE, encrypt, secretHint } = await import("@/lib/crypto");
 
@@ -109,30 +110,31 @@ async function check() {
     where: { eventId_userId: { eventId: event.id, userId: player.id } },
     include: { payment: true },
   });
-  const checkout = paymongo.requests.find((request) =>
-    request.url.endsWith("/v2/checkout_sessions")
+  const intent = paymongo.requests.find((request) =>
+    request.url.endsWith("/v1/payment_intents")
   );
-  const methods = checkout
+  const methods = intent
     ? (
-        checkout.body as {
-          data: { attributes: { payment_method_types: string[] } };
+        intent.body as {
+          data: { attributes: { payment_method_allowed: string[] } };
         }
-      ).data.attributes.payment_method_types
+      ).data.attributes.payment_method_allowed
     : [];
 
   ok("paid event registration redirects to its payment screen", redirected);
   ok(
-    "paid event registration prepares one QR Ph checkout automatically",
+    "paid event registration prepares one direct QR Ph intent automatically",
     paymongo.requests.filter((request) =>
-      request.url.endsWith("/v2/checkout_sessions")
+      request.url.endsWith("/v1/payment_intents")
     ).length === 1 && JSON.stringify(methods) === JSON.stringify(["qrph"])
   );
   ok(
     "the event spot and QR Ph payment share the configured 15-minute hold",
     registration?.status === "PENDING" &&
       registration.payment?.method === "QRPH" &&
-      registration.payment.redirectUrl?.includes("checkout.paymongo.com") ===
-        true &&
+      registration.payment.providerPaymentId?.startsWith("pi_") === true &&
+      registration.payment.qrImageUrl?.startsWith("data:image/") === true &&
+      Number(registration.payment.processingFee) === 7.85 &&
       registration.holdExpiresAt != null &&
       registration.holdExpiresAt.getTime() >=
         startedAfter + BOOKING_HOLD_MINUTES * 60_000 &&

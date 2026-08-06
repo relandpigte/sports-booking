@@ -266,6 +266,10 @@ model PartnerGateway {
   // party's dashboard.
   webhookToken String @unique
 
+  // Incremented after the account webhook is subscribed to the direct
+  // Payment Intent events required by the current venue gateway adapter.
+  webhookVersion Int @default(1)
+
   accountLabel   String?
   connectedAt    DateTime  @default(now())
   // Disconnecting keeps the ciphertext, so refunds on already-paid bookings
@@ -314,19 +318,21 @@ model BookingPayment {
   // financial record.
   hubId     String
 
-  // The checkout subtotal: court time plus the Bunal.club service fee. PayMongo's
-  // method-specific pass-on processing fee is calculated on its hosted page.
-  amount      Decimal           @db.Decimal(10, 2)
+  // The booking subtotal: court time plus the Bunal.club service fee.
+  amount        Decimal           @db.Decimal(10, 2)
   // The venue's share — the court time they advertised.
-  venueAmount Decimal           @default(0) @db.Decimal(10, 2)
+  venueAmount   Decimal           @default(0) @db.Decimal(10, 2)
   // Bunal.club's per-booking service fee.
   //
   // All three are stored rather than derived on purpose: the fee schedule can
   // change, and an older payment must keep the fee quoted at checkout.
-  platformFee Decimal           @default(0) @db.Decimal(10, 2)
-  currency    String            @default("PHP")
-  method      PaymentMethodType
-  status      PaymentStatus     @default(PENDING)
+  platformFee   Decimal           @default(0) @db.Decimal(10, 2)
+  // The QR Ph processing fee grossed up onto the direct Payment Intent so the
+  // partner receives the complete booking subtotal.
+  processingFee Decimal           @default(0) @db.Decimal(10, 2)
+  currency      String            @default("PHP")
+  method        PaymentMethodType
+  status        PaymentStatus     @default(PENDING)
 
   // The hold this payment is racing — a snapshot of the bookings'
   // holdExpiresAt, so the checkout page can render a countdown from one read.
@@ -343,6 +349,7 @@ model BookingPayment {
   providerPaymentId String?
   providerClientKey String?
   redirectUrl       String? @db.Text
+  qrImageUrl        String? @db.Text
   providerRef       String?
   failureCode       String?
   failureMessage    String? @db.Text
@@ -789,8 +796,8 @@ model EventCourt {
   @@index([courtId])
 }
 
-// PENDING registrations reserve one capacity spot while their hosted checkout
-// is live. WAITLISTED rows are free and carry no payment. The payment model is
+// PENDING registrations reserve one capacity spot while their QR Ph code is
+// live. WAITLISTED rows are free and carry no payment. The payment model is
 // shared with court bookings so venue deposits, refunds and the service-fee
 // ledger keep one idempotent path.
 model EventRegistration {

@@ -10,12 +10,15 @@ import {
 import {
   BOOKING_HOLD_MINUTES,
   PAYMENT_COMPLETION_GRACE_MINUTES,
+  paymongoQrPhProcessingFeeFor,
 } from "@/lib/constants";
 import { prisma } from "@/lib/db";
-import { loadGatewayCredentials } from "@/lib/partner-gateway";
+import {
+  loadGatewayCredentials,
+  loadGatewayCredentialsForCharge,
+} from "@/lib/partner-gateway";
 import { getVenueGateway, UnknownVenueGateway } from "@/lib/payments/venue";
 import type { ChargeResult } from "@/lib/payments/types";
-import { appUrl } from "@/lib/urls";
 import { formatManilaDate, formatSlotRange } from "@/lib/time";
 import { ensureServiceFeeCharge } from "@/lib/service-fees";
 
@@ -45,11 +48,12 @@ export type BookingPaymentView = {
   id: string;
   status: PaymentStatus;
   method: PaymentMethodType;
-  // Checkout subtotal: venueAmount + platformFee. PayMongo's processing fee is
-  // calculated and added on its hosted page.
+  // Booking subtotal: venueAmount + platformFee.
   amount: number;
   venueAmount: number;
   platformFee: number;
+  processingFee: number;
+  payableAmount: number;
   currency: string;
   expiresAt: Date;
   // How long the hold has left, read from the clock HERE rather than in the
@@ -61,6 +65,7 @@ export type BookingPaymentView = {
   // from firing a second one; the DB guard below is what actually enforces it.
   chargeInFlight: boolean;
   redirectUrl: string | null;
+  qrImageUrl: string | null;
   providerPaymentId: string | null;
   failureCode: string | null;
   failureMessage: string | null;
@@ -89,11 +94,13 @@ const paymentSelect = {
   amount: true,
   venueAmount: true,
   platformFee: true,
+  processingFee: true,
   currency: true,
   expiresAt: true,
   attempt: true,
   chargeStartedAt: true,
   redirectUrl: true,
+  qrImageUrl: true,
   providerPaymentId: true,
   failureCode: true,
   failureMessage: true,
@@ -142,6 +149,8 @@ export function mapBookingPayment(row: PaymentRow): BookingPaymentView {
     amount: Number(row.amount),
     venueAmount: Number(row.venueAmount),
     platformFee: Number(row.platformFee),
+    processingFee: Number(row.processingFee),
+    payableAmount: Number(row.amount) + Number(row.processingFee),
     currency: row.currency,
     expiresAt: row.expiresAt,
     secondsLeft: Math.max(
@@ -151,6 +160,7 @@ export function mapBookingPayment(row: PaymentRow): BookingPaymentView {
     attempt: row.attempt,
     chargeInFlight: row.chargeStartedAt != null,
     redirectUrl: row.redirectUrl,
+    qrImageUrl: row.qrImageUrl,
     providerPaymentId: row.providerPaymentId,
     failureCode: row.failureCode,
     failureMessage: row.failureMessage,
@@ -260,6 +270,8 @@ export async function recordBookingChargeResult(
         paidAt: new Date(),
         failureCode: null,
         failureMessage: null,
+        redirectUrl: null,
+        qrImageUrl: null,
         raw,
       },
     });
@@ -276,6 +288,7 @@ export async function recordBookingChargeResult(
         providerPaymentId: result.paymentId,
         providerClientKey: result.clientKey,
         redirectUrl: result.redirectUrl,
+        qrImageUrl: result.qrImageUrl,
         raw,
       },
     });
@@ -306,6 +319,9 @@ export async function recordBookingChargeResult(
       failureCode: result.code,
       failureMessage: result.message,
       chargeStartedAt: null,
+      providerClientKey: null,
+      redirectUrl: null,
+      qrImageUrl: null,
       raw,
     },
   });
@@ -612,7 +628,11 @@ export async function recoverPaidEventRegistration(args: {
 
 export type ChargeOutcome =
   | { status: "confirmed" }
-  | { status: "redirect"; url: string }
+  | {
+      status: "action";
+      redirectUrl: string | null;
+      qrImageUrl: string | null;
+    }
   | { status: "pending" }
   | { status: "declined"; message: string }
   | { status: "expired" }
@@ -649,6 +669,11 @@ export async function chargeBookingPayment(args: {
   // Checked before any money moves, not after — a charge against a dead hold
   // is a refund we'd have to make.
   if (payment.expiresAt <= now) return { status: "expired" };
+  // PayMongo's shortest QR lifetime is 60 seconds. Starting one later than
+  // that would let the QR outlive the court hold and invite an auto-refund.
+  if (payment.expiresAt.getTime() - now.getTime() < 60_000) {
+    return { status: "expired" };
+  }
 
   // THE double-charge guard:
   // whoever flips chargeStartedAt from null wins, everyone else is told the
@@ -663,6 +688,10 @@ export async function chargeBookingPayment(args: {
           )
         )
       : payment.expiresAt;
+  const processingFee =
+    Number(payment.processingFee) > 0
+      ? Number(payment.processingFee)
+      : paymongoQrPhProcessingFeeFor(Number(payment.amount));
   const claim = await prisma.$transaction(async (tx) => {
     const claimed = await tx.bookingPayment.updateMany({
       where: {
@@ -677,6 +706,8 @@ export async function chargeBookingPayment(args: {
         chargeStartedAt: now,
         attempt,
         redirectUrl: null,
+        qrImageUrl: null,
+        processingFee: new Prisma.Decimal(processingFee),
         expiresAt: graceExpiresAt,
       },
     });
@@ -703,7 +734,6 @@ export async function chargeBookingPayment(args: {
   });
   if (claim.count !== 1) return { status: "in-flight" };
 
-  const creds = await loadGatewayCredentials(payment.gatewayId);
   const lines = payment.bookings.map((b) => ({
     bookingId: b.id,
     courtName: b.court.name,
@@ -716,18 +746,21 @@ export async function chargeBookingPayment(args: {
 
   let result: ChargeResult;
   try {
+    const creds = await loadGatewayCredentialsForCharge(payment.gatewayId);
     result = await getVenueGateway(creds).charge({
-      amount: { amount: Number(payment.amount), currency: "PHP" },
+      amount: {
+        amount: Number(payment.amount) + processingFee,
+        currency: "PHP",
+      },
       description: event
         ? `${event.title} — ${formatManilaDate(event.date)}, ${formatSlotRange(event.startHour, event.endHour)}`
         : describe(lines),
       // The gateway's own idempotency header too, so a retried request after a
       // network blip doesn't become a second charge.
       idempotencyKey: `${payment.id}:${attempt}`,
-      returnUrl: appUrl(
-        event
-          ? `/events/${event.publicId}/pay/${payment.id}`
-          : `/dashboard/bookings/pay/${payment.id}`
+      expiresInSeconds: Math.max(
+        60,
+        Math.floor((graceExpiresAt.getTime() - now.getTime()) / 1000)
       ),
       metadata: {
         paymentId: payment.id,
@@ -769,7 +802,11 @@ export async function chargeBookingPayment(args: {
     return { status: "confirmed" };
   }
   if (result.status === "requires_action") {
-    return { status: "redirect", url: result.redirectUrl };
+    return {
+      status: "action",
+      redirectUrl: result.redirectUrl,
+      qrImageUrl: result.qrImageUrl,
+    };
   }
   if (result.status === "pending") return { status: "pending" };
   return { status: "declined", message: result.message };
@@ -834,6 +871,7 @@ export async function refundBookingPayment(args: {
       id: true,
       status: true,
       amount: true,
+      processingFee: true,
       gatewayId: true,
       providerPaymentId: true,
     },
@@ -847,7 +885,7 @@ export async function refundBookingPayment(args: {
     return { ok: false, message: "That payment has no gateway reference to refund." };
   }
 
-  const amount = Number(payment.amount);
+  const amount = Number(payment.amount) + Number(payment.processingFee);
   const creds = await loadGatewayCredentials(payment.gatewayId);
 
   let gateway;

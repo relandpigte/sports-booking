@@ -12,7 +12,8 @@ export type ChargeResult =
   | {
       status: "requires_action";
       paymentId: string;
-      redirectUrl: string;
+      redirectUrl: string | null;
+      qrImageUrl: string | null;
       clientKey: string | null;
       raw: unknown;
     }
@@ -48,7 +49,7 @@ export type ProviderWebhookEvent = {
   failureMessage: string | null;
   // Present when PayMongo includes the collected amount in the signed event.
   amountCentavos?: number;
-  // How they actually paid, when the hosted checkout tells us.
+  // How they actually paid, when PayMongo includes the source.
   methodType?: "QRPH" | "CARD" | "GCASH" | "MAYA";
   raw: unknown;
 };

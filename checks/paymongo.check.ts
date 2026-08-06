@@ -47,6 +47,30 @@ function paidBody(sessionId = "cs_testsession", paymentId = "pay_testpayment") {
   });
 }
 
+function directPaidBody(
+  intentId = "pi_testintent",
+  paymentId = "pay_directpayment"
+) {
+  return JSON.stringify({
+    data: {
+      id: "evt_" + crypto.randomBytes(6).toString("hex"),
+      attributes: {
+        type: "payment.paid",
+        data: {
+          id: paymentId,
+          type: "payment",
+          attributes: {
+            amount: 26142,
+            status: "paid",
+            payment_intent_id: intentId,
+            source: { type: "qrph" },
+          },
+        },
+      },
+    },
+  });
+}
+
 async function verify(body: string, header: string) {
   return gateway.verifyWebhook(body, new Headers({ "paymongo-signature": header }));
 }
@@ -65,6 +89,15 @@ async function main() {
   );
   ok("carries the pay_ id as the reference", test?.reference === "pay_testpayment");
   ok("reports QR Ph as the payment method", test?.methodType === "QRPH");
+
+  const directBody = directPaidBody();
+  const direct = await verify(
+    directBody,
+    signPaymongoBody(WEBHOOK, directBody, now(), "test")
+  );
+  ok("direct payment.paid verifies", direct !== null);
+  ok("direct events key off the Payment Intent", direct?.providerPaymentId === "pi_testintent");
+  ok("direct events carry the paid amount", direct?.amountCentavos === 26142);
 
   // --- 2. A valid live-mode signature ---------------------------------------
   // The header component differs (li, not te); verification must not care.
@@ -195,7 +228,7 @@ async function main() {
     amount: { amount: 0.5, currency: "PHP" },
     description: "Court 1",
     idempotencyKey: "x:1",
-    returnUrl: "https://www.bunal.club/dashboard/bookings/pay/x",
+    expiresInSeconds: 900,
     metadata: {},
   });
   ok("a sub-peso charge fails without calling out", tooSmall.status === "failed");

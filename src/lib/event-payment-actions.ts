@@ -10,6 +10,7 @@ export type PayEventFormState = {
   message?: string;
   success?: string;
   redirectUrl?: string;
+  qrImageUrl?: string;
 };
 
 export async function payForEventAction(
@@ -46,8 +47,11 @@ export async function payForEventAction(
   revalidatePath("/dashboard/events");
 
   switch (outcome.status) {
-    case "redirect":
-      return { redirectUrl: outcome.url };
+    case "action":
+      return {
+        redirectUrl: outcome.redirectUrl ?? undefined,
+        qrImageUrl: outcome.qrImageUrl ?? undefined,
+      };
     case "confirmed":
       return { success: "Paid. Your event registration is confirmed." };
     case "pending":

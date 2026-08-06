@@ -14,6 +14,8 @@ import {
   SERVICE_FEE_RATE,
   bookingServiceFeeFor,
   grossFor,
+  paymongoQrPhProcessingFeeFor,
+  paymongoQrPhTotalFor,
 } from "@/lib/constants";
 
 const prisma = new PrismaClient();
@@ -39,6 +41,14 @@ async function check() {
   );
   ok("a ₱250 booking grosses ₱257.50", grossFor(250) === 257.5);
   ok("a ₱500 booking grosses ₱515", grossFor(500) === 515);
+  ok(
+    "a ₱257.50 subtotal carries the approved ₱3.92 QR Ph fee",
+    paymongoQrPhProcessingFeeFor(257.5) === 3.92
+  );
+  ok(
+    "the exact QR amount is ₱261.42",
+    paymongoQrPhTotalFor(257.5) === 261.42
+  );
   ok(
     "a centavo court total stays exact",
     grossFor(333.33) === 343.33

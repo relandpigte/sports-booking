@@ -47,6 +47,8 @@ export default async function PayEventRegistrationPage({
   const holdLive = payment.status === "PENDING" && payment.secondsLeft > 0;
   const activeCheckoutUrl =
     holdLive && payment.chargeInFlight ? payment.redirectUrl : null;
+  const activeQrImageUrl =
+    holdLive && payment.chargeInFlight ? payment.qrImageUrl : null;
 
   return (
     <PageShell maxWidth="max-w-xl">
@@ -99,9 +101,17 @@ export default async function PayEventRegistrationPage({
                 <dt className="text-slate-500">Bunal service fee</dt>
                 <dd className="font-semibold text-navy">{formatPHP(payment.platformFee)}</dd>
               </div>
+              {payment.processingFee > 0 && (
+                <div className="flex justify-between gap-4">
+                  <dt className="text-slate-500">PayMongo processing fee</dt>
+                  <dd className="font-semibold text-navy">
+                    {formatPHP(payment.processingFee)}
+                  </dd>
+                </div>
+              )}
               <div className="flex items-center justify-between gap-4 border-t border-slate-100 pt-3">
-                <dt className="font-black uppercase text-navy">Total</dt>
-                <dd className="text-xl font-black text-navy">{formatPHP(payment.amount)}</dd>
+                <dt className="font-black uppercase text-navy">Total to pay</dt>
+                <dd className="text-xl font-black text-navy">{formatPHP(payment.payableAmount)}</dd>
               </div>
             </dl>
 
@@ -136,12 +146,20 @@ export default async function PayEventRegistrationPage({
                   </Link>
                 </div>
               ) : holdLive ? (
-                activeCheckoutUrl ? (
+                activeQrImageUrl || activeCheckoutUrl ? (
                   <div className="space-y-4">
-                    <p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-700">
-                      Your checkout is still active. Continue where you left off.
-                    </p>
-                    <PayMongoCheckout checkoutUrl={activeCheckoutUrl} />
+                    {activeCheckoutUrl && (
+                      <p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                        This hold started before direct QR Ph was enabled. Finish
+                        it through the original PayMongo checkout.
+                      </p>
+                    )}
+                    <PayMongoCheckout
+                      qrImageUrl={activeQrImageUrl}
+                      checkoutUrl={activeCheckoutUrl}
+                      expiresAt={payment.expiresAt.toISOString()}
+                      initialSeconds={payment.secondsLeft}
+                    />
                     <PaymentStatusPoller
                       paymentId={payment.id}
                       initialStatus={payment.status}
@@ -152,8 +170,10 @@ export default async function PayEventRegistrationPage({
                   <EventPaymentPanel
                     paymentId={payment.id}
                     publicId={publicId}
-                    amount={payment.amount}
+                    amount={payment.payableAmount}
                     venueName={venueName}
+                    expiresAt={payment.expiresAt.toISOString()}
+                    initialSeconds={payment.secondsLeft}
                   />
                 )
               ) : (

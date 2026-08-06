@@ -40,7 +40,7 @@ type PayMongoError = { code?: string; detail?: string };
 
 export async function paymongoRequest<T = PayMongoResource>(
   secretKey: string,
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "PUT",
   path: string,
   body?: unknown,
   options: {
@@ -120,6 +120,7 @@ export type PayMongoPayment = {
     amount?: number;
     status?: string;
     source?: { type?: string };
+    payment_intent_id?: string;
   };
 };
 
@@ -141,7 +142,7 @@ export function methodTypeOf(
   return undefined;
 }
 
-// The paid payment inside a session, if there is one. PayMongo lists every
+// The paid payment inside a session or intent, if there is one. PayMongo lists every
 // attempt, so this deliberately looks for a PAID one rather than the first.
 export function paidPayment(session: CheckoutSession): PayMongoPayment | null {
   return session.payments?.find((p) => p.attributes?.status === "paid") ?? null;
@@ -208,13 +209,125 @@ export async function getCheckoutSession(
   return data.attributes as CheckoutSession;
 }
 
-// A refund needs the pay_… id, but what we store is the cs_… session id.
-// Resolving here means no caller has to know the difference.
+// --- direct QR Ph Payment Intents ------------------------------------------
+
+export type PaymentIntent = {
+  amount?: number;
+  status?: string;
+  client_key?: string;
+  payments?: PayMongoPayment[];
+  last_payment_error?:
+    | string
+    | { code?: string; detail?: string; message?: string }
+    | null;
+  next_action?: {
+    code?: { image_url?: string };
+  } | null;
+};
+
+export function paymentIntentError(intent: PaymentIntent): {
+  code: string;
+  message: string;
+} | null {
+  const error = intent.last_payment_error;
+  if (!error) return null;
+  if (typeof error === "string") {
+    return { code: "payment_failed", message: error };
+  }
+  return {
+    code: error.code ?? "payment_failed",
+    message:
+      error.detail ?? error.message ?? "The PayMongo payment was not completed.",
+  };
+}
+
+export async function createQrPhPaymentIntent(
+  secretKey: string,
+  input: {
+    amountPesos: number;
+    description: string;
+    metadata: Record<string, string>;
+    expiresInSeconds: number;
+    idempotencyKey: string;
+  }
+): Promise<{ id: string; attributes: PaymentIntent }> {
+  const intent = await paymongoRequest(
+    secretKey,
+    "POST",
+    "/payment_intents",
+    {
+      data: {
+        attributes: {
+          amount: toCentavos(input.amountPesos),
+          currency: "PHP",
+          payment_method_allowed: ["qrph"],
+          description: input.description,
+          metadata: input.metadata,
+        },
+      },
+    },
+    { idempotencyKey: `${input.idempotencyKey}:intent` }
+  );
+  const intentAttributes = intent.attributes as PaymentIntent;
+
+  const paymentMethod = await paymongoRequest(
+    secretKey,
+    "POST",
+    "/payment_methods",
+    {
+      data: {
+        attributes: {
+          type: "qrph",
+          expiry_seconds: Math.max(60, Math.min(9_000, input.expiresInSeconds)),
+        },
+      },
+    },
+    { idempotencyKey: `${input.idempotencyKey}:method` }
+  );
+
+  const attached = await paymongoRequest(
+    secretKey,
+    "POST",
+    `/payment_intents/${intent.id}/attach`,
+    {
+      data: {
+        attributes: {
+          payment_method: paymentMethod.id,
+          ...(intentAttributes.client_key
+            ? { client_key: intentAttributes.client_key }
+            : {}),
+        },
+      },
+    },
+    { idempotencyKey: `${input.idempotencyKey}:attach` }
+  );
+
+  return { id: attached.id, attributes: attached.attributes as PaymentIntent };
+}
+
+export async function getPaymentIntent(
+  secretKey: string,
+  intentId: string
+): Promise<PaymentIntent> {
+  const data = await paymongoRequest(
+    secretKey,
+    "GET",
+    `/payment_intents/${intentId}`
+  );
+  return data.attributes as PaymentIntent;
+}
+
+// A refund needs the pay_… id, but the ledger stores either the current pi_…
+// intent id or a legacy cs_… session id.
 export async function resolvePaymentId(
   secretKey: string,
   id: string
 ): Promise<string | null> {
   if (id.startsWith("pay_")) return id;
+  if (id.startsWith("pi_")) {
+    const intent = await getPaymentIntent(secretKey, id);
+    return paidPayment(intent)?.id ?? null;
+  }
   const session = await getCheckoutSession(secretKey, id);
   return paidPayment(session)?.id ?? null;
 }
@@ -243,7 +356,9 @@ export async function createRefund(
 
 // --- webhooks ---------------------------------------------------------------
 
-export const WEBHOOK_EVENTS = [
+export const PAYMONGO_WEBHOOK_VERSION = 2;
+
+export const PLATFORM_WEBHOOK_EVENTS = [
   // The one that settles. A hosted checkout reports completion against the
   // SESSION, not the payment, so this is the event carrying the id we stored.
   "checkout_session.payment.paid",
@@ -251,17 +366,29 @@ export const WEBHOOK_EVENTS = [
   "payment.refunded",
 ];
 
+export const VENUE_WEBHOOK_EVENTS = [
+  ...PLATFORM_WEBHOOK_EVENTS,
+  "payment.paid",
+];
+
 type WebhookResource = {
   id: string;
-  attributes: { url?: string; secret_key?: string; status?: string };
+  attributes: {
+    url?: string;
+    secret_key?: string;
+    status?: string;
+    events?: string[];
+  };
 };
 
-// Registers a callback URL in a PayMongo account. The secret is only ever
-// returned at creation, so an existing webhook we can't read the secret of is
-// useless to us — hence the explicit message rather than a silent reuse.
+// Registers or updates a callback URL in a PayMongo account. Update responses
+// may omit the one-time signing secret, so callers upgrading an existing
+// connection provide the encrypted secret they already hold.
 export async function registerPaymongoWebhook(
   secretKey: string,
-  url: string
+  url: string,
+  knownSecret?: string,
+  events: string[] = PLATFORM_WEBHOOK_EVENTS
 ): Promise<{ ok: true; secret: string } | { ok: false; message: string }> {
   if (!url.startsWith("https://")) {
     return {
@@ -280,14 +407,22 @@ export async function registerPaymongoWebhook(
       "/webhooks"
     );
     const match = existing.find((w) => w.attributes.url === url);
-    if (match?.attributes.secret_key) {
-      return { ok: true, secret: match.attributes.secret_key };
-    }
     if (match) {
+      const updated = await paymongoRequest<WebhookResource>(
+        secretKey,
+        "PUT",
+        `/webhooks/${match.id}`,
+        { data: { attributes: { url, events } } }
+      );
+      const secret =
+        updated.attributes.secret_key ??
+        match.attributes.secret_key ??
+        knownSecret;
+      if (secret) return { ok: true, secret };
       return {
         ok: false,
         message:
-          "A webhook for this URL already exists in your PayMongo account, but its signing secret can only be read once. Delete it there, or paste the secret below.",
+          "The PayMongo webhook events were updated, but its signing secret is not readable. Paste the existing secret below.",
       };
     }
 
@@ -295,7 +430,7 @@ export async function registerPaymongoWebhook(
       secretKey,
       "POST",
       "/webhooks",
-      { data: { attributes: { url, events: WEBHOOK_EVENTS } } }
+      { data: { attributes: { url, events } } }
     );
     const secret = created.attributes.secret_key;
     if (!secret) {

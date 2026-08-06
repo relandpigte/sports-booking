@@ -47,10 +47,12 @@ export default async function PayBookingPage({
 
   const { payment, venueName } = screen;
   const holdLive = payment.status === "PENDING" && payment.secondsLeft > 0;
-  // They started paying and came back without finishing — a closed tab, or the
-  // back button. The checkout session is still open.
+  // Existing hosted sessions and current direct QR intents both remain bound
+  // to the same claimed payment row while the hold is live.
   const activeCheckoutUrl =
     holdLive && payment.chargeInFlight ? payment.redirectUrl : null;
+  const activeQrImageUrl =
+    holdLive && payment.chargeInFlight ? payment.qrImageUrl : null;
 
   return (
     <div className="mx-auto w-full max-w-md">
@@ -104,10 +106,18 @@ export default async function PayBookingPage({
               <dd className="text-gray-900">{formatPHP(payment.platformFee)}</dd>
             </div>
           )}
+          {payment.processingFee > 0 && (
+            <div className="flex items-center justify-between">
+              <dt className="text-gray-500">PayMongo processing fee</dt>
+              <dd className="text-gray-900">
+                {formatPHP(payment.processingFee)}
+              </dd>
+            </div>
+          )}
           <div className="flex items-center justify-between border-t border-gray-100 pt-2">
-            <dt className="font-medium text-gray-900">Total</dt>
+            <dt className="font-medium text-gray-900">Total to pay</dt>
             <dd className="text-base font-semibold text-gray-900">
-              {formatPHP(payment.amount)}
+              {formatPHP(payment.payableAmount)}
             </dd>
           </div>
         </dl>
@@ -145,15 +155,20 @@ export default async function PayBookingPage({
           {payment.status !== "SUCCEEDED" &&
             payment.status !== "REFUNDED" &&
             (holdLive ? (
-              activeCheckoutUrl ? (
-                // Send them back to the SAME checkout session rather than
-                // opening a second one against the same hold.
+              activeQrImageUrl || activeCheckoutUrl ? (
                 <div className="flex flex-col gap-3">
-                  <p className="rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-700">
-                    Your payment hasn&apos;t finished yet. Your hours are still
-                    held — pick up where you left off.
-                  </p>
-                  <PayMongoCheckout checkoutUrl={activeCheckoutUrl} />
+                  {activeCheckoutUrl && (
+                    <p className="rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-700">
+                      This hold started before direct QR Ph was enabled. Finish
+                      it through the original PayMongo checkout.
+                    </p>
+                  )}
+                  <PayMongoCheckout
+                    qrImageUrl={activeQrImageUrl}
+                    checkoutUrl={activeCheckoutUrl}
+                    expiresAt={payment.expiresAt.toISOString()}
+                    initialSeconds={payment.secondsLeft}
+                  />
                   <PaymentStatusPoller
                     paymentId={payment.id}
                     initialStatus={payment.status}
@@ -173,8 +188,10 @@ export default async function PayBookingPage({
                   )}
                   <PayBookingPanel
                     paymentId={payment.id}
-                    amount={payment.amount}
+                    amount={payment.payableAmount}
                     venueName={venueName}
+                    expiresAt={payment.expiresAt.toISOString()}
+                    initialSeconds={payment.secondsLeft}
                   />
                 </div>
               )

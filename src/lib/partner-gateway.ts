@@ -3,9 +3,14 @@ import "server-only";
 import { cache } from "react";
 
 import { prisma } from "@/lib/db";
-import { CRYPTO_PURPOSE, decrypt } from "@/lib/crypto";
+import { CRYPTO_PURPOSE, decrypt, encrypt } from "@/lib/crypto";
 import { appUrl } from "@/lib/urls";
 import type { GatewayCredentials, VenueGatewayId } from "@/lib/payments/venue";
+import {
+  PAYMONGO_WEBHOOK_VERSION,
+  VENUE_WEBHOOK_EVENTS,
+  registerPaymongoWebhook,
+} from "@/lib/payments/paymongo-core";
 
 // What the UI is ALLOWED to see. Note what's absent: no secret key, no webhook
 // secret, no ciphertext. The hint is stored in plaintext precisely so rendering
@@ -88,4 +93,45 @@ export async function loadGatewayCredentials(
       CRYPTO_PURPOSE.gatewayWebhookSecret
     ),
   };
+}
+
+export async function loadGatewayCredentialsForCharge(
+  gatewayId: string
+): Promise<GatewayCredentials> {
+  const credentials = await loadGatewayCredentials(gatewayId);
+  const row = await prisma.partnerGateway.findUnique({
+    where: { id: gatewayId },
+    select: { webhookToken: true, webhookVersion: true },
+  });
+  if (!row) throw new Error("Gateway not found");
+
+  // Existing connected accounts initially subscribed only to hosted Checkout
+  // events. Upgrade each one once, before its next charge, so closing the page
+  // cannot strand a successful direct Payment Intent without a webhook.
+  if (
+    credentials.provider === "paymongo" &&
+    row.webhookVersion < PAYMONGO_WEBHOOK_VERSION
+  ) {
+    const synced = await registerPaymongoWebhook(
+      credentials.secretKey,
+      appUrl(`/api/venue-payments/webhook/${row.webhookToken}`),
+      credentials.webhookSecret,
+      VENUE_WEBHOOK_EVENTS
+    );
+    if (!synced.ok) throw new Error(synced.message);
+
+    credentials.webhookSecret = synced.secret;
+    await prisma.partnerGateway.update({
+      where: { id: gatewayId },
+      data: {
+        webhookSecretEnc: encrypt(
+          synced.secret,
+          CRYPTO_PURPOSE.gatewayWebhookSecret
+        ),
+        webhookVersion: PAYMONGO_WEBHOOK_VERSION,
+      },
+    });
+  }
+
+  return credentials;
 }

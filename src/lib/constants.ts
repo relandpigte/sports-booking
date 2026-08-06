@@ -137,6 +137,38 @@ export const BOOKING_HOLD_MINUTES = 15;
 // session is claimed and never shortens the main hold.
 export const PAYMENT_COMPLETION_GRACE_MINUTES = 5;
 
+// PayMongo's published QR Ph rate is 1.34% before 12% VAT. Direct Payment
+// Intents do not support Checkout V2's pass_on_fees flag, so the charge is
+// grossed up to leave the booking subtotal after PayMongo deducts this rate.
+// Deployments with negotiated merchant pricing can override the VAT-inclusive
+// decimal rate (for example, 0.015008) without rewriting historical payments.
+export const DEFAULT_PAYMONGO_QRPH_PROCESSING_RATE = 0.0134 * 1.12;
+
+export function paymongoQrPhProcessingRate(): number {
+  const configured = Number(process.env.PAYMONGO_QRPH_PROCESSING_RATE);
+  return Number.isFinite(configured) && configured > 0 && configured < 1
+    ? configured
+    : DEFAULT_PAYMONGO_QRPH_PROCESSING_RATE;
+}
+
+export function paymongoQrPhProcessingFeeFor(subtotal: number): number {
+  const subtotalCentavos = Math.round(subtotal * 100);
+  if (subtotalCentavos <= 0) return 0;
+
+  const chargeCentavos = Math.round(
+    subtotalCentavos / (1 - paymongoQrPhProcessingRate())
+  );
+  return (chargeCentavos - subtotalCentavos) / 100;
+}
+
+export function paymongoQrPhTotalFor(subtotal: number): number {
+  const subtotalCentavos = Math.round(subtotal * 100);
+  const feeCentavos = Math.round(
+    paymongoQrPhProcessingFeeFor(subtotal) * 100
+  );
+  return (subtotalCentavos + feeCentavos) / 100;
+}
+
 // Bunal.club's percentage fee, added ON TOP of the venue's court total. It is
 // charged once per checkout even when gaps split the selected hours into
 // separate Booking rows. Joining is free.
@@ -151,7 +183,7 @@ export function bookingServiceFeeFor(courtTotal: number): number {
   return Math.round(courtCentavos * SERVICE_FEE_RATE) / 100;
 }
 
-// The booking subtotal. PayMongo may add its processing fee at hosted checkout.
+// The booking subtotal before PayMongo's separately snapshotted processing fee.
 export function grossFor(courtTotal: number): number {
   const courtCentavos = Math.round(courtTotal * 100);
   const feeCentavos = Math.round(bookingServiceFeeFor(courtTotal) * 100);

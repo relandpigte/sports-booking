@@ -67,8 +67,8 @@ export function PartnerOnboardingLayout({ children }: { children: ReactNode }) {
               <span className="text-accent">Bunal.club.</span>
             </h1>
             <p className="mt-4 max-w-sm text-sm leading-6 text-white/65">
-              Create your venue profile now. After approval, publish your hub
-              as Coming soon, then connect PayMongo to open bookings.
+              Create your account first, then submit your venue details for
+              review from your partner dashboard.
             </p>
 
             <ul className="mt-10 space-y-7">
@@ -100,10 +100,10 @@ export function PartnerOnboardingLayout({ children }: { children: ReactNode }) {
               Partner onboarding
             </p>
             <h2 className="mt-2 text-3xl font-black tracking-tight text-navy sm:text-4xl">
-              List your venue
+              Create your partner account
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-500 sm:text-base">
-              Create your account and a polished hub profile in one application.
+              Start with your email or Google. Venue details come after sign-in.
             </p>
           </div>
           {children}

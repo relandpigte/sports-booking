@@ -6,11 +6,19 @@ import {
   REGISTRATION_EVENT_COOKIE,
   REGISTRATION_SUCCESS_PATH,
   hasRegistrationEventMarker,
+  registrationMethodFromMarker,
   registrationEventData,
 } from "@/lib/registration-tracking";
+import { isIncompleteGoogleRegistration } from "@/lib/registration-state";
+import {
+  GoogleRegistrationSchema,
+  PartnerApplicationSchema,
+  ProfileSchema,
+  RegisterSchema,
+} from "@/lib/validation";
 
-const playerCookies = `theme=light; ${REGISTRATION_EVENT_COOKIE}=player`;
-const partnerCookies = `${REGISTRATION_EVENT_COOKIE}=partner; session=check`;
+const playerCookies = `theme=light; ${REGISTRATION_EVENT_COOKIE}=player:credentials`;
+const partnerCookies = `${REGISTRATION_EVENT_COOKIE}=partner:google; session=check`;
 
 ok(
   "player and partner registrations have distinct success URLs",
@@ -37,19 +45,110 @@ ok(
 );
 
 const playerEvent = registrationEventData("player");
-const partnerEvent = registrationEventData("partner");
+const partnerEvent = registrationEventData("partner", "google");
 ok(
   "GTM receives one stable event name with an audience dimension",
   playerEvent.event === "registration_complete" &&
     playerEvent.user_type === "player" &&
     partnerEvent.event === "registration_complete" &&
-    partnerEvent.user_type === "partner"
+    partnerEvent.user_type === "partner" &&
+    playerEvent.method === "credentials" &&
+    partnerEvent.method === "google"
+);
+ok(
+  "registration markers retain the authentication method",
+  registrationMethodFromMarker(playerCookies, "player") === "credentials" &&
+    registrationMethodFromMarker(partnerCookies, "partner") === "google"
 );
 ok(
   "registration tracking contains no direct personal data",
   !JSON.stringify([playerEvent, partnerEvent]).match(
     /email|phone|full_name|player_name/
   )
+);
+
+const googleAccount = [{ provider: "google" }];
+ok(
+  "only unfinished Google identities require role selection",
+  isIncompleteGoogleRegistration({
+    role: "PLAYER",
+    registrationCompletedAt: null,
+    passwordHash: null,
+    accounts: googleAccount,
+  })
+);
+ok(
+  "password users and completed Google players stay complete without profiles",
+  !isIncompleteGoogleRegistration({
+    role: "PLAYER",
+    registrationCompletedAt: new Date(),
+    passwordHash: "hash",
+    accounts: googleAccount,
+  }) &&
+    !isIncompleteGoogleRegistration({
+      role: "PLAYER",
+      registrationCompletedAt: new Date(),
+      passwordHash: null,
+      accounts: googleAccount,
+    })
+);
+
+ok(
+  "credential registration requires only email and matching passwords",
+  RegisterSchema.safeParse({
+    email: "minimal-player@example.test",
+    password: "secret123",
+    confirmPassword: "secret123",
+  }).success &&
+    !RegisterSchema.safeParse({
+      email: "minimal-player@example.test",
+      password: "secret123",
+      confirmPassword: "different",
+    }).success
+);
+ok(
+  "Google registration requires only a valid app role",
+  GoogleRegistrationSchema.safeParse({ role: "PLAYER" }).success &&
+    GoogleRegistrationSchema.safeParse({ role: "PARTNER" }).success &&
+    !GoogleRegistrationSchema.safeParse({ role: "ADMIN" }).success
+);
+ok(
+  "player profile fields remain optional after signup",
+  ProfileSchema.safeParse({
+    name: "",
+    playerName: "",
+    phone: "",
+    facebookPage: "",
+    skillLevel: "intermediate",
+    privateProfile: false,
+  }).success
+);
+ok(
+  "partner review submission requires complete owner and venue details",
+  PartnerApplicationSchema.safeParse({
+    fullName: "Venue Owner",
+    phone: "09171234567",
+    hubName: "Test Courts",
+    slug: "test-courts",
+    hubAbout: "",
+    hubPhone: "",
+    hubEmail: "",
+    address: "123 Test Street, Manila",
+    games: ["pickleball"],
+    facebookPage: "",
+  }).success &&
+    !PartnerApplicationSchema.safeParse({
+      fullName: "Venue Owner",
+      phone: "09171234567",
+      hubName: "",
+      slug: "",
+      hubAbout: "",
+      hubPhone: "",
+      hubEmail: "",
+      address: "",
+      games: [],
+      facebookPage: "",
+    }).success
 );
 
 report();

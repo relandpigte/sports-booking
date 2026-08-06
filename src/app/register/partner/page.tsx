@@ -8,11 +8,16 @@ export const metadata: Metadata = {
   title: "Partner Registration — Bunal.club",
 };
 
-export default async function PartnerRegisterPage() {
+export default async function PartnerRegisterPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string | string[] }>;
+}) {
+  const query = await searchParams;
   return (
     <PartnerOnboardingLayout>
       <>
-        <PartnerRegisterForm />
+        <PartnerRegisterForm existingAccountError={query.error === "existing-account"} />
 
         <p className="mt-5 text-center text-sm text-gray-500">
           Already have an account?{" "}

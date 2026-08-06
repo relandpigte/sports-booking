@@ -58,8 +58,12 @@ The Prisma client is generated automatically on `npm install` (via the
 npm run dev
 ```
 
-- `/register` — create a player account (password is hashed with bcrypt).
-- `/register/partner` — apply for a partner account; an admin must activate it.
+- `/register` — create a player account with only email/password or Google.
+- `/register/partner` — create a draft partner account with email/password or Google.
+- `/register/google` — choose an account type after a first-time
+  Google sign-in started from the login page.
+- `/dashboard/partner/onboarding` — submit a draft partner's owner and venue
+  details for admin review.
 - `/login` — sign in with email/password or Google.
 - `/login/mfa` — complete authenticator or recovery-code verification.
 - `/forgot-password` — request an expiring password-reset link.
@@ -91,9 +95,10 @@ npm run dev
 (defined in `prisma/schema.prisma`). New registrations default to `PLAYER`.
 
 Partner registrations also carry `User.partnerStatus`. Public signups start as
-`PENDING`; admins activate legitimate venues from `/users`. Use
+`DRAFT`, move to `PENDING` only after the partner submits owner and first-hub
+details, then become `ACTIVE` after admin review in `/users`. Use
 `requireActivePartner()` for every hub, gateway, booking-management, or report
-operation. `requirePartner()` is reserved for pages a pending partner may see.
+operation. `requirePartner()` is reserved for draft/pending onboarding pages.
 
 - The role is carried in the session JWT (`session.user.role`) via the callbacks
   in `src/lib/auth.ts`.
@@ -118,9 +123,14 @@ operation. `requirePartner()` is reserved for pages a pending partner may see.
   adapter persists Google account links, while `AuthSession` keeps both login
   methods revocable from the account security page.
 - Google identities are linked to an existing account only after Google reports
-  a verified email. First-time Google users are created as players. Google
-  sign-ins use the same revocable managed-session registry as password sign-ins;
-  admins and users with MFA enabled still complete authenticator verification.
+  a verified email. First-time Google identities remain provisional only until
+  they choose Player or Partner; all profile fields remain optional for players.
+  Protected actions reject provisional sessions. Google sign-ins then use the same revocable managed
+  session registry as password sign-ins. Existing users retain their roles when
+  linking Google, and admins or users with MFA enabled still complete
+  authenticator verification.
+- Google-only accounts do not have a local password. Their security page shows
+  Google as the sign-in method and keeps managed-session revocation available.
 - `src/proxy.ts` does an **optimistic** cookie check only. The authoritative
   check is `verifySession()` in the DAL, which every protected page/server
   action should call.

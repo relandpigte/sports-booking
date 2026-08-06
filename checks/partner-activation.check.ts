@@ -44,15 +44,19 @@ async function check() {
     const partner = await prisma.user.create({
       data: {
         role: "PARTNER",
-        partnerStatus: "PENDING",
+        partnerStatus: "DRAFT",
         name: "Pending Venue",
+        playerName: "Venue Owner",
+        phone: "09171234567",
         email: EMAIL,
         passwordHash: "x",
         hubs: {
           create: {
             name: "Pending Venue",
+            slug: "check-pending-partner",
             coverPhotos: [],
             games: ["pickleball"],
+            address: "123 Check Street, Manila",
           },
         },
       },
@@ -65,7 +69,7 @@ async function check() {
       (await listPublicHubs()).find((hub) => hub.id === partner.hubs[0].id);
     const visible = async () => Boolean(await listedHub());
 
-    ok("new partner starts hidden", !(await visible()));
+    ok("draft partner starts hidden", !(await visible()));
     ok(
       "direct hub view explains approval",
       (await getPublicHub(partner.hubs[0].id))?.blockedBy === "approval"
@@ -75,6 +79,20 @@ async function check() {
     const activation = new FormData();
     activation.set("userId", partner.id);
     activation.set("active", "true");
+    await setPartnerActiveAction(activation);
+    const stillDraft = await prisma.user.findUnique({
+      where: { id: partner.id },
+      select: { partnerStatus: true },
+    });
+    ok(
+      "draft partners cannot be activated before submission",
+      stillDraft?.partnerStatus === "DRAFT" && requests.length === 0
+    );
+
+    await prisma.user.update({
+      where: { id: partner.id },
+      data: { partnerStatus: "PENDING" },
+    });
     await setPartnerActiveAction(activation);
 
     ok("approval sends one partner email", requests.length === 1);

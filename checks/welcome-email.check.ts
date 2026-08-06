@@ -43,7 +43,6 @@ async function check() {
       audience: "PARTNER",
       to: "partner@example.test",
       name: "Venue Owner",
-      venueName: "Courts & More",
       actionUrl: "https://www.bunal.club/dashboard/partner",
       idempotencyKey: "welcome-partner-check",
     });
@@ -77,12 +76,12 @@ async function check() {
       JSON.stringify(player?.body.tags).includes("welcome-player")
     );
     ok(
-      "the partner email explains the approval review",
-      String(partner?.body.html).includes("application is under review")
+      "the partner email explains post-signup venue onboarding",
+      String(partner?.body.html).includes("application enters the review queue")
     );
     ok(
-      "the partner email includes the escaped venue name",
-      String(partner?.body.html).includes("Courts &amp; More")
+      "the partner email explains that the account is ready",
+      String(partner?.body.html).includes("partner account is ready")
     );
     ok(
       "the partner email links to its dashboard",
@@ -128,7 +127,7 @@ async function check() {
         "Your Bunal.club player account is ready"
       ) &&
         String(partner?.body.html).includes(
-          "We received your Bunal.club venue application"
+          "Your Bunal.club partner account is ready"
         )
     );
   } finally {

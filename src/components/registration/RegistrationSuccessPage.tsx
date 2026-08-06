@@ -26,12 +26,12 @@ const CONTENT: Record<RegistrationUserType, RegistrationSuccessContent> = {
     secondaryHref: "/dashboard/player",
   },
   partner: {
-    eyebrow: "Application received",
-    title: "Thanks — your venue application is in review.",
+    eyebrow: "Partner account created",
+    title: "Your venue workspace is ready.",
     description:
-      "Your partner account has been created. We’ll email you after your venue is verified so you can continue setup and publish your hub.",
-    primaryLabel: "View partner dashboard",
-    primaryHref: "/dashboard/partner",
+      "Add your owner and venue details when you’re ready. Your application enters review only after you submit it.",
+    primaryLabel: "Complete venue application",
+    primaryHref: "/dashboard/partner/onboarding",
     secondaryLabel: "Return to Bunal.club",
     secondaryHref: "/",
   },
@@ -157,7 +157,7 @@ export function RegistrationSuccessPage({
               <path d="m3 7 9 6 9-6" />
             </svg>
             <p className="text-xs font-medium">
-              A welcome email is on its way to your inbox.
+              Check your inbox for your welcome email.
             </p>
           </div>
         </div>

@@ -185,6 +185,26 @@ export function DashboardNav({
         </Link>
       ))}
 
+      {role === "PARTNER" && partnerStatus === "DRAFT" && (
+        <Link
+          href="/dashboard/partner/onboarding"
+          aria-current={
+            pathname.startsWith("/dashboard/partner/onboarding")
+              ? "page"
+              : undefined
+          }
+          className={linkClass(
+            pathname.startsWith("/dashboard/partner/onboarding")
+          )}
+        >
+          <svg {...iconProps}>
+            <path d="M3 21h18M5 21V8l7-4 7 4v13" />
+            <path d="M9 21v-6h6v6" />
+          </svg>
+          <span>Venue application</span>
+        </Link>
+      )}
+
       {role === "ADMIN" && (
         <Link
           href="/dashboard/admin/payments"

@@ -6,8 +6,8 @@ import { getCurrentUser } from "@/lib/dal";
 import { dashboardHomeFor } from "@/lib/dashboard";
 
 export const metadata: Metadata = {
-  title: "Partner Application Received — Bunal.club",
-  description: "Your Bunal.club partner application is in review.",
+  title: "Partner Account Created — Bunal.club",
+  description: "Continue setting up your Bunal.club partner account.",
   robots: { index: false, follow: false },
 };
 

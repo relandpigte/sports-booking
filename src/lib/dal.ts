@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getActivePartnerImpersonation } from "@/lib/impersonation";
 import { validateManagedSession } from "@/lib/account-security";
+import { isIncompleteGoogleRegistration } from "@/lib/registration-state";
 
 const currentUserSelect = {
   id: true,
@@ -28,7 +29,14 @@ const getValidatedSession = cache(async () => {
   if (!session?.user?.id) return null;
   const current = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { sessionVersion: true, role: true, mfaEnabledAt: true },
+    select: {
+      sessionVersion: true,
+      role: true,
+      mfaEnabledAt: true,
+      registrationCompletedAt: true,
+      passwordHash: true,
+      accounts: { select: { provider: true } },
+    },
   });
   if (
     !current ||
@@ -38,12 +46,15 @@ const getValidatedSession = cache(async () => {
   ) {
     return null;
   }
+  if (isIncompleteGoogleRegistration(current)) {
+    return { session, managedSession: null, registrationIncomplete: true };
+  }
   const managedSession = await validateManagedSession({
     userId: session.user.id,
     sessionId: session.user.sessionId,
   });
   if (!managedSession) return null;
-  return { session, managedSession };
+  return { session, managedSession, registrationIncomplete: false };
 });
 
 // Verifies there is an authenticated session, redirecting to /login otherwise.
@@ -53,6 +64,10 @@ export const verifySession = cache(async () => {
   if (!validated) {
     redirect("/login");
   }
+  if (validated.registrationIncomplete) {
+    redirect("/register/google");
+  }
+  if (!validated.managedSession) redirect("/login");
   return {
     userId: validated.session.user.id,
     sessionId: validated.session.user.sessionId,
@@ -65,7 +80,9 @@ export const verifySession = cache(async () => {
 // player but must not bounce anonymous visitors to /login.
 export const getViewer = cache(async () => {
   const validated = await getValidatedSession();
-  if (!validated) return null;
+  if (!validated || validated.registrationIncomplete || !validated.managedSession) {
+    return null;
+  }
   const { session } = validated;
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
@@ -110,7 +127,9 @@ export const getViewer = cache(async () => {
 // impersonation controls, and security-sensitive account actions use this.
 export const getAuthenticatedUser = cache(async () => {
   const validated = await getValidatedSession();
-  if (!validated) return null;
+  if (!validated || validated.registrationIncomplete || !validated.managedSession) {
+    return null;
+  }
   const { session } = validated;
   const row = await prisma.user.findUnique({
     where: { id: session.user.id },

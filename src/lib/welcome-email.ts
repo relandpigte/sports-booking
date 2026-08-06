@@ -9,7 +9,6 @@ export type WelcomeEmailContentInput =
   | {
       audience: "PARTNER";
       name: string;
-      venueName: string;
       actionUrl: string;
     };
 
@@ -50,10 +49,10 @@ export function welcomeEmailContent(input: WelcomeEmailContentInput): {
     };
   }
 
-  const subject = "Welcome to Bunal.club — your venue application is in";
+  const subject = "Welcome to Bunal.club — complete your venue profile";
   const paragraphs = [
-    `Hi ${input.name}, we've received the venue application for ${input.venueName}.`,
-    "Our team will review the details you submitted. You can sign in now to view its status; venue management and payment tools unlock after approval.",
+    `Hi ${input.name}, your partner account is ready.`,
+    "Sign in to add your owner and venue details. Your application enters the review queue only after you submit it.",
   ];
   const note =
     "You're receiving this because a Bunal.club partner account was created for this email address.";
@@ -61,11 +60,11 @@ export function welcomeEmailContent(input: WelcomeEmailContentInput): {
   return {
     subject,
     html: transactionalEmailHtml({
-      preheader: "We received your Bunal.club venue application and will review it shortly.",
+      preheader: "Your Bunal.club partner account is ready for venue onboarding.",
       eyebrow: "Bunal.club for venues",
-      heading: "Your application is under review",
+      heading: "Complete your venue profile",
       paragraphs,
-      actionLabel: "View partner dashboard",
+      actionLabel: "Continue venue setup",
       actionUrl: input.actionUrl,
       note,
     }),
@@ -74,7 +73,7 @@ export function welcomeEmailContent(input: WelcomeEmailContentInput): {
       "",
       ...paragraphs,
       "",
-      `View partner dashboard: ${input.actionUrl}`,
+      `Continue venue setup: ${input.actionUrl}`,
       "",
       note,
     ].join("\n"),

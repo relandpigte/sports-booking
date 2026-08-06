@@ -50,6 +50,16 @@ const pendingPartnerItems: MobileMenuItem[] = [
   { href: "/dashboard/account", label: "Account", icon: "account" },
 ];
 
+const draftPartnerItems: MobileMenuItem[] = [
+  { href: "/dashboard/partner", label: "Home", icon: "home", exact: true },
+  {
+    href: "/dashboard/partner/onboarding",
+    label: "Venue application",
+    icon: "hub",
+  },
+  { href: "/dashboard/account", label: "Account", icon: "account" },
+];
+
 const adminItems: MobileMenuItem[] = [
   { href: "/dashboard/admin", label: "Home", icon: "home", exact: true },
   { href: "/dashboard/account", label: "Account Settings", icon: "account" },
@@ -101,7 +111,9 @@ export function MobileDashboardMenu({
         ? playerItems
         : partnerStatus === "ACTIVE"
           ? partnerItems
-          : pendingPartnerItems;
+          : partnerStatus === "DRAFT"
+            ? draftPartnerItems
+            : pendingPartnerItems;
 
   useEffect(() => {
     if (!open) return;

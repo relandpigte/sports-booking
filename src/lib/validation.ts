@@ -54,23 +54,12 @@ export const ChangePasswordSchema = z
     path: ["confirmPassword"],
   });
 
-// Factored out so the partner schema can reshape it. A refined schema (one
-// with .refine) can't be .omit()/.extend()-ed, so the base object and the
-// cross-field rule have to live separately.
-const registerBase = z.object({
-  fullName: z.string().trim().min(2, { error: "Full name is required" }),
-  playerName: z.string().trim().min(2, { error: "Player name is required" }),
+const credentialRegisterBase = z.object({
   email: z.email({ error: "Enter a valid email" }).trim().toLowerCase(),
-  phone: z.string().trim().min(6, { error: "Telephone number is required" }),
-  skillLevel: z.enum(skillValues, { error: "Choose a skill level" }),
   password: z
     .string()
     .min(6, { error: "Password must be at least 6 characters" }),
   confirmPassword: z.string(),
-  privateProfile: z.boolean(),
-  agreed: z
-    .boolean()
-    .refine((v) => v, { error: "You must accept the Terms & Privacy Policy" }),
 });
 
 const passwordsMatch = (d: { password: string; confirmPassword: string }) =>
@@ -80,11 +69,14 @@ const passwordMismatch = {
   path: ["confirmPassword"],
 };
 
-// Unchanged in shape and behaviour for the existing player form.
-export const RegisterSchema = registerBase.refine(
+export const RegisterSchema = credentialRegisterBase.refine(
   passwordsMatch,
   passwordMismatch
 );
+
+export const GoogleRegistrationSchema = z.object({
+  role: z.enum(["PLAYER", "PARTNER"], { error: "Choose an account type" }),
+});
 
 export type LoginInput = z.infer<typeof LoginSchema>;
 export type RegisterInput = z.infer<typeof RegisterSchema>;
@@ -138,7 +130,7 @@ export type AdminUpdateUserInput = z.infer<typeof AdminUpdateUserSchema>;
 // --- Player: own profile (account settings) ---
 
 export const ProfileSchema = z.object({
-  name: z.string().trim().min(2, { error: "Name is required" }),
+  name: optionalText,
   playerName: optionalText,
   phone: optionalText,
   facebookPage,
@@ -240,41 +232,39 @@ export const RescheduleBookingSchema = z.object({
 
 export type CreateBookingInput = z.infer<typeof CreateBookingSchema>;
 
-// --- Partner registration ---
+// --- Partner application ---
 
-// A venue has no player name, skill level or private-profile setting; signup
-// captures both its owner identity and the initial hub profile for review.
-export const PartnerRegisterSchema = registerBase
-  .omit({ playerName: true, skillLevel: true, privateProfile: true })
-  .extend({
-    hubName: z
-      .string()
-      .trim()
-      .min(2, { error: "Hub name is required" }),
-    slug: HubSlugSchema,
-    hubAbout: optionalText,
-    hubPhone: optionalText,
-    hubEmail: z
-      .string()
-      .trim()
-      .toLowerCase()
-      .optional()
-      .refine((value) => !value || z.email().safeParse(value).success, {
-        error: "Enter a valid hub email",
-      })
-      .transform((value) => (value ? value : undefined)),
-    address: z
-      .string()
-      .trim()
-      .min(5, { error: "Complete address is required" }),
-    games: z
-      .array(z.enum(gameValues))
-      .min(1, { error: "Choose at least one sport" }),
-    facebookPage,
-  })
-  .refine(passwordsMatch, passwordMismatch);
+// Partner account creation is intentionally minimal. These owner and venue
+// fields are collected after sign-in when the draft is submitted for review.
+export const PartnerApplicationSchema = z.object({
+  fullName: z.string().trim().min(2, { error: "Full name is required" }),
+  phone: z.string().trim().min(6, { error: "Telephone number is required" }),
+  hubName: z.string().trim().min(2, { error: "Hub name is required" }),
+  slug: HubSlugSchema,
+  hubAbout: optionalText,
+  hubPhone: optionalText,
+  hubEmail: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .optional()
+    .refine((value) => !value || z.email().safeParse(value).success, {
+      error: "Enter a valid hub email",
+    })
+    .transform((value) => (value ? value : undefined)),
+  address: z
+    .string()
+    .trim()
+    .min(5, { error: "Complete address is required" }),
+  games: z
+    .array(z.enum(gameValues))
+    .min(1, { error: "Choose at least one sport" }),
+  facebookPage,
+});
 
-export type PartnerRegisterInput = z.infer<typeof PartnerRegisterSchema>;
+export type PartnerApplicationInput = z.infer<
+  typeof PartnerApplicationSchema
+>;
 
 // --- Players paying venues ---
 

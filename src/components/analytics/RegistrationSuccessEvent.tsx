@@ -4,7 +4,7 @@ import { useEffect } from "react";
 
 import {
   REGISTRATION_EVENT_COOKIE,
-  hasRegistrationEventMarker,
+  registrationMethodFromMarker,
   registrationEventData,
   type RegistrationUserType,
 } from "@/lib/registration-tracking";
@@ -21,10 +21,11 @@ export function RegistrationSuccessEvent({
   userType: RegistrationUserType;
 }) {
   useEffect(() => {
-    if (!hasRegistrationEventMarker(document.cookie, userType)) return;
+    const method = registrationMethodFromMarker(document.cookie, userType);
+    if (!method) return;
 
     window.dataLayer = window.dataLayer ?? [];
-    window.dataLayer.push(registrationEventData(userType));
+    window.dataLayer.push(registrationEventData(userType, method));
 
     document.cookie = `${REGISTRATION_EVENT_COOKIE}=; Max-Age=0; Path=/welcome; SameSite=Lax`;
   }, [userType]);

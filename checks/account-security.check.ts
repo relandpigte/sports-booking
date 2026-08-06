@@ -23,8 +23,10 @@ import { totpCode } from "@/lib/totp";
 
 const prisma = new PrismaClient();
 const EMAIL = "check-account-security@example.test";
+const GOOGLE_EMAIL = "check-google-registration@example.test";
 const PASSWORD = "account-security-password";
 let userId: string | null = null;
+let googleUserId: string | null = null;
 
 const context: SecurityRequestContext = {
   deviceHash: "check-device-hash",
@@ -37,7 +39,7 @@ const context: SecurityRequestContext = {
 };
 
 async function check() {
-  await prisma.user.deleteMany({ where: { email: EMAIL } });
+  await prisma.user.deleteMany({ where: { email: { in: [EMAIL, GOOGLE_EMAIL] } } });
   const passwordHash = await bcrypt.hash(PASSWORD, 10);
   const user = await prisma.user.create({
     data: {
@@ -96,6 +98,46 @@ async function check() {
           sessionId: googleLogin.sessionId,
         }))
     )
+  );
+
+  const provisionalGoogleUser = await prisma.user.create({
+    data: {
+      name: "Google registration check",
+      email: GOOGLE_EMAIL,
+      registrationCompletedAt: null,
+      accounts: {
+        create: {
+          type: "oidc",
+          provider: "google",
+          providerAccountId: "check-google-registration",
+        },
+      },
+    },
+    select: { id: true },
+  });
+  googleUserId = provisionalGoogleUser.id;
+  const provisionalLogin = await createGoogleLoginSession({
+    userId: provisionalGoogleUser.id,
+    context,
+  });
+  ok(
+    "incomplete Google registration receives no managed session",
+    provisionalLogin?.mfaVerified === false &&
+      provisionalLogin.sessionId === undefined
+  );
+  await prisma.user.update({
+    where: { id: provisionalGoogleUser.id },
+    data: {
+      registrationCompletedAt: new Date(),
+    },
+  });
+  const completedGoogleLogin = await createGoogleLoginSession({
+    userId: provisionalGoogleUser.id,
+    context,
+  });
+  ok(
+    "completed Google registration receives a managed session",
+    Boolean(completedGoogleLogin?.sessionId)
   );
 
   const setupToken = await createSecurityChallenge({
@@ -182,6 +224,9 @@ async function check() {
 
 async function cleanup() {
   if (userId) await prisma.user.deleteMany({ where: { id: userId } });
+  if (googleUserId) {
+    await prisma.user.deleteMany({ where: { id: googleUserId } });
+  }
   const keys = loginThrottleKeys(EMAIL, context.ipHash);
   await prisma.loginThrottle.deleteMany({
     where: { keyHash: { in: [keys.accountIp, keys.ip] } },

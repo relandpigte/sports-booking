@@ -18,6 +18,7 @@ import { firstErrors } from "@/lib/zod-errors";
 import {
   AdminCreateUserSchema,
   AdminUpdateUserSchema,
+  PartnerApplicationSchema,
 } from "@/lib/validation";
 import { isPartnerImpersonationActive } from "@/lib/impersonation";
 
@@ -267,10 +268,45 @@ export async function setPartnerActiveAction(formData: FormData) {
       email: true,
       name: true,
       playerName: true,
+      phone: true,
+      facebookPage: true,
+      partnerStatus: true,
       hubs: { select: { name: true }, orderBy: { createdAt: "asc" }, take: 1 },
     },
   });
   if (!partner) return;
+
+  if (active) {
+    const firstHub = await prisma.hub.findFirst({
+      where: { ownerId: partner.id },
+      orderBy: { createdAt: "asc" },
+      select: {
+        name: true,
+        slug: true,
+        about: true,
+        phone: true,
+        email: true,
+        address: true,
+        games: true,
+      },
+    });
+    const complete =
+      (partner.partnerStatus === "PENDING" || partner.partnerStatus === null) &&
+      firstHub &&
+      PartnerApplicationSchema.safeParse({
+        fullName: partner.playerName ?? "",
+        phone: partner.phone ?? "",
+        hubName: firstHub.name,
+        slug: firstHub.slug ?? "",
+        hubAbout: firstHub.about ?? "",
+        hubPhone: firstHub.phone ?? "",
+        hubEmail: firstHub.email ?? "",
+        address: firstHub.address ?? "",
+        games: firstHub.games,
+        facebookPage: partner.facebookPage ?? "",
+      }).success;
+    if (!complete) return;
+  }
 
   const transition = await prisma.user.updateMany({
     where: {
@@ -279,11 +315,11 @@ export async function setPartnerActiveAction(formData: FormData) {
       ...(active
         ? {
             OR: [
+              { partnerStatus: "PENDING" as const },
               { partnerStatus: null },
-              { partnerStatus: { not: "ACTIVE" } },
             ],
           }
-        : {}),
+        : { partnerStatus: "ACTIVE" as const }),
     },
     data: active
       ? {

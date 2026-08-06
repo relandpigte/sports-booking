@@ -14,6 +14,7 @@ import {
 } from "@/lib/security-context";
 import { appUrl } from "@/lib/urls";
 import { generateTotpSecret, verifyTotp } from "@/lib/totp";
+import { isIncompleteGoogleRegistration } from "@/lib/registration-state";
 
 export const SECURITY_CHALLENGE_COOKIE = "bunal.security-challenge";
 export const LOGIN_GRANT_COOKIE = "bunal.login-grant";
@@ -375,13 +376,17 @@ export async function createGoogleLoginSession({
       loginCount: true,
       emailVerified: true,
       mfaEnabledAt: true,
+      passwordHash: true,
+      registrationCompletedAt: true,
+      accounts: { select: { provider: true } },
     },
   });
   if (!existing) return null;
 
+  const registrationIncomplete = isIncompleteGoogleRegistration(existing);
   const requiresMfa =
     existing.role === "ADMIN" || existing.mfaEnabledAt !== null;
-  if (requiresMfa) {
+  if (requiresMfa || registrationIncomplete) {
     if (!existing.emailVerified) {
       await prisma.user.update({
         where: { id: existing.id },
@@ -829,6 +834,8 @@ export async function getSecurityOverview({
       select: {
         role: true,
         mfaEnabledAt: true,
+        passwordHash: true,
+        accounts: { select: { provider: true } },
         _count: {
           select: { mfaRecoveryCodes: { where: { usedAt: null } } },
         },
@@ -866,6 +873,10 @@ export async function getSecurityOverview({
   return {
     role: user.role,
     mfaEnabledAt: user.mfaEnabledAt,
+    hasPassword: user.passwordHash !== null,
+    googleConnected: user.accounts.some(
+      (account) => account.provider === "google"
+    ),
     unusedRecoveryCodes: user._count.mfaRecoveryCodes,
     sessions: sessions.map((session) => ({
       ...session,

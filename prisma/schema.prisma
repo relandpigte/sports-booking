@@ -19,6 +19,7 @@ enum Role {
 }
 
 enum PartnerStatus {
+  DRAFT
   PENDING
   ACTIVE
 }
@@ -40,6 +41,10 @@ model User {
   role                 Role           @default(PLAYER)
   skillLevel           String         @default("intermediate")
   privateProfile       Boolean        @default(false)
+  // Existing and password-created accounts default to complete. The Auth.js
+  // adapter explicitly writes null for a brand-new Google identity until its
+  // app role has been selected.
+  registrationCompletedAt DateTime?   @default(now())
   // Incremented after a password reset. JWTs carry the version they were
   // issued with, so the DAL can reject sessions created before the reset.
   sessionVersion       Int            @default(0)
@@ -51,8 +56,8 @@ model User {
   // codes are stored as one-way hashes in MfaRecoveryCode.
   mfaEnabledAt         DateTime?
   mfaSecretEnc         String?        @db.Text
-  // Only meaningful when role=PARTNER. Public signups start PENDING and an
-  // admin activates them after reviewing their business details.
+  // Only meaningful when role=PARTNER. Public signups start DRAFT, move to
+  // PENDING after venue onboarding, then become ACTIVE after admin review.
   partnerStatus        PartnerStatus?
   partnerActivatedAt   DateTime?
   // Scalar by design: deleting an admin must not erase who approved a partner.

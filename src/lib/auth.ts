@@ -11,8 +11,25 @@ import {
 } from "@/lib/account-security";
 import { getSecurityRequestContext } from "@/lib/security-context";
 
+const prismaAdapter = PrismaAdapter(prisma);
+const createAdapterUser = prismaAdapter.createUser;
+
+if (!createAdapterUser) {
+  throw new Error("The Prisma Auth.js adapter must support user creation");
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: PrismaAdapter(prisma),
+  adapter: {
+    ...prismaAdapter,
+    async createUser(user) {
+      const created = await createAdapterUser(user);
+      await prisma.user.update({
+        where: { id: created.id },
+        data: { registrationCompletedAt: null },
+      });
+      return created;
+    },
+  },
   // Credentials auth requires JWT sessions. Google shares that strategy so
   // both providers can use the app's managed, revocable session registry.
   session: { strategy: "jwt" },

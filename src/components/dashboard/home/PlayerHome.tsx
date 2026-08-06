@@ -12,10 +12,13 @@ import { formatPHP } from "@/lib/currency";
 import { hubPublicPath } from "@/lib/hub-slug";
 import { InstallAppCard } from "@/components/pwa/InstallAppCard";
 import type { PlayerEventRegistrationView } from "@/lib/events";
+import { ProfileCompletionCard } from "@/components/dashboard/home/ProfileCompletionCard";
 
 type PlayerHomeUser = {
   name: string | null;
   playerName: string | null;
+  phone: string | null;
+  image: string | null;
   skillLevel: string;
   privateProfile: boolean;
 };
@@ -39,6 +42,12 @@ export function PlayerHome({
     nextEventRegistration != null &&
     (nextBooking == null ||
       nextEventRegistration.event.startsAt < nextBooking.startsAt);
+  const missingProfile = [
+    !user.name && "your name",
+    !user.playerName && "a player name",
+    !user.phone && "a phone number",
+    !user.image && "a profile photo",
+  ].filter((value): value is string => Boolean(value));
 
   const stats = [
     {
@@ -86,6 +95,8 @@ export function PlayerHome({
       />
 
       <InstallAppCard />
+
+      <ProfileCompletionCard missing={missingProfile} />
 
       <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {stats.map((s) => (

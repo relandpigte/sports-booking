@@ -10,6 +10,8 @@ import {
 type SecurityOverview = {
   role: "ADMIN" | "PLAYER" | "PARTNER";
   mfaEnabledAt: Date | null;
+  hasPassword: boolean;
+  googleConnected: boolean;
   unusedRecoveryCodes: number;
   sessions: Array<{
     id: string;
@@ -71,19 +73,21 @@ export function SecuritySettings({
 }) {
   const mfaRequired = overview.role === "ADMIN";
   const secured = overview.mfaEnabledAt !== null;
+  const googleOnly = overview.googleConnected && !overview.hasPassword;
+  const protectedAccount = googleOnly || secured;
 
   return (
     <div className="mt-8 flex flex-col gap-6">
       <div
         className={`flex items-center gap-3 rounded-2xl border p-4 ${
-          secured
+          protectedAccount
             ? "border-primary/20 bg-primary-soft/40"
             : "border-amber-200 bg-amber-50"
         }`}
       >
         <div
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white ${
-            secured ? "bg-primary" : "bg-amber-500"
+            protectedAccount ? "bg-primary" : "bg-amber-500"
           }`}
         >
           <svg
@@ -100,75 +104,99 @@ export function SecuritySettings({
         </div>
         <div>
           <h2 className="text-sm font-bold text-navy">
-            Security health: {secured ? "Protected" : "Needs attention"}
+            Security health: {protectedAccount ? "Protected" : "Needs attention"}
           </h2>
           <p className="text-xs leading-5 text-slate-600">
-            {secured
-              ? "Your account is protected by password and authenticator MFA."
-              : "Enable authenticator MFA to protect your account if your password is exposed."}
+            {googleOnly
+              ? "Google manages your sign-in credentials and account verification."
+              : secured
+                ? "Your account is protected by password and authenticator MFA."
+                : "Enable authenticator MFA to protect your account if your password is exposed."}
           </p>
         </div>
       </div>
 
-      <section className="rounded-2xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5 sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="max-w-2xl">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-lg font-bold tracking-tight text-navy">
-                Authenticator MFA
-              </h2>
-              <span
-                className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${
-                  secured
-                    ? "bg-primary-soft text-primary"
-                    : mfaRequired
-                      ? "bg-red-50 text-red-700"
-                      : "bg-navy-soft text-navy"
-                }`}
-              >
-                {secured ? "Enabled" : mfaRequired ? "Required" : "Recommended"}
-              </span>
+      {googleOnly ? (
+        <section className="rounded-2xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5 sm:p-6">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">
+            Sign-in method
+          </p>
+          <h2 className="mt-1.5 text-xl font-bold tracking-tight text-navy">
+            Google Account
+          </h2>
+          <p className="mt-1.5 max-w-2xl text-sm leading-6 text-gray-500">
+            This account does not have a Bunal.club password. Password and
+            authenticator controls are managed through your Google Account.
+            You can still review and revoke Bunal.club sessions below.
+          </p>
+        </section>
+      ) : (
+        <>
+          <section className="rounded-2xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5 sm:p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="max-w-2xl">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-lg font-bold tracking-tight text-navy">
+                    Authenticator MFA
+                  </h2>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${
+                      secured
+                        ? "bg-primary-soft text-primary"
+                        : mfaRequired
+                          ? "bg-red-50 text-red-700"
+                          : "bg-navy-soft text-navy"
+                    }`}
+                  >
+                    {secured
+                      ? "Enabled"
+                      : mfaRequired
+                        ? "Required"
+                        : "Recommended"}
+                  </span>
+                </div>
+                <p className="mt-1 text-sm leading-6 text-gray-500">
+                  Use Google Authenticator, Microsoft Authenticator, 1Password,
+                  or another compatible app to generate secure sign-in codes.
+                </p>
+                {secured && (
+                  <p className="mt-3 text-xs font-medium text-gray-600">
+                    {overview.unusedRecoveryCodes} unused recovery codes remain.
+                  </p>
+                )}
+              </div>
+              {!secured && !setup && (
+                <form action={startAccountMfaSetupAction}>
+                  <button
+                    type="submit"
+                    className="shrink-0 rounded-lg bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-hover"
+                  >
+                    Enable MFA
+                  </button>
+                </form>
+              )}
             </div>
-            <p className="mt-1 text-sm leading-6 text-gray-500">
-              Use Google Authenticator, Microsoft Authenticator, 1Password, or
-              another compatible app to generate secure sign-in codes.
-            </p>
-            {secured && (
-              <p className="mt-3 text-xs font-medium text-gray-600">
-                {overview.unusedRecoveryCodes} unused recovery codes remain.
+
+            {setup && (
+              <div className="mt-6 border-t border-gray-100 pt-6">
+                <MfaSetupPanel
+                  email={email}
+                  secret={setup.secret}
+                  accountSetup
+                />
+              </div>
+            )}
+            {secured && !mfaRequired && <DisableMfaForm />}
+            {secured && mfaRequired && (
+              <p className="mt-4 text-xs text-gray-500">
+                MFA cannot be disabled for administrator accounts.
               </p>
             )}
-          </div>
-          {!secured && !setup && (
-            <form action={startAccountMfaSetupAction}>
-              <button
-                type="submit"
-                className="shrink-0 rounded-lg bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-hover"
-              >
-                Enable MFA
-              </button>
-            </form>
-          )}
-        </div>
+          </section>
 
-        {setup && (
-          <div className="mt-6 border-t border-gray-100 pt-6">
-            <MfaSetupPanel
-              email={email}
-              secret={setup.secret}
-              accountSetup
-            />
-          </div>
-        )}
-        {secured && !mfaRequired && <DisableMfaForm />}
-        {secured && mfaRequired && (
-          <p className="mt-4 text-xs text-gray-500">
-            MFA cannot be disabled for administrator accounts.
-          </p>
-        )}
-      </section>
-
-      <ChangePasswordForm changed={passwordChanged} email={email} />
+          <ChangePasswordForm changed={passwordChanged} email={email} />
+        </>
+      )}
 
       <section className="overflow-hidden rounded-2xl border border-[#dfe7e2] bg-white shadow-sm shadow-navy/5">
         <div className="border-b border-gray-100 p-5 sm:p-6">

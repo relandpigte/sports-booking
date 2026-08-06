@@ -268,12 +268,18 @@ export function AdminUsersTable({
                       {user.role === "PARTNER" ? (
                         <Badge
                           tone={
-                            user.partnerStatus === "ACTIVE" ? "success" : "warn"
+                            user.partnerStatus === "ACTIVE"
+                              ? "success"
+                              : user.partnerStatus === "DRAFT"
+                                ? "neutral"
+                                : "warn"
                           }
                         >
                           {user.partnerStatus === "ACTIVE"
                             ? "Verified"
-                            : "Pending review"}
+                            : user.partnerStatus === "DRAFT"
+                              ? "Draft"
+                              : "Pending review"}
                         </Badge>
                       ) : (
                         <span className="text-gray-300">—</span>
@@ -315,7 +321,7 @@ export function AdminUsersTable({
                           </form>
                           <PartnerActivationButton
                             userId={user.id}
-                            active={user.partnerStatus === "ACTIVE"}
+                            status={user.partnerStatus}
                           />
                         </>
                       )}

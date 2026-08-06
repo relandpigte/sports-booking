@@ -6,9 +6,9 @@ a court booking through that partner's own PayMongo account.
 
 ## Partner activation
 
-Public partner registrations start in `PENDING`. An admin reviews the business
-name, contact details, and optional Facebook page in `/users`, then activates
-the partner. An `ACTIVE` partner can create a hub before connecting PayMongo.
+Public partner registrations start in `DRAFT`. The partner submits owner and
+first-hub details to move into `PENDING`. An admin reviews the application in
+`/users`, then activates the partner. An `ACTIVE` partner can manage hubs before connecting PayMongo.
 After it has at least one court, the hub appears in the public directory as
 Coming soon. Connecting PayMongo verifies the hub and opens online bookings.
 

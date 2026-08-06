@@ -26,6 +26,7 @@ export function PartnerHome({
   canOperate?: boolean;
 }) {
   const active = partnerStatus === "ACTIVE";
+  const draft = partnerStatus === "DRAFT";
   const operational = canOperate ?? active;
   const shortcuts: {
     label: string;
@@ -82,14 +83,39 @@ export function PartnerHome({
                 active ? "bg-primary" : "bg-amber-500"
               }`}
             />
-            {active ? "Active partner" : "Under review"}
+            {active ? "Active partner" : draft ? "Draft" : "Under review"}
           </span>
         }
       />
 
       <InstallAppCard />
 
-      {!active && (
+      {draft && (
+        <section className="mt-8 rounded-2xl border border-primary/20 bg-white p-6 shadow-sm shadow-navy/5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">
+                Partner checklist
+              </p>
+              <h2 className="mt-1 font-bold text-navy">
+                Submit your venue details
+              </h2>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
+                Add your owner details and first hub when you are ready. Your
+                application enters the review queue only after you submit it.
+              </p>
+            </div>
+            <Link
+              href="/dashboard/partner/onboarding"
+              className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-primary px-4 text-sm font-bold text-white hover:bg-primary-hover"
+            >
+              Complete application
+            </Link>
+          </div>
+        </section>
+      )}
+
+      {!active && !draft && (
         <section className="mt-8 rounded-2xl border border-amber-200 bg-white p-6 shadow-sm shadow-navy/5">
           <div className="flex gap-4">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700">

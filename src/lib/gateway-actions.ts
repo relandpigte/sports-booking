@@ -1,7 +1,6 @@
 "use server";
 
 import crypto from "node:crypto";
-import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/lib/db";
 import { requireActivePartner } from "@/lib/dal";
@@ -21,6 +20,7 @@ import {
 } from "@/lib/payments/paymongo-venue";
 import { appUrl } from "@/lib/urls";
 import { isPartnerImpersonationActive } from "@/lib/impersonation";
+import { revalidatePartnerPaymentSurfaces } from "@/lib/payment-revalidation";
 
 // Deliberately NO `values` field: unlike a hub form, a gateway form's contents
 // must never round-trip through rendered state.
@@ -33,19 +33,6 @@ export type GatewayFormState = {
   // response to this — it isn't something to ask for up front.
   needsWebhookSecret?: boolean;
 };
-
-async function revalidateGatewaySurfaces(partnerId: string) {
-  revalidatePath("/dashboard/payments");
-  revalidatePath("/dashboard/hubs");
-  revalidatePath("/dashboard/hubs/new");
-  revalidatePath("/dashboard/partner");
-  revalidatePath("/hubs");
-  const hubs = await prisma.hub.findMany({
-    where: { ownerId: partnerId },
-    select: { id: true },
-  });
-  for (const hub of hubs) revalidatePath(`/hubs/${hub.id}`);
-}
 
 export async function connectGatewayAction(
   _prev: GatewayFormState,
@@ -157,7 +144,7 @@ export async function connectGatewayAction(
     },
   });
 
-  await revalidateGatewaySurfaces(partner.id);
+  await revalidatePartnerPaymentSurfaces(partner.id);
   return {
     success: parsed.data.webhookSecret
       ? "Connected. Booking subtotals are deposited into your PayMongo account; remit Bunal.club service fees from Payments."
@@ -192,7 +179,7 @@ export async function disconnectGatewayAction(
     data: { disconnectedAt: new Date() },
   });
 
-  await revalidateGatewaySurfaces(partner.id);
+  await revalidatePartnerPaymentSurfaces(partner.id);
   return {
     success:
       "Disconnected. Complete hubs remain public as Coming soon, but new online bookings are paused until you reconnect. Refunds on existing paid bookings still work.",

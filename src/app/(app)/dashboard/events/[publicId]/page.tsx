@@ -555,6 +555,7 @@ export default async function PartnerEventDetailsPage({
                                   payment={{
                                     id: payment.id,
                                     status: payment.status,
+                                    amount: payment.amount,
                                     receiptImage: payment.manualReceiptImage,
                                     methodLabel: payment.manualMethodLabel,
                                     paymentReference: payment.manualPaymentRef,

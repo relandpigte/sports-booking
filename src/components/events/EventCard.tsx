@@ -5,6 +5,10 @@ import { Badge } from "@/components/ui/Badge";
 import { formatPHP } from "@/lib/currency";
 import type { PublicEventView } from "@/lib/events";
 import { formatManilaDate, formatSlotRange } from "@/lib/time";
+import {
+  MANUAL_SERVICE_FEE_PERCENT,
+  SERVICE_FEE_PERCENT,
+} from "@/lib/constants";
 
 export function FeaturedEventCard({ event }: { event: PublicEventView }) {
   const courtNames = event.courts.map((court) => court.name).join(", ");
@@ -190,7 +194,7 @@ export function EventCard({
             {!past && (
               <p className={`${event.pendingCount > 0 ? "mt-1" : "mt-2"} text-xs text-slate-400`}>
                 {event.registrationFee > 0
-                  ? "+ 3% non-refundable Bunal service fee at checkout"
+                  ? `+ ${event.hub.paymentMode === "MANUAL" ? MANUAL_SERVICE_FEE_PERCENT : SERVICE_FEE_PERCENT}% non-refundable Bunal service fee at checkout`
                   : "Free registration · no checkout required"}
               </p>
             )}

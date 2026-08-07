@@ -35,16 +35,19 @@ plus VAT. `PAYMONGO_QRPH_PROCESSING_RATE` can override the VAT-inclusive rate
 for negotiated merchant pricing. For example, a ₱257.50 booking subtotal adds
 ₱3.92 and generates a ₱261.42 QR.
 
-In manual mode, the checkout total is exactly `venueAmount`; `platformFee` and
-`processingFee` are both zero. No service-fee ledger entry is created.
+In manual mode, the player pays `venueAmount` plus a 2.5% service fee;
+`processingFee` remains zero because PayMongo is not involved. The service fee
+is added to the ledger only after the partner approves the receipt and the
+booking or event capacity is confirmed.
 
 For open play and other paid events, the registration fee is per person. A
 lead player may include named guests in the first checkout, so a ₱100 event
-with two guests charges `₱100 × 3`, plus the 3% service fee and PayMongo's QR
-processing fee. The entire group is capacity-checked under one event lock and
-is held only when every requested spot is available. Confirmed players can add
-more named guests later through an incremental QR payment; an expired or
-failed add-on never changes the already-confirmed registration.
+with two guests charges `₱100 × 3`, plus the active mode's service fee: 3% for
+automatic checkout or 2.5% for manual checkout. Automatic checkout also adds
+PayMongo's QR processing fee. The entire group is capacity-checked under one
+event lock and is held only when every requested spot is available. Confirmed
+players can add more named guests later through an incremental payment; an
+expired or failed add-on never changes the already-confirmed registration.
 
 ## Manual player payments
 
@@ -56,8 +59,9 @@ The partner then selects **Manual** as its account-wide checkout mode.
 For every manual checkout:
 
 1. The requested court hours or event capacity are held for 15 minutes.
-2. The player chooses one of the partner's destinations, transfers the exact
-   venue amount, uploads a receipt image, and may add a transaction reference.
+2. The player chooses one of the partner's destinations, transfers the venue
+   amount plus the displayed 2.5% service fee, uploads a receipt image, and may
+   add a transaction reference.
 3. No upload by the deadline releases the court hours or event capacity.
 4. A valid on-time upload freezes the reservation as **Pending booking** with
    no second review deadline.
@@ -67,9 +71,9 @@ For every manual checkout:
    immediately releases them and may include an optional reason.
 
 Manual refunds happen outside Bunal.club through the original network. After
-returning the full venue amount, the partner records the refund and optional
-reference on the booking or event payment. Manual payments have no service fee
-to retain.
+returning the venue amount, the partner records the refund and optional
+reference on the booking or event payment. The 2.5% service fee remains in the
+settlement ledger and is non-refundable.
 
 Venue partners may also add named complimentary guests from the event player
 list. These organizer-managed spots confirm immediately, count against event
@@ -139,10 +143,12 @@ Cloudflare Tunnel or ngrok for local webhook testing.
 
 The partner's PayMongo account receives the complete booking subtotal after
 PayMongo deducts the separately charged QR Ph processing fee. After a
-successful booking is confirmed, an immutable `ServiceFeeEntry` records the
-3% fee owed to Bunal.club. That service fee is non-refundable: an app-managed
-refund returns the venue amount and the separately charged PayMongo processing
-fee, retains the service fee, and does not create a negative ledger entry.
+successful automatic booking or an approved manual booking is confirmed, an
+immutable `ServiceFeeEntry` records the snapshotted fee owed to Bunal.club: 3%
+for automatic checkout or 2.5% for manual checkout. That service fee is
+non-refundable: a refund returns the venue amount and, for automatic checkout,
+the separately charged PayMongo processing fee, retains the service fee, and
+does not create a negative ledger entry.
 Partners remit the outstanding balance from `/dashboard/payments`. The primary
 flow opens an exact-amount QR Ph-only PayMongo hosted checkout in Bunal.club's
 own account. A signed

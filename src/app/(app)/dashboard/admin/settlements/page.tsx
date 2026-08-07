@@ -33,8 +33,8 @@ export default async function AdminSettlementsPage() {
           Service-fee settlements
         </h1>
         <p className="mt-1 text-sm text-gray-500">
-          Verify partner remittances before crediting their 3% service-fee
-          balance.
+          Verify partner remittances before crediting their automatic and
+          manual checkout service-fee balance.
         </p>
       </div>
 

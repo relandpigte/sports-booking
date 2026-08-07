@@ -72,9 +72,9 @@ export function ServiceFeePanel({
             Bunal.club service-fee settlement
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-gray-500">
-            PayMongo deposits the booking subtotal into your account. Remit the
-            3% booking service fees shown here; after settlement, you retain
-            exactly your advertised court rates.
+            Automatic and approved manual bookings accrue their displayed
+            service fee here. Remit the combined balance; after settlement,
+            you retain exactly your advertised court and registration rates.
           </p>
         </div>
         {balance.blocked ? (

@@ -46,13 +46,14 @@ export default function TermsPage() {
             rules of the participating venue. When a venue takes payment
             online, the venue selects either automatic PayMongo QR Ph or
             partner-reviewed manual transfer. Selected hours are held for a
-            limited window while you pay. Automatic checkout may include the
-            Bunal.club service fee and PayMongo processing fee shown before
-            confirmation. Manual checkout requires an on-time receipt upload,
-            remains pending until venue approval, and adds neither fee.
+            limited window while you pay. Automatic checkout includes the
+            displayed Bunal.club service fee and may include a PayMongo
+            processing fee. Manual checkout includes a 2.5% Bunal.club service
+            fee, requires an on-time receipt upload, and remains pending until
+            venue approval; no PayMongo processing fee is added.
             Automatic refunds are returned through PayMongo; manual refunds
             are returned by the venue through the original network.
-            Bunal.club&apos;s automatic-checkout service fee is non-refundable;
+            Bunal.club&apos;s checkout service fee is non-refundable;
             all other refund and no-show handling follows the venue&apos;s policy.
           </p>
         </LegalSection>

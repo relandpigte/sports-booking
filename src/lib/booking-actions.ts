@@ -39,6 +39,8 @@ import {
   BOOKING_WINDOW_DAYS,
   bookingServiceFeeFor,
   grossFor,
+  manualBookingServiceFeeFor,
+  manualGrossFor,
 } from "@/lib/constants";
 import {
   addDays,
@@ -51,6 +53,7 @@ import {
   isPartnerImpersonationActive,
   recordImpersonatedAction,
 } from "@/lib/impersonation";
+import { notifyPartnerOfBooking } from "@/lib/booking-notifications";
 
 export type BookingFormState = {
   errors?: Record<string, string>;
@@ -222,10 +225,14 @@ export async function createBookingAction(
             gatewayId: manualPayment ? null : paymentSetup.gateway!.id,
             userId: viewer.id,
             hubId: hub.id,
-            amount: new Prisma.Decimal(manualPayment ? total : grossFor(total)),
+            amount: new Prisma.Decimal(
+              manualPayment ? manualGrossFor(total) : grossFor(total)
+            ),
             venueAmount: new Prisma.Decimal(total),
             platformFee: new Prisma.Decimal(
-              manualPayment ? 0 : bookingServiceFeeFor(total)
+              manualPayment
+                ? manualBookingServiceFeeFor(total)
+                : bookingServiceFeeFor(total)
             ),
             processingFee: new Prisma.Decimal(0),
             method: manualPayment ? "MANUAL" : "QRPH",
@@ -297,6 +304,35 @@ export async function createBookingAction(
   }
 
   revalidateBookingSurfaces(hub.id);
+  await notifyPartnerOfBooking({
+    to: hub.owner.email,
+    partnerName: hub.owner.playerName ?? hub.owner.name ?? "Venue partner",
+    playerName: viewer.playerName ?? viewer.name ?? "A player",
+    kind: "COURT",
+    venueName: hub.name,
+    bookingTitle:
+      groups.length === 1
+        ? groups[0].court.name
+        : `${groups.length} courts`,
+    schedule: `${date} · ${groups
+      .map(
+        (group) =>
+          `${group.court.name}: ${group.runs
+            .map(
+              (run) =>
+                `${formatHourLabel(run.start)}–${formatHourLabel(run.end + 1)}`
+            )
+            .join(", ")}`
+      )
+      .join("; ")}`,
+    status: requiresPayment
+      ? manualPayment
+        ? "Pending manual payment"
+        : "Pending automatic payment"
+      : "Confirmed",
+    actionPath: `/dashboard/bookings?q=${encodeURIComponent(created[0].id)}`,
+    idempotencyKey: `partner-court-booking-${paymentId ?? created[0].id}`,
+  });
   if (paymentId) {
     // Prepare the one-time QR Ph checkout before showing the payment page so
     // the player lands directly on the QR instead of facing a second Pay step.

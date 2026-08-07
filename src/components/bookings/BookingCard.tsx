@@ -51,6 +51,10 @@ export function BookingCard({
   const holding = booking.status === "PENDING";
   const paid = booking.payment?.status === "SUCCEEDED";
   const refunded = booking.payment?.status === "REFUNDED";
+  const manualProofPending =
+    holding &&
+    booking.payment?.collectionMode === "MANUAL" &&
+    booking.payment.manualSubmittedAt != null;
   const refundableAmount = booking.payment
     ? booking.payment.amount -
       booking.payment.platformFee +
@@ -92,7 +96,9 @@ export function BookingCard({
         </div>
 
         <Badge tone={BOOKING_STATUS_TONES[booking.status]}>
-          {BOOKING_STATUS_LABELS[booking.status]}
+          {manualProofPending
+            ? "Pending approval"
+            : BOOKING_STATUS_LABELS[booking.status]}
         </Badge>
       </div>
 
@@ -154,11 +160,15 @@ export function BookingCard({
       {holding && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">
           <span>
-            {view === "player"
+            {manualProofPending
+              ? view === "player"
+                ? "Payment submitted. Waiting for venue approval."
+                : "Payment proof is ready for review."
+              : view === "player"
               ? "We're holding these hours until you pay."
               : "Held while the player pays."}
           </span>
-          {view === "player" && booking.payment && (
+          {view === "player" && booking.payment && !manualProofPending && (
             <Link
               href={`/dashboard/bookings/pay/${booking.payment.id}`}
               className="font-medium underline"
@@ -182,6 +192,7 @@ export function BookingCard({
             payment={{
               id: booking.payment.id,
               status: booking.payment.status,
+              amount: booking.payment.amount,
               receiptImage: booking.payment.manualReceiptImage,
               methodLabel: booking.payment.manualMethodLabel,
               paymentReference: booking.payment.manualPaymentRef,

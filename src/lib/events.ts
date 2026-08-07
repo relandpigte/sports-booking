@@ -207,6 +207,7 @@ export type PlayerEventRegistrationView = {
     status: "PENDING" | "SUCCEEDED" | "FAILED" | "REFUNDED";
     amount: number;
     platformFee: number;
+    manualSubmittedAt: Date | null;
   } | null;
 };
 

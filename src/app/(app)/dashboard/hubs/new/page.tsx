@@ -23,7 +23,7 @@ export default async function NewHubPage() {
         <h1 className="text-2xl font-bold text-gray-900">Create Hub</h1>
         <p className="mt-1 text-sm text-gray-500">
           Add your venue&apos;s details, photos, courts, and operating hours. It
-          can appear as Coming soon until PayMongo is connected.
+          can appear as Coming soon until your selected payment setup is ready.
         </p>
       </div>
       <HubForm />

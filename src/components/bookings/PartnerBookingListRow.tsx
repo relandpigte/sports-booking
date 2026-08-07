@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/Badge";
 import { CancelBookingButton } from "@/components/bookings/CancelBookingButton";
 import { RefundBookingButton } from "@/components/bookings/RefundBookingButton";
 import { RescheduleBookingButton } from "@/components/bookings/RescheduleBookingButton";
+import { ManualPaymentReview } from "@/components/bookings/ManualPaymentReview";
 import type { BookingView } from "@/lib/bookings";
 import { formatPHP } from "@/lib/currency";
 import { formatManilaDate, formatManilaDateLong, formatSlotRange } from "@/lib/time";
@@ -39,6 +40,10 @@ export function PartnerBookingListRow({
   const holding = booking.status === "PENDING";
   const paid = booking.payment?.status === "SUCCEEDED";
   const refunded = booking.payment?.status === "REFUNDED";
+  const manualProofPending =
+    holding &&
+    booking.payment?.collectionMode === "MANUAL" &&
+    booking.payment.manualSubmittedAt != null;
   const refundableAmount = booking.payment
     ? booking.payment.amount -
       booking.payment.platformFee +
@@ -49,6 +54,7 @@ export function PartnerBookingListRow({
   const hasBookingActions =
     paid ||
     (cancellable &&
+      !manualProofPending &&
       (booking.status === "CONFIRMED" || booking.status === "PENDING"));
 
   return (
@@ -126,16 +132,38 @@ export function PartnerBookingListRow({
 
         <div className="flex items-center justify-end">
           <Badge tone={BOOKING_STATUS_TONES[booking.status]}>
-            {BOOKING_STATUS_LABELS[booking.status]}
+            {manualProofPending
+              ? "Pending approval"
+              : BOOKING_STATUS_LABELS[booking.status]}
           </Badge>
         </div>
       </div>
 
       {holding && (
         <p className="mt-3 text-xs font-medium text-amber-700">
-          Held while the player completes payment.
+          {manualProofPending
+            ? "Payment proof is ready for review."
+            : "Held while the player completes payment."}
         </p>
       )}
+
+      {booking.payment?.collectionMode === "MANUAL" &&
+        booking.payment.manualSubmittedAt && (
+          <ManualPaymentReview
+            variant="list"
+            payment={{
+              id: booking.payment.id,
+              status: booking.payment.status,
+              amount: booking.payment.amount,
+              receiptImage: booking.payment.manualReceiptImage,
+              methodLabel: booking.payment.manualMethodLabel,
+              paymentReference: booking.payment.manualPaymentRef,
+              submittedAt: booking.payment.manualSubmittedAt,
+              reviewNote: booking.payment.manualReviewNote,
+              refundedAt: booking.payment.refundedAt,
+            }}
+          />
+        )}
 
       {booking.notes && (
         <p className="mt-3 whitespace-pre-line rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
@@ -181,7 +209,7 @@ export function PartnerBookingListRow({
 
       {hasBookingActions && (
         <div className="mt-3 flex flex-wrap items-start justify-end gap-1 border-t border-gray-100 pt-2">
-          {paid && (
+          {paid && booking.payment?.collectionMode !== "MANUAL" && (
             <RefundBookingButton
               bookingId={booking.id}
               amountLabel={
@@ -209,6 +237,7 @@ export function PartnerBookingListRow({
             />
           )}
           {cancellable &&
+            !manualProofPending &&
             (booking.status === "CONFIRMED" || booking.status === "PENDING") && (
               <CancelBookingButton
                 bookingId={booking.id}

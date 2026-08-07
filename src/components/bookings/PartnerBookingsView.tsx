@@ -189,20 +189,42 @@ export function PartnerBookingsView({
           <button
             type="button"
             aria-expanded={showFilters}
+            aria-controls="partner-booking-advanced-search"
             onClick={() => setShowFilters((open) => !open)}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-navy hover:bg-slate-50 lg:hidden"
+            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-navy hover:bg-slate-50"
           >
             <FilterIcon />
-            Filters & sort
+            Advanced search
             {activeFilters.length > 0 && (
               <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] text-white">
                 {activeFilters.length}
               </span>
             )}
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 20 20"
+              fill="none"
+              className={`h-4 w-4 transition-transform ${
+                showFilters ? "rotate-180" : ""
+              }`}
+            >
+              <path
+                d="m6 8 4 4 4-4"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </button>
         </div>
 
-        <div className={`${showFilters ? "grid" : "hidden"} mt-3 gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2 lg:grid lg:grid-cols-4`}>
+        <div
+          id="partner-booking-advanced-search"
+          className={`${
+            showFilters ? "grid" : "hidden"
+          } mt-3 gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2 lg:grid-cols-4`}
+        >
           <Select name="hub" value={filters.hubId} label="All hubs" options={hubOptions} />
           <Select name="court" value={filters.courtId} label="All courts" options={courtOptions} />
           <Select name="status" value={filters.status} label="Any status" options={statusOptions} />

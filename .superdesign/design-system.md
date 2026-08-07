@@ -105,7 +105,8 @@ hierarchy.
    workflows, approvals, reports, or settlement controls on public pages.
 7. Partner section: no plans/subscriptions/monthly charges; proceeds go to the
    venue's own PayMongo account; venue retains advertised court rate; the
-   Bunal.club service fee is 3% of the court booking total;
+   Bunal.club service fee is 3% for automatic checkout and 2.5% for manual
+   checkout;
    partners may publish a Coming soon hub before PayMongo setup, while
    connection and webhook setup remain required to verify it and open booking.
 8. Final dual CTA and legal/footer links.
@@ -125,8 +126,8 @@ labels, 44px tap targets, sufficient contrast, and server-stable markup.
 - Automatic mode keeps the existing direct QR Ph checkout, Bunal.club service
   fee, PayMongo processing fee, and automatic confirmation.
 - Manual mode shows the partner's active GCash, Maya, bank-transfer, and custom
-  networks. Manual payments contain no Bunal.club service fee and no PayMongo
-  processing fee.
+  networks. Manual payments add a 2.5% non-refundable Bunal.club service fee
+  but no PayMongo processing fee.
 - Manual checkout uses one focused responsive page: booking/event summary,
   exact amount, 15-minute countdown, payment-network cards with QR/account
   details, optional transaction reference, receipt upload, and one submission

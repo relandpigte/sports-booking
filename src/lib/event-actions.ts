@@ -7,7 +7,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import * as z from "zod";
 
-import { BOOKING_HOLD_MINUTES, bookingServiceFeeFor, grossFor } from "@/lib/constants";
+import {
+  BOOKING_HOLD_MINUTES,
+  bookingServiceFeeFor,
+  grossFor,
+  manualBookingServiceFeeFor,
+  manualGrossFor,
+} from "@/lib/constants";
 import { getViewer, requireActivePartner } from "@/lib/dal";
 import { prisma } from "@/lib/db";
 import { getEventCourtAvailability } from "@/lib/events";
@@ -19,9 +25,16 @@ import {
   settleBookingPayment,
 } from "@/lib/booking-payments";
 import { isServiceFeeOverdue } from "@/lib/service-fees";
-import { isValidDateString, manilaInstant, manilaToday } from "@/lib/time";
+import {
+  formatManilaDateLong,
+  formatSlotRange,
+  isValidDateString,
+  manilaInstant,
+  manilaToday,
+} from "@/lib/time";
 import { firstErrors } from "@/lib/zod-errors";
 import { recordImpersonatedAction } from "@/lib/impersonation";
+import { notifyPartnerOfBooking } from "@/lib/booking-notifications";
 
 const optionalText = z
   .string()
@@ -357,7 +370,6 @@ export async function saveEventAction(
   if (
     willPublish &&
     values.registrationFee > 0 &&
-    hub.owner.partnerPaymentMode === "AUTOMATIC" &&
     (await isServiceFeeOverdue(partner.id))
   ) {
     return {
@@ -492,12 +504,27 @@ export async function registerForEventAction(
       id: true,
       publicId: true,
       hubId: true,
+      title: true,
+      date: true,
+      startHour: true,
+      endHour: true,
       status: true,
       startsAt: true,
       capacity: true,
       registrationFee: true,
       hub: {
-        select: { ownerId: true, owner: { select: { partnerStatus: true } } },
+        select: {
+          name: true,
+          ownerId: true,
+          owner: {
+            select: {
+              email: true,
+              name: true,
+              playerName: true,
+              partnerStatus: true,
+            },
+          },
+        },
       },
     },
   });
@@ -532,9 +559,7 @@ export async function registerForEventAction(
     fee > 0 ? await getPartnerPaymentSetup(event.hub.ownerId) : null;
   const manualPayment = paymentSetup?.mode === "MANUAL";
   const overdue =
-    fee > 0 && !manualPayment
-      ? await isServiceFeeOverdue(event.hub.ownerId)
-      : false;
+    fee > 0 ? await isServiceFeeOverdue(event.hub.ownerId) : false;
   if (
     fee > 0 &&
     (!paymentSetup ||
@@ -696,11 +721,13 @@ export async function registerForEventAction(
         userId: viewer.id,
         hubId: event.hubId,
         amount: new Prisma.Decimal(
-          manualPayment ? venueAmount : grossFor(venueAmount)
+          manualPayment ? manualGrossFor(venueAmount) : grossFor(venueAmount)
         ),
         venueAmount: new Prisma.Decimal(venueAmount),
         platformFee: new Prisma.Decimal(
-          manualPayment ? 0 : bookingServiceFeeFor(venueAmount)
+          manualPayment
+            ? manualBookingServiceFeeFor(venueAmount)
+            : bookingServiceFeeFor(venueAmount)
         ),
         processingFee: new Prisma.Decimal(0),
         method: manualPayment ? "MANUAL" : "QRPH",
@@ -747,6 +774,40 @@ export async function registerForEventAction(
   });
 
   revalidateEventSurfaces(event.publicId, event.hubId);
+  if (
+    outcome.kind === "payment" ||
+    outcome.kind === "confirmed" ||
+    outcome.kind === "waitlist"
+  ) {
+    await notifyPartnerOfBooking({
+      to: event.hub.owner.email,
+      partnerName:
+        event.hub.owner.playerName ?? event.hub.owner.name ?? "Event organizer",
+      playerName: viewer.playerName ?? viewer.name ?? "A player",
+      kind: "EVENT",
+      venueName: event.hub.name,
+      bookingTitle: event.title,
+      schedule: `${formatManilaDateLong(event.date)} · ${formatSlotRange(
+        event.startHour,
+        event.endHour
+      )}`,
+      status:
+        outcome.kind === "waitlist"
+          ? "Waitlisted"
+          : outcome.kind === "confirmed"
+            ? "Confirmed"
+            : manualPayment
+              ? "Pending manual payment"
+              : "Pending automatic payment",
+      spots: requestedSpots,
+      actionPath: `/dashboard/events/${event.publicId}`,
+      idempotencyKey: `partner-event-booking-${
+        outcome.kind === "payment"
+          ? outcome.paymentId
+          : `${event.id}-${viewer.id}-${outcome.kind}`
+      }`,
+    });
+  }
   if (outcome.kind === "payment") {
     // Create the QR Ph checkout now so the next screen can display it without
     // asking the player to press a second payment button.
@@ -841,9 +902,7 @@ export async function addEventGuestSlotsAction(
     fee > 0 ? await getPartnerPaymentSetup(event.hub.ownerId) : null;
   const manualPayment = paymentSetup?.mode === "MANUAL";
   const overdue =
-    fee > 0 && !manualPayment
-      ? await isServiceFeeOverdue(event.hub.ownerId)
-      : false;
+    fee > 0 ? await isServiceFeeOverdue(event.hub.ownerId) : false;
   if (
     fee > 0 &&
     (!paymentSetup ||
@@ -950,11 +1009,13 @@ export async function addEventGuestSlotsAction(
         userId: viewer.id,
         hubId: event.hubId,
         amount: new Prisma.Decimal(
-          manualPayment ? venueAmount : grossFor(venueAmount)
+          manualPayment ? manualGrossFor(venueAmount) : grossFor(venueAmount)
         ),
         venueAmount: new Prisma.Decimal(venueAmount),
         platformFee: new Prisma.Decimal(
-          manualPayment ? 0 : bookingServiceFeeFor(venueAmount)
+          manualPayment
+            ? manualBookingServiceFeeFor(venueAmount)
+            : bookingServiceFeeFor(venueAmount)
         ),
         processingFee: new Prisma.Decimal(0),
         method: manualPayment ? "MANUAL" : "QRPH",

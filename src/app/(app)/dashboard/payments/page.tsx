@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
-import { GatewayPanel } from "@/components/partner/GatewayPanel";
-import { ManualPaymentSettings } from "@/components/partner/ManualPaymentSettings";
+import { CheckoutModeSettings } from "@/components/partner/ManualPaymentSettings";
 import { ServiceFeePanel } from "@/components/partner/ServiceFeePanel";
 import { requireActivePartner } from "@/lib/dal";
 import { getGatewayView } from "@/lib/partner-gateway";
@@ -90,41 +89,47 @@ export default async function PaymentsPage({
     getPartnerManualPaymentSettings(partner.id),
   ]);
   const paymongoSettlementEnabled = await platformPaymongoConfigured();
+  const checkoutReady =
+    paymentSettings.mode === "MANUAL"
+      ? paymentSettings.methods.some((method) => method.active)
+      : gateway?.connected === true;
 
   return (
     <div>
       <DashboardPageHeader
         eyebrow="Payment workspace"
         title="Payments"
-        description="Connect the account that receives player booking payments and manage service-fee settlements."
+        description="Configure player checkout, payment destinations, and service-fee settlements."
       />
       {setup === "hub" && (
         <div
           className={`mt-5 rounded-2xl border px-4 py-3 ${
-            gateway?.connected
+            checkoutReady
               ? "border-green-200 bg-green-50"
               : "border-amber-200 bg-amber-50"
           }`}
         >
           <p
             className={`text-sm font-semibold ${
-              gateway?.connected ? "text-green-800" : "text-amber-800"
+              checkoutReady ? "text-green-800" : "text-amber-800"
             }`}
           >
-            {gateway?.connected
-              ? "PayMongo is connected"
+            {checkoutReady
+              ? paymentSettings.mode === "MANUAL"
+                ? "Manual checkout is ready"
+                : "PayMongo is connected"
               : "Finish a payment setup to open online bookings"}
           </p>
           <p
             className={`mt-0.5 text-sm ${
-              gateway?.connected ? "text-green-700" : "text-amber-700"
+              checkoutReady ? "text-green-700" : "text-amber-700"
             }`}
           >
-            {gateway?.connected
+            {checkoutReady
               ? "Your verified venues can accept player payments and online bookings."
               : "Your published hubs can remain visible as Coming soon. Connect PayMongo or add manual payment networks, then select the mode you want for new reservations."}
           </p>
-          {gateway?.connected && (
+          {checkoutReady && (
             <Link
               href="/dashboard/hubs/new"
               className="mt-2 inline-block text-sm font-semibold text-green-900 hover:underline"
@@ -135,11 +140,11 @@ export default async function PaymentsPage({
         </div>
       )}
       <div className="mt-6 flex flex-col gap-5">
-        <ManualPaymentSettings
+        <CheckoutModeSettings
           mode={paymentSettings.mode}
           methods={paymentSettings.methods}
+          gateway={gateway}
         />
-        <GatewayPanel gateway={gateway} />
         <ServiceFeePanel
           balance={serviceFees.balance}
           settlements={serviceFees.settlements}

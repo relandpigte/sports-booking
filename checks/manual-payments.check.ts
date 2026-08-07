@@ -1,10 +1,18 @@
-// Manual collection: fee-free ledgers, frozen review holds, event capacity,
-// approval settlement, and full external-refund recording.
+// Manual collection: 2.5% fee ledgers, frozen review holds, event capacity,
+// approval settlement, and venue-only external-refund recording.
 //
 //   npm run check:manual-payments
 import { PrismaClient } from "@prisma/client";
 
 import { ok, run, stubRequestContext } from "./harness";
+import {
+  manualBookingServiceFeeFor,
+  manualGrossFor,
+} from "@/lib/constants";
+import {
+  isPartnerPaymentReady,
+  type PartnerPaymentSetup,
+} from "@/lib/manual-payments";
 import { manilaInstant } from "@/lib/time";
 
 const prisma = new PrismaClient();
@@ -19,6 +27,46 @@ async function cleanup() {
 }
 
 async function check() {
+  const setup = (
+    values: Partial<PartnerPaymentSetup>
+  ): PartnerPaymentSetup => ({
+    mode: "AUTOMATIC",
+    automaticReady: false,
+    manualReady: false,
+    gateway: null,
+    ...values,
+  });
+  ok(
+    "manual checkout is ready with an active payment channel",
+    isPartnerPaymentReady(setup({ mode: "MANUAL", manualReady: true }))
+  );
+  ok(
+    "manual checkout ignores an inactive automatic configuration",
+    !isPartnerPaymentReady(
+      setup({
+        mode: "MANUAL",
+        automaticReady: true,
+        manualReady: false,
+        gateway: { id: "gateway", provider: "paymongo" },
+      })
+    )
+  );
+  ok(
+    "automatic checkout is ready with a connected gateway",
+    isPartnerPaymentReady(
+      setup({
+        automaticReady: true,
+        gateway: { id: "gateway", provider: "paymongo" },
+      })
+    )
+  );
+  ok(
+    "automatic checkout ignores an inactive manual configuration",
+    !isPartnerPaymentReady(
+      setup({ mode: "AUTOMATIC", automaticReady: false, manualReady: true })
+    )
+  );
+
   await cleanup();
   const partner = await prisma.user.create({
     data: {
@@ -74,9 +122,9 @@ async function check() {
       gatewayId: null,
       userId: player.id,
       hubId: hub.id,
-      amount: 500,
+      amount: manualGrossFor(500),
       venueAmount: 500,
-      platformFee: 0,
+      platformFee: manualBookingServiceFeeFor(500),
       processingFee: 0,
       method: "MANUAL",
       collectionMode: "MANUAL",
@@ -154,16 +202,24 @@ async function check() {
       (await prisma.booking.count({ where: { bookingPaymentId: courtPayment.id, status: "CONFIRMED" } })) === 1
   );
   ok(
-    "manual collection has no gateway, service fee, or processing fee",
+    "manual approval accrues the 2.5% service fee without a gateway processing fee",
     (await prisma.bookingPayment.count({
       where: {
         id: courtPayment.id,
         gatewayId: null,
-        platformFee: 0,
+        amount: 512.5,
+        venueAmount: 500,
+        platformFee: 12.5,
         processingFee: 0,
       },
     })) === 1 &&
-      (await prisma.serviceFeeEntry.count({ where: { bookingPaymentId: courtPayment.id } })) === 0
+      (await prisma.serviceFeeEntry.count({
+        where: {
+          bookingPaymentId: courtPayment.id,
+          type: "CHARGE",
+          amount: 12.5,
+        },
+      })) === 1
   );
 
   const event = await prisma.event.create({
@@ -190,9 +246,9 @@ async function check() {
       partnerId: partner.id,
       userId: player.id,
       hubId: hub.id,
-      amount: 300,
+      amount: manualGrossFor(300),
       venueAmount: 300,
-      platformFee: 0,
+      platformFee: manualBookingServiceFeeFor(300),
       processingFee: 0,
       method: "GCASH",
       collectionMode: "MANUAL",
@@ -239,6 +295,16 @@ async function check() {
       (await prisma.eventRegistration.count({ where: { bookingPaymentId: eventPayment.id, status: "CONFIRMED" } })) === 1 &&
       (await prisma.eventGuestSlot.count({ where: { bookingPaymentId: eventPayment.id, status: "CONFIRMED" } })) === 2
   );
+  ok(
+    "a three-person manual event accrues one 2.5% service-fee charge",
+    (await prisma.serviceFeeEntry.count({
+      where: {
+        bookingPaymentId: eventPayment.id,
+        type: "CHARGE",
+        amount: 7.5,
+      },
+    })) === 1
+  );
 
   await markBookingPaymentRefunded({
     paymentId: eventPayment.id,
@@ -252,10 +318,37 @@ async function check() {
     select: { status: true, refundedAmount: true, refundRef: true },
   });
   ok(
-    "manual refund recording stores the full venue amount and reference",
+    "manual refund records only the venue amount and retains the service fee",
     refunded?.status === "REFUNDED" &&
       Number(refunded.refundedAmount) === 300 &&
-      refunded.refundRef === "manual-refund-check"
+      refunded.refundRef === "manual-refund-check" &&
+      (await prisma.serviceFeeEntry.count({
+        where: {
+          bookingPaymentId: eventPayment.id,
+          type: "CHARGE",
+          amount: 7.5,
+        },
+      })) === 1
+  );
+
+  const { getPublicHub } = await import("@/lib/hubs");
+  const readyHub = await getPublicHub(hub.id);
+  ok(
+    "an approved hub with Manual selected and an active channel is bookable",
+    readyHub?.bookable === true &&
+      readyHub.comingSoon === false &&
+      readyHub.blockedBy === null &&
+      readyHub.paymentMode === "MANUAL"
+  );
+
+  await prisma.serviceFeeEntry.updateMany({
+    where: { bookingPaymentId: courtPayment.id, type: "CHARGE" },
+    data: { createdAt: new Date("2000-01-01T00:00:00.000Z") },
+  });
+  const blockedHub = await getPublicHub(`manual-payments-${partner.id}`);
+  ok(
+    "an overdue manual service-fee balance blocks new paid bookings",
+    blockedHub?.bookable === false && blockedHub.blockedBy === "settlement"
   );
 }
 

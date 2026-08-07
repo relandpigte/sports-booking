@@ -17,12 +17,12 @@ type PartnerHomeUser = {
 export function PartnerHome({
   user,
   partnerStatus,
-  isGatewayConnected,
+  isPaymentReady,
   canOperate,
 }: {
   user: PartnerHomeUser;
   partnerStatus: PartnerStatus | null;
-  isGatewayConnected: boolean;
+  isPaymentReady: boolean;
   canOperate?: boolean;
 }) {
   const active = partnerStatus === "ACTIVE";
@@ -151,7 +151,7 @@ export function PartnerHome({
               </p>
             </div>
             <span className="w-fit rounded-full bg-navy-soft px-3 py-1.5 text-xs font-bold text-navy">
-              {isGatewayConnected ? "Payment ready" : "1 required step"}
+              {isPaymentReady ? "Payment ready" : "1 required step"}
             </span>
           </div>
 
@@ -182,7 +182,7 @@ export function PartnerHome({
             <Link
               href="/dashboard/payments?setup=hub"
               className={`rounded-xl border bg-white p-5 shadow-sm shadow-navy/5 transition-all hover:-translate-y-0.5 ${
-                isGatewayConnected
+                isPaymentReady
                   ? "border-primary/25 hover:border-primary/40"
                   : "border-[#dfe7e2] hover:border-primary/30"
               }`}
@@ -193,12 +193,12 @@ export function PartnerHome({
                 </span>
                 <span
                   className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                    isGatewayConnected
+                    isPaymentReady
                       ? "bg-green-100 text-green-700"
                       : "bg-accent-soft text-primary"
                   }`}
                 >
-                  {isGatewayConnected ? "Ready" : "Required for booking"}
+                  {isPaymentReady ? "Ready" : "Required for booking"}
                 </span>
               </div>
               <h3 className="mt-4 font-semibold text-gray-900">
@@ -208,14 +208,14 @@ export function PartnerHome({
                 Select PayMongo QR Ph or add manual transfer destinations.
               </p>
               <p className="mt-4 text-xs font-bold uppercase tracking-[0.12em] text-primary">
-                {isGatewayConnected ? "Manage payments →" : "Set up now →"}
+                {isPaymentReady ? "Manage payments →" : "Set up now →"}
               </p>
             </Link>
           </div>
         </section>
       )}
 
-      {operational && isGatewayConnected && (
+      {operational && isPaymentReady && (
         <section className="mt-6">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">

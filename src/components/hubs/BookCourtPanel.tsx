@@ -37,6 +37,10 @@ import {
   BOOKING_HOLD_MINUTES,
   bookingServiceFeeFor,
   grossFor,
+  MANUAL_SERVICE_FEE_PERCENT,
+  manualBookingServiceFeeFor,
+  manualGrossFor,
+  SERVICE_FEE_PERCENT,
   type OperatingHours,
 } from "@/lib/constants";
 
@@ -174,6 +178,14 @@ export function BookCourtPanel({
     (group) => group.total == null
   );
   const requiresOnlinePayment = paymentRequired && pricedTotal > 0;
+  const serviceFee =
+    paymentMode === "MANUAL"
+      ? manualBookingServiceFeeFor(pricedTotal)
+      : bookingServiceFeeFor(pricedTotal);
+  const bookingSubtotal =
+    paymentMode === "MANUAL"
+      ? manualGrossFor(pricedTotal)
+      : grossFor(pricedTotal);
 
   // Court headers only focus a column/list. They never clear another court's
   // hours: the comparison view is also a multi-court cart.
@@ -371,9 +383,14 @@ export function BookCourtPanel({
                   )}
                   {requiresOnlinePayment && (
                     <div className="flex items-center justify-between gap-3 text-navy/65">
-                      <span>Service fee (3%, non-refundable)</span>
+                      <span>
+                        Service fee ({paymentMode === "MANUAL"
+                          ? MANUAL_SERVICE_FEE_PERCENT
+                          : SERVICE_FEE_PERCENT}
+                        %, non-refundable)
+                      </span>
                       <span className="shrink-0 font-semibold text-navy">
-                        {formatPHP(bookingServiceFeeFor(pricedTotal))}
+                        {formatPHP(serviceFee)}
                       </span>
                     </div>
                   )}
@@ -383,9 +400,7 @@ export function BookCourtPanel({
                     </span>
                     <span className="shrink-0 text-2xl font-extrabold text-navy">
                       {formatPHP(
-                        requiresOnlinePayment
-                          ? grossFor(pricedTotal)
-                          : pricedTotal
+                        requiresOnlinePayment ? bookingSubtotal : pricedTotal
                       )}
                     </span>
                   </div>

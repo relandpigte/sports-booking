@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { useActionState, useState } from "react";
 
-import { bookingServiceFeeFor } from "@/lib/constants";
+import {
+  bookingServiceFeeFor,
+  MANUAL_SERVICE_FEE_PERCENT,
+  manualBookingServiceFeeFor,
+  SERVICE_FEE_PERCENT,
+} from "@/lib/constants";
 import { formatPHP } from "@/lib/currency";
 import {
   addEventGuestSlotsAction,
@@ -208,7 +213,9 @@ function GuestSlotForm({
   const paidSpotCount = guestNames.length + (leadIncluded ? 1 : 0);
   const venueAmount = fee * paidSpotCount;
   const serviceFee =
-    paymentMode === "MANUAL" ? 0 : bookingServiceFeeFor(venueAmount);
+    paymentMode === "MANUAL"
+      ? manualBookingServiceFeeFor(venueAmount)
+      : bookingServiceFeeFor(venueAmount);
   const total = venueAmount + serviceFee;
   const canSubmit = mode === "register" || guestNames.length > 0;
 
@@ -306,7 +313,12 @@ function GuestSlotForm({
           </div>
           {serviceFee > 0 && (
             <div className="flex justify-between gap-4 text-primary">
-              <dt>Bunal service fee (3%, non-refundable)</dt>
+              <dt>
+                Bunal service fee ({paymentMode === "MANUAL"
+                  ? MANUAL_SERVICE_FEE_PERCENT
+                  : SERVICE_FEE_PERCENT}
+                %, non-refundable)
+              </dt>
               <dd className="font-bold">{formatPHP(serviceFee)}</dd>
             </div>
           )}
@@ -322,7 +334,7 @@ function GuestSlotForm({
       {fee > 0 && paidSpotCount > 0 && (
         <p className="text-xs leading-5 text-slate-400">
           {paymentMode === "MANUAL"
-            ? "Transfer the exact venue amount and upload a receipt within 15 minutes. The organizer confirms after review; no Bunal or PayMongo fee is added."
+            ? `Transfer the total, including the ${MANUAL_SERVICE_FEE_PERCENT}% Bunal service fee, and upload a receipt within 15 minutes. The organizer confirms after review; no PayMongo processing fee is added.`
             : "Pay securely with QR Ph through PayMongo. Any processing fee is shown before you complete payment."}
         </p>
       )}

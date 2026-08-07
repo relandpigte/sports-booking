@@ -50,7 +50,14 @@ export default async function PayBookingPage({
     if (!screen) notFound();
   }
 
-  const { payment, venueName, manualMethods } = screen;
+  const {
+    payment,
+    venueName,
+    venueSlug,
+    venuePhone,
+    venueEmail,
+    manualMethods,
+  } = screen;
   const holdLive = payment.status === "PENDING" && payment.secondsLeft > 0;
   const refundedAmount =
     payment.refundedAmount ?? payment.venueAmount + payment.processingFee;
@@ -60,6 +67,42 @@ export default async function PayBookingPage({
     holdLive && payment.chargeInFlight ? payment.redirectUrl : null;
   const activeQrImageUrl =
     holdLive && payment.chargeInFlight ? payment.qrImageUrl : null;
+
+  if (
+    payment.collectionMode === "MANUAL" &&
+    payment.manualSubmittedAt == null &&
+    payment.event == null &&
+    holdLive
+  ) {
+    return (
+      <ManualPaymentCheckout
+        paymentId={payment.id}
+        amountLabel={formatPHP(payment.payableAmount)}
+        expiresAt={payment.expiresAt.toISOString()}
+        initialSeconds={payment.secondsLeft}
+        methods={manualMethods}
+        summary={{
+          venueName,
+          venueHref: `/hubs/${venueSlug ?? payment.hubId}`,
+          venuePhone,
+          venueEmail,
+          lines: payment.lines.map((line) => ({
+            id: line.bookingId,
+            label: line.courtName,
+            detail: `${formatManilaDate(line.date)} · ${formatSlotRange(
+              line.startHour,
+              line.endHour
+            )}`,
+            quantity: `${line.hours} ${line.hours === 1 ? "hour" : "hours"}`,
+          })),
+          venueAmountLabel: formatPHP(payment.venueAmount),
+          serviceFeeLabel:
+            payment.platformFee > 0 ? formatPHP(payment.platformFee) : null,
+          totalLabel: formatPHP(payment.payableAmount),
+        }}
+      />
+    );
+  }
 
   return (
     <div className="mx-auto w-full max-w-md">
@@ -183,14 +226,6 @@ export default async function PayBookingPage({
                   View my bookings
                 </Link>
               </div>
-            ) : payment.collectionMode === "MANUAL" && holdLive ? (
-              <ManualPaymentCheckout
-                paymentId={payment.id}
-                amountLabel={formatPHP(payment.payableAmount)}
-                expiresAt={payment.expiresAt.toISOString()}
-                initialSeconds={payment.secondsLeft}
-                methods={manualMethods}
-              />
             ) : holdLive ? (
               activeQrImageUrl || activeCheckoutUrl ? (
                 <div className="flex flex-col gap-3">

@@ -4,7 +4,10 @@ import { redirect } from "next/navigation";
 import { PartnerHome } from "@/components/dashboard/home/PartnerHome";
 import { getCurrentUser } from "@/lib/dal";
 import { dashboardHomeFor } from "@/lib/dashboard";
-import { getPartnerPaymentSetup } from "@/lib/manual-payments";
+import {
+  getPartnerPaymentSetup,
+  isPartnerPaymentReady,
+} from "@/lib/manual-payments";
 import { getCurrentPartnerImpersonation } from "@/lib/impersonation";
 
 export const metadata: Metadata = {
@@ -28,10 +31,8 @@ export default async function PartnerDashboardPage() {
     <PartnerHome
       user={user}
       partnerStatus={user.partnerStatus}
-      isGatewayConnected={
-        paymentSetup?.mode === "MANUAL"
-          ? paymentSetup.manualReady
-          : paymentSetup?.automaticReady ?? false
+      isPaymentReady={
+        paymentSetup ? isPartnerPaymentReady(paymentSetup) : false
       }
       canOperate={canOperate}
     />

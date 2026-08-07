@@ -37,6 +37,10 @@ export function PlayerEventRegistrationCard({
     registration.status === "PENDING" &&
     payment?.status === "PENDING" &&
     registration.secondsLeft > 0;
+  const manualProofPending =
+    registration.status === "PENDING" &&
+    payment?.status === "PENDING" &&
+    payment.manualSubmittedAt != null;
   const paidExpired =
     registration.status === "EXPIRED" && payment?.status === "SUCCEEDED";
 
@@ -56,7 +60,9 @@ export function PlayerEventRegistrationCard({
           </div>
         </div>
         <Badge tone={statusTones[registration.status]}>
-          {statusLabels[registration.status]}
+          {manualProofPending
+            ? "Pending approval"
+            : statusLabels[registration.status]}
         </Badge>
       </div>
 
@@ -93,7 +99,7 @@ export function PlayerEventRegistrationCard({
           </p>
           {payment && (
             <p className="text-xs text-slate-400">
-              Payment: {payment.status.toLowerCase()}
+              Payment: {manualProofPending ? "pending approval" : payment.status.toLowerCase()}
             </p>
           )}
         </div>

@@ -4,12 +4,19 @@ import { useActionState, useState } from "react";
 import type { ManualPaymentNetwork, PartnerPaymentMode } from "@prisma/client";
 
 import { ReceiptUpload } from "@/components/partner/ReceiptUpload";
+import { GatewayPanel } from "@/components/partner/GatewayPanel";
+import { Badge } from "@/components/ui/Badge";
 import {
   saveManualPaymentMethodAction,
   savePartnerPaymentModeAction,
   type ManualPaymentFormState,
 } from "@/lib/manual-payment-actions";
 import type { ManualPaymentMethodView } from "@/lib/manual-payments";
+import type { GatewayView } from "@/lib/partner-gateway";
+import {
+  MANUAL_SERVICE_FEE_PERCENT,
+  SERVICE_FEE_PERCENT,
+} from "@/lib/constants";
 
 const initialState: ManualPaymentFormState = {};
 
@@ -37,41 +44,53 @@ function Result({ state }: { state: ManualPaymentFormState }) {
   );
 }
 
-function ModeForm({ mode }: { mode: PartnerPaymentMode }) {
+function ModeActivation({
+  mode,
+  activeMode,
+}: {
+  mode: PartnerPaymentMode;
+  activeMode: PartnerPaymentMode;
+}) {
   const [state, action, pending] = useActionState(
     savePartnerPaymentModeAction,
     initialState
   );
+  const active = mode === activeMode;
+
   return (
-    <form action={action} className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-      <div>
-        <h2 className="text-base font-semibold text-navy">Checkout mode</h2>
-        <p className="mt-1 text-sm leading-6 text-slate-500">
-          This setting applies to every new court booking, paid event registration,
-          and paid guest add-on across your account.
-        </p>
+    <form
+      action={action}
+      className="rounded-2xl border border-primary/20 bg-primary-soft/60 p-4"
+    >
+      <input type="hidden" name="mode" value={mode} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-bold text-navy">
+            {active
+              ? "This is your active checkout mode"
+              : `Ready to use ${mode === "MANUAL" ? "Manual" : "Automatic"} checkout?`}
+          </p>
+          <p className="mt-1 text-xs leading-5 text-slate-600">
+            {active
+              ? "Changes to the settings above apply without switching modes."
+              : "Activation applies to new court bookings, paid event registrations, and paid guest add-ons."}
+          </p>
+        </div>
+        {active ? (
+          <Badge tone="success">Active</Badge>
+        ) : (
+          <button
+            disabled={pending}
+            className="rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white hover:bg-primary-hover disabled:opacity-50"
+          >
+            {pending
+              ? "Activating…"
+              : `Activate ${mode === "MANUAL" ? "manual" : "automatic"} checkout`}
+          </button>
+        )}
       </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <label className="cursor-pointer rounded-2xl border border-slate-200 p-4 has-[:checked]:border-primary has-[:checked]:bg-primary-soft">
-          <input type="radio" name="mode" value="AUTOMATIC" defaultChecked={mode === "AUTOMATIC"} className="sr-only" />
-          <span className="font-bold text-navy">Automatic · PayMongo QR Ph</span>
-          <span className="mt-1 block text-xs leading-5 text-slate-500">
-            Bunal and PayMongo fees apply. Successful payments confirm automatically.
-          </span>
-        </label>
-        <label className="cursor-pointer rounded-2xl border border-slate-200 p-4 has-[:checked]:border-primary has-[:checked]:bg-primary-soft">
-          <input type="radio" name="mode" value="MANUAL" defaultChecked={mode === "MANUAL"} className="sr-only" />
-          <span className="font-bold text-navy">Manual · Your payment networks</span>
-          <span className="mt-1 block text-xs leading-5 text-slate-500">
-            Players upload a receipt in 15 minutes. You review it; no Bunal or PayMongo fee is added.
-          </span>
-        </label>
-      </div>
-      <div className="mt-4 space-y-3">
+      <div className="mt-3">
         <Result state={state} />
-        <button disabled={pending} className="rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white hover:bg-primary-hover disabled:opacity-50">
-          {pending ? "Saving…" : "Save checkout mode"}
-        </button>
       </div>
     </form>
   );
@@ -159,18 +178,99 @@ function Field({ label, name, defaultValue, placeholder, error }: { label: strin
   );
 }
 
-export function ManualPaymentSettings({ mode, methods }: { mode: PartnerPaymentMode; methods: ManualPaymentMethodView[] }) {
+export function CheckoutModeSettings({
+  mode,
+  methods,
+  gateway,
+}: {
+  mode: PartnerPaymentMode;
+  methods: ManualPaymentMethodView[];
+  gateway: GatewayView | null;
+}) {
+  const [selectedMode, setSelectedMode] = useState<PartnerPaymentMode>(mode);
+
   return (
     <div className="space-y-5">
-      <ModeForm mode={mode} />
-      <section className="space-y-3">
-        <div>
-          <h2 className="text-base font-semibold text-navy">Manual payment networks</h2>
-          <p className="mt-1 text-sm text-slate-500">Add as many destinations as you accept. Players choose one during checkout.</p>
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+        <h2 className="text-base font-semibold text-navy">Checkout mode</h2>
+        <p className="mt-1 text-sm leading-6 text-slate-500">
+          Select a mode to manage its settings. Viewing a tab does not change
+          the checkout players currently use.
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2" role="tablist" aria-label="Checkout mode settings">
+          <button
+            type="button"
+            role="tab"
+            id="automatic-settings-tab"
+            aria-controls="automatic-settings-panel"
+            aria-selected={selectedMode === "AUTOMATIC"}
+            onClick={() => setSelectedMode("AUTOMATIC")}
+            className={`rounded-2xl border p-4 text-left transition-colors ${
+              selectedMode === "AUTOMATIC"
+                ? "border-primary bg-primary-soft"
+                : "border-slate-200 hover:border-primary/40 hover:bg-slate-50"
+            }`}
+          >
+            <span className="flex flex-wrap items-center justify-between gap-2">
+              <span className="font-bold text-navy">Automatic · PayMongo QR Ph</span>
+              {mode === "AUTOMATIC" && <Badge tone="success">Active</Badge>}
+            </span>
+            <span className="mt-1 block text-xs leading-5 text-slate-500">
+              {SERVICE_FEE_PERCENT}% Bunal fee plus PayMongo processing. Successful payments confirm automatically.
+            </span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="manual-settings-tab"
+            aria-controls="manual-settings-panel"
+            aria-selected={selectedMode === "MANUAL"}
+            onClick={() => setSelectedMode("MANUAL")}
+            className={`rounded-2xl border p-4 text-left transition-colors ${
+              selectedMode === "MANUAL"
+                ? "border-primary bg-primary-soft"
+                : "border-slate-200 hover:border-primary/40 hover:bg-slate-50"
+            }`}
+          >
+            <span className="flex flex-wrap items-center justify-between gap-2">
+              <span className="font-bold text-navy">Manual · Your payment networks</span>
+              {mode === "MANUAL" && <Badge tone="success">Active</Badge>}
+            </span>
+            <span className="mt-1 block text-xs leading-5 text-slate-500">
+              Players upload a receipt in 15 minutes. A {MANUAL_SERVICE_FEE_PERCENT}% Bunal fee applies; no PayMongo processing fee.
+            </span>
+          </button>
         </div>
-        {methods.map((method) => <MethodForm key={method.id} method={method} />)}
-        <MethodForm />
       </section>
+
+      <div
+        id="automatic-settings-panel"
+        role="tabpanel"
+        aria-labelledby="automatic-settings-tab"
+        hidden={selectedMode !== "AUTOMATIC"}
+        className="space-y-4"
+      >
+        <GatewayPanel gateway={gateway} />
+        <ModeActivation mode="AUTOMATIC" activeMode={mode} />
+      </div>
+
+      <div
+        id="manual-settings-panel"
+        role="tabpanel"
+        aria-labelledby="manual-settings-tab"
+        hidden={selectedMode !== "MANUAL"}
+        className="space-y-4"
+      >
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-base font-semibold text-navy">Manual payment networks</h2>
+            <p className="mt-1 text-sm text-slate-500">Add as many destinations as you accept. Players choose one during checkout.</p>
+          </div>
+          {methods.map((method) => <MethodForm key={method.id} method={method} />)}
+          <MethodForm />
+        </section>
+        <ModeActivation mode="MANUAL" activeMode={mode} />
+      </div>
     </div>
   );
 }

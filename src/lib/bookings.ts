@@ -442,6 +442,9 @@ export const getCourtForBooking = cache(async (courtId: string) => {
           ownerId: true,
           owner: {
             select: {
+              email: true,
+              name: true,
+              playerName: true,
               partnerStatus: true,
               partnerPaymentMode: true,
               partnerGateway: { select: { disconnectedAt: true } },
@@ -464,7 +467,7 @@ export const getCourtForBooking = cache(async (courtId: string) => {
       ? row.hub.owner.manualPaymentMethods.length > 0
       : connected;
   const overdue =
-    approved && connected && row.hub.owner.partnerPaymentMode === "AUTOMATIC"
+    approved && paymentReady
       ? await isServiceFeeOverdue(row.hub.ownerId)
       : false;
   return {
@@ -483,6 +486,11 @@ export const getCourtForBooking = cache(async (courtId: string) => {
       id: row.hub.id,
       name: row.hub.name,
       ownerId: row.hub.ownerId,
+      owner: {
+        email: row.hub.owner.email,
+        name: row.hub.owner.name,
+        playerName: row.hub.owner.playerName,
+      },
       operatingHours: (row.hub.operatingHours as OperatingHours | null) ?? null,
       bookable: approved && paymentReady && !overdue,
     },

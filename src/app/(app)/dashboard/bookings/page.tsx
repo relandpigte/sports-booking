@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/dal";
 import {
   listMyBookings,
   listPartnerBookings,
+  type BookingView,
   type PartnerBookingFilters,
   type PartnerBookingPaymentFilter,
   type PartnerBookingSection,
@@ -23,7 +24,10 @@ import {
   manilaToday,
 } from "@/lib/time";
 import { getCurrentPartnerImpersonation } from "@/lib/impersonation";
-import { listMyEventRegistrations } from "@/lib/events";
+import {
+  listMyEventRegistrations,
+  type PlayerEventRegistrationView,
+} from "@/lib/events";
 
 export const metadata: Metadata = {
   title: "Bookings — Bunal.club",
@@ -47,6 +51,35 @@ const partnerBookingSorts: PartnerBookingSort[] = [
   "newest",
   "player",
   "amount",
+];
+
+type PlayerBookingSection = "upcoming" | "history";
+type PlayerBookingType = "all" | "courts" | "events";
+type PlayerBookingStatus =
+  | "PENDING"
+  | "CONFIRMED"
+  | "WAITLISTED"
+  | "CANCELLED"
+  | "EXPIRED"
+  | "REFUNDED";
+
+type PlayerBookingFilters = {
+  section: PlayerBookingSection;
+  query?: string;
+  type: PlayerBookingType;
+  status?: PlayerBookingStatus;
+  from?: string;
+  to?: string;
+};
+
+const playerBookingTypes: PlayerBookingType[] = ["all", "courts", "events"];
+const playerBookingStatuses: PlayerBookingStatus[] = [
+  "PENDING",
+  "CONFIRMED",
+  "WAITLISTED",
+  "CANCELLED",
+  "EXPIRED",
+  "REFUNDED",
 ];
 
 function firstSearchValue(value: string | string[] | undefined): string {
@@ -75,6 +108,93 @@ function partnerBookingsHref(
   return `/dashboard/bookings${query ? `?${query}` : ""}`;
 }
 
+function playerBookingsHref(
+  filters: PlayerBookingFilters,
+  overrides: Partial<PlayerBookingFilters> = {}
+): string {
+  const values = { ...filters, ...overrides };
+  const params = new URLSearchParams();
+
+  if (values.section === "history") params.set("tab", "history");
+  if (values.query) params.set("q", values.query);
+  if (values.type !== "all") params.set("type", values.type);
+  if (values.status) params.set("status", values.status);
+  if (values.from) params.set("from", values.from);
+  if (values.to) params.set("to", values.to);
+
+  const query = params.toString();
+  return `/dashboard/bookings${query ? `?${query}` : ""}`;
+}
+
+function matchesPlayerQuery(values: Array<string | null | undefined>, query: string) {
+  if (!query) return true;
+  const normalized = query.toLocaleLowerCase("en-PH");
+  return values.some((value) =>
+    value?.toLocaleLowerCase("en-PH").includes(normalized)
+  );
+}
+
+function matchesPlayerDate(date: string, from?: string, to?: string) {
+  return (!from || date >= from) && (!to || date <= to);
+}
+
+function filterPlayerCourtBookings(
+  bookings: BookingView[],
+  filters: PlayerBookingFilters
+) {
+  return bookings.filter((booking) => {
+    const statusMatches = !filters.status
+      ? true
+      : filters.status === "REFUNDED"
+        ? booking.payment?.status === "REFUNDED"
+        : booking.status === filters.status;
+    return (
+      statusMatches &&
+      matchesPlayerDate(booking.date, filters.from, filters.to) &&
+      matchesPlayerQuery(
+        [
+          booking.id,
+          booking.payment?.id,
+          booking.payment?.manualPaymentRef,
+          booking.hub.name,
+          booking.hub.address,
+          booking.court.name,
+        ],
+        filters.query ?? ""
+      )
+    );
+  });
+}
+
+function filterPlayerEventRegistrations(
+  registrations: PlayerEventRegistrationView[],
+  filters: PlayerBookingFilters
+) {
+  return registrations.filter((registration) => {
+    const statusMatches = !filters.status
+      ? true
+      : filters.status === "REFUNDED"
+        ? registration.payment?.status === "REFUNDED"
+        : registration.status === filters.status;
+    return (
+      statusMatches &&
+      matchesPlayerDate(registration.event.date, filters.from, filters.to) &&
+      matchesPlayerQuery(
+        [
+          registration.id,
+          registration.payment?.id,
+          registration.event.publicId,
+          registration.event.title,
+          registration.event.hub.name,
+          registration.event.sport,
+          ...registration.event.courts.map((court) => court.name),
+        ],
+        filters.query ?? ""
+      )
+    );
+  });
+}
+
 export default async function BookingsPage({
   searchParams,
 }: {
@@ -92,9 +212,9 @@ export default async function BookingsPage({
   ) {
     redirect("/dashboard/partner");
   }
+  const params = await searchParams;
 
   if (user.role === "PARTNER") {
-    const params = await searchParams;
     const section: PartnerBookingSection =
       firstSearchValue(params.tab) === "history" ? "history" : "upcoming";
     const query = firstSearchValue(params.q).trim().slice(0, 100);
@@ -241,35 +361,69 @@ export default async function BookingsPage({
     listMyEventRegistrations(),
   ]);
 
+  const section: PlayerBookingSection =
+    firstSearchValue(params.tab) === "history" ? "history" : "upcoming";
+  const query = firstSearchValue(params.q).trim().slice(0, 100);
+  const requestedType = firstSearchValue(params.type) as PlayerBookingType;
+  const requestedStatus = firstSearchValue(
+    params.status
+  ) as PlayerBookingStatus;
+  const requestedFrom = firstSearchValue(params.from);
+  const requestedTo = firstSearchValue(params.to);
+  const filters: PlayerBookingFilters = {
+    section,
+    query: query || undefined,
+    type: playerBookingTypes.includes(requestedType) ? requestedType : "all",
+    status: playerBookingStatuses.includes(requestedStatus)
+      ? requestedStatus
+      : undefined,
+    from: isValidDateString(requestedFrom) ? requestedFrom : undefined,
+    to: isValidDateString(requestedTo) ? requestedTo : undefined,
+  };
+  const selectedCourtBookings =
+    section === "upcoming" ? courtBookings.upcoming : courtBookings.past;
+  const selectedEventRegistrations =
+    section === "upcoming"
+      ? eventRegistrations.upcoming
+      : eventRegistrations.past;
+  const filteredCourtBookings =
+    filters.type === "events"
+      ? []
+      : filterPlayerCourtBookings(selectedCourtBookings, filters);
+  const filteredEventRegistrations =
+    filters.type === "courts"
+      ? []
+      : filterPlayerEventRegistrations(selectedEventRegistrations, filters);
+  const upcomingCount =
+    courtBookings.upcoming.length + eventRegistrations.upcoming.length;
+  const historyCount = courtBookings.past.length + eventRegistrations.past.length;
+
   return (
     <PlayerBookingsView
-      upcomingCourtCount={courtBookings.upcoming.length}
-      pastCourtCount={courtBookings.past.length}
-      upcomingEventCount={eventRegistrations.upcoming.length}
-      pastEventCount={eventRegistrations.past.length}
-      upcomingCourts={courtBookings.upcoming.map((booking) => (
+      section={section}
+      upcomingCount={upcomingCount}
+      historyCount={historyCount}
+      courtCount={filteredCourtBookings.length}
+      eventCount={filteredEventRegistrations.length}
+      filters={{
+        query,
+        type: filters.type,
+        status: filters.status ?? "",
+        from: filters.from ?? "",
+        to: filters.to ?? "",
+      }}
+      upcomingHref={playerBookingsHref(filters, { section: "upcoming" })}
+      historyHref={playerBookingsHref(filters, { section: "history" })}
+      clearHref={playerBookingsHref({ section, type: "all" })}
+      courtBookings={filteredCourtBookings.map((booking) => (
         <BookingCard
           key={booking.id}
           booking={booking}
           view="player"
-          cancellable
+          cancellable={section === "upcoming"}
         />
       ))}
-      pastCourts={courtBookings.past.map((booking) => (
-        <BookingCard
-          key={booking.id}
-          booking={booking}
-          view="player"
-          cancellable={false}
-        />
-      ))}
-      upcomingEvents={eventRegistrations.upcoming.map((registration) => (
-        <PlayerEventRegistrationCard
-          key={registration.id}
-          registration={registration}
-        />
-      ))}
-      pastEvents={eventRegistrations.past.map((registration) => (
+      eventRegistrations={filteredEventRegistrations.map((registration) => (
         <PlayerEventRegistrationCard
           key={registration.id}
           registration={registration}

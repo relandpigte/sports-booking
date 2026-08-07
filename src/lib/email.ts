@@ -16,6 +16,12 @@ import {
   type WelcomeEmailContentInput,
 } from "@/lib/welcome-email";
 import { newDeviceLoginEmailContent } from "@/lib/security-alert-email";
+import {
+  partnerBookingNotificationEmailContent,
+  playerBookingConfirmedEmailContent,
+  type PartnerBookingNotificationEmailContentInput,
+  type PlayerBookingConfirmedEmailContentInput,
+} from "@/lib/booking-notification-email";
 
 type PasswordResetEmailInput = {
   to: string;
@@ -47,6 +53,18 @@ type NewDeviceLoginEmailInput = {
   securityUrl: string;
   idempotencyKey: string;
 };
+
+type PartnerBookingNotificationEmailInput =
+  PartnerBookingNotificationEmailContentInput & {
+    to: string;
+    idempotencyKey: string;
+  };
+
+type PlayerBookingConfirmedEmailInput =
+  PlayerBookingConfirmedEmailContentInput & {
+    to: string;
+    idempotencyKey: string;
+  };
 
 type DeliverEmailInput = {
   to: string;
@@ -182,5 +200,36 @@ export async function sendNewDeviceLoginEmail(
     idempotencyKey: input.idempotencyKey,
     category: "security-new-device",
     description: "New-device security email delivery",
+  });
+}
+
+export async function sendPartnerBookingNotificationEmail(
+  input: PartnerBookingNotificationEmailInput
+): Promise<void> {
+  const content = partnerBookingNotificationEmailContent(input);
+  await deliverEmail({
+    to: input.to,
+    subject: content.subject,
+    html: content.html,
+    text: content.text,
+    idempotencyKey: input.idempotencyKey,
+    category:
+      input.kind === "COURT" ? "partner-court-booking" : "partner-event-booking",
+    description: "Partner booking-notification email delivery",
+  });
+}
+
+export async function sendPlayerBookingConfirmedEmail(
+  input: PlayerBookingConfirmedEmailInput
+): Promise<void> {
+  const content = playerBookingConfirmedEmailContent(input);
+  await deliverEmail({
+    to: input.to,
+    subject: content.subject,
+    html: content.html,
+    text: content.text,
+    idempotencyKey: input.idempotencyKey,
+    category: "player-booking-confirmed",
+    description: "Player booking-confirmation email delivery",
   });
 }

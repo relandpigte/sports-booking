@@ -26,6 +26,12 @@ export type PartnerPaymentSetup = {
   gateway: { id: string; provider: string } | null;
 };
 
+export function isPartnerPaymentReady(setup: PartnerPaymentSetup): boolean {
+  return setup.mode === "MANUAL"
+    ? setup.manualReady
+    : setup.automaticReady;
+}
+
 export async function getPartnerPaymentSetup(
   partnerId: string
 ): Promise<PartnerPaymentSetup> {

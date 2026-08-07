@@ -5,7 +5,10 @@ import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader"
 import { DeleteHubButton } from "@/components/dashboard/hubs/DeleteHubButton";
 import { listMyHubs } from "@/lib/hubs";
 import { requireActivePartner } from "@/lib/dal";
-import { getActivePartnerGateway } from "@/lib/partner-gateway";
+import {
+  getPartnerPaymentSetup,
+  isPartnerPaymentReady,
+} from "@/lib/manual-payments";
 import { hubPublicPath } from "@/lib/hub-slug";
 
 export const metadata: Metadata = {
@@ -14,10 +17,11 @@ export const metadata: Metadata = {
 
 export default async function HubsPage() {
   const partner = await requireActivePartner();
-  const [hubs, gateway] = await Promise.all([
+  const [hubs, paymentSetup] = await Promise.all([
     listMyHubs(),
-    getActivePartnerGateway(partner.id),
+    getPartnerPaymentSetup(partner.id),
   ]);
+  const paymentReady = isPartnerPaymentReady(paymentSetup);
 
   return (
     <div>
@@ -35,15 +39,15 @@ export default async function HubsPage() {
         }
       />
 
-      {!gateway && (
+      {!paymentReady && (
         <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
           <p className="text-sm font-semibold text-amber-800">
             Publish now, open bookings when payments are ready
           </p>
           <p className="mt-0.5 text-sm text-amber-700">
             You can create your hub now. After you add a court, approved venues
-            appear publicly as Coming soon until PayMongo is connected. Online
-            booking stays disabled in the meantime.
+            appear publicly as Coming soon until your selected payment setup
+            is ready. Online booking stays disabled in the meantime.
           </p>
           <Link
             href="/dashboard/payments?setup=hub"
@@ -57,9 +61,9 @@ export default async function HubsPage() {
       {hubs.length === 0 ? (
         <div className="mt-6 flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-gray-300 px-6 py-16 text-center">
           <p className="max-w-sm text-sm text-gray-500">
-            {gateway
-              ? "Your payment gateway is ready. Add your first venue to start accepting bookings."
-              : "Create your first venue now. It can appear as Coming soon while you finish PayMongo setup."}
+            {paymentReady
+              ? "Your payment setup is ready. Add your first venue to start accepting bookings."
+              : "Create your first venue now. It can appear as Coming soon while you finish the selected payment setup."}
           </p>
           <Link
             href="/dashboard/hubs/new"
@@ -96,7 +100,7 @@ export default async function HubsPage() {
                     <h2 className="truncate font-semibold text-gray-900">
                       {hub.name}
                     </h2>
-                    {!gateway && hub.courts.length > 0 ? (
+                    {!paymentReady && hub.courts.length > 0 ? (
                       <span className="rounded-full bg-navy px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-accent">
                         Coming soon
                       </span>

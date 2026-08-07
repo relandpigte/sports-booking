@@ -71,12 +71,12 @@ const FAQS = [
   {
     question: "Does Bunal.club charge partners a monthly fee?",
     answer:
-      "No. There are no plans, subscriptions, or monthly charges. Bunal.club uses a 3% service fee per paid booking.",
+      "No. There are no plans, subscriptions, or monthly charges. Bunal.club uses a 3% service fee for automatic checkout and 2.5% for manual checkout.",
   },
   {
     question: "How much is the booking service fee?",
     answer:
-      "The Bunal.club service fee is 3% of the court booking total.",
+      "The Bunal.club service fee is 3% of the booking total for automatic PayMongo checkout and 2.5% for partner-reviewed manual checkout.",
   },
   {
     question: "Where does the player's court payment go?",
@@ -86,7 +86,7 @@ const FAQS = [
   {
     question: "Which payment methods can players use?",
     answer:
-      "Every paid court booking and event registration uses an exact-amount QR Ph code generated securely by PayMongo.",
+      "Venues can use automatic PayMongo QR Ph checkout or partner-reviewed manual GCash, Maya, bank-transfer, and custom payment networks.",
   },
 ];
 

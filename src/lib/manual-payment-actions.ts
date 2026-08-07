@@ -9,6 +9,9 @@ import { prisma } from "@/lib/db";
 import { getViewer, requireActivePartner } from "@/lib/dal";
 import { isPartnerImpersonationActive } from "@/lib/impersonation";
 import { manualNetworkPaymentMethod } from "@/lib/manual-payments";
+import { revalidatePartnerPaymentSurfaces } from "@/lib/payment-revalidation";
+import { notifyPlayerBookingConfirmed } from "@/lib/booking-notifications";
+import { formatManilaDateLong, formatSlotRange } from "@/lib/time";
 
 const MAX_IMAGE_BYTES = 800 * 1024;
 const NETWORKS = new Set<ManualPaymentNetwork>([
@@ -69,9 +72,7 @@ export async function savePartnerPaymentModeAction(
     where: { id: partner.id },
     data: { partnerPaymentMode: mode },
   });
-  revalidatePath("/dashboard/payments");
-  revalidatePath("/hubs");
-  revalidatePath("/events");
+  await revalidatePartnerPaymentSurfaces(partner.id);
   return {
     success:
       mode === "MANUAL"
@@ -157,9 +158,7 @@ export async function saveManualPaymentMethodAction(
       },
     });
   }
-  revalidatePath("/dashboard/payments");
-  revalidatePath("/hubs");
-  revalidatePath("/events");
+  await revalidatePartnerPaymentSurfaces(partner.id);
   return { success: id ? "Payment method updated." : "Payment method added." };
 }
 
@@ -308,10 +307,52 @@ export async function reviewManualPaymentAction(
     select: {
       id: true,
       hubId: true,
-      eventRegistration: { select: { event: { select: { publicId: true } } } },
+      user: {
+        select: { email: true, name: true, playerName: true },
+      },
+      bookings: {
+        take: 1,
+        orderBy: { startsAt: "asc" },
+        select: {
+          date: true,
+          startHour: true,
+          endHour: true,
+          court: { select: { name: true } },
+          hub: { select: { name: true } },
+        },
+      },
+      eventRegistration: {
+        select: {
+          event: {
+            select: {
+              publicId: true,
+              title: true,
+              date: true,
+              startHour: true,
+              endHour: true,
+              hub: { select: { name: true } },
+            },
+          },
+        },
+      },
       eventGuestSlots: {
         take: 1,
-        select: { registration: { select: { event: { select: { publicId: true } } } } },
+        select: {
+          registration: {
+            select: {
+              event: {
+                select: {
+                  publicId: true,
+                  title: true,
+                  date: true,
+                  startHour: true,
+                  endHour: true,
+                  hub: { select: { name: true } },
+                },
+              },
+            },
+          },
+        },
       },
     },
   });
@@ -332,6 +373,34 @@ export async function reviewManualPaymentAction(
     const settled = await settleBookingPayment(payment.id);
     if (settled.status === "lost") {
       return { message: "The reserved capacity could not be confirmed. Review the payment manually." };
+    }
+    if (settled.status === "confirmed") {
+      const event =
+        payment.eventRegistration?.event ??
+        payment.eventGuestSlots[0]?.registration.event;
+      const booking = payment.bookings[0];
+      await notifyPlayerBookingConfirmed({
+        to: payment.user.email,
+        playerName:
+          payment.user.playerName ?? payment.user.name ?? "Bunal.club player",
+        venueName: event?.hub.name ?? booking?.hub.name ?? "Your venue",
+        bookingTitle: event?.title ?? booking?.court.name ?? "Your booking",
+        schedule: event
+          ? `${formatManilaDateLong(event.date)} · ${formatSlotRange(
+              event.startHour,
+              event.endHour
+            )}`
+          : booking
+            ? `${formatManilaDateLong(booking.date)} · ${formatSlotRange(
+                booking.startHour,
+                booking.endHour
+              )}`
+            : "See your Bunal.club schedule for details",
+        actionPath: event
+          ? `/dashboard/bookings?q=${encodeURIComponent(event.publicId)}`
+          : `/dashboard/bookings?q=${encodeURIComponent(payment.id)}`,
+        idempotencyKey: `player-manual-booking-confirmed-${payment.id}`,
+      });
     }
   } else {
     await prisma.$transaction([
@@ -419,5 +488,8 @@ export async function recordManualRefundAction(
       payment.eventRegistration?.event.publicId ??
       payment.eventGuestSlots[0]?.registration.event.publicId,
   });
-  return { success: "Full manual refund recorded. No service fee was retained." };
+  return {
+    success:
+      "Manual refund recorded. The venue amount was returned and the service fee remains non-refundable.",
+  };
 }

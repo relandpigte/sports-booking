@@ -145,9 +145,9 @@ export type ListedHub = Hub & {
 };
 
 // Public directory of all complete hubs owned by approved partners. No auth.
-// A connected, current PayMongo account makes the venue bookable and verified;
-// otherwise it stays discoverable as Coming soon. Overdue connected partners
-// remain hidden until their service-fee standing is current again.
+// A ready payment setup makes the venue bookable and verified; otherwise it
+// stays discoverable as Coming soon. Overdue partners remain hidden until
+// their service-fee standing is current again.
 export async function listPublicHubs(
   opts: { game?: Game } = {}
 ): Promise<ListedHub[]> {
@@ -177,33 +177,32 @@ export async function listPublicHubs(
       },
     },
   });
-  const automaticOwnerIds = [
+  const paymentReadyOwnerIds = [
     ...new Set(
       rows
         .filter(
           (row) =>
-            row.owner.partnerPaymentMode === "AUTOMATIC" &&
-            row.owner.partnerGateway?.disconnectedAt === null
+            row.owner.partnerPaymentMode === "MANUAL"
+              ? row.owner.manualPaymentMethods.length > 0
+              : row.owner.partnerGateway?.disconnectedAt === null
         )
         .map((row) => row.ownerId)
     ),
   ];
   const overdueByOwner = new Map(
     await Promise.all(
-      automaticOwnerIds.map(async (ownerId) =>
+      paymentReadyOwnerIds.map(async (ownerId) =>
         [ownerId, await isServiceFeeOverdue(ownerId)] as const
       )
     )
   );
   return rows
     .filter((row) => {
-      const automaticReady =
-        row.owner.partnerGateway?.disconnectedAt === null;
-      return (
-        row.owner.partnerPaymentMode === "MANUAL" ||
-        !automaticReady ||
-        !overdueByOwner.get(row.ownerId)
-      );
+      const paymentReady =
+        row.owner.partnerPaymentMode === "MANUAL"
+          ? row.owner.manualPaymentMethods.length > 0
+          : row.owner.partnerGateway?.disconnectedAt === null;
+      return !paymentReady || !overdueByOwner.get(row.ownerId);
     })
     .map(({ ownerId: _ownerId, owner, ...row }) => {
       const connected = owner.partnerGateway?.disconnectedAt === null;
@@ -397,9 +396,7 @@ export const getPublicHub = cache(
       owner.partnerPaymentMode === "MANUAL" ? manualReady : connected;
     const setupComplete = rest.courts.length > 0;
     const overdue =
-      approved && owner.partnerPaymentMode === "AUTOMATIC" && connected
-        ? await isServiceFeeOverdue(ownerId)
-        : false;
+      approved && paymentReady ? await isServiceFeeOverdue(ownerId) : false;
     const bookable = approved && paymentReady && setupComplete && !overdue;
     const comingSoon = approved && !paymentReady && setupComplete;
     return {

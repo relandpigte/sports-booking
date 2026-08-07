@@ -268,6 +268,9 @@ export async function getBookingPaymentScreen(
 ): Promise<{
   payment: BookingPaymentView;
   venueName: string;
+  venueSlug: string | null;
+  venuePhone: string | null;
+  venueEmail: string | null;
   manualMethods: ManualPaymentMethodView[];
 } | null> {
   const payment = await getBookingPaymentForPlayer(paymentId, userId);
@@ -276,7 +279,7 @@ export async function getBookingPaymentScreen(
   const [hub, manualMethods] = await Promise.all([
     prisma.hub.findUnique({
       where: { id: payment.hubId },
-      select: { name: true },
+      select: { name: true, slug: true, phone: true, email: true },
     }),
     payment.collectionMode === "MANUAL" && !payment.manualSubmittedAt
       ? prisma.bookingPayment
@@ -286,7 +289,14 @@ export async function getBookingPaymentScreen(
           )
       : Promise.resolve([]),
   ]);
-  return { payment, venueName: hub?.name ?? "the venue", manualMethods };
+  return {
+    payment,
+    venueName: hub?.name ?? "the venue",
+    venueSlug: hub?.slug ?? null,
+    venuePhone: hub?.phone ?? null,
+    venueEmail: hub?.email ?? null,
+    manualMethods,
+  };
 }
 
 export async function getBookingPaymentStatus(

@@ -9,6 +9,7 @@ export function RegistrationPasswordField({ error }: { error?: string }) {
   const [password, setPassword] = useState("");
   const [suggestion, setSuggestion] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
+  const [passwordVisible, setPasswordVisible] = useState(false);
 
   function suggestPassword() {
     const generated = generateSuggestedPassword();
@@ -31,7 +32,7 @@ export function RegistrationPasswordField({ error }: { error?: string }) {
       <Input
         label="Password"
         name="password"
-        type="password"
+        type={passwordVisible ? "text" : "password"}
         placeholder="At least 15 characters"
         autoComplete="new-password"
         value={password}
@@ -41,6 +42,17 @@ export function RegistrationPasswordField({ error }: { error?: string }) {
           setCopyStatus("");
         }}
         error={error}
+        endAdornment={
+          <button
+            type="button"
+            onClick={() => setPasswordVisible((visible) => !visible)}
+            aria-label={passwordVisible ? "Hide password" : "Show password"}
+            aria-pressed={passwordVisible}
+            className="min-h-9 rounded-md px-2 text-xs font-semibold text-primary transition-colors hover:bg-primary-soft"
+          >
+            {passwordVisible ? "Hide" : "Show"}
+          </button>
+        }
       />
 
       {suggestion ? (

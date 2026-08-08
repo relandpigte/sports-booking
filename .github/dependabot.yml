@@ -9,6 +9,14 @@ updates:
       production-security:
         dependency-type: production
         update-types: [patch, minor]
+    ignore:
+      # Prisma major upgrades require coordinated schema, client, adapter, and
+      # deployment changes. Keep Dependabot on supported Prisma 6 releases
+      # until that migration is intentionally scheduled and tested.
+      - dependency-name: prisma
+        update-types: [version-update:semver-major]
+      - dependency-name: "@prisma/client"
+        update-types: [version-update:semver-major]
   - package-ecosystem: github-actions
     directory: /
     schedule:

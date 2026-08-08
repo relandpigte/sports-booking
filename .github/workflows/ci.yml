@@ -44,6 +44,8 @@ jobs:
       - run: npm ci
       - run: npm audit --audit-level=high
       - run: npm run db:push
+      - name: Prepare isolated check fixtures
+        run: node checks/prepare-ci-database.mjs
       - run: npm run lint
       - run: npm run build
       - run: npm run check

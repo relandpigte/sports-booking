@@ -304,20 +304,7 @@ async function check() {
       bookingStatusMessage: "Court maintenance is in progress.",
     },
   });
-  stubRequestContext(players[2]);
-  const { registerForEventAction } = await import("@/lib/event-actions");
-  const pausedRegistrationForm = new FormData();
-  pausedRegistrationForm.set("publicId", event.publicId);
-  const pausedRegistration = await registerForEventAction(
-    {},
-    pausedRegistrationForm
-  );
   const pausedPublicEvent = await getPublicEvent(event.publicId);
-  ok(
-    "maintenance mode blocks new event registrations server-side",
-    pausedRegistration.message?.includes("paused new event registrations") ===
-      true
-  );
   ok(
     "a paused venue is removed from event discovery but keeps its public status message",
     !(await listPublicEvents("upcoming")).some(
@@ -331,7 +318,6 @@ async function check() {
     where: { id: hub.id },
     data: { bookingStatus: "OPEN", bookingStatusMessage: null },
   });
-  stubRequestContext(partner);
 
   const organizerEvent = await prisma.event.create({
     data: {

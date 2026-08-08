@@ -74,37 +74,6 @@ export const COURT_TYPE_LABELS: Record<string, string> = Object.fromEntries(
   COURT_TYPES.map((c) => [c.value, c.label])
 );
 
-export const HUB_BOOKING_STATUS_VALUES = [
-  "OPEN",
-  "COMING_SOON",
-  "MAINTENANCE",
-] as const;
-
-export type HubBookingStatusValue =
-  (typeof HUB_BOOKING_STATUS_VALUES)[number];
-
-export const HUB_BOOKING_STATUS_OPTIONS: Array<{
-  value: HubBookingStatusValue;
-  label: string;
-  description: string;
-}> = [
-  {
-    value: "OPEN",
-    label: "Accepting bookings",
-    description: "Players can reserve courts and join events.",
-  },
-  {
-    value: "COMING_SOON",
-    label: "Coming soon",
-    description: "Show the venue publicly, but keep all bookings closed.",
-  },
-  {
-    value: "MAINTENANCE",
-    label: "Under maintenance",
-    description: "Temporarily pause all new court and event bookings.",
-  },
-];
-
 // --- Bookings ---------------------------------------------------------------
 
 // Players choose their own duration by tapping contiguous hours on the grid —

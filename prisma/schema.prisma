@@ -29,12 +29,6 @@ enum PartnerPaymentMode {
   MANUAL
 }
 
-enum HubBookingStatus {
-  OPEN
-  COMING_SOON
-  MAINTENANCE
-}
-
 enum PaymentCollectionMode {
   AUTOMATIC
   MANUAL
@@ -558,26 +552,24 @@ model PartnerImpersonationAudit {
 
 // A partner-operated venue/club profile.
 model Hub {
-  id                   String           @id @default(cuid())
+  id             String   @id @default(cuid())
   // Stable public URL segment. Optional so existing production rows continue
   // to resolve by id until a partner chooses or saves a slug.
-  slug                 String?          @unique
-  ownerId              String
-  name                 String
-  about                String?          @db.Text
-  logo                 String?          @db.Text // data URL
-  coverPhotos          String[] // data URLs
-  games                String[] // court games offered (see GAMES in constants)
-  address              String?          @db.Text
-  latitude             Float?
-  longitude            Float?
-  phone                String?
-  email                String?
-  bookingStatus        HubBookingStatus @default(OPEN)
-  bookingStatusMessage String?          @db.VarChar(240)
-  operatingHours       Json?
-  createdAt            DateTime         @default(now())
-  updatedAt            DateTime         @updatedAt
+  slug           String?  @unique
+  ownerId        String
+  name           String
+  about          String?  @db.Text
+  logo           String?  @db.Text // data URL
+  coverPhotos    String[] // data URLs
+  games          String[] // court games offered (see GAMES in constants)
+  address        String?  @db.Text
+  latitude       Float?
+  longitude      Float?
+  phone          String?
+  email          String?
+  operatingHours Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   owner       User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   courts      Court[]

@@ -320,11 +320,6 @@ export default async function PublicHubPage({
                     Coming soon
                   </span>
                 )}
-                {hub.bookingStatus === "MAINTENANCE" && (
-                  <span className="inline-flex h-8 w-fit items-center rounded-full bg-amber-100 px-3 text-[11px] font-black uppercase tracking-[0.12em] text-amber-800">
-                    Under maintenance
-                  </span>
-                )}
                 {hub.games.map((game) => (
                   <span
                     key={game}
@@ -378,33 +373,8 @@ export default async function PublicHubPage({
             <span className="inline-flex min-h-12 w-full shrink-0 items-center justify-center rounded-xl bg-navy-soft px-6 py-3 text-sm font-bold text-navy md:w-auto">
               Bookings open soon
             </span>
-          ) : hub.bookingStatus === "MAINTENANCE" ? (
-            <span className="inline-flex min-h-12 w-full shrink-0 items-center justify-center rounded-xl bg-amber-100 px-6 py-3 text-sm font-bold text-amber-900 md:w-auto">
-              Bookings paused
-            </span>
           ) : null}
         </div>
-        {hub.bookingStatus !== "OPEN" && (
-          <div
-            className={`mt-4 rounded-2xl border px-5 py-4 shadow-sm ${
-              hub.bookingStatus === "MAINTENANCE"
-                ? "border-amber-200 bg-amber-50 text-amber-900"
-                : "border-navy/10 bg-navy-soft text-navy"
-            }`}
-          >
-            <p className="text-[11px] font-black uppercase tracking-[0.16em]">
-              {hub.bookingStatus === "MAINTENANCE"
-                ? "Under maintenance"
-                : "Coming soon"}
-            </p>
-            <p className="mt-1 text-sm font-semibold leading-6">
-              {hub.bookingStatusMessage ??
-                (hub.bookingStatus === "MAINTENANCE"
-                  ? "This venue has temporarily paused new bookings while maintenance is completed."
-                  : "This venue is preparing to open online bookings. Check back soon.")}
-            </p>
-          </div>
-        )}
         {todayClosureNotices.length > 0 && (
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-900 shadow-sm">
             <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-700">
@@ -636,28 +606,17 @@ export default async function PublicHubPage({
         <section className="border-y border-gray-200 bg-white py-14">
           <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
-              {hub.bookingStatus === "MAINTENANCE"
-                ? "Under maintenance"
-                : hub.comingSoon
-                  ? "Opening soon"
-                  : "Online booking unavailable"}
+              {hub.comingSoon ? "Opening soon" : "Online booking unavailable"}
             </p>
             <h2 className="mt-2 text-2xl font-bold text-navy">
-              {hub.bookingStatus === "MAINTENANCE"
-                ? "Online bookings are temporarily paused"
-                : hub.comingSoon
+              {hub.comingSoon
                 ? "Online booking is coming soon"
                 : "This venue is not accepting new bookings"}
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-gray-500">
-              {hub.bookingStatusMessage ??
-                (hub.bookingStatus === "MAINTENANCE"
-                  ? "The venue is completing maintenance. Existing reservations remain unchanged; new reservations will reopen when the venue is ready."
-                  : hub.comingSoon
-                    ? hub.bookingStatus === "COMING_SOON"
-                      ? "The venue is preparing to open online reservations. You can explore its courts and rates now, then check back soon."
-                      : "The venue is finishing its payment setup. You can explore its courts and rates now, then check back soon to reserve online."
-                    : "New online reservations are paused right now. Please check back later.")}
+              {hub.comingSoon
+                ? "The venue is finishing its payment setup. You can explore its courts and rates now, then check back soon to reserve online."
+                : "New online reservations are paused right now. Please check back later."}
             </p>
             {/* Only the owner/admin needs the operational reason. */}
             {isOwner && (
@@ -669,10 +628,6 @@ export default async function PublicHubPage({
                       ? "Add at least one court, its rate, and operating hours before publishing your hub."
                       : hub.blockedBy === "settlement"
                         ? "New bookings are paused because a service-fee settlement is overdue."
-                        : hub.blockedBy === "coming_soon"
-                          ? "You set this hub to Coming soon. Change its online booking status to Accepting bookings when you're ready."
-                          : hub.blockedBy === "maintenance"
-                            ? "You set this hub to Under maintenance. Change its online booking status to Accepting bookings to reopen reservations."
                         : "This partner account is waiting for admin verification."}
                 </span>{" "}
                 {hub.blockedBy === "gateway" && (
@@ -697,15 +652,6 @@ export default async function PublicHubPage({
                     className="font-semibold text-primary hover:underline"
                   >
                     Submit settlement →
-                  </Link>
-                )}
-                {(hub.blockedBy === "coming_soon" ||
-                  hub.blockedBy === "maintenance") && (
-                  <Link
-                    href={`/dashboard/hubs/${hub.id}/edit`}
-                    className="font-semibold text-primary hover:underline"
-                  >
-                    Update booking status →
                   </Link>
                 )}
               </p>

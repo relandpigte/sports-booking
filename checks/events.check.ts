@@ -297,28 +297,6 @@ async function check() {
     hiddenFromAnotherOwner === null
   );
 
-  await prisma.hub.update({
-    where: { id: hub.id },
-    data: {
-      bookingStatus: "MAINTENANCE",
-      bookingStatusMessage: "Court maintenance is in progress.",
-    },
-  });
-  const pausedPublicEvent = await getPublicEvent(event.publicId);
-  ok(
-    "a paused venue is removed from event discovery but keeps its public status message",
-    !(await listPublicEvents("upcoming")).some(
-      (item) => item.publicId === event.publicId
-    ) &&
-      pausedPublicEvent?.hub.bookingStatus === "MAINTENANCE" &&
-      pausedPublicEvent.hub.bookingStatusMessage ===
-        "Court maintenance is in progress."
-  );
-  await prisma.hub.update({
-    where: { id: hub.id },
-    data: { bookingStatus: "OPEN", bookingStatusMessage: null },
-  });
-
   const organizerEvent = await prisma.event.create({
     data: {
       publicId: `check-organizer-${crypto.randomBytes(8).toString("hex")}`,

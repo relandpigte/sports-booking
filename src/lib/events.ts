@@ -52,8 +52,6 @@ export type PublicEventView = {
     address: string | null;
     verified: boolean;
     paymentMode: "AUTOMATIC" | "MANUAL";
-    bookingStatus: "OPEN" | "COMING_SOON" | "MAINTENANCE";
-    bookingStatusMessage: string | null;
   };
   courts: EventCourtView[];
 };
@@ -236,8 +234,6 @@ const eventSelect = {
       name: true,
       logo: true,
       address: true,
-      bookingStatus: true,
-      bookingStatusMessage: true,
       owner: {
         select: {
           partnerStatus: true,
@@ -388,8 +384,6 @@ function mapPublicEvent(row: EventRow, now = new Date()): PublicEventView {
           ? row.hub.owner.manualPaymentMethods.length > 0
           : row.hub.owner.partnerGateway?.disconnectedAt === null,
       paymentMode: row.hub.owner.partnerPaymentMode,
-      bookingStatus: row.hub.bookingStatus,
-      bookingStatusMessage: row.hub.bookingStatusMessage,
     },
     courts: row.courts.map(({ court }) => court),
   };
@@ -405,10 +399,7 @@ export async function listPublicEvents(
   const rows = await prisma.event.findMany({
     where: {
       status: "PUBLISHED",
-      hub: {
-        bookingStatus: "OPEN",
-        owner: { partnerStatus: "ACTIVE" },
-      },
+      hub: { owner: { partnerStatus: "ACTIVE" } },
       ...(period === "today"
         ? { date: today }
         : period === "upcoming"
@@ -431,10 +422,7 @@ export async function listPublicEventSitemapEntries(): Promise<
     where: {
       status: "PUBLISHED",
       date: { gte: manilaToday() },
-      hub: {
-        bookingStatus: "OPEN",
-        owner: { partnerStatus: "ACTIVE" },
-      },
+      hub: { owner: { partnerStatus: "ACTIVE" } },
     },
     orderBy: { startsAt: "asc" },
     take: 240,

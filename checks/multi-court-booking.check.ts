@@ -183,65 +183,6 @@ async function check() {
       where: { courtId: courtTwo.id, date, hour: 11 },
     })) === 0
   );
-
-  await prisma.hub.update({
-    where: { id: hub.id },
-    data: {
-      bookingStatus: "MAINTENANCE",
-      bookingStatusMessage: "Resurfacing the courts.",
-    },
-  });
-  const { getPublicHub } = await import("@/lib/hubs");
-  const maintenanceHub = await getPublicHub(`multi-court-${partner.id}`);
-  ok(
-    "maintenance mode publishes its banner while disabling new bookings",
-    maintenanceHub?.bookable === false &&
-      maintenanceHub.comingSoon === false &&
-      maintenanceHub.blockedBy === "maintenance" &&
-      maintenanceHub.bookingStatusMessage === "Resurfacing the courts."
-  );
-  const pausedForm = new FormData();
-  pausedForm.set("date", date);
-  pausedForm.append("courtIds", courtTwo.id);
-  pausedForm.append("hours", "12");
-  const paused = await createBookingAction({}, pausedForm);
-  ok(
-    "maintenance mode rejects a fresh court booking server-side",
-    paused.message?.includes("isn't taking online bookings") === true ||
-      paused.message?.includes("paused new bookings") === true
-  );
-  ok(
-    "maintenance mode creates neither a slot nor a partial hold",
-    (await prisma.bookingSlot.count({
-      where: { courtId: courtTwo.id, date, hour: 12 },
-    })) === 0
-  );
-
-  await prisma.hub.update({
-    where: { id: hub.id },
-    data: {
-      bookingStatus: "COMING_SOON",
-      bookingStatusMessage: "Bookings open next month.",
-    },
-  });
-  const comingSoonHub = await getPublicHub(hub.id);
-  ok(
-    "partner-controlled coming soon mode publishes its banner and stays closed",
-    comingSoonHub?.bookable === false &&
-      comingSoonHub.comingSoon === true &&
-      comingSoonHub.blockedBy === "coming_soon" &&
-      comingSoonHub.bookingStatusMessage === "Bookings open next month."
-  );
-  const comingSoonForm = new FormData();
-  comingSoonForm.set("date", date);
-  comingSoonForm.append("courtIds", courtTwo.id);
-  comingSoonForm.append("hours", "13");
-  const comingSoonBooking = await createBookingAction({}, comingSoonForm);
-  ok(
-    "coming soon mode also rejects fresh court bookings",
-    comingSoonBooking.message?.includes("isn't taking online bookings") ===
-      true || comingSoonBooking.message?.includes("paused new bookings") === true
-  );
 }
 
 void run(check, async () => {

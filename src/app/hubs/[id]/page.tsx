@@ -12,6 +12,7 @@ import { getViewer } from "@/lib/dal";
 import { getHubCourtOccupancies } from "@/lib/bookings";
 import { formatPHP } from "@/lib/currency";
 import { hubPublicPath } from "@/lib/hub-slug";
+import { facebookPageLabel } from "@/lib/social";
 import {
   DEFAULT_SOCIAL_IMAGE,
   SITE_NAME,
@@ -397,14 +398,60 @@ export default async function PublicHubPage({
       <div className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-2">
           <div className="space-y-12">
-            {hub.about && (
+            {(hub.about || hub.facebookPage) && (
               <section>
                 <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
                   About the venue
                 </p>
-                <p className="mt-4 whitespace-pre-line text-base leading-8 text-gray-600 sm:text-lg">
-                  {hub.about}
-                </p>
+                {hub.about && (
+                  <p className="mt-4 whitespace-pre-line text-base leading-8 text-gray-600 sm:text-lg">
+                    {hub.about}
+                  </p>
+                )}
+                {hub.facebookPage && (
+                  <a
+                    href={hub.facebookPage}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-5 inline-flex min-h-11 items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-navy shadow-sm transition-colors hover:border-primary/30 hover:bg-primary-soft hover:text-primary"
+                  >
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#1877F2] text-white">
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path d="M14 8.25V6.5c0-.8.53-1 1-1h2.75V2.14A36.5 36.5 0 0 0 14.82 2C11.9 2 10 3.77 10 7v1.25H7V12h3v10h4V12h3.25l.5-3.75H14Z" />
+                      </svg>
+                    </span>
+                    <span>
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                        Follow this venue
+                      </span>
+                      <span className="mt-0.5 block">
+                        {facebookPageLabel(hub.facebookPage)}
+                      </span>
+                    </span>
+                    <svg
+                      className="ml-1 text-gray-400"
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M15 3h6v6" />
+                      <path d="M10 14 21 3" />
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                    </svg>
+                  </a>
+                )}
               </section>
             )}
 

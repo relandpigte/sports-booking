@@ -14,6 +14,7 @@ import { isServiceFeeOverdue } from "@/lib/service-fees";
 import { buildSlots, weekdayIndexForDate } from "@/lib/slots";
 import type { CourtScheduleRule } from "@/lib/slots";
 import { manilaNowHour, manilaToday } from "@/lib/time";
+import { facebookPageUrl } from "@/lib/social";
 
 export type Court = {
   id: string;
@@ -344,6 +345,7 @@ const publicHubSelect = {
   ownerId: true,
   owner: {
     select: {
+      facebookPage: true,
       partnerStatus: true,
       partnerPaymentMode: true,
       // Only whether one is connected. Nothing secret is selected — see the
@@ -362,6 +364,7 @@ const publicHubSelect = {
 // no gateway appear publicly as Coming soon; other blocked hubs remain
 // available by direct link to their owner, with no booking controls.
 export type PublicHub = Hub & {
+  facebookPage: string | null;
   bookable: boolean;
   publiclyListed: boolean;
   comingSoon: boolean;
@@ -401,6 +404,9 @@ export const getPublicHub = cache(
     const comingSoon = approved && !paymentReady && setupComplete;
     return {
       ...mapHub(rest),
+      facebookPage: owner.facebookPage
+        ? facebookPageUrl(owner.facebookPage)
+        : null,
       bookable,
       publiclyListed: bookable || comingSoon,
       comingSoon,

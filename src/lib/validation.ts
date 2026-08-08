@@ -82,23 +82,10 @@ export const ChangePasswordSchema = z
     path: ["confirmPassword"],
   });
 
-const credentialRegisterBase = z.object({
+export const RegisterSchema = z.object({
   email: z.email({ error: "Enter a valid email" }).trim().toLowerCase(),
   password: PasswordSchema,
-  confirmPassword: z.string(),
 });
-
-const passwordsMatch = (d: { password: string; confirmPassword: string }) =>
-  d.password === d.confirmPassword;
-const passwordMismatch = {
-  error: "Passwords do not match",
-  path: ["confirmPassword"],
-};
-
-export const RegisterSchema = credentialRegisterBase.refine(
-  passwordsMatch,
-  passwordMismatch
-);
 
 export const GoogleRegistrationSchema = z.object({
   role: z.enum(["PLAYER", "PARTNER"], { error: "Choose an account type" }),

@@ -38,12 +38,7 @@ export default function RegisterPage({
       title="Create your player account"
       subtitle="Start with your email or Google. You can complete your player profile anytime."
     >
-      <form
-        action={formAction}
-        noValidate
-        className="rounded-2xl border border-gray-200 p-5 shadow-sm sm:p-6"
-      >
-        <input type="hidden" name="redirectTo" value={next ?? ""} />
+      <div className="rounded-2xl border border-gray-200 p-5 shadow-sm sm:p-6">
         {query.error === "existing-account" && (
           <p
             role="alert"
@@ -75,50 +70,45 @@ export default function RegisterPage({
           <div className="h-px flex-1 bg-gray-200" />
         </div>
 
-        <div className="space-y-4">
-          <Input
-            label="Email Address"
-            name="email"
-            type="email"
-            placeholder="you@example.com"
-            autoComplete="email"
-            defaultValue={state.values?.email}
-            error={state.errors?.email}
-          />
-          <Input
-            label="Password"
-            name="password"
-            type="password"
-            placeholder="At least 15 characters"
-            autoComplete="new-password"
-            error={state.errors?.password}
-          />
-          <Input
-            label="Confirm Password"
-            name="confirmPassword"
-            type="password"
-            placeholder="Enter your password again"
-            autoComplete="new-password"
-            error={state.errors?.confirmPassword}
-          />
-        </div>
+        <form action={formAction} noValidate>
+          <input type="hidden" name="redirectTo" value={next ?? ""} />
+          <div className="space-y-4">
+            <Input
+              label="Email Address"
+              name="email"
+              type="email"
+              placeholder="you@example.com"
+              autoComplete="email"
+              defaultValue={state.values?.email}
+              error={state.errors?.email}
+            />
+            <Input
+              label="Password"
+              name="password"
+              type="password"
+              placeholder="At least 15 characters"
+              autoComplete="new-password"
+              error={state.errors?.password}
+            />
+          </div>
 
-        <p className="mt-5 text-xs leading-5 text-gray-500">
-          By creating an account, you acknowledge our{" "}
-          <Link href="/terms" className="font-medium text-primary underline">
-            Terms
-          </Link>{" "}
-          and{" "}
-          <Link href="/privacy" className="font-medium text-primary underline">
-            Privacy Policy
-          </Link>
-          .
-        </p>
+          <p className="mt-5 text-xs leading-5 text-gray-500">
+            By creating an account, you acknowledge our{" "}
+            <Link href="/terms" className="font-medium text-primary underline">
+              Terms
+            </Link>{" "}
+            and{" "}
+            <Link href="/privacy" className="font-medium text-primary underline">
+              Privacy Policy
+            </Link>
+            .
+          </p>
 
-        <Button type="submit" disabled={pending} className="mt-5">
-          {pending ? "Creating account…" : "Create Player Account"}
-        </Button>
-      </form>
+          <Button type="submit" disabled={pending} className="mt-5">
+            {pending ? "Creating account…" : "Create Player Account"}
+          </Button>
+        </form>
+      </div>
 
       <p className="mt-5 text-center text-sm text-gray-500">
         Already have an account?{" "}

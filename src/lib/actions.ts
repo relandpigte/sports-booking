@@ -60,7 +60,6 @@ export async function registerAction(
   const raw = {
     email: String(formData.get("email") ?? ""),
     password: String(formData.get("password") ?? ""),
-    confirmPassword: String(formData.get("confirmPassword") ?? ""),
     redirectTo: String(formData.get("redirectTo") ?? ""),
   };
 
@@ -180,7 +179,6 @@ export async function registerPartnerAction(
   const raw = {
     email: String(formData.get("email") ?? ""),
     password: String(formData.get("password") ?? ""),
-    confirmPassword: String(formData.get("confirmPassword") ?? ""),
   };
 
   // Echoed back so inputs survive a validation error.

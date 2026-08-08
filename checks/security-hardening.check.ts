@@ -27,12 +27,10 @@ async function check() {
     !RegisterSchema.safeParse({
       email: "security@example.test",
       password: "short-password",
-      confirmPassword: "short-password",
     }).success &&
       !RegisterSchema.safeParse({
         email: "security@example.test",
         password: "x".repeat(65),
-        confirmPassword: "x".repeat(65),
       }).success
   );
 

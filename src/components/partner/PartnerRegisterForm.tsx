@@ -25,11 +25,7 @@ export function PartnerRegisterForm({
   );
 
   return (
-    <form
-      action={formAction}
-      noValidate
-      className="rounded-3xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5 sm:p-8"
-    >
+    <div className="rounded-3xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5 sm:p-8">
       {existingAccountError && (
         <p
           role="alert"
@@ -61,49 +57,43 @@ export function PartnerRegisterForm({
         <div className="h-px flex-1 bg-gray-200" />
       </div>
 
-      <div className="space-y-4">
-        <Input
-          label="Email Address"
-          name="email"
-          type="email"
-          autoComplete="email"
-          placeholder="owner@example.com"
-          defaultValue={state.values?.email}
-          error={state.errors?.email}
-        />
-        <Input
-          label="Password"
-          name="password"
-          type="password"
-          autoComplete="new-password"
-          placeholder="At least 15 characters"
-          error={state.errors?.password}
-        />
-        <Input
-          label="Confirm Password"
-          name="confirmPassword"
-          type="password"
-          autoComplete="new-password"
-          placeholder="Enter your password again"
-          error={state.errors?.confirmPassword}
-        />
-      </div>
+      <form action={formAction} noValidate>
+        <div className="space-y-4">
+          <Input
+            label="Email Address"
+            name="email"
+            type="email"
+            autoComplete="email"
+            placeholder="owner@example.com"
+            defaultValue={state.values?.email}
+            error={state.errors?.email}
+          />
+          <Input
+            label="Password"
+            name="password"
+            type="password"
+            autoComplete="new-password"
+            placeholder="At least 15 characters"
+            error={state.errors?.password}
+          />
+        </div>
 
-      <p className="mt-5 text-xs leading-5 text-gray-500">
-        By creating an account, you acknowledge our{" "}
-        <Link href="/terms" className="font-semibold text-primary hover:underline">
-          Terms
-        </Link>{" "}
-        and{" "}
-        <Link href="/privacy" className="font-semibold text-primary hover:underline">
-          Privacy Policy
-        </Link>
-        .
-      </p>
+        <p className="mt-5 text-xs leading-5 text-gray-500">
+          By creating an account, you acknowledge our{" "}
+          <Link href="/terms" className="font-semibold text-primary hover:underline">
+            Terms
+          </Link>{" "}
+          and{" "}
+          <Link href="/privacy" className="font-semibold text-primary hover:underline">
+            Privacy Policy
+          </Link>
+          .
+        </p>
 
-      <Button type="submit" disabled={pending} className="mt-5 rounded-xl py-4 text-base">
-        {pending ? "Creating account…" : "Create Partner Account"}
-      </Button>
-    </form>
+        <Button type="submit" disabled={pending} className="mt-5 rounded-xl py-4 text-base">
+          {pending ? "Creating account…" : "Create Partner Account"}
+        </Button>
+      </form>
+    </div>
   );
 }

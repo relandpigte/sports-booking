@@ -38,7 +38,9 @@ events addressed to another Page, and unsupported delivery/read events.
 The assistant recognizes questions about:
 
 - booking courts and browsing venues;
+- venue locations, maps, and nearby-court discovery;
 - open play and events;
+- account access, venue pricing, and applicable fees;
 - secure payment instructions and receipt uploads;
 - cancellations, rescheduling, and refunds;
 - listing a venue; and

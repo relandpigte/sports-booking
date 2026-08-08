@@ -106,6 +106,26 @@ function check() {
       links
     ).text.includes("Never send money using details received only in chat")
   );
+  const pricingReply = facebookReplyForMessage(
+    { text: "Is it free to use?", hasAttachments: false },
+    links
+  );
+  ok(
+    "pricing questions distinguish free account access from booking charges",
+    pricingReply.category === "pricing" &&
+      pricingReply.text.includes("free to browse") &&
+      pricingReply.text.includes("fees are itemized before")
+  );
+  const locationReply = facebookReplyForMessage(
+    { text: "Where is the court located?", hasAttachments: false },
+    links
+  );
+  ok(
+    "location questions lead to venue-specific addresses and maps",
+    locationReply.category === "location" &&
+      locationReply.text.includes(links.hubs) &&
+      locationReply.text.includes("map location")
+  );
   ok(
     "receipt attachments are directed to the authenticated booking page",
     facebookReplyForMessage(

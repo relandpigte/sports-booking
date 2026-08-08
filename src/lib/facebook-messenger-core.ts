@@ -5,7 +5,9 @@ export const FACEBOOK_MESSENGER_PROVIDER = "facebook-messenger";
 export type FacebookReplyCategory =
   | "booking"
   | "events"
+  | "location"
   | "partner"
+  | "pricing"
   | "payment"
   | "cancellation"
   | "support"
@@ -227,6 +229,16 @@ export function facebookReplyForMessage(
     };
   }
   if (
+    /\b(free|cost|price|pricing|charges?)\b/.test(text) ||
+    includesAny(text, ["how much", "service fee", "processing fee"])
+  ) {
+    return {
+      category: "pricing",
+      text:
+        "Bunal.club is free to browse and create a player account. Court and event prices vary by venue, and any applicable service or payment-processing fees are itemized before you confirm payment.",
+    };
+  }
+  if (
     includesAny(text, [
       "payment",
       "pay",
@@ -242,6 +254,26 @@ export function facebookReplyForMessage(
       category: "payment",
       text:
         `Payment instructions and the correct amount appear on your secure booking checkout. Never send money using details received only in chat. Open your booking here: ${links.bookings}`,
+    };
+  }
+  if (
+    includesAny(text, [
+      "location",
+      "address",
+      "near me",
+      "nearby",
+      "directions",
+      "where are you",
+      "where is your",
+      "where is the court",
+      "where can i play",
+      "how do i get there",
+    ])
+  ) {
+    return {
+      category: "location",
+      text:
+        `Looking for a court near you? Browse Bunal.club venues here: ${links.hubs}. Each venue page shows its complete address, map location, available courts, rates, and live booking availability.`,
     };
   }
   if (
@@ -293,7 +325,7 @@ export function facebookReplyForMessage(
     return {
       category: "menu",
       text:
-        "Hi! I'm Bunal.club's automatic assistant. I can help you book a court, find an event, understand payments, manage a booking, or list a venue. What do you need?",
+        "Hi! I'm Bunal.club's automatic assistant. I can help you find a nearby venue, book a court, browse events, understand prices and payments, manage a booking, or list a venue. What do you need?",
     };
   }
   return {

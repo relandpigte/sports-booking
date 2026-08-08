@@ -44,7 +44,13 @@ export function HubCard({
     <article className="group relative flex flex-col overflow-hidden rounded-[20px] border border-[#dfe7e2] bg-white shadow-sm shadow-navy/5 transition-all hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-lg hover:shadow-navy/8">
       <Link
         href={hubPublicPath(hub)}
-        aria-label={`View ${hub.name}${comingSoon ? ", coming soon" : ""}`}
+        aria-label={`View ${hub.name}${
+          hub.bookingStatus === "MAINTENANCE"
+            ? ", under maintenance"
+            : comingSoon
+              ? ", coming soon"
+              : ""
+        }`}
         className="absolute inset-0 z-0"
       />
       <div className="relative aspect-video overflow-hidden bg-navy-soft">
@@ -60,10 +66,24 @@ export function HubCard({
             No cover photo
           </div>
         )}
-        {comingSoon && (
-          <div className="absolute -left-12 top-6 z-10 w-48 -rotate-45 bg-navy py-1.5 text-center shadow-lg">
-            <span className="text-[10px] font-black uppercase tracking-[0.18em] text-accent">
-              Coming soon
+        {(comingSoon || hub.bookingStatus === "MAINTENANCE") && (
+          <div
+            className={`absolute -left-12 top-6 z-10 w-48 -rotate-45 py-1.5 text-center shadow-lg ${
+              hub.bookingStatus === "MAINTENANCE"
+                ? "bg-amber-500"
+                : "bg-navy"
+            }`}
+          >
+            <span
+              className={`text-[10px] font-black uppercase tracking-[0.18em] ${
+                hub.bookingStatus === "MAINTENANCE"
+                  ? "text-amber-950"
+                  : "text-accent"
+              }`}
+            >
+              {hub.bookingStatus === "MAINTENANCE"
+                ? "Maintenance"
+                : "Coming soon"}
             </span>
           </div>
         )}
@@ -120,9 +140,21 @@ export function HubCard({
         )}
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs font-semibold text-slate-500">
-          {comingSoon ? (
+          {hub.bookingStatus === "MAINTENANCE" ? (
+            <span className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+              <ClockIcon className="text-amber-700" />
+              <span className="flex flex-col gap-0.5">
+                <span className="font-bold text-amber-900">
+                  Bookings temporarily paused
+                </span>
+                <span className="text-[10px] font-semibold text-amber-700">
+                  Under maintenance
+                </span>
+              </span>
+            </span>
+          ) : comingSoon ? (
             <span className="flex items-center gap-2 rounded-xl border border-navy/5 bg-navy-soft px-3 py-2">
-              <ClockIcon />
+              <ClockIcon className="text-navy" />
               <span className="flex flex-col gap-0.5">
                 <span className="font-bold text-navy">
                   Online booking coming soon
@@ -271,14 +303,14 @@ function CalendarCheckIcon({ className }: { className: string }) {
   );
 }
 
-function ClockIcon() {
+function ClockIcon({ className }: { className: string }) {
   return (
     <svg
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
-      className="h-5 w-5 shrink-0 text-navy"
+      className={`h-5 w-5 shrink-0 ${className}`}
       aria-hidden="true"
     >
       <circle cx="12" cy="12" r="9" />

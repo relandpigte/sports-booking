@@ -38,6 +38,7 @@ export function EventRegistrationPanel({
   remainingSpots,
   full,
   closed,
+  paused,
 }: {
   publicId: string;
   fee: number;
@@ -49,6 +50,7 @@ export function EventRegistrationPanel({
   remainingSpots: number;
   full: boolean;
   closed: boolean;
+  paused: boolean;
 }) {
   const [registerState, registerAction, registerPending] = useActionState(
     registerForEventAction,
@@ -69,7 +71,7 @@ export function EventRegistrationPanel({
           Join event
         </h2>
 
-        {full && !closed && !confirmed && (
+        {full && !closed && !paused && !confirmed && (
           <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
             <p className="text-sm font-bold text-amber-900">Event is full</p>
             <p className="mt-1 text-xs leading-5 text-amber-700">
@@ -109,6 +111,11 @@ export function EventRegistrationPanel({
                 >
                   Continue guest payment
                 </Link>
+              ) : paused ? (
+                <StatusBox tone="neutral">
+                  Your confirmed spots remain reserved. The venue has paused
+                  new guest additions.
+                </StatusBox>
               ) : remainingSpots > 0 ? (
                 <GuestSlotForm
                   action={addAction}
@@ -145,6 +152,10 @@ export function EventRegistrationPanel({
               Your payment was received, but the event is now full. Contact
               support so your payment can be resolved.
             </StatusBox>
+          ) : paused ? (
+            <StatusBox tone="neutral">
+              The venue has temporarily paused new registrations.
+            </StatusBox>
           ) : !signedIn ? (
             <SignedOutActions publicId={publicId} full={full} />
           ) : viewerRole !== "PLAYER" ? (
@@ -177,7 +188,9 @@ export function EventRegistrationPanel({
         </div>
       </div>
       <div className="border-t border-slate-100 bg-navy-soft/30 px-6 py-4 text-center text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-        {fee > 0
+        {paused
+          ? "Venue paused · existing registrations remain confirmed"
+          : fee > 0
           ? paymentMode === "MANUAL"
             ? "Direct venue payment · receipt review required"
             : "Secure payments by PayMongo"

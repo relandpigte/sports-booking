@@ -14,6 +14,10 @@ import { LocationPicker } from "@/components/dashboard/hubs/LocationPicker";
 import { OperatingHoursEditor } from "@/components/dashboard/hubs/OperatingHoursEditor";
 import { HubIdentityFields } from "@/components/hubs/HubIdentityFields";
 import {
+  HUB_BOOKING_STATUS_OPTIONS,
+  type HubBookingStatusValue,
+} from "@/lib/constants";
+import {
   createHubAction,
   updateHubAction,
   type HubFormState,
@@ -29,6 +33,9 @@ export function HubForm({ hub }: { hub?: Hub }) {
   // The dialog is dismissible, so its visibility can't be derived from state
   // alone — it's keyed to the message so a NEW failure re-opens it.
   const [dismissed, setDismissed] = useState<string | null>(null);
+  const [bookingStatus, setBookingStatus] = useState<HubBookingStatusValue>(
+    hub?.bookingStatus ?? "OPEN"
+  );
   const showDialog = Boolean(state.message) && dismissed !== state.message;
 
   return (
@@ -113,6 +120,71 @@ export function HubForm({ hub }: { hub?: Hub }) {
           error={state.errors?.email}
         />
       </div>
+
+      <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5 sm:p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-xl">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+              Online booking status
+            </p>
+            <h2 className="mt-1 text-lg font-black text-navy">
+              Control when players can book
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              Coming Soon and Under Maintenance display a public banner and
+              block all new court bookings and event registrations. Existing
+              bookings remain unchanged.
+            </p>
+          </div>
+
+          <label className="block w-full lg:max-w-xs">
+            <span className="text-xs font-bold text-slate-600">Status</span>
+            <select
+              name="bookingStatus"
+              value={bookingStatus}
+              onChange={(event) =>
+                setBookingStatus(event.target.value as HubBookingStatusValue)
+              }
+              className="mt-1.5 min-h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-bold text-navy outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+            >
+              {HUB_BOOKING_STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <span className="mt-2 block text-xs leading-5 text-slate-500">
+              {
+                HUB_BOOKING_STATUS_OPTIONS.find(
+                  (option) => option.value === bookingStatus
+                )?.description
+              }
+            </span>
+          </label>
+        </div>
+
+        {bookingStatus !== "OPEN" && (
+          <div className="mt-5 border-t border-slate-200 pt-5">
+            <Textarea
+              label="Public banner message (optional)"
+              name="bookingStatusMessage"
+              rows={3}
+              maxLength={240}
+              placeholder={
+                bookingStatus === "COMING_SOON"
+                  ? "We’re preparing the courts and will open bookings soon."
+                  : "Court bookings are temporarily paused while we complete maintenance."
+              }
+              defaultValue={
+                state.values?.bookingStatusMessage ??
+                hub?.bookingStatusMessage ??
+                ""
+              }
+              error={state.errors?.bookingStatusMessage}
+            />
+          </div>
+        )}
+      </section>
 
       <GamesSelect defaultValue={hub?.games ?? ["pickleball"]} />
 

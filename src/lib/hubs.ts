@@ -1,7 +1,11 @@
 import "server-only";
 
 import { cache } from "react";
-import { Prisma, type CourtBlockType } from "@prisma/client";
+import {
+  Prisma,
+  type CourtBlockType,
+  type HubBookingStatus,
+} from "@prisma/client";
 import type {
   CourtType,
   Game,
@@ -70,6 +74,8 @@ export type Hub = {
   longitude: number | null;
   phone: string | null;
   email: string | null;
+  bookingStatus: HubBookingStatus;
+  bookingStatusMessage: string | null;
   operatingHours: OperatingHours | null;
   courts: Court[];
   createdAt: Date;
@@ -89,6 +95,8 @@ const hubSelect = {
   longitude: true,
   phone: true,
   email: true,
+  bookingStatus: true,
+  bookingStatusMessage: true,
   operatingHours: true,
   createdAt: true,
   updatedAt: true,
@@ -211,10 +219,13 @@ export async function listPublicHubs(
         owner.partnerPaymentMode === "MANUAL"
           ? owner.manualPaymentMethods.length > 0
           : connected;
+      const bookingOpen = row.bookingStatus === "OPEN";
       return {
         ...mapHub(row),
-        bookable: paymentReady,
-        comingSoon: !paymentReady,
+        bookable: paymentReady && bookingOpen,
+        comingSoon:
+          row.bookingStatus === "COMING_SOON" ||
+          (bookingOpen && !paymentReady),
         verified: paymentReady,
       };
     });
@@ -376,7 +387,14 @@ export type PublicHub = Hub & {
   paymentMode: "AUTOMATIC" | "MANUAL";
   // Why it isn't bookable, so the page can say something true rather than a
   // vague "not right now".
-  blockedBy: "approval" | "gateway" | "setup" | "settlement" | null;
+  blockedBy:
+    | "approval"
+    | "coming_soon"
+    | "maintenance"
+    | "gateway"
+    | "setup"
+    | "settlement"
+    | null;
   ownerId: string;
 };
 
@@ -400,28 +418,43 @@ export const getPublicHub = cache(
     const setupComplete = rest.courts.length > 0;
     const overdue =
       approved && paymentReady ? await isServiceFeeOverdue(ownerId) : false;
-    const bookable = approved && paymentReady && setupComplete && !overdue;
-    const comingSoon = approved && !paymentReady && setupComplete;
+    const bookingOpen = rest.bookingStatus === "OPEN";
+    const explicitlyPaused = !bookingOpen;
+    const bookable =
+      approved && paymentReady && setupComplete && !overdue && bookingOpen;
+    const comingSoon =
+      approved &&
+      setupComplete &&
+      (rest.bookingStatus === "COMING_SOON" ||
+        (bookingOpen && !paymentReady));
     return {
       ...mapHub(rest),
       facebookPage: owner.facebookPage
         ? facebookPageUrl(owner.facebookPage)
         : null,
       bookable,
-      publiclyListed: bookable || comingSoon,
+      publiclyListed:
+        approved &&
+        setupComplete &&
+        !overdue &&
+        (bookable || comingSoon || explicitlyPaused),
       comingSoon,
-      verified: bookable,
+      verified: approved && paymentReady,
       paymentRequired: bookable,
       paymentMode: owner.partnerPaymentMode,
       blockedBy: !approved
         ? "approval"
-        : !paymentReady
-          ? "gateway"
-          : !setupComplete
-            ? "setup"
-            : overdue
-              ? "settlement"
-              : null,
+        : rest.bookingStatus === "COMING_SOON"
+          ? "coming_soon"
+          : rest.bookingStatus === "MAINTENANCE"
+            ? "maintenance"
+            : !paymentReady
+              ? "gateway"
+              : !setupComplete
+                ? "setup"
+                : overdue
+                  ? "settlement"
+                  : null,
       ownerId,
     };
   }

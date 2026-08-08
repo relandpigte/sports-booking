@@ -67,6 +67,7 @@ export type BookingFormState = {
 // business failures back out of it.
 class StaleBooking extends Error {}
 class PlayerClash extends Error {}
+class VenuePaused extends Error {}
 
 // Revalidates every surface a booking or cancellation shows up on.
 function revalidateBookingSurfaces(hubId: string) {
@@ -216,6 +217,13 @@ export async function createBookingAction(
     created = await prisma.$transaction(async (tx) => {
       const out: { id: string; courtName: string }[] = [];
 
+      const [bookingHub] = await tx.$queryRaw<
+        Array<{ bookingStatus: "OPEN" | "COMING_SOON" | "MAINTENANCE" }>
+      >`SELECT "bookingStatus" FROM "Hub" WHERE "id" = ${hub.id} FOR SHARE`;
+      if (bookingHub?.bookingStatus !== "OPEN") {
+        throw new VenuePaused();
+      }
+
       for (const group of groups) {
         await tx.bookingSlot.deleteMany({
           where: {
@@ -303,6 +311,12 @@ export async function createBookingAction(
       return out;
     });
   } catch (error) {
+    if (error instanceof VenuePaused) {
+      return {
+        message:
+          "This venue has paused new bookings. No court time was reserved.",
+      };
+    }
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"

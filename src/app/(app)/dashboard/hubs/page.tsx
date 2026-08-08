@@ -100,7 +100,15 @@ export default async function HubsPage() {
                     <h2 className="truncate font-semibold text-gray-900">
                       {hub.name}
                     </h2>
-                    {!paymentReady && hub.courts.length > 0 ? (
+                    {hub.bookingStatus === "MAINTENANCE" ? (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-amber-800">
+                        Maintenance
+                      </span>
+                    ) : hub.bookingStatus === "COMING_SOON" ? (
+                      <span className="rounded-full bg-navy px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-accent">
+                        Coming soon
+                      </span>
+                    ) : !paymentReady && hub.courts.length > 0 ? (
                       <span className="rounded-full bg-navy px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-accent">
                         Coming soon
                       </span>

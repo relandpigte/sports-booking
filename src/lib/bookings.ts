@@ -436,6 +436,7 @@ export const getCourtForBooking = cache(async (courtId: string) => {
         select: {
           id: true,
           name: true,
+          bookingStatus: true,
           operatingHours: true,
           // Whose gateway a payment would go to, if this venue has connected
           // one — the booking action needs it before it writes anything.
@@ -492,7 +493,11 @@ export const getCourtForBooking = cache(async (courtId: string) => {
         playerName: row.hub.owner.playerName,
       },
       operatingHours: (row.hub.operatingHours as OperatingHours | null) ?? null,
-      bookable: approved && paymentReady && !overdue,
+      bookable:
+        approved &&
+        paymentReady &&
+        !overdue &&
+        row.hub.bookingStatus === "OPEN",
     },
   };
 });

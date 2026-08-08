@@ -46,6 +46,7 @@ export default async function EventDetailPage({
 
   const cancelled = event.status === "CANCELLED";
   const ended = event.endsAt <= new Date();
+  const venuePaused = event.hub.bookingStatus !== "OPEN";
   const closed = cancelled || ended;
   const courtNames = event.courts.map((court) => court.name).join(", ");
   const duration = event.endHour - event.startHour;
@@ -94,6 +95,25 @@ export default async function EventDetailPage({
                     {event.cancelReason ?? "This event was cancelled by the organizer."}
                   </p>
                 )}
+                {!cancelled && !ended && venuePaused && (
+                  <div
+                    className={`mt-5 rounded-2xl border px-5 py-4 ${
+                      event.hub.bookingStatus === "MAINTENANCE"
+                        ? "border-amber-200 bg-amber-50 text-amber-900"
+                        : "border-navy/10 bg-navy-soft text-navy"
+                    }`}
+                  >
+                    <p className="text-xs font-black uppercase tracking-[0.14em]">
+                      {event.hub.bookingStatus === "MAINTENANCE"
+                        ? "Venue under maintenance"
+                        : "Venue coming soon"}
+                    </p>
+                    <p className="mt-1 text-sm leading-6">
+                      {event.hub.bookingStatusMessage ??
+                        "The venue has paused new registrations. Existing confirmed registrations remain unchanged."}
+                    </p>
+                  </div>
+                )}
               </div>
             </section>
 
@@ -115,9 +135,19 @@ export default async function EventDetailPage({
                 <span>{event.remainingSpots} available</span>
               </EventFact>
               <EventFact icon={<StatusIcon />} label="Status">
-                <strong>{closed ? "Registration closed" : event.full ? "Waitlist open" : "Registration open"}</strong>
+                <strong>
+                  {venuePaused
+                    ? "Registration paused"
+                    : closed
+                      ? "Registration closed"
+                      : event.full
+                        ? "Waitlist open"
+                        : "Registration open"}
+                </strong>
                 <span>
-                  {event.full && !closed
+                  {venuePaused
+                    ? "Existing confirmed registrations remain unchanged"
+                    : event.full && !closed
                     ? `${event.waitlistedCount} on the waitlist`
                     : event.registrationFee > 0
                       ? event.hub.paymentMode === "MANUAL"
@@ -144,6 +174,7 @@ export default async function EventDetailPage({
                     remainingSpots={event.remainingSpots}
                     full={event.full}
                     closed={closed}
+                    paused={venuePaused}
                   />
                 </div>
 

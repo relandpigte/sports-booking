@@ -66,6 +66,10 @@ function formValues(formData: FormData): Record<string, string> {
     address: String(formData.get("address") ?? ""),
     phone: String(formData.get("phone") ?? ""),
     email: String(formData.get("email") ?? ""),
+    bookingStatus: String(formData.get("bookingStatus") ?? "OPEN"),
+    bookingStatusMessage: String(
+      formData.get("bookingStatusMessage") ?? ""
+    ),
   };
 }
 
@@ -89,6 +93,8 @@ type ParsedHub = {
     address?: string;
     phone?: string;
     email?: string;
+    bookingStatus: "OPEN" | "COMING_SOON" | "MAINTENANCE";
+    bookingStatusMessage?: string;
   };
   logo: string | null;
   coverPhotos: string[];
@@ -184,6 +190,8 @@ export async function createHubAction(
         longitude,
         phone: data.phone ?? null,
         email: data.email ?? null,
+        bookingStatus: data.bookingStatus,
+        bookingStatusMessage: data.bookingStatusMessage ?? null,
         logo,
         coverPhotos,
         games,
@@ -300,6 +308,8 @@ export async function updateHubAction(
         longitude,
         phone: data.phone ?? null,
         email: data.email ?? null,
+        bookingStatus: data.bookingStatus,
+        bookingStatusMessage: data.bookingStatusMessage ?? null,
         logo,
         coverPhotos,
         games,

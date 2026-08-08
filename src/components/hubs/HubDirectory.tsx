@@ -24,6 +24,8 @@ export type DirectoryHubView = {
   longitude: number | null;
   phone: string | null;
   email: string | null;
+  bookingStatus: "OPEN" | "COMING_SOON" | "MAINTENANCE";
+  bookingStatusMessage: string | null;
   operatingHours: OperatingHours | null;
   courts: {
     id: string;

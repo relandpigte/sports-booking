@@ -5,6 +5,7 @@ import {
   SKILL_LEVELS,
   ROLE_VALUES,
   GAME_VALUES,
+  HUB_BOOKING_STATUS_VALUES,
   MAX_BOOKING_COURT_HOURS,
   MAX_BOOKING_HOURS,
   VENUE_GATEWAY_VALUES,
@@ -182,6 +183,15 @@ export const HubSchema = z.object({
       error: "Enter a valid email",
     })
     .transform((v) => (v ? v : undefined)),
+  bookingStatus: z.enum(HUB_BOOKING_STATUS_VALUES, {
+    error: "Choose a valid booking status",
+  }),
+  bookingStatusMessage: z
+    .string()
+    .trim()
+    .max(240, { error: "Status message must be 240 characters or fewer" })
+    .optional()
+    .transform((value) => (value ? value : undefined)),
 });
 
 export type HubInput = z.infer<typeof HubSchema>;

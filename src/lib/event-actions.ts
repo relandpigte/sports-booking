@@ -525,6 +525,7 @@ export async function registerForEventAction(
         select: {
           name: true,
           ownerId: true,
+          bookingStatus: true,
           owner: {
             select: {
               email: true,
@@ -562,6 +563,12 @@ export async function registerForEventAction(
         "Your payment was received, but the event is now full. Contact support so your payment can be resolved.",
     };
   }
+  if (event.hub.bookingStatus !== "OPEN") {
+    return {
+      message:
+        "This venue has paused new event registrations. Existing registrations remain unchanged.",
+    };
+  }
 
   const fee = Number(event.registrationFee);
   const paymentSetup =
@@ -593,6 +600,12 @@ export async function registerForEventAction(
     await tx.$queryRaw(
       Prisma.sql`SELECT "id" FROM "Event" WHERE "id" = ${event.id} FOR UPDATE`
     );
+    const [bookingHub] = await tx.$queryRaw<
+      Array<{ bookingStatus: "OPEN" | "COMING_SOON" | "MAINTENANCE" }>
+    >`SELECT "bookingStatus" FROM "Hub" WHERE "id" = ${event.hubId} FOR SHARE`;
+    if (bookingHub?.bookingStatus !== "OPEN") {
+      return { kind: "paused" as const, paymentId: null };
+    }
 
     await expireEventCapacityHolds(tx, event.id, now);
 
@@ -828,6 +841,12 @@ export async function registerForEventAction(
     }
     redirect(`/events/${event.publicId}/pay/${outcome.paymentId}`);
   }
+  if (outcome.kind === "paused") {
+    return {
+      message:
+        "This venue has paused new event registrations. No new spots were reserved.",
+    };
+  }
   if (outcome.kind === "paid-closed") {
     return {
       message:
@@ -883,7 +902,11 @@ export async function addEventGuestSlotsAction(
       capacity: true,
       registrationFee: true,
       hub: {
-        select: { ownerId: true, owner: { select: { partnerStatus: true } } },
+        select: {
+          ownerId: true,
+          bookingStatus: true,
+          owner: { select: { partnerStatus: true } },
+        },
       },
     },
   });
@@ -912,6 +935,12 @@ export async function addEventGuestSlotsAction(
   });
   if (unsettledPayment) {
     await settleBookingPayment(unsettledPayment.id);
+  }
+  if (event.hub.bookingStatus !== "OPEN") {
+    return {
+      message:
+        "This venue has paused new event registrations. Existing registrations remain unchanged.",
+    };
   }
 
   const fee = Number(event.registrationFee);
@@ -944,6 +973,12 @@ export async function addEventGuestSlotsAction(
     await tx.$queryRaw(
       Prisma.sql`SELECT "id" FROM "Event" WHERE "id" = ${event.id} FOR UPDATE`
     );
+    const [bookingHub] = await tx.$queryRaw<
+      Array<{ bookingStatus: "OPEN" | "COMING_SOON" | "MAINTENANCE" }>
+    >`SELECT "bookingStatus" FROM "Hub" WHERE "id" = ${event.hubId} FOR SHARE`;
+    if (bookingHub?.bookingStatus !== "OPEN") {
+      return { kind: "paused" as const, paymentId: null };
+    }
     await expireEventCapacityHolds(tx, event.id, now);
 
     const registration = await tx.eventRegistration.findUnique({
@@ -1066,6 +1101,12 @@ export async function addEventGuestSlotsAction(
       });
     }
     redirect(`/events/${event.publicId}/pay/${outcome.paymentId}`);
+  }
+  if (outcome.kind === "paused") {
+    return {
+      message:
+        "This venue has paused new event registrations. No guest spots were reserved.",
+    };
   }
   if (outcome.kind === "insufficient") {
     return {

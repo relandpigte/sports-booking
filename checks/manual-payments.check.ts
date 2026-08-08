@@ -216,12 +216,15 @@ async function check() {
 
   const { expireBookingHolds, markBookingPaymentRefunded, settleBookingPayment } =
     await import("@/lib/booking-payments");
-  const swept = await expireBookingHolds(
-    new Date(holdExpiresAt.getTime() + 60_000)
-  );
+  await expireBookingHolds(new Date(holdExpiresAt.getTime() + 60_000));
+  const preservedManualPayment = await prisma.bookingPayment.findUnique({
+    where: { id: courtPayment.id },
+    select: { status: true, manualSubmittedAt: true },
+  });
   ok(
     "a submitted manual receipt is excluded from the expiry sweep",
-    swept.payments === 0 &&
+    preservedManualPayment?.status === "PENDING" &&
+      preservedManualPayment.manualSubmittedAt != null &&
       (await prisma.bookingSlot.count({ where: { booking: { bookingPaymentId: courtPayment.id } } })) === 1
   );
   await prisma.bookingPayment.update({

@@ -5,9 +5,10 @@
 - Set `AUTH_SECRET`, `ENCRYPTION_KEY`, `BOOKING_SWEEP_SECRET`, and an HTTPS
   canonical `APP_URL`. `/api/health/security` returns HTTP 503 when an essential
   value is absent.
-- Set `PARTNER_MFA_REQUIRED_AFTER` once to an ISO timestamp no more than 14 days
-  after the hardening release. After that timestamp, partner sign-in fails
-  closed until authenticator MFA is enrolled.
+- Leave `PARTNER_MFA_REQUIRED_AFTER` blank while partner MFA is optional. To
+  require it, set an ISO cutover timestamp; after that timestamp, partner
+  sign-in fails closed until authenticator MFA is enrolled. Partners who opt in
+  remain protected even when no global cutover is configured.
 - Run `POST /api/bookings/sweep` at least hourly with the sweep bearer token.
   The sweep also removes expired authentication artifacts and old throttle rows.
 

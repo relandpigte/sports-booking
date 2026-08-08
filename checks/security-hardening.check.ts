@@ -14,6 +14,20 @@ const VALID_PNG_DATA_URL =
 
 async function check() {
   const previousCutover = process.env.PARTNER_MFA_REQUIRED_AFTER;
+  delete process.env.PARTNER_MFA_REQUIRED_AFTER;
+  ok(
+    "partner MFA remains optional without a valid cutover",
+    roleRequiresMfa("ADMIN") &&
+      !roleRequiresMfa("PARTNER") &&
+      !roleRequiresMfa("PLAYER")
+  );
+
+  process.env.PARTNER_MFA_REQUIRED_AFTER = "not-a-date";
+  ok(
+    "an invalid partner MFA cutover fails open for partner onboarding",
+    !roleRequiresMfa("PARTNER")
+  );
+
   process.env.PARTNER_MFA_REQUIRED_AFTER = "2000-01-01T00:00:00.000Z";
   ok(
     "administrators and partners require MFA after the cutover",

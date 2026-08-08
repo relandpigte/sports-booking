@@ -39,6 +39,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Create local env file for check scripts
+        run: touch .env
       - run: npm ci
       - run: npm audit --audit-level=high
       - run: npm run db:push

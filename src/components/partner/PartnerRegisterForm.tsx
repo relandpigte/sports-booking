@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import Link from "next/link";
 
 import { GoogleRegistrationButton } from "@/components/auth/GoogleRegistrationButton";
+import { RegistrationPasswordField } from "@/components/auth/RegistrationPasswordField";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import {
@@ -68,14 +69,7 @@ export function PartnerRegisterForm({
             defaultValue={state.values?.email}
             error={state.errors?.email}
           />
-          <Input
-            label="Password"
-            name="password"
-            type="password"
-            autoComplete="new-password"
-            placeholder="At least 15 characters"
-            error={state.errors?.password}
-          />
+          <RegistrationPasswordField error={state.errors?.password} />
         </div>
 
         <p className="mt-5 text-xs leading-5 text-gray-500">

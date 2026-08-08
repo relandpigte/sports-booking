@@ -11,6 +11,10 @@ import {
 } from "@/lib/registration-tracking";
 import { isIncompleteGoogleRegistration } from "@/lib/registration-state";
 import {
+  generateSuggestedPassword,
+  SUGGESTED_PASSWORD_LENGTH,
+} from "@/lib/password-suggestion";
+import {
   GoogleRegistrationSchema,
   MAX_PASSWORD_BYTES,
   MIN_PASSWORD_LENGTH,
@@ -117,6 +121,19 @@ ok(
     !RegisterSchema.safeParse({
       email: "minimal-player@example.test",
       password: "x".repeat(65),
+    }).success
+);
+const suggestedPassword = generateSuggestedPassword();
+ok(
+  "suggested passwords satisfy the registration password policy",
+  suggestedPassword.length === SUGGESTED_PASSWORD_LENGTH &&
+    /[A-Z]/.test(suggestedPassword) &&
+    /[a-z]/.test(suggestedPassword) &&
+    /[0-9]/.test(suggestedPassword) &&
+    /[^A-Za-z0-9]/.test(suggestedPassword) &&
+    RegisterSchema.safeParse({
+      email: "suggested-password@example.test",
+      password: suggestedPassword,
     }).success
 );
 ok(

@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import type { NextRequest } from "next/server";
 
 import { expireBookingHolds } from "@/lib/booking-payments";
+import { cleanupFacebookMessengerEvents } from "@/lib/facebook-messenger";
 import { cleanupExpiredSecurityRows } from "@/lib/security-maintenance";
 
 // Tidies up expired holds: deletes the slot rows nothing is holding any more,
@@ -34,9 +35,10 @@ export async function POST(request: NextRequest) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const [result, security] = await Promise.all([
+  const [result, security, messengerEvents] = await Promise.all([
     expireBookingHolds(),
     cleanupExpiredSecurityRows(),
+    cleanupFacebookMessengerEvents(),
   ]);
-  return Response.json({ ok: true, ...result, security });
+  return Response.json({ ok: true, ...result, security, messengerEvents });
 }

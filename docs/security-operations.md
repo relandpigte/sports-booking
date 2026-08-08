@@ -10,7 +10,8 @@
   sign-in fails closed until authenticator MFA is enrolled. Partners who opt in
   remain protected even when no global cutover is configured.
 - Run `POST /api/bookings/sweep` at least hourly with the sweep bearer token.
-  The sweep also removes expired authentication artifacts and old throttle rows.
+  The sweep also removes expired authentication artifacts, old throttle rows,
+  and Facebook Messenger delivery hashes after their 30-day replay window.
 
 ## CSP rollout
 

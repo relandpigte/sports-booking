@@ -15,7 +15,7 @@
     "db:studio": "prisma studio",
     "paymongo:webhook": "tsx --env-file=.env scripts/register-service-fee-webhook.ts",
     "check:money": "tsx --conditions=react-server --env-file=.env checks/money-path.check.ts",
-    "check": "npm run check:security && npm run check:pwa && npm run check:seo && npm run check:hub-slug && npm run check:schedule && npm run check:login-security && npm run check:account-security && npm run check:events && npm run check:manual-payments && npm run check:qr-flow && npm run check:multi-court && npm run check:partner-bookings && npm run check:admin-users && npm run check:leaderboard && npm run check:password-reset && npm run check:password-change && npm run check:welcome-email && npm run check:booking-notifications && npm run check:registration && npm run check:impersonation && npm run check:money && npm run check:fee && npm run check:settlement && npm run check:settlement-paymongo && npm run check:partner && npm run check:qr && npm run check:social && npm run check:settle && npm run check:connect && npm run check:paymongo && npm run check:reap && npm run check:analytics && npm run check:chart",
+    "check": "npm run check:security && npm run check:pwa && npm run check:seo && npm run check:hub-slug && npm run check:schedule && npm run check:login-security && npm run check:account-security && npm run check:events && npm run check:manual-payments && npm run check:qr-flow && npm run check:multi-court && npm run check:partner-bookings && npm run check:admin-users && npm run check:leaderboard && npm run check:password-reset && npm run check:password-change && npm run check:welcome-email && npm run check:booking-notifications && npm run check:registration && npm run check:impersonation && npm run check:money && npm run check:fee && npm run check:settlement && npm run check:settlement-paymongo && npm run check:partner && npm run check:qr && npm run check:social && npm run check:messenger && npm run check:settle && npm run check:connect && npm run check:paymongo && npm run check:reap && npm run check:analytics && npm run check:chart",
     "check:security": "tsx --conditions=react-server checks/security-hardening.check.ts",
     "check:pwa": "tsx checks/pwa.check.ts",
     "check:seo": "tsx checks/seo.check.ts",
@@ -47,7 +47,8 @@
     "check:fee": "tsx --conditions=react-server --env-file=.env checks/platform-fee.check.ts",
     "check:settlement": "tsx --conditions=react-server --env-file=.env checks/service-fee-settlement.check.ts",
     "check:settlement-paymongo": "tsx --conditions=react-server --env-file=.env checks/service-fee-paymongo.check.ts",
-    "check:social": "tsx --conditions=react-server --env-file=.env checks/social.check.ts"
+    "check:social": "tsx --conditions=react-server --env-file=.env checks/social.check.ts",
+    "check:messenger": "tsx --conditions=react-server checks/facebook-messenger.check.ts"
   },
   "prisma": {
     "seed": "node prisma/seed.mjs"

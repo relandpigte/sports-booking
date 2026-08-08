@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function PrivacyPage() {
   return (
     <PageShell maxWidth="max-w-none" padded={false} alwaysPublic>
-      <LegalLayout title="Privacy Policy" updated="August 5, 2026">
+      <LegalLayout title="Privacy Policy" updated="August 8, 2026">
         <p>
           This Privacy Policy explains how Bunal.club (&quot;we&quot;,
           &quot;us&quot;) collects, uses, and protects your personal
@@ -53,6 +53,16 @@ export default function PrivacyPage() {
               pages visited, referral information, device and browser
               details, and interactions collected through analytics and
               advertising technologies.
+            </li>
+            <li>
+              <span className="font-medium text-gray-800">
+                Social messaging
+              </span>{" "}
+              — when you message the Bunal.club Facebook Page, Meta sends us
+              the message and a Page-specific identifier so our automatic
+              assistant or support team can reply. The assistant does not
+              retain the message or identifier; it keeps only a one-way hash
+              of the delivery id for 30 days to prevent duplicate replies.
             </li>
           </ul>
         </LegalSection>
@@ -137,6 +147,11 @@ export default function PrivacyPage() {
               <span className="font-medium text-gray-800">Google Maps</span>{" "}
               — loads only when a venue partner sets their hub&apos;s
               location in the partner dashboard.
+            </li>
+            <li>
+              <span className="font-medium text-gray-800">Meta</span> —
+              carries messages and automatic replies between you and the
+              Bunal.club Facebook Page under Meta&apos;s own privacy terms.
             </li>
           </ul>
           <p>

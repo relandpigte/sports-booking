@@ -239,6 +239,7 @@ export function ManualPaymentCheckout({
                           >
                             Download QR code
                           </a>
+                          <QrPaymentTip method={selected} />
                         </div>
                       ) : (
                         <div className="flex aspect-square items-center justify-center rounded-2xl border border-dashed border-navy/15 bg-white/60 p-5 text-center text-xs font-semibold text-slate-400">
@@ -375,12 +376,15 @@ function CompactManualPaymentForm({
           </p>
           <div className="mt-4 flex flex-col gap-5 sm:flex-row">
             {selected.qrImage && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={selected.qrImage}
-                alt={`${selected.label} payment QR`}
-                className="size-40 rounded-2xl border border-slate-200 bg-white object-contain p-2"
-              />
+              <div className="w-full sm:w-48">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={selected.qrImage}
+                  alt={`${selected.label} payment QR`}
+                  className="mx-auto size-40 rounded-2xl border border-slate-200 bg-white object-contain p-2 sm:mx-0"
+                />
+                <QrPaymentTip method={selected} compact />
+              </div>
             )}
             <dl className="min-w-0 flex-1 space-y-3 text-sm">
               {selected.accountName && (
@@ -505,6 +509,51 @@ function PaymentMethodButton({
         {method.network.replace("_", " ")}
       </span>
     </button>
+  );
+}
+
+function QrPaymentTip({
+  method,
+  compact = false,
+}: {
+  method: ManualPaymentMethodView;
+  compact?: boolean;
+}) {
+  const appName =
+    method.network === "GCASH"
+      ? "GCash"
+      : method.network === "MAYA"
+        ? "Maya"
+        : method.label;
+
+  return (
+    <div
+      className={`rounded-xl border border-primary/20 bg-primary-soft text-navy ${
+        compact ? "mt-3 px-3 py-2.5" : "mt-3 px-3.5 py-3"
+      }`}
+    >
+      <p className="flex items-center gap-2 text-xs font-black text-primary">
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <rect width="18" height="18" x="3" y="3" rx="2" />
+          <path d="M7 7h3v3H7zM14 7h3v3h-3zM7 14h3v3H7zM14 14h1M17 14v3h-3" />
+        </svg>
+        Scan with {appName}
+      </p>
+      <p className="mt-1.5 text-[11px] leading-4 text-navy/70">
+        Scan this QR code in the {appName} app. If downloading is unavailable,
+        take a screenshot and import it from your gallery.
+      </p>
+    </div>
   );
 }
 

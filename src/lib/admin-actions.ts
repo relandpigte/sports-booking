@@ -79,7 +79,7 @@ export async function createUserAction(
     };
   }
 
-  const avatar = normalizeAvatar(String(formData.get("image") ?? ""));
+  const avatar = await normalizeAvatar(String(formData.get("image") ?? ""));
   if (avatar.error) {
     return { errors: { image: avatar.error }, values };
   }
@@ -154,7 +154,7 @@ export async function updateUserAction(
     };
   }
 
-  const avatar = normalizeAvatar(String(formData.get("image") ?? ""));
+  const avatar = await normalizeAvatar(String(formData.get("image") ?? ""));
   if (avatar.error) {
     return { errors: { image: avatar.error }, values };
   }

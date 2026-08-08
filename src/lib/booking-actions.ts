@@ -54,6 +54,7 @@ import {
   recordImpersonatedAction,
 } from "@/lib/impersonation";
 import { notifyPartnerOfBooking } from "@/lib/booking-notifications";
+import { consumeRateLimit } from "@/lib/rate-limit";
 
 export type BookingFormState = {
   errors?: Record<string, string>;
@@ -85,6 +86,14 @@ export async function createBookingAction(
   if (!viewer) return { message: "Sign in to book a court." };
   if (viewer.role !== "PLAYER") {
     return { message: "Only player accounts can book courts." };
+  }
+  if (!(await consumeRateLimit({
+    namespace: "booking-create",
+    subject: viewer.id,
+    limit: 20,
+    windowSeconds: 10 * 60,
+  }))) {
+    return { message: "Too many booking attempts. Wait a few minutes and try again." };
   }
 
   const postedCourtIds = formData.getAll("courtIds").map(String);

@@ -219,7 +219,7 @@ export async function disableMfaAction(
     context: await getSecurityRequestContext(),
   });
   if (result === "required") {
-    return { message: "Administrators are required to keep MFA enabled." };
+    return { message: "Administrators and partners are required to keep MFA enabled." };
   }
   if (result !== "disabled") {
     return { message: "The password or authenticator code is invalid." };

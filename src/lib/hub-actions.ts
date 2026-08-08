@@ -114,9 +114,9 @@ function parseGames(formData: FormData): string[] {
 
 // Shared parse/validate for create and update. Returns the parsed hub, or an
 // error state to return to the form.
-function parseHubForm(
+async function parseHubForm(
   formData: FormData
-): { ok: true; hub: ParsedHub } | { ok: false; state: HubFormState } {
+): Promise<{ ok: true; hub: ParsedHub } | { ok: false; state: HubFormState }> {
   const values = formValues(formData);
 
   const parsed = HubSchema.safeParse(values);
@@ -124,12 +124,12 @@ function parseHubForm(
     return { ok: false, state: { errors: firstErrors(parsed.error), values } };
   }
 
-  const logo = normalizeAvatar(String(formData.get("logo") ?? ""));
+  const logo = await normalizeAvatar(String(formData.get("logo") ?? ""));
   if (logo.error) {
     return { ok: false, state: { errors: { logo: logo.error }, values } };
   }
 
-  const covers = normalizeCoverPhotos(
+  const covers = await normalizeCoverPhotos(
     formData.getAll("coverPhotos").map((v) => String(v))
   );
   if (covers.error) {
@@ -156,7 +156,7 @@ export async function createHubAction(
   formData: FormData
 ): Promise<HubFormState> {
   const partner = await requireActivePartner();
-  const result = parseHubForm(formData);
+  const result = await parseHubForm(formData);
   if (!result.ok) return result.state;
   const { data, logo, coverPhotos, games, courts, latitude, longitude, operatingHours } =
     result.hub;
@@ -235,7 +235,7 @@ export async function updateHubAction(
     return { message: "Hub not found.", values: formValues(formData) };
   }
 
-  const result = parseHubForm(formData);
+  const result = await parseHubForm(formData);
   if (!result.ok) return result.state;
   const { data, logo, coverPhotos, games, courts, latitude, longitude, operatingHours } =
     result.hub;

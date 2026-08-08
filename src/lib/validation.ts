@@ -15,6 +15,38 @@ const skillValues = SKILL_LEVELS.map((s) => s.value) as [string, ...string[]];
 const roleValues = [...ROLE_VALUES] as [string, ...string[]];
 const gameValues = [...GAME_VALUES] as [string, ...string[]];
 
+export const MIN_PASSWORD_LENGTH = 15;
+export const MAX_PASSWORD_BYTES = 64;
+
+const COMMON_PASSWORDS = new Set([
+  "123456789012345",
+  "adminadminadmin",
+  "letmeinletmein",
+  "passwordpassword",
+  "qwertyqwertyqwerty",
+]);
+
+const PasswordSchema = z.string().superRefine((password, context) => {
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    context.addIssue({
+      code: "custom",
+      message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters`,
+    });
+  }
+  if (new TextEncoder().encode(password).byteLength > MAX_PASSWORD_BYTES) {
+    context.addIssue({
+      code: "custom",
+      message: `Password must be ${MAX_PASSWORD_BYTES} bytes or fewer`,
+    });
+  }
+  if (COMMON_PASSWORDS.has(password.toLowerCase())) {
+    context.addIssue({
+      code: "custom",
+      message: "Choose a less common password",
+    });
+  }
+});
+
 export const LoginSchema = z.object({
   email: z.email({ error: "Enter a valid email" }).trim().toLowerCase(),
   password: z.string().min(1, { error: "Password is required" }),
@@ -29,9 +61,7 @@ export const ResetPasswordSchema = z
     token: z
       .string()
       .regex(/^[A-Za-z0-9_-]{43}$/, { error: "This reset link is invalid" }),
-    password: z
-      .string()
-      .min(6, { error: "Password must be at least 6 characters" }),
+    password: PasswordSchema,
     confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -44,9 +74,7 @@ export const ChangePasswordSchema = z
     currentPassword: z
       .string()
       .min(1, { error: "Current password is required" }),
-    newPassword: z
-      .string()
-      .min(6, { error: "Password must be at least 6 characters" }),
+    newPassword: PasswordSchema,
     confirmPassword: z.string(),
   })
   .refine((data) => data.newPassword === data.confirmPassword, {
@@ -56,9 +84,7 @@ export const ChangePasswordSchema = z
 
 const credentialRegisterBase = z.object({
   email: z.email({ error: "Enter a valid email" }).trim().toLowerCase(),
-  password: z
-    .string()
-    .min(6, { error: "Password must be at least 6 characters" }),
+  password: PasswordSchema,
   confirmPassword: z.string(),
 });
 
@@ -106,9 +132,7 @@ export const AdminCreateUserSchema = z.object({
   name: z.string().trim().min(2, { error: "Name is required" }),
   email: z.email({ error: "Enter a valid email" }).trim().toLowerCase(),
   role: z.enum(roleValues, { error: "Choose a role" }),
-  password: z
-    .string()
-    .min(6, { error: "Password must be at least 6 characters" }),
+  password: PasswordSchema,
   playerName: optionalText,
   phone: optionalText,
   skillLevel: z.enum(skillValues, { error: "Choose a skill level" }),

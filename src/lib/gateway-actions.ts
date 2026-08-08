@@ -3,7 +3,7 @@
 import crypto from "node:crypto";
 
 import { prisma } from "@/lib/db";
-import { requireActivePartner } from "@/lib/dal";
+import { requireActivePartner, requireRecentMfa } from "@/lib/dal";
 import { firstErrors } from "@/lib/zod-errors";
 import { ConnectGatewaySchema } from "@/lib/validation";
 import {
@@ -45,6 +45,7 @@ export async function connectGatewayAction(
     };
   }
   const partner = await requireActivePartner();
+  await requireRecentMfa("/dashboard/payments");
 
   // Refuse rather than ever storing a secret in plaintext.
   if (!isEncryptionConfigured()) {
@@ -164,6 +165,7 @@ export async function disconnectGatewayAction(
   }
   // Active partners can turn off taking money at any time.
   const partner = await requireActivePartner();
+  await requireRecentMfa("/dashboard/payments");
 
   const existing = await prisma.partnerGateway.findUnique({
     where: { userId: partner.id },

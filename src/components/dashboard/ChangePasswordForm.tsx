@@ -77,7 +77,7 @@ export function ChangePasswordForm({
             label="New password"
             name="newPassword"
             type="password"
-            placeholder="Enter at least 6 characters"
+            placeholder="Enter at least 15 characters"
             autoComplete="new-password"
             error={state.errors?.newPassword}
           />

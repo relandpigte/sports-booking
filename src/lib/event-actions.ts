@@ -35,6 +35,7 @@ import {
 import { firstErrors } from "@/lib/zod-errors";
 import { recordImpersonatedAction } from "@/lib/impersonation";
 import { notifyPartnerOfBooking } from "@/lib/booking-notifications";
+import { consumeRateLimit } from "@/lib/rate-limit";
 
 const optionalText = z
   .string()
@@ -491,6 +492,14 @@ export async function registerForEventAction(
   if (viewer.role !== "PLAYER") {
     return { message: "Only player accounts can register for events." };
   }
+  if (!(await consumeRateLimit({
+    namespace: "event-registration",
+    subject: viewer.id,
+    limit: 20,
+    windowSeconds: 10 * 60,
+  }))) {
+    return { message: "Too many registration attempts. Wait a few minutes and try again." };
+  }
 
   const publicId = String(formData.get("publicId") ?? "");
   if (!publicId) return { message: "Event not found." };
@@ -845,6 +854,14 @@ export async function addEventGuestSlotsAction(
   const viewer = await getViewer();
   if (!viewer || viewer.role !== "PLAYER") {
     return { message: "Sign in with the confirmed player account." };
+  }
+  if (!(await consumeRateLimit({
+    namespace: "event-guest-slots",
+    subject: viewer.id,
+    limit: 20,
+    windowSeconds: 10 * 60,
+  }))) {
+    return { message: "Too many guest-slot attempts. Wait a few minutes and try again." };
   }
 
   const publicId = String(formData.get("publicId") ?? "");

@@ -66,7 +66,7 @@ export function CreateUserForm() {
           label="Temporary Password"
           name="password"
           type="text"
-          placeholder="Min 6 characters"
+          placeholder="Min 15 characters"
           autoComplete="off"
           error={state.errors?.password}
         />

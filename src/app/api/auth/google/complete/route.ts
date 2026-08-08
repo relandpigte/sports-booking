@@ -10,6 +10,7 @@ import {
 import { prisma } from "@/lib/db";
 import { dashboardHomeFor } from "@/lib/dashboard";
 import { isIncompleteGoogleRegistration } from "@/lib/registration-state";
+import { roleRequiresMfa } from "@/lib/mfa-policy";
 
 function safeInternalPath(value: string | null): string {
   return value?.startsWith("/") &&
@@ -66,7 +67,7 @@ export async function GET(request: NextRequest) {
     redirect(completedRedirect);
   }
 
-  const requiresMfa = user.role === "ADMIN" || user.mfaEnabledAt !== null;
+  const requiresMfa = roleRequiresMfa(user.role) || user.mfaEnabledAt !== null;
   if (!requiresMfa) redirect("/login?error=OAuthCallback");
 
   const purpose = user.mfaEnabledAt ? "LOGIN_MFA" : "LOGIN_MFA_SETUP";

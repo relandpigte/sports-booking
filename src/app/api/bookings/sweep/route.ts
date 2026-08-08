@@ -1,6 +1,8 @@
+import crypto from "node:crypto";
 import type { NextRequest } from "next/server";
 
 import { expireBookingHolds } from "@/lib/booking-payments";
+import { cleanupExpiredSecurityRows } from "@/lib/security-maintenance";
 
 // Tidies up expired holds: deletes the slot rows nothing is holding any more,
 // flips PENDING bookings to EXPIRED, and closes out payments whose window has
@@ -14,6 +16,12 @@ import { expireBookingHolds } from "@/lib/booking-payments";
 // the instant it lapses. This is hygiene.
 export const dynamic = "force-dynamic";
 
+function validBearerToken(header: string, secret: string): boolean {
+  const expected = Buffer.from(`Bearer ${secret}`);
+  const actual = Buffer.from(header);
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+}
+
 export async function POST(request: NextRequest) {
   const secret = process.env.BOOKING_SWEEP_SECRET ?? "";
   // No secret configured means the endpoint is closed, not open.
@@ -22,10 +30,13 @@ export async function POST(request: NextRequest) {
   }
 
   const auth = request.headers.get("authorization") ?? "";
-  if (auth !== `Bearer ${secret}`) {
+  if (!validBearerToken(auth, secret)) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const result = await expireBookingHolds();
-  return Response.json({ ok: true, ...result });
+  const [result, security] = await Promise.all([
+    expireBookingHolds(),
+    cleanupExpiredSecurityRows(),
+  ]);
+  return Response.json({ ok: true, ...result, security });
 }

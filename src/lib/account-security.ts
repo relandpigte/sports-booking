@@ -15,6 +15,7 @@ import {
 import { appUrl } from "@/lib/urls";
 import { generateTotpSecret, verifyTotp } from "@/lib/totp";
 import { isIncompleteGoogleRegistration } from "@/lib/registration-state";
+import { roleRequiresMfa } from "@/lib/mfa-policy";
 
 export const SECURITY_CHALLENGE_COOKIE = "bunal.security-challenge";
 export const LOGIN_GRANT_COOKIE = "bunal.login-grant";
@@ -385,7 +386,7 @@ export async function createGoogleLoginSession({
 
   const registrationIncomplete = isIncompleteGoogleRegistration(existing);
   const requiresMfa =
-    existing.role === "ADMIN" || existing.mfaEnabledAt !== null;
+    roleRequiresMfa(existing.role) || existing.mfaEnabledAt !== null;
   if (requiresMfa || registrationIncomplete) {
     if (!existing.emailVerified) {
       await prisma.user.update({
@@ -746,7 +747,7 @@ export async function disableMfa({
     select: { role: true, passwordHash: true, mfaSecretEnc: true },
   });
   if (!user?.mfaSecretEnc || !user.passwordHash) return "unavailable";
-  if (user.role === "ADMIN") return "required";
+  if (roleRequiresMfa(user.role)) return "required";
   const passwordValid = await bcrypt.compare(currentPassword, user.passwordHash);
   if (!passwordValid) return "invalid";
   let codeValid = verifyTotp(
@@ -799,7 +800,7 @@ export async function validateManagedSession({
 }: {
   userId: string;
   sessionId: string | undefined;
-}): Promise<{ id: string; mfaVerified: boolean } | null> {
+}): Promise<{ id: string; mfaVerified: boolean; createdAt: Date } | null> {
   if (!sessionId) return null;
   const session = await prisma.authSession.findFirst({
     where: {
@@ -808,7 +809,7 @@ export async function validateManagedSession({
       revokedAt: null,
       expiresAt: { gt: new Date() },
     },
-    select: { id: true, mfaVerified: true, lastSeenAt: true },
+    select: { id: true, mfaVerified: true, createdAt: true, lastSeenAt: true },
   });
   if (!session) return null;
   if (session.lastSeenAt < new Date(Date.now() - 5 * 60_000)) {
@@ -817,7 +818,11 @@ export async function validateManagedSession({
       data: { lastSeenAt: new Date() },
     });
   }
-  return { id: session.id, mfaVerified: session.mfaVerified };
+  return {
+    id: session.id,
+    mfaVerified: session.mfaVerified,
+    createdAt: session.createdAt,
+  };
 }
 
 export async function getSecurityOverview({

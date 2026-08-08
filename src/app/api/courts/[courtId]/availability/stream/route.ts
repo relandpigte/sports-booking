@@ -6,6 +6,8 @@ import {
   getCourtForBooking,
 } from "@/lib/bookings";
 import { isValidDateString } from "@/lib/time";
+import { consumeRateLimit } from "@/lib/rate-limit";
+import { securityContextFromHeaders } from "@/lib/security-context";
 
 // Server-Sent Events stream of a court's booked hours for one Manila date.
 // Polls the database and pushes only when the occupancy actually changes, so
@@ -14,11 +16,11 @@ import { isValidDateString } from "@/lib/time";
 // Runs on the Node runtime (the default in Next 16) because Prisma needs it.
 export const dynamic = "force-dynamic";
 
-const POLL_MS = 3_000;
+const POLL_MS = 5_000;
 const HEARTBEAT_MS = 25_000;
 // EventSource reconnects on its own, so capping the connection bounds the
 // damage from anything that leaks.
-const MAX_STREAM_MS = 30 * 60_000;
+const MAX_STREAM_MS = 5 * 60_000;
 
 export async function GET(
   request: NextRequest,
@@ -27,6 +29,19 @@ export async function GET(
   // Next 16: params is a Promise — synchronous access was removed.
   const { courtId } = await ctx.params;
   const date = request.nextUrl.searchParams.get("date") ?? "";
+
+  const securityContext = securityContextFromHeaders(request.headers);
+  if (!(await consumeRateLimit({
+    namespace: "court-availability-stream",
+    subject: securityContext.ipHash,
+    limit: 30,
+    windowSeconds: 5 * 60,
+  }))) {
+    return new Response("Too many live availability connections", {
+      status: 429,
+      headers: { "Retry-After": "60" },
+    });
+  }
 
   // Optional: ignore one booking's own slots, so the reschedule picker shows
   // that booking's current hours as selectable instead of booked-by-itself.

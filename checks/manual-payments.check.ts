@@ -19,6 +19,8 @@ const prisma = new PrismaClient();
 const PARTNER_EMAIL = "check-manual-payments-partner@example.test";
 const PLAYER_EMAIL = "check-manual-payments-player@example.test";
 const DATE = "2099-10-15";
+const VALID_PNG_DATA_URL =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADklEQVQImWP4DwUMMAYAj4IP8cvlVgcAAAAASUVORK5CYII=";
 
 async function cleanup() {
   await prisma.user.deleteMany({
@@ -160,7 +162,7 @@ async function check() {
   const proof = new FormData();
   proof.set("paymentId", courtPayment.id);
   proof.set("methodId", partner.manualPaymentMethods[0].id);
-  proof.set("receiptImage", "data:image/png;base64,YQ==");
+  proof.set("receiptImage", VALID_PNG_DATA_URL);
   proof.set("paymentReference", "manual-proof-check");
   const submitted = await submitManualPaymentProofAction({}, proof);
   const frozen = await prisma.bookingPayment.findUnique({
@@ -176,9 +178,40 @@ async function check() {
     "an on-time receipt submission snapshots the method and freezes the court hold",
     Boolean(submitted.success) &&
       frozen?.manualSubmittedAt != null &&
-      frozen.manualPaymentRef === "manual-proof-check" &&
+      frozen.manualPaymentRef === "MANUAL-PROOF-CHECK" &&
       frozen.manualMethodLabel === "Venue GCash" &&
       frozen.bookings.every((booking) => booking.holdExpiresAt == null)
+  );
+
+  const secondPayment = await prisma.bookingPayment.create({
+    data: {
+      partnerId: partner.id,
+      userId: player.id,
+      hubId: hub.id,
+      amount: manualGrossFor(100),
+      venueAmount: 100,
+      platformFee: manualBookingServiceFeeFor(100),
+      processingFee: 0,
+      method: "MANUAL",
+      collectionMode: "MANUAL",
+      status: "PENDING",
+      provider: "manual",
+      expiresAt: new Date(Date.now() + 15 * 60_000),
+    },
+    select: { id: true },
+  });
+  const secondProof = new FormData();
+  secondProof.set("paymentId", secondPayment.id);
+  secondProof.set("methodId", partner.manualPaymentMethods[0].id);
+  secondProof.set("receiptImage", VALID_PNG_DATA_URL);
+  secondProof.set("paymentReference", "second-manual-proof");
+  const secondSubmission = await submitManualPaymentProofAction({}, secondProof);
+  ok(
+    "a player cannot hold multiple manual proofs at the same venue",
+    secondSubmission.code === "MANUAL_PAYMENT_PENDING_LIMIT" &&
+      (await prisma.bookingPayment.count({
+        where: { id: secondPayment.id, manualSubmittedAt: null },
+      })) === 1
   );
 
   const { expireBookingHolds, markBookingPaymentRefunded, settleBookingPayment } =

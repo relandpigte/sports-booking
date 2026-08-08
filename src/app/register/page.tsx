@@ -89,7 +89,7 @@ export default function RegisterPage({
             label="Password"
             name="password"
             type="password"
-            placeholder="At least 6 characters"
+            placeholder="At least 15 characters"
             autoComplete="new-password"
             error={state.errors?.password}
           />

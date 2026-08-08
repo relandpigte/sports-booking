@@ -44,7 +44,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
           label="New password"
           name="password"
           type="password"
-          placeholder="Enter at least 6 characters"
+          placeholder="Enter at least 15 characters"
           autoComplete="new-password"
           error={state.errors?.password}
         />

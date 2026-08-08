@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { fileToCoverDataUrl } from "@/lib/image";
-import { MAX_COVERS } from "@/lib/avatar";
+import { MAX_COVERS } from "@/lib/image-constants";
 
 export function CoverPhotosUpload({
   defaultValue = [],

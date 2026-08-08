@@ -22,6 +22,7 @@ import {
 import { appUrl } from "@/lib/urls";
 import { ConnectPlatformGatewaySchema } from "@/lib/validation";
 import { firstErrors } from "@/lib/zod-errors";
+import { requireRecentMfa } from "@/lib/dal";
 
 export type PlatformGatewayFormState = {
   errors?: Record<string, string>;
@@ -97,6 +98,7 @@ export async function connectPlatformGatewayAction(
   formData: FormData
 ): Promise<PlatformGatewayFormState> {
   const admin = await requireAdmin();
+  await requireRecentMfa("/dashboard/admin/payments");
 
   if (!isEncryptionConfigured()) {
     return {
@@ -206,6 +208,7 @@ export async function disconnectPlatformGatewayAction(
   _formData: FormData
 ): Promise<PlatformGatewayFormState> {
   await requireAdmin();
+  await requireRecentMfa("/dashboard/admin/payments");
 
   const active = await prisma.serviceFeeSettlement.count({
     where: { provider: "paymongo", status: "AWAITING_PAYMENT" },

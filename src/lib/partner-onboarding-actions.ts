@@ -67,9 +67,9 @@ export async function submitPartnerApplicationAction(
     return { errors: firstErrors(parsed.error), values };
   }
 
-  const logo = normalizeAvatar(String(formData.get("hubLogo") ?? ""));
+  const logo = await normalizeAvatar(String(formData.get("hubLogo") ?? ""));
   if (logo.error) return { errors: { hubLogo: logo.error }, values };
-  const covers = normalizeCoverPhotos(
+  const covers = await normalizeCoverPhotos(
     formData.getAll("coverPhotos").map(String)
   );
   if (covers.error) {

@@ -12,6 +12,8 @@ import {
 import { isIncompleteGoogleRegistration } from "@/lib/registration-state";
 import {
   GoogleRegistrationSchema,
+  MAX_PASSWORD_BYTES,
+  MIN_PASSWORD_LENGTH,
   PartnerApplicationSchema,
   ProfileSchema,
   RegisterSchema,
@@ -97,13 +99,28 @@ ok(
   "credential registration requires only email and matching passwords",
   RegisterSchema.safeParse({
     email: "minimal-player@example.test",
-    password: "secret123",
-    confirmPassword: "secret123",
+    password: "correct-horse-battery-staple",
+    confirmPassword: "correct-horse-battery-staple",
   }).success &&
     !RegisterSchema.safeParse({
       email: "minimal-player@example.test",
-      password: "secret123",
+      password: "correct-horse-battery-staple",
       confirmPassword: "different",
+    }).success
+);
+ok(
+  "new passwords enforce a bcrypt-safe length policy",
+  MIN_PASSWORD_LENGTH === 15 &&
+    MAX_PASSWORD_BYTES === 64 &&
+    !RegisterSchema.safeParse({
+      email: "minimal-player@example.test",
+      password: "too-short",
+      confirmPassword: "too-short",
+    }).success &&
+    !RegisterSchema.safeParse({
+      email: "minimal-player@example.test",
+      password: "x".repeat(65),
+      confirmPassword: "x".repeat(65),
     }).success
 );
 ok(

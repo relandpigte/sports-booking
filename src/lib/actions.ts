@@ -35,6 +35,8 @@ import {
   SECURITY_CHALLENGE_COOKIE,
 } from "@/lib/account-security";
 import { getSecurityRequestContext } from "@/lib/security-context";
+import { roleRequiresMfa } from "@/lib/mfa-policy";
+import { consumeRateLimit } from "@/lib/rate-limit";
 
 export type AuthFormState = {
   errors?: Record<string, string>;
@@ -73,6 +75,16 @@ export async function registerAction(
   }
 
   const data = parsed.data;
+
+  const registrationContext = await getSecurityRequestContext();
+  if (!(await consumeRateLimit({
+    namespace: "register-player",
+    subject: registrationContext.ipHash,
+    limit: 5,
+    windowSeconds: 60 * 60,
+  }))) {
+    return { message: "Too many registration attempts. Try again later.", values };
+  }
 
   const existing = await prisma.user.findUnique({
     where: { email: data.email },
@@ -182,6 +194,16 @@ export async function registerPartnerAction(
   }
   const data = parsed.data;
 
+  const registrationContext = await getSecurityRequestContext();
+  if (!(await consumeRateLimit({
+    namespace: "register-partner",
+    subject: registrationContext.ipHash,
+    limit: 3,
+    windowSeconds: 60 * 60,
+  }))) {
+    return { message: "Too many registration attempts. Try again later.", values };
+  }
+
   const existing = await prisma.user.findUnique({
     where: { email: data.email },
     select: { id: true },
@@ -233,6 +255,22 @@ export async function registerPartnerAction(
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
   });
+
+  if (roleRequiresMfa("PARTNER")) {
+    const challenge = await createSecurityChallenge({
+      userId: user.id,
+      purpose: "LOGIN_MFA_SETUP",
+      redirectTo: REGISTRATION_SUCCESS_PATH.partner,
+    });
+    cookieStore.set(SECURITY_CHALLENGE_COOKIE, challenge, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 10 * 60,
+    });
+    redirect("/login/mfa/setup");
+  }
 
   // The partner signs in immediately, but venue operations stay locked while
   // the account is a draft and while the submitted application is reviewed.
@@ -353,7 +391,7 @@ export async function loginAction(
 
   const redirectTo = safeInternalPath(raw.redirectTo) ?? "/dashboard";
   const requiresMfa =
-    authentication.user.role === "ADMIN" ||
+    roleRequiresMfa(authentication.user.role) ||
     authentication.user.mfaEnabledAt !== null;
   if (requiresMfa) {
     const purpose = authentication.user.mfaEnabledAt
@@ -468,7 +506,7 @@ export async function updateProfileAction(
     return { errors: firstErrors(parsed.error) };
   }
 
-  const avatar = normalizeAvatar(String(formData.get("image") ?? ""));
+  const avatar = await normalizeAvatar(String(formData.get("image") ?? ""));
   if (avatar.error) {
     return { errors: { image: avatar.error } };
   }

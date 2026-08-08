@@ -6,6 +6,7 @@ import {
   revokeSessionAction,
   startAccountMfaSetupAction,
 } from "@/lib/security-actions";
+import { roleRequiresMfa } from "@/lib/mfa-policy";
 
 type SecurityOverview = {
   role: "ADMIN" | "PLAYER" | "PARTNER";
@@ -71,7 +72,7 @@ export function SecuritySettings({
   passwordChanged: boolean;
   setup?: { secret: string } | null;
 }) {
-  const mfaRequired = overview.role === "ADMIN";
+  const mfaRequired = roleRequiresMfa(overview.role);
   const secured = overview.mfaEnabledAt !== null;
   const googleOnly = overview.googleConnected && !overview.hasPassword;
   const protectedAccount = googleOnly || secured;

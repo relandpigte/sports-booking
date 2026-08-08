@@ -1,14 +1,20 @@
 import "server-only";
 
 import { cache } from "react";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { Role } from "@prisma/client";
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getActivePartnerImpersonation } from "@/lib/impersonation";
-import { validateManagedSession } from "@/lib/account-security";
+import {
+  createSecurityChallenge,
+  SECURITY_CHALLENGE_COOKIE,
+  validateManagedSession,
+} from "@/lib/account-security";
 import { isIncompleteGoogleRegistration } from "@/lib/registration-state";
+import { RECENT_MFA_MINUTES, roleRequiresMfa } from "@/lib/mfa-policy";
 
 const currentUserSelect = {
   id: true,
@@ -42,7 +48,7 @@ const getValidatedSession = cache(async () => {
   if (
     !current ||
     current.sessionVersion !== session.user.sessionVersion ||
-    (current.role === "ADMIN" &&
+    (roleRequiresMfa(current.role) &&
       (!current.mfaEnabledAt || !session.user.mfaVerified))
   ) {
     return null;
@@ -191,4 +197,41 @@ export async function requireActivePartner() {
     redirect("/dashboard/partner");
   }
   return user;
+}
+
+// Sensitive financial controls need a fresh second factor, not merely a
+// month-old MFA-authenticated session. An expired assertion starts the same
+// challenge used during login; after verification the user retries the action.
+export async function requireRecentMfa(redirectTo = "/dashboard") {
+  const { userId, sessionDatabaseId } = await verifySession();
+  const [user, managedSession] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, mfaEnabledAt: true },
+    }),
+    prisma.authSession.findUnique({
+      where: { id: sessionDatabaseId },
+      select: { mfaVerified: true, createdAt: true },
+    }),
+  ]);
+  if (!user || !managedSession) redirect("/login");
+  if (!roleRequiresMfa(user.role) && !user.mfaEnabledAt) return;
+
+  const recentAfter = new Date(Date.now() - RECENT_MFA_MINUTES * 60_000);
+  if (managedSession.mfaVerified && managedSession.createdAt >= recentAfter) return;
+
+  const purpose = user.mfaEnabledAt ? "LOGIN_MFA" : "LOGIN_MFA_SETUP";
+  const challenge = await createSecurityChallenge({
+    userId,
+    purpose,
+    redirectTo,
+  });
+  (await cookies()).set(SECURITY_CHALLENGE_COOKIE, challenge, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 10 * 60,
+  });
+  redirect(purpose === "LOGIN_MFA" ? "/login/mfa" : "/login/mfa/setup");
 }

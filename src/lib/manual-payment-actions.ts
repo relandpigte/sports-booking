@@ -3,17 +3,20 @@
 import { Prisma, type ManualPaymentNetwork } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
-import { isImageDataUrl } from "@/lib/avatar";
+import { sanitizeImageDataUrl } from "@/lib/avatar";
 import { settleBookingPayment, markBookingPaymentRefunded } from "@/lib/booking-payments";
 import { prisma } from "@/lib/db";
-import { getViewer, requireActivePartner } from "@/lib/dal";
+import { getViewer, requireActivePartner, requireRecentMfa } from "@/lib/dal";
 import { isPartnerImpersonationActive } from "@/lib/impersonation";
 import { manualNetworkPaymentMethod } from "@/lib/manual-payments";
 import { revalidatePartnerPaymentSurfaces } from "@/lib/payment-revalidation";
-import { notifyPlayerBookingConfirmed } from "@/lib/booking-notifications";
+import {
+  notifyPartnerOfBooking,
+  notifyPlayerBookingConfirmed,
+} from "@/lib/booking-notifications";
 import { formatManilaDateLong, formatSlotRange } from "@/lib/time";
+import { consumeRateLimit } from "@/lib/rate-limit";
 
-const MAX_IMAGE_BYTES = 800 * 1024;
 const NETWORKS = new Set<ManualPaymentNetwork>([
   "GCASH",
   "MAYA",
@@ -25,6 +28,7 @@ export type ManualPaymentFormState = {
   errors?: Record<string, string>;
   message?: string;
   success?: string;
+  code?: "MANUAL_PAYMENT_PENDING_LIMIT" | "DUPLICATE_PAYMENT_REFERENCE";
 };
 
 function value(formData: FormData, key: string, max = 200) {
@@ -56,6 +60,7 @@ export async function savePartnerPaymentModeAction(
     return { message: "Payment settings are protected during assisted access." };
   }
   const partner = await requireActivePartner();
+  await requireRecentMfa("/dashboard/payments");
   const mode = value(formData, "mode", 20);
   if (mode !== "AUTOMATIC" && mode !== "MANUAL") {
     return { message: "Choose a valid payment mode." };
@@ -89,21 +94,25 @@ export async function saveManualPaymentMethodAction(
     return { message: "Payment settings are protected during assisted access." };
   }
   const partner = await requireActivePartner();
+  await requireRecentMfa("/dashboard/payments");
   const id = value(formData, "id", 40);
   const network = value(formData, "network", 30) as ManualPaymentNetwork;
   const label = value(formData, "label", 80);
   const accountName = value(formData, "accountName", 120);
   const accountIdentifier = value(formData, "accountIdentifier", 160);
   const instructions = value(formData, "instructions", 1000);
-  const qrImage = value(formData, "qrImage", 1_200_000);
+  const rawQrImage = value(formData, "qrImage", 1_200_000);
+  const qrImage = rawQrImage
+    ? await sanitizeImageDataUrl(rawQrImage, "qr")
+    : null;
   const active = formData.get("active") === "on";
   const errors: Record<string, string> = {};
   if (!NETWORKS.has(network)) errors.network = "Choose a valid network.";
   if (label.length < 2) errors.label = "Enter a payment-method label.";
-  if (!accountIdentifier && !qrImage && !instructions) {
+  if (!accountIdentifier && !rawQrImage && !instructions) {
     errors.accountIdentifier = "Add account details, a QR code, or payment instructions.";
   }
-  if (qrImage && !isImageDataUrl(qrImage, MAX_IMAGE_BYTES)) {
+  if (rawQrImage && !qrImage) {
     errors.qrImage = "Upload a valid JPG, PNG, or WebP QR image under 800KB.";
   }
   if (Object.keys(errors).length > 0) return { errors };
@@ -135,7 +144,7 @@ export async function saveManualPaymentMethodAction(
         accountName: accountName || null,
         accountIdentifier: accountIdentifier || null,
         instructions: instructions || null,
-        qrImage: qrImage || null,
+        qrImage,
         active,
       },
     });
@@ -152,7 +161,7 @@ export async function saveManualPaymentMethodAction(
         accountName: accountName || null,
         accountIdentifier: accountIdentifier || null,
         instructions: instructions || null,
-        qrImage: qrImage || null,
+        qrImage,
         active,
         sortOrder,
       },
@@ -170,14 +179,28 @@ export async function submitManualPaymentProofAction(
   if (!viewer || viewer.role !== "PLAYER") {
     return { message: "Sign in with a player account to submit payment proof." };
   }
+  if (!(await consumeRateLimit({
+    namespace: "manual-proof",
+    subject: viewer.id,
+    limit: 10,
+    windowSeconds: 60 * 60,
+  }))) {
+    return { message: "Too many payment-proof attempts. Try again later." };
+  }
   const paymentId = value(formData, "paymentId", 40);
   const methodId = value(formData, "methodId", 40);
-  const receiptImage = value(formData, "receiptImage", 1_200_000);
-  const paymentReference = value(formData, "paymentReference", 120);
+  const rawReceiptImage = value(formData, "receiptImage", 1_200_000);
+  const receiptImage = await sanitizeImageDataUrl(rawReceiptImage, "receipt");
+  const paymentReference = value(formData, "paymentReference", 120)
+    .replace(/\s+/g, " ")
+    .toUpperCase();
   const errors: Record<string, string> = {};
   if (!methodId) errors.methodId = "Choose a payment network.";
-  if (!isImageDataUrl(receiptImage, MAX_IMAGE_BYTES)) {
+  if (!receiptImage) {
     errors.receiptImage = "Upload a valid JPG, PNG, or WebP receipt under 800KB.";
+  }
+  if (paymentReference.length < 4) {
+    errors.paymentReference = "Enter the transfer reference shown by your payment app.";
   }
   if (Object.keys(errors).length > 0) return { errors };
 
@@ -199,13 +222,50 @@ export async function submitManualPaymentProofAction(
         status: true,
         expiresAt: true,
         manualSubmittedAt: true,
+        partner: { select: { email: true, name: true, playerName: true } },
+        user: { select: { name: true, playerName: true } },
+        bookings: {
+          take: 1,
+          orderBy: { startsAt: "asc" },
+          select: {
+            date: true,
+            startHour: true,
+            endHour: true,
+            court: { select: { name: true } },
+            hub: { select: { name: true } },
+          },
+        },
         eventRegistration: {
-          select: { event: { select: { publicId: true } } },
+          select: {
+            event: {
+              select: {
+                publicId: true,
+                title: true,
+                date: true,
+                startHour: true,
+                endHour: true,
+                hub: { select: { name: true } },
+              },
+            },
+          },
         },
         eventGuestSlots: {
           take: 1,
           select: {
-            registration: { select: { event: { select: { publicId: true } } } },
+            registration: {
+              select: {
+                event: {
+                  select: {
+                    publicId: true,
+                    title: true,
+                    date: true,
+                    startHour: true,
+                    endHour: true,
+                    hub: { select: { name: true } },
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -216,6 +276,37 @@ export async function submitManualPaymentProofAction(
       return { kind: "already" as const, payment };
     }
     if (payment.expiresAt <= now) return { kind: "expired" as const, payment };
+    // Serialize proof claims per venue so simultaneous submissions cannot
+    // bypass the pending-proof or duplicate-reference checks.
+    await tx.$queryRaw(
+      Prisma.sql`SELECT "id" FROM "Hub" WHERE "id" = ${payment.hubId} FOR UPDATE`
+    );
+    const [otherPendingProofs, duplicateReference] = await Promise.all([
+      tx.bookingPayment.count({
+        where: {
+          id: { not: payment.id },
+          userId: viewer.id,
+          hubId: payment.hubId,
+          collectionMode: "MANUAL",
+          status: "PENDING",
+          manualSubmittedAt: { not: null },
+        },
+      }),
+      tx.bookingPayment.count({
+        where: {
+          id: { not: payment.id },
+          hubId: payment.hubId,
+          collectionMode: "MANUAL",
+          manualPaymentRef: paymentReference,
+        },
+      }),
+    ]);
+    if (otherPendingProofs > 0) {
+      return { kind: "pending-limit" as const, payment };
+    }
+    if (duplicateReference > 0) {
+      return { kind: "duplicate-reference" as const, payment };
+    }
     const method = await tx.partnerManualPaymentMethod.findFirst({
       where: { id: methodId, partnerId: payment.partnerId, active: true },
     });
@@ -274,11 +365,56 @@ export async function submitManualPaymentProofAction(
         result.payment.eventGuestSlots[0]?.registration.event.publicId,
     });
   }
+  if (result.kind === "submitted") {
+    const event =
+      result.payment.eventRegistration?.event ??
+      result.payment.eventGuestSlots[0]?.registration.event;
+    const booking = result.payment.bookings[0];
+    await notifyPartnerOfBooking({
+      to: result.payment.partner.email,
+      partnerName:
+        result.payment.partner.playerName ??
+        result.payment.partner.name ??
+        "Venue partner",
+      playerName:
+        result.payment.user.playerName ?? result.payment.user.name ?? "A player",
+      kind: event ? "EVENT" : "COURT",
+      venueName: event?.hub.name ?? booking?.hub.name ?? "Your venue",
+      bookingTitle: event?.title ?? booking?.court.name ?? "Manual booking",
+      schedule: event
+        ? `${formatManilaDateLong(event.date)} · ${formatSlotRange(
+            event.startHour,
+            event.endHour
+          )}`
+        : booking
+          ? `${formatManilaDateLong(booking.date)} · ${formatSlotRange(
+              booking.startHour,
+              booking.endHour
+            )}`
+          : "See the booking workspace for details",
+      status: "Manual payment proof submitted — review required",
+      actionPath: `/dashboard/bookings?q=${encodeURIComponent(result.payment.id)}`,
+      idempotencyKey: `partner-manual-proof-submitted-${result.payment.id}`,
+    });
+  }
   if (result.kind === "submitted" || result.kind === "already") {
     return { success: "Payment proof submitted. Your booking is pending venue review." };
   }
   if (result.kind === "expired") {
     return { message: "The 15-minute upload window expired and the slot was released." };
+  }
+  if (result.kind === "pending-limit") {
+    return {
+      code: "MANUAL_PAYMENT_PENDING_LIMIT",
+      message:
+        "You already have a manual payment awaiting review at this venue. The venue must review it before you submit another.",
+    };
+  }
+  if (result.kind === "duplicate-reference") {
+    return {
+      code: "DUPLICATE_PAYMENT_REFERENCE",
+      message: "That transfer reference was already submitted for this venue.",
+    };
   }
   if (result.kind === "method") return { message: "That payment method is no longer available." };
   if (result.kind === "closed") return { message: "This payment is already closed." };
@@ -290,6 +426,7 @@ export async function reviewManualPaymentAction(
   formData: FormData
 ): Promise<ManualPaymentFormState> {
   const partner = await requireActivePartner();
+  await requireRecentMfa("/dashboard/bookings");
   const paymentId = value(formData, "paymentId", 40);
   const decision = value(formData, "decision", 20);
   const note = value(formData, "note", 500);
@@ -452,6 +589,7 @@ export async function recordManualRefundAction(
   formData: FormData
 ): Promise<ManualPaymentFormState> {
   const partner = await requireActivePartner();
+  await requireRecentMfa("/dashboard/bookings");
   const paymentId = value(formData, "paymentId", 40);
   const reference = value(formData, "reference", 120);
   const reason = value(formData, "reason", 500);

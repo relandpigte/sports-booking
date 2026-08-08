@@ -11,6 +11,8 @@ import {
   resetPasswordWithToken,
 } from "@/lib/password-reset";
 import { firstErrors } from "@/lib/zod-errors";
+import { getSecurityRequestContext } from "@/lib/security-context";
+import { consumeRateLimit } from "@/lib/rate-limit";
 
 export type PasswordResetFormState = {
   ok?: boolean;
@@ -29,6 +31,20 @@ export async function forgotPasswordAction(
     return {
       errors: firstErrors(parsed.error),
       values: { email: rawEmail },
+    };
+  }
+
+  const context = await getSecurityRequestContext();
+  if (!(await consumeRateLimit({
+    namespace: "password-reset",
+    subject: context.ipHash,
+    limit: 10,
+    windowSeconds: 60 * 60,
+  }))) {
+    return {
+      ok: true,
+      message:
+        "If an account exists for that email, a password reset link is on its way. Check your inbox and spam folder.",
     };
   }
 

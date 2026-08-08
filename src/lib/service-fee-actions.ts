@@ -3,16 +3,14 @@
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
-import { isImageDataUrl } from "@/lib/avatar";
+import { sanitizeImageDataUrl } from "@/lib/avatar";
 import { requireAdmin } from "@/lib/admin";
 import { prisma } from "@/lib/db";
-import { requireActivePartner } from "@/lib/dal";
+import { requireActivePartner, requireRecentMfa } from "@/lib/dal";
 import { platformPaymongoConfigured } from "@/lib/payments/paymongo-platform";
 import { calculateServiceFeeBalance } from "@/lib/service-fees";
 import { startServiceFeeCheckout } from "@/lib/service-fee-payments";
 import { isPartnerImpersonationActive } from "@/lib/impersonation";
-
-const MAX_RECEIPT_BYTES = 800 * 1024;
 
 export type ServiceFeeFormState = {
   errors?: Record<string, string>;
@@ -39,10 +37,12 @@ export async function submitServiceFeeSettlementAction(
     };
   }
   const partner = await requireActivePartner();
+  await requireRecentMfa("/dashboard/payments");
   const paymentReference = String(
     formData.get("paymentReference") ?? ""
   ).trim();
-  const receiptImage = String(formData.get("receiptImage") ?? "").trim();
+  const rawReceiptImage = String(formData.get("receiptImage") ?? "").trim();
+  const receiptImage = await sanitizeImageDataUrl(rawReceiptImage, "receipt");
 
   const errors: Record<string, string> = {};
   if (paymentReference.length < 4) {
@@ -50,7 +50,7 @@ export async function submitServiceFeeSettlementAction(
   } else if (paymentReference.length > 120) {
     errors.paymentReference = "Keep the reference under 120 characters";
   }
-  if (!isImageDataUrl(receiptImage, MAX_RECEIPT_BYTES)) {
+  if (!receiptImage) {
     errors.receiptImage =
       "Upload a valid JPG, PNG, or WebP receipt under 800KB";
   }
@@ -125,6 +125,7 @@ export async function startServiceFeeCheckoutAction(
     };
   }
   const partner = await requireActivePartner();
+  await requireRecentMfa("/dashboard/payments");
   if (!(await platformPaymongoConfigured())) {
     return {
       message:
@@ -157,6 +158,7 @@ export async function startServiceFeeCheckoutAction(
 
 export async function reviewServiceFeeSettlementAction(formData: FormData) {
   const admin = await requireAdmin();
+  await requireRecentMfa("/dashboard/admin/settlements");
   const settlementId = String(formData.get("settlementId") ?? "");
   const decision = String(formData.get("decision") ?? "");
   const reviewNote = String(formData.get("reviewNote") ?? "").trim().slice(0, 500);

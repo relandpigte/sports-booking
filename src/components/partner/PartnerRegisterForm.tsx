@@ -76,7 +76,7 @@ export function PartnerRegisterForm({
           name="password"
           type="password"
           autoComplete="new-password"
-          placeholder="At least 6 characters"
+          placeholder="At least 15 characters"
           error={state.errors?.password}
         />
         <Input

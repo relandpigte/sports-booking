@@ -8,7 +8,26 @@ import "server-only";
 // so nothing there changes.
 export function appOrigin(): string {
   const configured = process.env.APP_URL?.trim();
-  if (configured) return configured.replace(/\/+$/, "");
+  if (configured) {
+    let url: URL;
+    try {
+      url = new URL(configured);
+    } catch {
+      throw new Error("APP_URL must be an absolute URL");
+    }
+    if (
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash ||
+      (process.env.NODE_ENV === "production" && url.protocol !== "https:")
+    ) {
+      throw new Error(
+        "APP_URL must be a canonical HTTPS origin without credentials, query, or fragment"
+      );
+    }
+    return url.origin;
+  }
 
   const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
   if (vercel) return `https://${vercel.replace(/\/+$/, "")}`;

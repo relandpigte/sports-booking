@@ -3,12 +3,14 @@ import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { getHubCourtOccupancies } from "@/lib/bookings";
 import { isValidDateString } from "@/lib/time";
+import { consumeRateLimit } from "@/lib/rate-limit";
+import { securityContextFromHeaders } from "@/lib/security-context";
 
 export const dynamic = "force-dynamic";
 
-const POLL_MS = 3_000;
+const POLL_MS = 5_000;
 const HEARTBEAT_MS = 25_000;
-const MAX_STREAM_MS = 30 * 60_000;
+const MAX_STREAM_MS = 5 * 60_000;
 
 export async function GET(
   request: NextRequest,
@@ -16,6 +18,18 @@ export async function GET(
 ) {
   const { hubId } = await ctx.params;
   const date = request.nextUrl.searchParams.get("date") ?? "";
+  const securityContext = securityContextFromHeaders(request.headers);
+  if (!(await consumeRateLimit({
+    namespace: "hub-availability-stream",
+    subject: securityContext.ipHash,
+    limit: 30,
+    windowSeconds: 5 * 60,
+  }))) {
+    return new Response("Too many live availability connections", {
+      status: 429,
+      headers: { "Retry-After": "60" },
+    });
+  }
   if (!isValidDateString(date)) {
     return new Response("Invalid date", { status: 400 });
   }

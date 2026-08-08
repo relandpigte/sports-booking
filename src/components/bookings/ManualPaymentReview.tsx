@@ -42,6 +42,18 @@ export function ManualPaymentReview({
   const [showReceipt, setShowReceipt] = useState(false);
   const [note, setNote] = useState("");
   const awaitingReview = payment.status === "PENDING" && payment.submittedAt;
+  const [reviewOverdue, setReviewOverdue] = useState(false);
+
+  useEffect(() => {
+    if (!awaitingReview) return;
+    const overdueAt = new Date(payment.submittedAt!).getTime() + 2 * 60 * 60_000;
+    const timeout = window.setTimeout(
+      () => setReviewOverdue(true),
+      Math.max(0, overdueAt - Date.now())
+    );
+    return () => window.clearTimeout(timeout);
+  }, [awaitingReview, payment.submittedAt]);
+  const overdueAwaitingReview = Boolean(awaitingReview && reviewOverdue);
 
   useEffect(() => {
     if (!showReceipt) return;
@@ -121,8 +133,17 @@ export function ManualPaymentReview({
               Manual payment
             </p>
             <p className="mt-1 text-sm font-bold text-navy">
-              {awaitingReview ? "Proof awaiting review" : payment.status}
+              {overdueAwaitingReview
+                ? "Review overdue"
+                : awaitingReview
+                  ? "Proof awaiting review"
+                  : payment.status}
             </p>
+            {overdueAwaitingReview && (
+              <p className="mt-1 text-xs font-semibold text-red-600">
+                Submitted over two hours ago. Review this payment promptly.
+              </p>
+            )}
           </div>
           {payment.methodLabel && (
             <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-navy">

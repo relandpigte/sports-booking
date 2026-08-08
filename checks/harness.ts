@@ -105,6 +105,7 @@ export function stubRequestContext(
     getCurrentUser: async () => actor,
     getAuthenticatedUser: async () => actor,
     verifySession: async () => ({ user: actor }),
+    requireRecentMfa: async () => undefined,
   });
   if (options.stubAdminModule !== false) {
     put(path.join(root, "src/lib/admin.ts"), {

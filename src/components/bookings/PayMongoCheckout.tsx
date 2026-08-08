@@ -62,6 +62,18 @@ export function PayMongoCheckout({
               <DownloadIcon />
               Download QR code
             </a>
+
+            <div className="mt-3 max-w-sm rounded-xl border border-primary/20 bg-primary-soft px-4 py-3 text-left">
+              <p className="flex items-center gap-2 text-xs font-bold text-primary">
+                <QrIcon />
+                Paying on this device?
+              </p>
+              <p className="mt-1.5 text-xs leading-5 text-navy/70">
+                Download the QR code and import it into your bank or e-wallet
+                app. If downloading fails, take a screenshot and select it from
+                your gallery instead.
+              </p>
+            </div>
           </div>
         </div>
 
@@ -132,6 +144,25 @@ function DownloadIcon() {
       <path d="M12 3v12" />
       <path d="m7 10 5 5 5-5" />
       <path d="M5 21h14" />
+    </svg>
+  );
+}
+
+function QrIcon() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+      <path d="M7 7h3v3H7zM14 7h3v3h-3zM7 14h3v3H7zM14 14h1M17 14v3h-3" />
     </svg>
   );
 }

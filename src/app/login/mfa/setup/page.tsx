@@ -11,7 +11,7 @@ import {
 } from "@/lib/account-security";
 
 export const metadata: Metadata = {
-  title: "Secure your admin account — Bunal.club",
+  title: "Secure your account — Bunal.club",
 };
 
 export default async function LoginMfaSetupPage() {
@@ -20,11 +20,18 @@ export default async function LoginMfaSetupPage() {
   if (!challenge || challenge.purpose !== "LOGIN_MFA_SETUP") redirect("/login");
   const secret = await setupSecretForChallenge(challenge);
   if (!secret) redirect("/login");
+  const isPartner = challenge.user.role === "PARTNER";
 
   return (
     <AuthLayout
-      title="Secure your admin account"
-      subtitle="Authenticator MFA is required for Bunal.club administrators."
+      title={
+        isPartner ? "Secure your partner account" : "Secure your admin account"
+      }
+      subtitle={
+        isPartner
+          ? "Authenticator MFA is required for partners who manage bookings and payments."
+          : "Authenticator MFA is required for Bunal.club administrators."
+      }
       width="max-w-xl"
     >
       <div className="rounded-2xl border border-gray-200 p-5 shadow-sm sm:p-6">
@@ -37,4 +44,3 @@ export default async function LoginMfaSetupPage() {
     </AuthLayout>
   );
 }
-

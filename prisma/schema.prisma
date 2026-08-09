@@ -79,6 +79,9 @@ model User {
   // One checkout policy per partner account, shared by every hub it owns.
   partnerPaymentMode      PartnerPaymentMode @default(AUTOMATIC)
   partnerActivatedAt      DateTime?
+  // Claimed atomically by the maintenance sweep before an overdue service-fee
+  // reminder is sent. This throttles reminders across concurrent cron runs.
+  serviceFeeReminderAt    DateTime?
   // Scalar by design: deleting an admin must not erase who approved a partner.
   partnerActivatedById    String?
   createdAt               DateTime           @default(now())

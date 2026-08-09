@@ -131,6 +131,7 @@ The required environment variables are:
 | `ENCRYPTION_KEYS_PREVIOUS` | Optional old keys used during rotation. |
 | `APP_URL` | Public HTTPS origin used for redirects and webhook URLs. |
 | `BOOKING_SWEEP_SECRET` | Bearer token for the expired-hold sweep. |
+| `CRON_SECRET` | Random Bearer token automatically attached by Vercel's daily maintenance cron. |
 | `PAYMONGO_QRPH_PROCESSING_RATE` | Optional VAT-inclusive decimal rate for direct QR fee gross-up; defaults to `0.015008`. |
 | `PAYMONGO_SECRET_KEY` | Optional legacy fallback for Bunal.club's service-fee PayMongo account. |
 | `BILLING_WEBHOOK_SECRET` | Optional webhook secret paired with the environment fallback. |
@@ -182,7 +183,11 @@ the server or redeploy.
 Fees settle weekly with a seven-day grace period after each week closes.
 Overdue balances pause new paid bookings and remove the partner's hubs from the
 public directory. Submitting proof immediately restores booking access while
-the admin reviews it; rejection restores the overdue block.
+the admin reviews it; rejection restores the overdue block. The authenticated
+maintenance sweep emails an active partner when a balance becomes overdue and
+repeats the reminder at most once every seven days while it remains overdue.
+Concurrent sweeps claim the reminder atomically, and a failed email releases
+the claim so the next sweep can retry safely.
 
 ## Booking settlement
 
@@ -196,7 +201,10 @@ successful and confirms the associated booking. Five-second polling is a
 browser fallback, while `ProviderEvent` prevents webhook replay. Existing
 hosted Checkout Sessions remain readable and refundable during rollout.
 
-Point a cron at the cleanup endpoint:
+Vercel calls the cleanup endpoint daily at 00:10 UTC (08:10 Asia/Manila), as
+configured in `vercel.json`. Set `CRON_SECRET` in the production Vercel project
+to a random value of at least 16 characters. For an additional external or
+manual run, use `BOOKING_SWEEP_SECRET`:
 
 ```bash
 curl -X POST \

@@ -22,6 +22,10 @@ import {
   type PartnerBookingNotificationEmailContentInput,
   type PlayerBookingConfirmedEmailContentInput,
 } from "@/lib/booking-notification-email";
+import {
+  serviceFeeOverdueEmailContent,
+  type ServiceFeeOverdueEmailContentInput,
+} from "@/lib/service-fee-notification-email";
 
 type PasswordResetEmailInput = {
   to: string;
@@ -65,6 +69,11 @@ type PlayerBookingConfirmedEmailInput =
     to: string;
     idempotencyKey: string;
   };
+
+type ServiceFeeOverdueEmailInput = ServiceFeeOverdueEmailContentInput & {
+  to: string;
+  idempotencyKey: string;
+};
 
 type DeliverEmailInput = {
   to: string;
@@ -231,5 +240,20 @@ export async function sendPlayerBookingConfirmedEmail(
     idempotencyKey: input.idempotencyKey,
     category: "player-booking-confirmed",
     description: "Player booking-confirmation email delivery",
+  });
+}
+
+export async function sendServiceFeeOverdueEmail(
+  input: ServiceFeeOverdueEmailInput
+): Promise<void> {
+  const content = serviceFeeOverdueEmailContent(input);
+  await deliverEmail({
+    to: input.to,
+    subject: content.subject,
+    html: content.html,
+    text: content.text,
+    idempotencyKey: input.idempotencyKey,
+    category: "partner-service-fee-overdue",
+    description: "Service-fee overdue email delivery",
   });
 }

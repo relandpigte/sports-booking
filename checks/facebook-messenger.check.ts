@@ -19,6 +19,7 @@ const links: FacebookReplyLinks = {
   hubs: "https://www.bunal.club/hubs",
   events: "https://www.bunal.club/events",
   partnerRegistration: "https://www.bunal.club/register/partner",
+  partnerDashboard: "https://www.bunal.club/dashboard/partner",
   bookings: "https://www.bunal.club/dashboard/bookings",
   supportEmail: "support@bunal.club",
 };
@@ -111,10 +112,25 @@ function check() {
     links
   );
   ok(
-    "pricing questions distinguish free account access from booking charges",
+    "pricing questions distinguish free venue creation from booking charges",
     pricingReply.category === "pricing" &&
-      pricingReply.text.includes("free to browse") &&
-      pricingReply.text.includes("fees are itemized before")
+      pricingReply.text.includes("Creating and listing your venue") &&
+      pricingReply.text.includes("no setup or subscription fee") &&
+      pricingReply.text.includes("fees are shown clearly before payment")
+  );
+  const bookingManagementReply = facebookReplyForMessage(
+    {
+      text: "Can you help me manage bookings and scheduling?",
+      hasAttachments: false,
+    },
+    links
+  );
+  ok(
+    "booking management questions explain partner and player workflows",
+    bookingManagementReply.category === "booking-management" &&
+      bookingManagementReply.text.includes(links.partnerDashboard) &&
+      bookingManagementReply.text.includes(links.bookings) &&
+      bookingManagementReply.text.includes("maintain court schedules")
   );
   const locationReply = facebookReplyForMessage(
     { text: "Where is the court located?", hasAttachments: false },
@@ -124,7 +140,8 @@ function check() {
     "location questions lead to venue-specific addresses and maps",
     locationReply.category === "location" &&
       locationReply.text.includes(links.hubs) &&
-      locationReply.text.includes("map location")
+      locationReply.text.includes("don't have a single court location") &&
+      locationReply.text.includes("complete address, map")
   );
   ok(
     "receipt attachments are directed to the authenticated booking page",

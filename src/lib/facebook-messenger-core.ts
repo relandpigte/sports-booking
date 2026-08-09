@@ -4,6 +4,7 @@ export const FACEBOOK_MESSENGER_PROVIDER = "facebook-messenger";
 
 export type FacebookReplyCategory =
   | "booking"
+  | "booking-management"
   | "events"
   | "location"
   | "partner"
@@ -24,6 +25,7 @@ export type FacebookReplyLinks = {
   hubs: string;
   events: string;
   partnerRegistration: string;
+  partnerDashboard: string;
   bookings: string;
   supportEmail: string;
 };
@@ -215,6 +217,22 @@ export function facebookReplyForMessage(
   }
   if (
     includesAny(text, [
+      "manage booking",
+      "booking management",
+      "manage schedule",
+      "manage my schedule",
+      "court schedule",
+      "booking and scheduling",
+    ])
+  ) {
+    return {
+      category: "booking-management",
+      text:
+        `Yes. Venue partners can manage bookings, review payments, confirm or cancel reservations, and maintain court schedules from the partner dashboard: ${links.partnerDashboard}. Players can view and manage their reservations under My Bookings: ${links.bookings}`,
+    };
+  }
+  if (
+    includesAny(text, [
       "refund",
       "cancel booking",
       "cancel my booking",
@@ -235,7 +253,7 @@ export function facebookReplyForMessage(
     return {
       category: "pricing",
       text:
-        "Bunal.club is free to browse and create a player account. Court and event prices vary by venue, and any applicable service or payment-processing fees are itemized before you confirm payment.",
+        "Creating and listing your venue on Bunal.club is free—there is no setup or subscription fee. Court and event prices are set by each venue, and any applicable booking service or payment-processing fees are shown clearly before payment.",
     };
   }
   if (
@@ -273,7 +291,7 @@ export function facebookReplyForMessage(
     return {
       category: "location",
       text:
-        `Looking for a court near you? Browse Bunal.club venues here: ${links.hubs}. Each venue page shows its complete address, map location, available courts, rates, and live booking availability.`,
+        `Bunal.club is an online venue-booking platform, so we don't have a single court location. Browse nearby venues here: ${links.hubs}. Each venue page includes its complete address, map, court details, rates, and live availability.`,
     };
   }
   if (

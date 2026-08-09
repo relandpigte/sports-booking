@@ -56,6 +56,7 @@ function replyLinks(): FacebookReplyLinks {
     hubs: appUrl("/hubs"),
     events: appUrl("/events"),
     partnerRegistration: appUrl("/register/partner"),
+    partnerDashboard: appUrl("/dashboard/partner"),
     bookings: appUrl("/dashboard/bookings"),
     supportEmail: "support@bunal.club",
   };

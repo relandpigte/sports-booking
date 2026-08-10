@@ -1,15 +1,31 @@
 "use client";
 
-import type { FormEvent } from "react";
-import { deleteUserAction } from "@/lib/admin-actions";
+import { useActionState, useEffect, type FormEvent } from "react";
+import {
+  deleteUserAction,
+  type DeleteUserState,
+} from "@/lib/admin-actions";
+
+const initialState: DeleteUserState = {};
 
 export function DeleteUserButton({
   userId,
   name,
+  blockedReason,
 }: {
   userId: string;
   name: string;
+  blockedReason?: string | null;
 }) {
+  const [state, action, pending] = useActionState(
+    deleteUserAction,
+    initialState
+  );
+
+  useEffect(() => {
+    if (state.message) window.alert(state.message);
+  }, [state.message]);
+
   function confirmDelete(e: FormEvent<HTMLFormElement>) {
     if (!window.confirm(`Delete ${name}? This cannot be undone.`)) {
       e.preventDefault();
@@ -17,13 +33,15 @@ export function DeleteUserButton({
   }
 
   return (
-    <form action={deleteUserAction} onSubmit={confirmDelete}>
+    <form action={action} onSubmit={confirmDelete}>
       <input type="hidden" name="userId" value={userId} />
       <button
         type="submit"
-        className="rounded-md px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50"
+        disabled={pending || Boolean(blockedReason)}
+        title={blockedReason ?? undefined}
+        className="rounded-md px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent"
       >
-        Delete
+        {pending ? "Deleting…" : "Delete"}
       </button>
     </form>
   );

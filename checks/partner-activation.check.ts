@@ -165,15 +165,32 @@ async function check() {
         verifiedHub.verified === true
     );
 
-    await prisma.user.update({
+    const deactivation = new FormData();
+    deactivation.set("userId", partner.id);
+    deactivation.set("active", "false");
+    await setPartnerActiveAction(deactivation);
+    const deactivated = await prisma.user.findUnique({
       where: { id: partner.id },
-      data: {
-        partnerStatus: "PENDING",
-        partnerActivatedAt: null,
-        partnerActivatedById: null,
-      },
+      select: { partnerStatus: true },
     });
-    ok("deactivated partner is hidden again", !(await visible()));
+    ok(
+      "deactivation has a distinct status and hides the partner",
+      deactivated?.partnerStatus === "DEACTIVATED" && !(await visible())
+    );
+    ok(
+      "direct hub view identifies a deactivated owner",
+      (await getPublicHub(partner.hubs[0].id))?.blockedBy === "inactive"
+    );
+
+    await setPartnerActiveAction(activation);
+    const reactivated = await prisma.user.findUnique({
+      where: { id: partner.id },
+      select: { partnerStatus: true },
+    });
+    ok(
+      "a deactivated partner can be reactivated without another approval email",
+      reactivated?.partnerStatus === "ACTIVE" && requests.length === 1
+    );
   } finally {
     globalThis.fetch = originalFetch;
     if (originalApiKey === undefined) delete process.env.RESEND_API_KEY;

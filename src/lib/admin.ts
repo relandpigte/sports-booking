@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { PartnerStatus, Role } from "@prisma/client";
+import type { Prisma, Role } from "@prisma/client";
 import { redirect } from "next/navigation";
 
 import { prisma } from "@/lib/db";
@@ -32,26 +32,60 @@ const userListSelect = {
   lastLoginAt: true,
   loginCount: true,
   createdAt: true,
+  partnerGateway: { select: { id: true } },
+  _count: {
+    select: {
+      hubs: true,
+      bookings: true,
+      bookingPayments: true,
+      venuePayments: true,
+      eventRegistrations: true,
+      organizerEventGuests: true,
+      manualPaymentMethods: true,
+      serviceFeeEntries: true,
+      serviceFeeSettlements: true,
+    },
+  },
 } as const;
 
-export type AdminUser = {
-  id: string;
-  name: string | null;
-  playerName: string | null;
-  email: string;
-  phone: string | null;
-  facebookPage: string | null;
-  image: string | null;
-  role: Role;
-  partnerStatus: PartnerStatus | null;
-  partnerActivatedAt: Date | null;
-  partnerActivatedById: string | null;
-  skillLevel: string;
-  privateProfile: boolean;
-  lastLoginAt: Date | null;
-  loginCount: number;
-  createdAt: Date;
+type AdminUserRecord = Prisma.UserGetPayload<{
+  select: typeof userListSelect;
+}>;
+
+export type AdminUser = Omit<AdminUserRecord, "partnerGateway" | "_count"> & {
+  deleteBlockedReason: string | null;
 };
+
+function mapAdminUser(user: AdminUserRecord): AdminUser {
+  const { partnerGateway, _count, ...safeUser } = user;
+  if (user.partnerStatus === "ACTIVE") {
+    return {
+      ...safeUser,
+      deleteBlockedReason: "Deactivate this partner before deleting the account.",
+    };
+  }
+  const hasPartnerOwnedHistory =
+    partnerGateway !== null ||
+    _count.hubs > 0 ||
+    _count.venuePayments > 0 ||
+    _count.organizerEventGuests > 0 ||
+    _count.manualPaymentMethods > 0 ||
+    _count.serviceFeeEntries > 0 ||
+    _count.serviceFeeSettlements > 0;
+  const hasPartnerAccountHistory =
+    hasPartnerOwnedHistory ||
+    _count.bookings > 0 ||
+    _count.bookingPayments > 0 ||
+    _count.eventRegistrations > 0;
+  return {
+    ...safeUser,
+    deleteBlockedReason:
+      hasPartnerOwnedHistory ||
+      (user.role === "PARTNER" && hasPartnerAccountHistory)
+      ? "This partner has venue, booking, payment, or settlement history and cannot be permanently deleted. Keep the account deactivated instead."
+      : null,
+  };
+}
 
 export const ADMIN_USERS_PAGE_SIZE = 20;
 
@@ -88,13 +122,14 @@ export async function listUsers(opts: {
   const pageCount = Math.max(1, Math.ceil(total / ADMIN_USERS_PAGE_SIZE));
   const page = Math.min(Math.max(1, opts.page), pageCount);
 
-  const items = await prisma.user.findMany({
+  const rows = await prisma.user.findMany({
     where,
     orderBy: { createdAt: "desc" },
     skip: (page - 1) * ADMIN_USERS_PAGE_SIZE,
     take: ADMIN_USERS_PAGE_SIZE,
     select: userListSelect,
   });
+  const items = rows.map(mapAdminUser);
 
   return { items, page, pageCount, pageSize: ADMIN_USERS_PAGE_SIZE, total };
 }
@@ -122,7 +157,11 @@ export async function pendingPartnerCount(): Promise<number> {
 
 export async function getUserById(id: string): Promise<AdminUser | null> {
   await requireAdmin();
-  return prisma.user.findUnique({ where: { id }, select: userListSelect });
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: userListSelect,
+  });
+  return user ? mapAdminUser(user) : null;
 }
 
 export async function listPartnerAssistanceAudit(partnerId: string) {

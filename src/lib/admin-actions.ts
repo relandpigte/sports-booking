@@ -28,6 +28,10 @@ export type AdminFormState = {
   values?: Record<string, string>;
 };
 
+export type DeleteUserState = {
+  message?: string;
+};
+
 function isRole(value: string): value is Role {
   return (ROLE_VALUES as readonly string[]).includes(value);
 }
@@ -275,6 +279,7 @@ export async function setPartnerActiveAction(formData: FormData) {
     },
   });
   if (!partner) return;
+  const wasDeactivated = partner.partnerStatus === "DEACTIVATED";
 
   if (active) {
     const firstHub = await prisma.hub.findFirst({
@@ -291,7 +296,9 @@ export async function setPartnerActiveAction(formData: FormData) {
       },
     });
     const complete =
-      (partner.partnerStatus === "PENDING" || partner.partnerStatus === null) &&
+      (partner.partnerStatus === "PENDING" ||
+        partner.partnerStatus === "DEACTIVATED" ||
+        partner.partnerStatus === null) &&
       firstHub &&
       PartnerApplicationSchema.safeParse({
         fullName: partner.playerName ?? "",
@@ -316,6 +323,7 @@ export async function setPartnerActiveAction(formData: FormData) {
         ? {
             OR: [
               { partnerStatus: "PENDING" as const },
+              { partnerStatus: "DEACTIVATED" as const },
               { partnerStatus: null },
             ],
           }
@@ -328,13 +336,18 @@ export async function setPartnerActiveAction(formData: FormData) {
           partnerActivatedById: admin.id,
         }
       : {
-          partnerStatus: "PENDING",
+          partnerStatus: "DEACTIVATED",
           partnerActivatedAt: null,
           partnerActivatedById: null,
         },
   });
 
-  if (active && transition.count === 1 && emailDeliveryConfigured()) {
+  if (
+    active &&
+    !wasDeactivated &&
+    transition.count === 1 &&
+    emailDeliveryConfigured()
+  ) {
     try {
       await sendPartnerApprovalEmail({
         to: partner.email,
@@ -358,15 +371,97 @@ export async function setPartnerActiveAction(formData: FormData) {
   revalidatePath("/hubs");
 }
 
-export async function deleteUserAction(formData: FormData) {
+export async function deleteUserAction(
+  _prev: DeleteUserState,
+  formData: FormData
+): Promise<DeleteUserState> {
   const admin = await requireAdmin();
-  if (await isPartnerImpersonationActive()) return;
+  if (await isPartnerImpersonationActive()) {
+    return {
+      message: "Exit assisted partner access before deleting an account.",
+    };
+  }
   const id = String(formData.get("userId") ?? "");
 
-  if (!id) return;
+  if (!id) return { message: "User not found." };
   // Don't let an admin delete their own account.
-  if (id === admin?.id) return;
+  if (id === admin.id) {
+    return { message: "You cannot delete your own administrator account." };
+  }
 
-  await prisma.user.delete({ where: { id } });
+  const result = await prisma.$transaction(
+    async (tx) => {
+      const user = await tx.user.findUnique({
+        where: { id },
+        select: {
+          role: true,
+          partnerStatus: true,
+          partnerGateway: { select: { id: true } },
+          _count: {
+            select: {
+              hubs: true,
+              bookings: true,
+              bookingPayments: true,
+              venuePayments: true,
+              eventRegistrations: true,
+              organizerEventGuests: true,
+              manualPaymentMethods: true,
+              serviceFeeEntries: true,
+              serviceFeeSettlements: true,
+            },
+          },
+        },
+      });
+      if (!user) return { message: "User not found." };
+
+      if (user.role === "PARTNER") {
+        if (user.partnerStatus === "ACTIVE") {
+          return {
+            message: "Deactivate this partner before deleting the account.",
+          };
+        }
+        const hasPartnerOwnedHistory =
+          user.partnerGateway !== null ||
+          user._count.hubs > 0 ||
+          user._count.venuePayments > 0 ||
+          user._count.organizerEventGuests > 0 ||
+          user._count.manualPaymentMethods > 0 ||
+          user._count.serviceFeeEntries > 0 ||
+          user._count.serviceFeeSettlements > 0;
+        const hasPartnerAccountHistory =
+          hasPartnerOwnedHistory ||
+          user._count.bookings > 0 ||
+          user._count.bookingPayments > 0 ||
+          user._count.eventRegistrations > 0;
+        if (hasPartnerOwnedHistory || hasPartnerAccountHistory) {
+          return {
+            message:
+              "This partner has venue, booking, payment, or settlement history and cannot be permanently deleted. Keep the account deactivated instead.",
+          };
+        }
+      } else {
+        const hasPartnerOwnedHistory =
+          user.partnerGateway !== null ||
+          user._count.hubs > 0 ||
+          user._count.venuePayments > 0 ||
+          user._count.organizerEventGuests > 0 ||
+          user._count.manualPaymentMethods > 0 ||
+          user._count.serviceFeeEntries > 0 ||
+          user._count.serviceFeeSettlements > 0;
+        if (hasPartnerOwnedHistory) {
+          return {
+            message:
+              "This account still owns partner venue or financial history and cannot be permanently deleted.",
+          };
+        }
+      }
+
+      await tx.user.delete({ where: { id } });
+      return {};
+    },
+    { isolationLevel: "Serializable" }
+  );
+  if (result.message) return result;
   revalidatePath("/users");
+  return {};
 }

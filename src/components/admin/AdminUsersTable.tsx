@@ -270,6 +270,8 @@ export function AdminUsersTable({
                           tone={
                             user.partnerStatus === "ACTIVE"
                               ? "success"
+                              : user.partnerStatus === "DEACTIVATED"
+                                ? "danger"
                               : user.partnerStatus === "DRAFT"
                                 ? "neutral"
                                 : "warn"
@@ -277,6 +279,8 @@ export function AdminUsersTable({
                         >
                           {user.partnerStatus === "ACTIVE"
                             ? "Verified"
+                            : user.partnerStatus === "DEACTIVATED"
+                              ? "Deactivated"
                             : user.partnerStatus === "DRAFT"
                               ? "Draft"
                               : "Pending review"}
@@ -335,6 +339,7 @@ export function AdminUsersTable({
                         <DeleteUserButton
                           userId={user.id}
                           name={user.name ?? user.email}
+                          blockedReason={user.deleteBlockedReason}
                         />
                       )}
                     </div>

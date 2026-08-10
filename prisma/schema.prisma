@@ -22,6 +22,7 @@ enum PartnerStatus {
   DRAFT
   PENDING
   ACTIVE
+  DEACTIVATED
 }
 
 enum PartnerPaymentMode {
@@ -75,6 +76,8 @@ model User {
   mfaSecretEnc            String?            @db.Text
   // Only meaningful when role=PARTNER. Public signups start DRAFT, move to
   // PENDING after venue onboarding, then become ACTIVE after admin review.
+  // DEACTIVATED is an explicit operational stop; it must not be conflated with
+  // an application that is still awaiting its first review.
   partnerStatus           PartnerStatus?
   // One checkout policy per partner account, shared by every hub it owns.
   partnerPaymentMode      PartnerPaymentMode @default(AUTOMATIC)

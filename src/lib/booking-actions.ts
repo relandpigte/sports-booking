@@ -404,7 +404,12 @@ export async function cancelHubBookingAction(
     viewer.partnerStatus !== "ACTIVE" &&
     !(await isPartnerImpersonationActive())
   ) {
-    return { message: "Your partner account is waiting for admin verification." };
+    return {
+      message:
+        viewer.partnerStatus === "DEACTIVATED"
+          ? "Your partner account is deactivated. Contact Bunal.club support to request reactivation."
+          : "Your partner account is waiting for admin verification.",
+    };
   }
 
   const parsed = PartnerCancelBookingSchema.safeParse({
@@ -505,7 +510,12 @@ export async function refundBookingAction(
     viewer.partnerStatus !== "ACTIVE" &&
     !(await isPartnerImpersonationActive())
   ) {
-    return { message: "Your partner account is waiting for admin verification." };
+    return {
+      message:
+        viewer.partnerStatus === "DEACTIVATED"
+          ? "Your partner account is deactivated. Contact Bunal.club support to request reactivation."
+          : "Your partner account is waiting for admin verification.",
+    };
   }
 
   const parsed = RefundBookingSchema.safeParse({
@@ -565,7 +575,12 @@ export async function rescheduleHubBookingAction(
     viewer.partnerStatus !== "ACTIVE" &&
     !(await isPartnerImpersonationActive())
   ) {
-    return { message: "Your partner account is waiting for admin verification." };
+    return {
+      message:
+        viewer.partnerStatus === "DEACTIVATED"
+          ? "Your partner account is deactivated. Contact Bunal.club support to request reactivation."
+          : "Your partner account is waiting for admin verification.",
+    };
   }
 
   const parsed = RescheduleBookingSchema.safeParse({

@@ -64,6 +64,85 @@ async function check() {
     "name search is applied on the server",
     searched.total === 1 && searched.items[0]?.email === ADMIN_EMAIL
   );
+
+  const emptyPartner = await prisma.user.create({
+    data: {
+      name: "Empty Partner",
+      email: `${EMAIL_PREFIX}empty-partner@example.test`,
+      role: "PARTNER",
+      partnerStatus: "ACTIVE",
+    },
+    select: { id: true },
+  });
+  const establishedPartner = await prisma.user.create({
+    data: {
+      name: "Established Partner",
+      email: `${EMAIL_PREFIX}established-partner@example.test`,
+      role: "PARTNER",
+      partnerStatus: "ACTIVE",
+      hubs: {
+        create: {
+          name: "Protected Venue",
+          coverPhotos: [],
+          games: ["pickleball"],
+        },
+      },
+    },
+    select: { id: true },
+  });
+  const { deleteUserAction, setPartnerActiveAction } =
+    await import("@/lib/admin-actions");
+
+  const activeDelete = new FormData();
+  activeDelete.set("userId", emptyPartner.id);
+  const activeDeleteResult = await deleteUserAction({}, activeDelete);
+  ok(
+    "an active partner must be deactivated before deletion",
+    activeDeleteResult.message?.includes("Deactivate") === true &&
+      (await prisma.user.count({ where: { id: emptyPartner.id } })) === 1
+  );
+
+  for (const userId of [emptyPartner.id, establishedPartner.id]) {
+    const deactivate = new FormData();
+    deactivate.set("userId", userId);
+    deactivate.set("active", "false");
+    await setPartnerActiveAction(deactivate);
+  }
+  const deactivated = await prisma.user.findMany({
+    where: { id: { in: [emptyPartner.id, establishedPartner.id] } },
+    select: { partnerStatus: true },
+  });
+  ok(
+    "deactivation uses a distinct partner status",
+    deactivated.every((partner) => partner.partnerStatus === "DEACTIVATED")
+  );
+
+  const emptyDelete = new FormData();
+  emptyDelete.set("userId", emptyPartner.id);
+  const emptyDeleteResult = await deleteUserAction({}, emptyDelete);
+  ok(
+    "a deactivated partner with no domain history can be deleted",
+    emptyDeleteResult.message === undefined &&
+      (await prisma.user.count({ where: { id: emptyPartner.id } })) === 0
+  );
+
+  const protectedDelete = new FormData();
+  protectedDelete.set("userId", establishedPartner.id);
+  const protectedDeleteResult = await deleteUserAction({}, protectedDelete);
+  ok(
+    "venue history prevents permanent partner deletion",
+    protectedDeleteResult.message?.includes("history") === true &&
+      (await prisma.user.count({ where: { id: establishedPartner.id } })) === 1
+  );
+  const protectedList = await listUsers({
+    query: `${EMAIL_PREFIX}established-partner`,
+    role: "PARTNER",
+    page: 1,
+  });
+  ok(
+    "the admin list explains why protected partners cannot be deleted",
+    protectedList.items[0]?.deleteBlockedReason?.includes("history") === true
+  );
 }
 
 void run(check, async () => {

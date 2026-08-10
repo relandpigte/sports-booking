@@ -10,6 +10,7 @@ export function PartnerActivationButton({
 }) {
   const active = status === "ACTIVE";
   const disabled = status === "DRAFT";
+  const deactivated = status === "DEACTIVATED";
   return (
     <form action={setPartnerActiveAction}>
       <input type="hidden" name="userId" value={userId} />
@@ -26,7 +27,13 @@ export function PartnerActivationButton({
             : "bg-primary-soft text-primary hover:bg-primary/15"
         }`}
       >
-        {disabled ? "Incomplete" : active ? "Deactivate" : "Activate"}
+        {disabled
+          ? "Incomplete"
+          : active
+            ? "Deactivate"
+            : deactivated
+              ? "Reactivate"
+              : "Activate"}
       </button>
     </form>
   );

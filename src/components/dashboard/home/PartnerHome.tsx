@@ -27,6 +27,7 @@ export function PartnerHome({
 }) {
   const active = partnerStatus === "ACTIVE";
   const draft = partnerStatus === "DRAFT";
+  const deactivated = partnerStatus === "DEACTIVATED";
   const operational = canOperate ?? active;
   const shortcuts: {
     label: string;
@@ -80,10 +81,20 @@ export function PartnerHome({
           <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-navy shadow-sm shadow-navy/5">
             <span
               className={`h-2 w-2 rounded-full ${
-                active ? "bg-primary" : "bg-amber-500"
+                active
+                  ? "bg-primary"
+                  : deactivated
+                    ? "bg-red-500"
+                    : "bg-amber-500"
               }`}
             />
-            {active ? "Active partner" : draft ? "Draft" : "Under review"}
+            {active
+              ? "Active partner"
+              : deactivated
+                ? "Deactivated"
+                : draft
+                  ? "Draft"
+                  : "Under review"}
           </span>
         }
       />
@@ -115,7 +126,7 @@ export function PartnerHome({
         </section>
       )}
 
-      {!active && !draft && (
+      {!active && !draft && !deactivated && (
         <section className="mt-8 rounded-2xl border border-amber-200 bg-white p-6 shadow-sm shadow-navy/5">
           <div className="flex gap-4">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
@@ -129,6 +140,26 @@ export function PartnerHome({
                 The owner will verify your business details before activating
                 venue access. You can update your account information while
                 you wait.
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {deactivated && (
+        <section className="mt-8 rounded-2xl border border-red-200 bg-white p-6 shadow-sm shadow-navy/5">
+          <div className="flex gap-4">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-700">
+              <DashboardIcon name="alert" />
+            </span>
+            <div>
+              <h2 className="font-bold text-navy">
+                Your partner account is deactivated
+              </h2>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
+                Your venues are hidden and new bookings are paused. Contact
+                Bunal.club support if you believe this was a mistake or want
+                to request reactivation.
               </p>
             </div>
           </div>

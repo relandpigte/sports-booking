@@ -130,7 +130,9 @@ export function PartnerServiceFeeBreakdown({
                       </p>
                       {partner.partnerStatus !== "ACTIVE" && (
                         <Badge tone="neutral" className="mt-1.5">
-                          Pending activation
+                          {partner.partnerStatus === "DEACTIVATED"
+                            ? "Deactivated"
+                            : "Pending activation"}
                         </Badge>
                       )}
                     </td>

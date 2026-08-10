@@ -376,7 +376,13 @@ export type PublicHub = Hub & {
   paymentMode: "AUTOMATIC" | "MANUAL";
   // Why it isn't bookable, so the page can say something true rather than a
   // vague "not right now".
-  blockedBy: "approval" | "gateway" | "setup" | "settlement" | null;
+  blockedBy:
+    | "approval"
+    | "inactive"
+    | "gateway"
+    | "setup"
+    | "settlement"
+    | null;
   ownerId: string;
 };
 
@@ -393,6 +399,7 @@ export const getPublicHub = cache(
     if (!row) return null;
     const { owner, ownerId, ...rest } = row;
     const approved = owner.partnerStatus === "ACTIVE";
+    const inactive = owner.partnerStatus === "DEACTIVATED";
     const connected = owner.partnerGateway?.disconnectedAt === null;
     const manualReady = owner.manualPaymentMethods.length > 0;
     const paymentReady =
@@ -413,15 +420,17 @@ export const getPublicHub = cache(
       verified: bookable,
       paymentRequired: bookable,
       paymentMode: owner.partnerPaymentMode,
-      blockedBy: !approved
-        ? "approval"
-        : !paymentReady
-          ? "gateway"
-          : !setupComplete
-            ? "setup"
-            : overdue
-              ? "settlement"
-              : null,
+      blockedBy: inactive
+        ? "inactive"
+        : !approved
+          ? "approval"
+          : !paymentReady
+            ? "gateway"
+            : !setupComplete
+              ? "setup"
+              : overdue
+                ? "settlement"
+                : null,
       ownerId,
     };
   }

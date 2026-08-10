@@ -628,7 +628,9 @@ export default async function PublicHubPage({
                       ? "Add at least one court, its rate, and operating hours before publishing your hub."
                       : hub.blockedBy === "settlement"
                         ? "New bookings are paused because a service-fee settlement is overdue."
-                        : "This partner account is waiting for admin verification."}
+                        : hub.blockedBy === "inactive"
+                          ? "This partner account is deactivated. Its venues are hidden and new bookings are paused."
+                          : "This partner account is waiting for admin verification."}
                 </span>{" "}
                 {hub.blockedBy === "gateway" && (
                   <Link

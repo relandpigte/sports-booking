@@ -16,7 +16,10 @@ export type ServiceFeeCheckoutResult =
   | { status: "paid" }
   | { status: "none" }
   | { status: "pending" }
+  | { status: "under-review" }
   | { status: "failed"; message: string };
+
+export const UNINITIALIZED_SETTLEMENT_TIMEOUT_MINUTES = 30;
 
 export async function startServiceFeeCheckout(args: {
   partnerId: string;
@@ -32,6 +35,11 @@ export async function startServiceFeeCheckout(args: {
   try {
     settlement = await prisma.$transaction(
       async (tx) => {
+        const submitted = await tx.serviceFeeSettlement.count({
+          where: { partnerId: args.partnerId, status: "SUBMITTED" },
+        });
+        if (submitted > 0) throw new SettlementUnderReviewError();
+
         const existing = await tx.serviceFeeSettlement.findFirst({
           where: {
             partnerId: args.partnerId,
@@ -74,6 +82,9 @@ export async function startServiceFeeCheckout(args: {
     );
   } catch (error) {
     if (error instanceof NoServiceFeeBalanceError) return { status: "none" };
+    if (error instanceof SettlementUnderReviewError) {
+      return { status: "under-review" };
+    }
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2034"
@@ -127,6 +138,7 @@ export async function startServiceFeeCheckout(args: {
 }
 
 class NoServiceFeeBalanceError extends Error {}
+class SettlementUnderReviewError extends Error {}
 
 async function markServiceFeeSettlementPaid(args: {
   providerPaymentId: string;
@@ -254,6 +266,79 @@ export async function pollLatestServiceFeeCheckout(
     settlementId: latest.id,
     partnerId,
   });
+}
+
+export type ServiceFeeCheckoutSweepResult = {
+  paid: number;
+  rejected: number;
+  pending: number;
+  failed: number;
+};
+
+// Reconcile abandoned settlement checkouts independently of a partner
+// reopening the Payments page. Rows created before a provider session exists
+// remain retryable briefly, then stop blocking manual settlement and platform
+// gateway maintenance. Provider-backed rows use PayMongo as the authority.
+export async function reconcileServiceFeeCheckouts(
+  now: Date = new Date()
+): Promise<ServiceFeeCheckoutSweepResult> {
+  const result: ServiceFeeCheckoutSweepResult = {
+    paid: 0,
+    rejected: 0,
+    pending: 0,
+    failed: 0,
+  };
+  const rows = await prisma.serviceFeeSettlement.findMany({
+    where: { provider: "paymongo", status: "AWAITING_PAYMENT" },
+    orderBy: { createdAt: "asc" },
+    take: 100,
+    select: {
+      id: true,
+      partnerId: true,
+      providerPaymentId: true,
+      createdAt: true,
+    },
+  });
+  const uninitializedCutoff = new Date(
+    now.getTime() - UNINITIALIZED_SETTLEMENT_TIMEOUT_MINUTES * 60_000
+  );
+
+  for (const row of rows) {
+    if (!row.providerPaymentId) {
+      if (row.createdAt > uninitializedCutoff) {
+        result.pending++;
+        continue;
+      }
+      const rejected = await prisma.serviceFeeSettlement.updateMany({
+        where: { id: row.id, status: "AWAITING_PAYMENT" },
+        data: {
+          status: "REJECTED",
+          reviewNote:
+            "PayMongo checkout setup timed out before a payment session was created.",
+        },
+      });
+      result.rejected += rejected.count;
+      continue;
+    }
+
+    try {
+      const outcome = await pollServiceFeeCheckout({
+        settlementId: row.id,
+        partnerId: row.partnerId,
+      });
+      if (outcome.status === "paid") result.paid++;
+      else if (outcome.status === "failed") result.rejected++;
+      else result.pending++;
+    } catch (error) {
+      result.failed++;
+      console.error(
+        "Service-fee checkout reconciliation failed:",
+        error instanceof Error ? error.message : "Unknown provider error"
+      );
+    }
+  }
+
+  return result;
 }
 
 export async function handleServiceFeeProviderEvent(

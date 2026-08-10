@@ -118,7 +118,7 @@ async function check() {
   const initial = await calculateServiceFeeBalance(prisma, partner.id, NOW);
   ok("all service fees are outstanding", initial.amountDue === 45);
   ok("only the old weekly balance is overdue", initial.overdueAmount === 30);
-  ok("an overdue balance blocks new paid bookings", initial.blocked);
+  ok("an overdue balance blocks after the enforcement grace", initial.blocked);
   ok(
     "the standing marks an overdue partner",
     serviceFeeStanding(initial) === "OVERDUE"
@@ -132,6 +132,18 @@ async function check() {
     "an outstanding balance before its deadline is due soon",
     serviceFeeStanding(beforeDeadline) === "DUE_SOON"
   );
+  const enforcementGrace = await calculateServiceFeeBalance(
+    prisma,
+    partner.id,
+    new Date("2026-07-21T04:00:00Z")
+  );
+  ok(
+    "an overdue balance receives three days before booking enforcement",
+    enforcementGrace.overdueAmount === 30 &&
+      enforcementGrace.inEnforcementGrace &&
+      !enforcementGrace.blocked &&
+      serviceFeeStanding(enforcementGrace) === "GRACE_PERIOD"
+  );
   stubRequestContext({ id: partner.id, email: EMAIL });
   const adminInitial = (
     await listAdminPartnerServiceFeeBreakdown(NOW)
@@ -144,8 +156,16 @@ async function check() {
   );
   const { listPublicHubs } = await import("@/lib/hubs");
   ok(
+    "the hub remains public during the three-day enforcement grace",
+    (await listPublicHubs({ now: new Date("2026-07-21T04:00:00Z") })).some(
+      (listed) => listed.id === partnerHub.id
+    )
+  );
+  ok(
     "an overdue partner's hub is hidden from the public directory",
-    !(await listPublicHubs()).some((listed) => listed.id === partnerHub.id)
+    !(await listPublicHubs({ now: NOW })).some(
+      (listed) => listed.id === partnerHub.id
+    )
   );
 
   const settlement = await prisma.serviceFeeSettlement.create({
@@ -160,24 +180,26 @@ async function check() {
     select: { id: true },
   });
   const submitted = await calculateServiceFeeBalance(prisma, partner.id, NOW);
-  ok("submitted proof reserves its amount", submitted.pending === 30);
-  ok("review time does not block bookings", !submitted.blocked);
-  ok("newer fees remain due", submitted.amountDue === 15);
+  ok("submitted proof is tracked separately", submitted.pending === 30);
+  ok("unapproved proof does not reduce the balance", submitted.amountDue === 45);
+  ok("review time does not bypass an overdue booking block", submitted.blocked);
   ok(
-    "submitted proof is shown as under review",
-    serviceFeeStanding(submitted) === "UNDER_REVIEW"
+    "a blocked balance remains overdue while proof is reviewed",
+    serviceFeeStanding(submitted) === "OVERDUE"
   );
   const adminSubmitted = (
     await listAdminPartnerServiceFeeBreakdown(NOW)
   ).find((row) => row.partnerId === partner.id);
   ok(
     "the owner breakdown shows the same pending amount",
-    adminSubmitted?.standing === "UNDER_REVIEW" &&
+    adminSubmitted?.standing === "OVERDUE" &&
       adminSubmitted.balance.pending === submitted.pending
   );
   ok(
-    "submitted proof restores public visibility during review",
-    (await listPublicHubs()).some((listed) => listed.id === partnerHub.id)
+    "submitted proof cannot restore public visibility before approval",
+    !(await listPublicHubs({ now: NOW })).some(
+      (listed) => listed.id === partnerHub.id
+    )
   );
 
   await prisma.serviceFeeSettlement.update({
@@ -189,7 +211,9 @@ async function check() {
   ok("rejection restores the overdue gate", rejected.blocked);
   ok(
     "rejection hides the partner's hub again",
-    !(await listPublicHubs()).some((listed) => listed.id === partnerHub.id)
+    !(await listPublicHubs({ now: NOW })).some(
+      (listed) => listed.id === partnerHub.id
+    )
   );
 
   await prisma.serviceFeeSettlement.update({
@@ -220,7 +244,9 @@ async function check() {
   );
   ok(
     "a non-overdue balance keeps the hub publicly visible",
-    (await listPublicHubs()).some((listed) => listed.id === partnerHub.id)
+    (await listPublicHubs({ now: NOW })).some(
+      (listed) => listed.id === partnerHub.id
+    )
   );
 }
 

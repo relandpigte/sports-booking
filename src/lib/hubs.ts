@@ -150,7 +150,7 @@ export type ListedHub = Hub & {
 // stays discoverable as Coming soon. Overdue partners remain hidden until
 // their service-fee standing is current again.
 export async function listPublicHubs(
-  opts: { game?: Game } = {}
+  opts: { game?: Game; now?: Date } = {}
 ): Promise<ListedHub[]> {
   const rows = await prisma.hub.findMany({
     where: {
@@ -193,7 +193,7 @@ export async function listPublicHubs(
   const overdueByOwner = new Map(
     await Promise.all(
       paymentReadyOwnerIds.map(async (ownerId) =>
-        [ownerId, await isServiceFeeOverdue(ownerId)] as const
+        [ownerId, await isServiceFeeOverdue(ownerId, opts.now)] as const
       )
     )
   );

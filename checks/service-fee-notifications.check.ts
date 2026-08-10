@@ -99,34 +99,40 @@ async function check() {
     const sweep = (date: Date) =>
       notifyPartnersOfOverdueServiceFees(date, { partnerIds: [partner.id] });
 
+    const grace = await sweep(new Date("2026-07-21T04:00:00Z"));
     const first = await sweep(NOW);
     const duplicate = await sweep(NOW);
     const tooSoon = await sweep(addDaysTo(NOW, 6));
     const weekly = await sweep(addDaysTo(NOW, 8));
 
-    ok("the first overdue sweep sends one partner reminder", first.sent === 1);
+    ok(
+      "the first overdue sweep warns during the enforcement grace",
+      grace.sent === 1 &&
+        String(requests[0]?.body.html).includes("three-day enforcement grace")
+    );
+    ok("an unresolved balance is reminded after enforcement", first.sent === 1);
     ok(
       "repeat and early sweeps cannot resend the reminder",
-      duplicate.sent === 0 && tooSoon.sent === 0 && requests.length === 2
+      duplicate.sent === 0 && tooSoon.sent === 0 && requests.length === 3
     );
     ok("an unresolved balance receives a weekly reminder", weekly.sent === 1);
     ok(
       "the reminder contains the overdue amount and settlement action",
-      String(requests[0]?.body.html).includes("₱30.00") &&
-        String(requests[0]?.body.html).includes("/dashboard/payments") &&
-        JSON.stringify(requests[0]?.body.tags).includes(
+      String(requests[1]?.body.html).includes("₱30.00") &&
+        String(requests[1]?.body.html).includes("/dashboard/payments") &&
+        JSON.stringify(requests[1]?.body.tags).includes(
           "partner-service-fee-overdue"
         )
     );
     ok(
       "partner-provided names are escaped in reminder HTML",
-      String(requests[0]?.body.html).includes("Settlement &lt;Owner&gt;") &&
-        !String(requests[0]?.body.html).includes("Settlement <Owner>")
+      String(requests[1]?.body.html).includes("Settlement &lt;Owner&gt;") &&
+        !String(requests[1]?.body.html).includes("Settlement <Owner>")
     );
     ok(
       "weekly reminders use different stable idempotency periods",
-      requests[0]?.headers.get("Idempotency-Key") !==
-        requests[1]?.headers.get("Idempotency-Key")
+      requests[1]?.headers.get("Idempotency-Key") !==
+        requests[2]?.headers.get("Idempotency-Key")
     );
 
     failNext = true;
@@ -145,7 +151,7 @@ async function check() {
     );
     ok(
       "the next sweep retries a failed notification",
-      retried.sent === 1 && requests.length === 4
+      retried.sent === 1 && requests.length === 5
     );
 
     await prisma.serviceFeeSettlement.create({
@@ -161,7 +167,7 @@ async function check() {
     const covered = await sweep(addDaysTo(NOW, 24));
     ok(
       "submitted settlement proof stops overdue reminders",
-      covered.sent === 0 && requests.length === 4
+      covered.sent === 0 && requests.length === 5
     );
   } finally {
     globalThis.fetch = originalFetch;

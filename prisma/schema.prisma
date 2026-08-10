@@ -447,9 +447,10 @@ model BookingPayment {
   @@index([status, expiresAt])
 }
 
-// Immutable service-fee ledger. A successful booking adds a positive charge;
-// a later full refund adds an equal negative entry. The unique key makes both
-// webhook retries and return-leg races harmless.
+// Immutable service-fee ledger. A successful booking adds a positive charge,
+// and refunds retain that non-refundable charge. REFUND remains available only
+// for historical/manual corrections created under the former policy. The
+// unique key makes webhook retries and return-leg races harmless.
 model ServiceFeeEntry {
   id               String              @id @default(cuid())
   partnerId        String

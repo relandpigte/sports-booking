@@ -105,7 +105,9 @@ async function check() {
     handleServiceFeeProviderEvent,
     pollLatestServiceFeeCheckout,
     pollServiceFeeCheckout,
+    reconcileServiceFeeCheckouts,
     startServiceFeeCheckout,
+    UNINITIALIZED_SETTLEMENT_TIMEOUT_MINUTES,
   } = await import("@/lib/service-fee-payments");
   const { verifyPlatformPaymongoWebhook } =
     await import("@/lib/payments/paymongo-platform");
@@ -255,6 +257,61 @@ async function check() {
         partnerId: partner.id,
       })
     ).status === "paid"
+  );
+
+  await accrue(5);
+  const submitted = await prisma.serviceFeeSettlement.create({
+    data: {
+      partnerId: partner.id,
+      periodStart: new Date(),
+      periodEnd: new Date(),
+      amount: 5,
+      paymentReference: "UNDER-REVIEW",
+      receiptImage: "data:image/png;base64,YQ==",
+    },
+    select: { id: true },
+  });
+  ok(
+    "manual proof under review prevents a parallel PayMongo settlement",
+    (
+      await startServiceFeeCheckout({
+        partnerId: partner.id,
+        partnerName: partner.name!,
+      })
+    ).status === "under-review"
+  );
+  await prisma.serviceFeeSettlement.update({
+    where: { id: submitted.id },
+    data: { status: "PAID" },
+  });
+
+  await accrue(6);
+  const sweepNow = new Date();
+  const abandoned = await prisma.serviceFeeSettlement.create({
+    data: {
+      partnerId: partner.id,
+      periodStart: sweepNow,
+      periodEnd: sweepNow,
+      amount: 6,
+      status: "AWAITING_PAYMENT",
+      provider: "paymongo",
+      createdAt: new Date(
+        sweepNow.getTime() -
+          (UNINITIALIZED_SETTLEMENT_TIMEOUT_MINUTES + 1) * 60_000
+      ),
+    },
+    select: { id: true },
+  });
+  const reconciled = await reconcileServiceFeeCheckouts(sweepNow);
+  ok(
+    "the sweep rejects an abandoned checkout setup",
+    reconciled.rejected >= 1 &&
+      (
+        await prisma.serviceFeeSettlement.findUnique({
+          where: { id: abandoned.id },
+          select: { status: true },
+        })
+      )?.status === "REJECTED"
   );
 }
 

@@ -11,6 +11,7 @@ import { platformPaymongoConfigured } from "@/lib/payments/paymongo-platform";
 import { calculateServiceFeeBalance } from "@/lib/service-fees";
 import { startServiceFeeCheckout } from "@/lib/service-fee-payments";
 import { isPartnerImpersonationActive } from "@/lib/impersonation";
+import { consumeRateLimit } from "@/lib/rate-limit";
 
 export type ServiceFeeFormState = {
   errors?: Record<string, string>;
@@ -38,6 +39,17 @@ export async function submitServiceFeeSettlementAction(
   }
   const partner = await requireActivePartner();
   await requireRecentMfa("/dashboard/payments");
+  if (!(await consumeRateLimit({
+    namespace: "service-fee-settlement-submit",
+    subject: partner.id,
+    limit: 3,
+    windowSeconds: 24 * 60 * 60,
+  }))) {
+    return {
+      message:
+        "Too many settlement submissions. Wait before submitting another receipt.",
+    };
+  }
   const paymentReference = String(
     formData.get("paymentReference") ?? ""
   ).trim();
@@ -67,6 +79,10 @@ export async function submitServiceFeeSettlementAction(
           },
         });
         if (awaitingPaymongo > 0) throw new ActivePaymongoCheckoutError();
+        const submitted = await tx.serviceFeeSettlement.count({
+          where: { partnerId: partner.id, status: "SUBMITTED" },
+        });
+        if (submitted > 0) throw new SettlementUnderReviewError();
 
         const balance = await calculateServiceFeeBalance(tx, partner.id);
         if (balance.amountDue < 0.01) return null;
@@ -96,6 +112,12 @@ export async function submitServiceFeeSettlementAction(
           "A PayMongo checkout is already active. Finish or let it expire before submitting a manual transfer.",
       };
     }
+    if (error instanceof SettlementUnderReviewError) {
+      return {
+        message:
+          "A settlement receipt is already under review. Wait for the admin decision before submitting another.",
+      };
+    }
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2034"
@@ -108,11 +130,12 @@ export async function submitServiceFeeSettlementAction(
   revalidateSettlementSurfaces();
   return {
     success:
-      "Settlement submitted. New bookings stay active while the admin reviews it.",
+      "Settlement submitted for review. Any overdue booking restriction remains until the payment is approved.",
   };
 }
 
 class ActivePaymongoCheckoutError extends Error {}
+class SettlementUnderReviewError extends Error {}
 
 export async function startServiceFeeCheckoutAction(
   _prev: ServiceFeeFormState,
@@ -150,6 +173,11 @@ export async function startServiceFeeCheckoutAction(
       return {
         success:
           "Your PayMongo checkout is being prepared. Refresh and try again in a moment.",
+      };
+    case "under-review":
+      return {
+        message:
+          "A manual settlement receipt is already under review. Wait for the admin decision before starting another payment.",
       };
     case "failed":
       return { message: result.message };

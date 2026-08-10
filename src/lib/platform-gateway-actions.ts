@@ -19,6 +19,7 @@ import {
   paymongoRequest,
   registerPaymongoWebhook,
 } from "@/lib/payments/paymongo-core";
+import { reconcileServiceFeeCheckouts } from "@/lib/service-fee-payments";
 import { appUrl } from "@/lib/urls";
 import { ConnectPlatformGatewaySchema } from "@/lib/validation";
 import { firstErrors } from "@/lib/zod-errors";
@@ -209,6 +210,8 @@ export async function disconnectPlatformGatewayAction(
 ): Promise<PlatformGatewayFormState> {
   await requireAdmin();
   await requireRecentMfa("/dashboard/admin/payments");
+
+  await reconcileServiceFeeCheckouts();
 
   const active = await prisma.serviceFeeSettlement.count({
     where: { provider: "paymongo", status: "AWAITING_PAYMENT" },

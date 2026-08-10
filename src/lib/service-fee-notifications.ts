@@ -49,7 +49,7 @@ export async function notifyPartnersOfOverdueServiceFees(
 
   for (const partner of partners) {
     const balance = await calculateServiceFeeBalance(prisma, partner.id, now);
-    if (!balance.blocked) {
+    if (balance.overdueAmount < 0.01 || balance.pending >= 0.01) {
       result.skipped++;
       continue;
     }
@@ -84,6 +84,8 @@ export async function notifyPartnersOfOverdueServiceFees(
         overdueAmount: balance.overdueAmount,
         amountDue: balance.amountDue,
         dueAt: balance.nextDueAt,
+        enforcementAt: balance.enforcementAt,
+        blocked: balance.blocked,
         actionUrl: appUrl("/dashboard/payments"),
         idempotencyKey: `service-fee-overdue:${partner.id}:${reminderPeriod}`,
       });

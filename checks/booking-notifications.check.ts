@@ -73,6 +73,8 @@ async function check() {
       overdueAmount: 75,
       amountDue: 95,
       dueAt: new Date("2026-08-03T16:00:00Z"),
+      enforcementAt: new Date("2026-08-06T16:00:00Z"),
+      blocked: true,
       actionUrl: "https://www.bunal.club/dashboard/payments",
       idempotencyKey: "service-fee-overdue-partner-1-2026-08-10",
     });

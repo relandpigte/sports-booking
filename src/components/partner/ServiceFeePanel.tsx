@@ -79,6 +79,8 @@ export function ServiceFeePanel({
         </div>
         {balance.blocked ? (
           <Badge tone="danger">Overdue</Badge>
+        ) : balance.inEnforcementGrace ? (
+          <Badge tone="warn">3-day grace period</Badge>
         ) : balance.pending > 0 ? (
           <Badge tone="warn">Under review</Badge>
         ) : (
@@ -116,13 +118,22 @@ export function ServiceFeePanel({
       {balance.blocked && (
         <p className="mt-4 rounded-lg bg-red-50 px-3 py-2.5 text-sm text-red-700">
           {formatPHP(balance.overdueAmount)} is overdue. New paid bookings are
-          paused until you submit proof of payment.
+          paused until a settlement is paid or your submitted transfer is
+          approved.
+        </p>
+      )}
+      {balance.inEnforcementGrace && (
+        <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+          {formatPHP(balance.overdueAmount)} is overdue. Your hubs remain active
+          until {balance.enforcementAt ? formatDate(balance.enforcementAt) : "the end of the grace period"}.
+          Complete settlement before then to avoid a booking pause.
         </p>
       )}
       {balance.pending > 0 && (
         <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
-          {formatPHP(balance.pending)} is under admin review. Your booking
-          access remains active during review.
+          {formatPHP(balance.pending)} is under admin review. It will reduce
+          your balance only after approval; an existing overdue restriction
+          remains in place during review.
         </p>
       )}
       {state.success && (
@@ -158,7 +169,7 @@ export function ServiceFeePanel({
         </p>
       )}
 
-      {balance.amountDue > 0 && (
+      {balance.amountDue > 0 && balance.pending < 0.01 && (
         <div className="mt-5 flex flex-col gap-5">
           {paymongoSettlementEnabled && (
             <form

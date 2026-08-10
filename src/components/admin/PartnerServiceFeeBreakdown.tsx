@@ -10,6 +10,7 @@ const standingMeta: Record<
   { label: string; tone: BadgeTone }
 > = {
   OVERDUE: { label: "Overdue", tone: "danger" },
+  GRACE_PERIOD: { label: "3-day grace", tone: "warn" },
   UNDER_REVIEW: { label: "Under review", tone: "warn" },
   DUE_SOON: { label: "Due soon", tone: "warn" },
   CURRENT: { label: "Current", tone: "success" },
@@ -45,8 +46,8 @@ export function PartnerServiceFeeBreakdown({
           </h2>
           <p className="mt-1 max-w-3xl text-sm text-gray-500">
             Current and no-balance partners are not due. Due-soon balances are
-            still within their deadline; overdue partners have paid bookings
-            paused.
+            still within their deadline; overdue balances receive a three-day
+            enforcement grace before paid bookings pause.
           </p>
         </div>
         <p className="text-xs text-gray-400">

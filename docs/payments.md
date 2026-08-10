@@ -143,7 +143,9 @@ Cloudflare Tunnel or ngrok for local webhook testing.
 ## Service-fee remittance
 
 The partner's PayMongo account receives the complete booking subtotal after
-PayMongo deducts the separately charged QR Ph processing fee. After a
+PayMongo deducts the separately charged QR Ph processing fee. That processing
+fee is grossed up from the complete booking subtotal—venue amount plus Bunal's
+service fee—so the partner still receives both ledger amounts in full. After a
 successful automatic booking or an approved manual booking is confirmed, an
 immutable `ServiceFeeEntry` records the snapshotted fee owed to Bunal.club: 3%
 for automatic checkout or 2.5% for manual checkout. That service fee is
@@ -180,14 +182,17 @@ npm run paymongo:webhook
 Paste the returned signing secret into `BILLING_WEBHOOK_SECRET`, then restart
 the server or redeploy.
 
-Fees settle weekly with a seven-day grace period after each week closes.
-Overdue balances pause new paid bookings and remove the partner's hubs from the
-public directory. Submitting proof immediately restores booking access while
-the admin reviews it; rejection restores the overdue block. The authenticated
-maintenance sweep emails an active partner when a balance becomes overdue and
-repeats the reminder at most once every seven days while it remains overdue.
-Concurrent sweeps claim the reminder atomically, and a failed email releases
-the claim so the next sweep can retry safely.
+Fees settle weekly with a seven-day payment grace period after each week
+closes. When that deadline passes, the balance is overdue but the partner gets
+a final three-day enforcement grace before new paid bookings pause and its hubs
+leave the public directory. Manual settlement proof is displayed as under
+review but does not reduce the balance or bypass an existing restriction until
+an admin approves it. Only one manual proof may be under review at a time, and
+receipt submissions are rate-limited. The authenticated maintenance sweep
+emails an active partner when a balance becomes overdue, repeats the reminder
+at most once every seven days, and reconciles expired or abandoned PayMongo
+settlement sessions. Concurrent sweeps claim the reminder atomically, and a
+failed email releases the claim so the next sweep can retry safely.
 
 ## Booking settlement
 

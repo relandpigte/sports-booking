@@ -33,6 +33,9 @@ type FeeDb = Pick<
 >;
 
 export const SERVICE_FEE_GRACE_DAYS = 7;
+// Once a balance reaches its weekly due date, partners receive a final
+// enforcement window before paid bookings and public hub visibility pause.
+export const SERVICE_FEE_ENFORCEMENT_GRACE_DAYS = 3;
 
 export function serviceFeeWeekStart(now: Date = new Date()): Date {
   const today = manilaDateOf(now);
@@ -83,8 +86,10 @@ export type ServiceFeeBalance = {
   overdueAmount: number;
   credit: number;
   blocked: boolean;
+  inEnforcementGrace: boolean;
   oldestEntryAt: Date | null;
   nextDueAt: Date | null;
+  enforcementAt: Date | null;
 };
 
 type ServiceFeeLedgerEntry = {
@@ -98,26 +103,30 @@ function serviceFeeBalanceFromLedger({
   paid,
   pending,
   entries,
+  now,
 }: {
   earned: number;
   overdueBase: number;
   paid: number;
   pending: number;
   entries: ServiceFeeLedgerEntry[];
+  now: Date;
 }): ServiceFeeBalance {
   const earnedAmount = money(earned);
   const paidAmount = money(paid);
   const pendingAmount = money(pending);
-  const uncovered = money(earnedAmount - paidAmount - pendingAmount);
+  // Submitted proof is reported separately, but it is not money received.
+  // Only an approved or automatically paid settlement reduces the balance.
+  const uncovered = money(earnedAmount - paidAmount);
   // Negative legacy/manual adjustments reduce the oldest unpaid balance.
   const overdueAmount = money(
     Math.max(
       0,
-      Math.min(uncovered, money(overdueBase) - paidAmount - pendingAmount)
+      Math.min(uncovered, money(overdueBase) - paidAmount)
     )
   );
 
-  const covered = paidAmount + pendingAmount;
+  const covered = paidAmount;
   let running = 0;
   let oldestUncoveredAt: Date | null = null;
   for (const entry of entries) {
@@ -130,6 +139,13 @@ function serviceFeeBalanceFromLedger({
     oldestUncoveredAt && uncovered > 0
       ? addDaysTo(serviceFeeWeekStart(oldestUncoveredAt), 14)
       : null;
+  const enforcementAt = nextDueAt
+    ? addDaysTo(nextDueAt, SERVICE_FEE_ENFORCEMENT_GRACE_DAYS)
+    : null;
+  const overdue = overdueAmount >= 0.01;
+  const blocked = Boolean(
+    overdue && enforcementAt && enforcementAt.getTime() <= now.getTime()
+  );
 
   return {
     earned: earnedAmount,
@@ -138,9 +154,11 @@ function serviceFeeBalanceFromLedger({
     amountDue: Math.max(0, uncovered),
     overdueAmount,
     credit: Math.max(0, money(paidAmount - earnedAmount)),
-    blocked: overdueAmount >= 0.01,
+    blocked,
+    inEnforcementGrace: overdue && !blocked,
     oldestEntryAt: oldestUncoveredAt,
     nextDueAt,
+    enforcementAt,
   };
 }
 
@@ -181,11 +199,13 @@ export async function calculateServiceFeeBalance(
     paid: Number(paid._sum.amount ?? 0),
     pending: Number(pending._sum.amount ?? 0),
     entries: oldest,
+    now,
   });
 }
 
 export type ServiceFeeStanding =
   | "OVERDUE"
+  | "GRACE_PERIOD"
   | "UNDER_REVIEW"
   | "DUE_SOON"
   | "CURRENT"
@@ -195,6 +215,7 @@ export function serviceFeeStanding(
   balance: ServiceFeeBalance
 ): ServiceFeeStanding {
   if (balance.blocked) return "OVERDUE";
+  if (balance.inEnforcementGrace) return "GRACE_PERIOD";
   if (balance.pending >= 0.01) return "UNDER_REVIEW";
   if (balance.amountDue >= 0.01) return "DUE_SOON";
   if (balance.earned === 0 && balance.paid === 0) return "NO_BALANCE";
@@ -283,8 +304,11 @@ export async function getPartnerServiceFeeView(
   return { balance, settlements: rows.map(mapSettlement) };
 }
 
-export async function isServiceFeeOverdue(partnerId: string): Promise<boolean> {
-  return (await calculateServiceFeeBalance(prisma, partnerId)).blocked;
+export async function isServiceFeeOverdue(
+  partnerId: string,
+  now: Date = new Date()
+): Promise<boolean> {
+  return (await calculateServiceFeeBalance(prisma, partnerId, now)).blocked;
 }
 
 export async function listAdminServiceFeeSettlements(): Promise<{
@@ -310,10 +334,11 @@ export async function listAdminServiceFeeSettlements(): Promise<{
 
 const standingOrder: Record<ServiceFeeStanding, number> = {
   OVERDUE: 0,
-  UNDER_REVIEW: 1,
-  DUE_SOON: 2,
-  CURRENT: 3,
-  NO_BALANCE: 4,
+  GRACE_PERIOD: 1,
+  UNDER_REVIEW: 2,
+  DUE_SOON: 3,
+  CURRENT: 4,
+  NO_BALANCE: 5,
 };
 
 export async function listAdminPartnerServiceFeeBreakdown(
@@ -415,6 +440,7 @@ export async function listAdminPartnerServiceFeeBreakdown(
         paid: paidByPartner.get(partner.id) ?? 0,
         pending: pendingByPartner.get(partner.id) ?? 0,
         entries: partnerEntries,
+        now,
       });
       const latestPaid = latestPaidByPartner.get(partner.id);
       return {

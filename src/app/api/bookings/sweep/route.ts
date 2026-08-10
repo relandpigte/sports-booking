@@ -5,6 +5,7 @@ import { expireBookingHolds } from "@/lib/booking-payments";
 import { cleanupFacebookMessengerEvents } from "@/lib/facebook-messenger";
 import { cleanupExpiredSecurityRows } from "@/lib/security-maintenance";
 import { notifyPartnersOfOverdueServiceFees } from "@/lib/service-fee-notifications";
+import { reconcileServiceFeeCheckouts } from "@/lib/service-fee-payments";
 
 // Tidies up expired holds: deletes the slot rows nothing is holding any more,
 // flips PENDING bookings to EXPIRED, and closes out payments whose window has
@@ -42,6 +43,9 @@ async function runSweep(request: NextRequest) {
     return new Response("Unauthorized", { status: 401 });
   }
 
+  // Reconcile provider payments first so a paid checkout whose webhook was
+  // delayed cannot receive an incorrect overdue reminder in this same run.
+  const serviceFeeCheckouts = await reconcileServiceFeeCheckouts();
   const [result, security, messengerEvents, serviceFeeNotifications] =
     await Promise.all([
       expireBookingHolds(),
@@ -55,6 +59,7 @@ async function runSweep(request: NextRequest) {
     security,
     messengerEvents,
     serviceFeeNotifications,
+    serviceFeeCheckouts,
   });
 }
 

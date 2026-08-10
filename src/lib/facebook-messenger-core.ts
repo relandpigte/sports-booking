@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 export const FACEBOOK_MESSENGER_PROVIDER = "facebook-messenger";
 
 export type FacebookReplyCategory =
+  | "app"
   | "booking"
   | "booking-management"
   | "events"
@@ -22,6 +23,7 @@ export type FacebookReply = {
 };
 
 export type FacebookReplyLinks = {
+  app: string;
   hubs: string;
   events: string;
   partnerRegistration: string;
@@ -185,6 +187,28 @@ export function facebookReplyForMessage(
   const text = message.text?.toLowerCase().replace(/\s+/g, " ").trim() ?? "";
   if (
     includesAny(text, [
+      "do you have an app",
+      "is there an app",
+      "mobile app",
+      "download app",
+      "install app",
+      "install bunal",
+      "add to home screen",
+      "app store",
+      "play store",
+      "iphone app",
+      "ios app",
+      "android app",
+    ])
+  ) {
+    return {
+      category: "app",
+      text:
+        `Yes. Bunal.club is an installable web app, so you can use it like an app without downloading it from an app store. Android/Chrome: open ${links.app}, tap Install when prompted, or open the browser menu and choose Add to Home screen. iPhone/iPad: open ${links.app} in Safari, tap Share, choose Add to Home Screen, then tap Add. Once installed, open Bunal.club from your Home Screen.`,
+    };
+  }
+  if (
+    includesAny(text, [
       "talk to a person",
       "human",
       "agent",
@@ -343,7 +367,7 @@ export function facebookReplyForMessage(
     return {
       category: "menu",
       text:
-        "Hi! I'm Bunal.club's automatic assistant. I can help you find a nearby venue, book a court, browse events, understand prices and payments, manage a booking, or list a venue. What do you need?",
+        "Hi! I'm Bunal.club's automatic assistant. I can help you find a nearby venue, book a court, browse events, install Bunal.club, understand prices and payments, manage a booking, or list a venue. What do you need?",
     };
   }
   return {

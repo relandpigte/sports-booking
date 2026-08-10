@@ -53,6 +53,7 @@ export function getFacebookMessengerConfig(): FacebookMessengerConfig | null {
 
 function replyLinks(): FacebookReplyLinks {
   return {
+    app: appUrl("/"),
     hubs: appUrl("/hubs"),
     events: appUrl("/events"),
     partnerRegistration: appUrl("/register/partner"),

@@ -82,7 +82,7 @@ export function PwaProvider({ children }: { children: ReactNode }) {
         if (!installPrompt) return null;
         await installPrompt.prompt();
         const choice = await installPrompt.userChoice;
-        if (choice.outcome === "accepted") setInstallPrompt(null);
+        setInstallPrompt(null);
         return choice.outcome;
       },
     }),

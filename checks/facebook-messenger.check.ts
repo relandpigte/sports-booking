@@ -16,6 +16,7 @@ import {
 const APP_SECRET = "check-facebook-app-secret";
 const PAGE_ID = "123456789";
 const links: FacebookReplyLinks = {
+  app: "https://www.bunal.club",
   hubs: "https://www.bunal.club/hubs",
   events: "https://www.bunal.club/events",
   partnerRegistration: "https://www.bunal.club/register/partner",
@@ -99,6 +100,21 @@ function check() {
     "booking questions receive the secure venue-directory link",
     facebookReplyForMessage(parsed![0], links).category === "booking" &&
       facebookReplyForMessage(parsed![0], links).text.includes(links.hubs)
+  );
+  ok(
+    "app questions explain PWA installation on Android and iOS",
+    facebookReplyForMessage(
+      { text: "Do you have a mobile app?", hasAttachments: false },
+      links
+    ).category === "app" &&
+      facebookReplyForMessage(
+        { text: "How do I install Bunal.club?", hasAttachments: false },
+        links
+      ).text.includes("Add to Home Screen") &&
+      facebookReplyForMessage(
+        { text: "Is Bunal.club in the App Store?", hasAttachments: false },
+        links
+      ).text.includes(links.app)
   );
   ok(
     "payment questions never request payment through chat",

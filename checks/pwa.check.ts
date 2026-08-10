@@ -36,6 +36,21 @@ async function main() {
   assert.match(worker, /request\.mode !== "navigate"/);
   assert.doesNotMatch(worker, /cache\.put/);
 
+  const installBanner = await readFile(
+    path.join(root, "src", "components", "pwa", "PublicInstallBanner.tsx"),
+    "utf8"
+  );
+  assert.match(installBanner, /Add Bunal\.club/);
+  assert.match(installBanner, /promptInstall/);
+  assert.match(installBanner, /Add to Home Screen/);
+  assert.match(installBanner, /bunal\.pwa-install-dismissed-at/);
+
+  const homepage = await readFile(
+    path.join(root, "src", "components", "home", "HomePage.tsx"),
+    "utf8"
+  );
+  assert.match(homepage, /<PublicInstallBanner \/>/);
+
   const offline = await readFile(
     path.join(root, "public", "offline.html"),
     "utf8"

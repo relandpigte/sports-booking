@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { ClosingCta } from "@/components/ClosingCta";
 import { Logo } from "@/components/Logo";
 import { SiteFooter } from "@/components/SiteFooter";
+import { PublicInstallBanner } from "@/components/pwa/PublicInstallBanner";
 import { BOOKING_HOLD_MINUTES } from "@/lib/constants";
 
 type IconName =
@@ -964,6 +965,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
       </main>
 
       <SiteFooter />
+      <PublicInstallBanner />
     </div>
   );
 }

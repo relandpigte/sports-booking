@@ -198,15 +198,12 @@ async function check() {
   const expiredIntent = paymongo.intents.get(
     expiredRetryPayment.providerPaymentId!
   )!;
+  const expiredAt = new Date(Date.now() - 1_000);
   paymongo.intents.set(expiredRetryPayment.providerPaymentId!, {
     ...expiredIntent,
-    status: "awaiting_payment_method",
-    lastPaymentError: {
-      code: "qr_expired",
-      detail: "The QR Ph code expired before payment was completed.",
-    },
+    status: "awaiting_next_action",
+    expiresAt: expiredAt.toISOString(),
   });
-  const expiredAt = new Date(Date.now() - 1_000);
   await prisma.$transaction([
     prisma.eventRegistration.update({
       where: { id: expiredRetryRegistration!.id },
@@ -335,15 +332,12 @@ async function check() {
   const expiredAddOnIntent = paymongo.intents.get(
     addOnPayment!.providerPaymentId!
   )!;
+  const expiredAddOnAt = new Date(Date.now() - 1_000);
   paymongo.intents.set(addOnPayment!.providerPaymentId!, {
     ...expiredAddOnIntent,
-    status: "awaiting_payment_method",
-    lastPaymentError: {
-      code: "qr_expired",
-      detail: "The QR Ph code expired before payment was completed.",
-    },
+    status: "awaiting_next_action",
+    expiresAt: expiredAddOnAt.toISOString(),
   });
-  const expiredAddOnAt = new Date(Date.now() - 1_000);
   await prisma.$transaction([
     prisma.eventGuestSlot.updateMany({
       where: { bookingPaymentId: addOnPayment!.id },

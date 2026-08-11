@@ -26,6 +26,7 @@ export type MockState = {
       paymentId?: string;
       clientKey: string;
       qrImageUrl?: string;
+      expiresAt?: string;
       lastPaymentError?: { code: string; detail: string };
     }
   >;
@@ -188,6 +189,12 @@ export function installPaymongoMock(): MockState {
     if (attach && method === "POST") {
       const found = state.intents.get(attach[1]);
       if (!found) return json(404, { errors: [{ detail: "No such intent" }] });
+      const paymentMethod = state.paymentMethods.get(
+        body?.data?.attributes?.payment_method
+      );
+      const expiresAt = new Date(
+        Date.now() + (paymentMethod?.expirySeconds ?? 60) * 1_000
+      ).toISOString();
       const qrImageUrl = `data:image/svg+xml;base64,${Buffer.from(
         `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="white"/><path d="M16 16h80v80H16zm144 0h80v80h-80zM16 160h80v80H16z" fill="#10243a"/></svg>`
       ).toString("base64")}`;
@@ -195,6 +202,7 @@ export function installPaymongoMock(): MockState {
         ...found,
         status: "awaiting_next_action",
         qrImageUrl,
+        expiresAt,
       });
       return json(200, {
         data: {
@@ -204,7 +212,9 @@ export function installPaymongoMock(): MockState {
             status: "awaiting_next_action",
             client_key: found.clientKey,
             payments: [],
-            next_action: { code: { image_url: qrImageUrl } },
+            next_action: {
+              code: { image_url: qrImageUrl, expires_at: expiresAt },
+            },
           },
         },
       });
@@ -234,7 +244,12 @@ export function installPaymongoMock(): MockState {
                 ]
               : [],
             next_action: found.qrImageUrl
-              ? { code: { image_url: found.qrImageUrl } }
+              ? {
+                  code: {
+                    image_url: found.qrImageUrl,
+                    expires_at: found.expiresAt,
+                  },
+                }
               : null,
             last_payment_error: found.lastPaymentError,
           },

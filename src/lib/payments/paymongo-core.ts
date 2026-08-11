@@ -221,9 +221,23 @@ export type PaymentIntent = {
     | { code?: string; detail?: string; message?: string }
     | null;
   next_action?: {
-    code?: { image_url?: string };
+    code?: { image_url?: string; expires_at?: string };
   } | null;
 };
+
+export function paymentIntentQrExpired(
+  intent: PaymentIntent,
+  now: Date = new Date()
+): boolean {
+  const expiresAt = intent.next_action?.code?.expires_at;
+  if (!expiresAt) return false;
+  const timestamp = new Date(expiresAt).getTime();
+  return (
+    paidPayment(intent) == null &&
+    Number.isFinite(timestamp) &&
+    timestamp <= now.getTime()
+  );
+}
 
 export function paymentIntentError(intent: PaymentIntent): {
   code: string;

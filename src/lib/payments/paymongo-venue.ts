@@ -23,6 +23,7 @@ import {
   paidPayment,
   parsePaymongoEvent,
   paymentIntentError,
+  paymentIntentQrExpired,
   paymongoRequest,
   resolvePaymentId,
   toCentavos,
@@ -181,7 +182,11 @@ export function paymongoVenueGateway(creds: GatewayCredentials): VenueGateway {
           }
 
           const failure = paymentIntentError(intent);
-          if (failure || intent.status === "awaiting_payment_method") {
+          if (
+            failure ||
+            intent.status === "awaiting_payment_method" ||
+            paymentIntentQrExpired(intent)
+          ) {
             return {
               status: "failed",
               paymentId: providerPaymentId,

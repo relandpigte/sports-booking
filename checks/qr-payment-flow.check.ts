@@ -164,6 +164,88 @@ async function check() {
         createdBefore + BOOKING_HOLD_MINUTES * 60_000
   );
 
+  const retryEvent = await prisma.event.create({
+    data: {
+      publicId: `qr-retry-${crypto.randomBytes(8).toString("hex")}`,
+      hubId: hub.id,
+      title: "QR Retry Event",
+      sport: "pickleball",
+      date: DATE,
+      startHour: 20,
+      endHour: 22,
+      startsAt: manilaInstant(DATE, 20),
+      endsAt: manilaInstant(DATE, 22),
+      capacity: 8,
+      registrationFee: 500,
+      status: "PUBLISHED",
+      publishedAt: new Date(),
+    },
+  });
+  const retryForm = new FormData();
+  retryForm.set("publicId", retryEvent.publicId);
+  try {
+    await registerForEventAction({}, retryForm);
+  } catch {
+    // A paid registration redirects to its payment screen.
+  }
+  const expiredRetryRegistration = await prisma.eventRegistration.findUnique({
+    where: {
+      eventId_userId: { eventId: retryEvent.id, userId: player.id },
+    },
+    include: { payment: true },
+  });
+  const expiredRetryPayment = expiredRetryRegistration!.payment!;
+  const expiredIntent = paymongo.intents.get(
+    expiredRetryPayment.providerPaymentId!
+  )!;
+  paymongo.intents.set(expiredRetryPayment.providerPaymentId!, {
+    ...expiredIntent,
+    status: "awaiting_payment_method",
+    lastPaymentError: {
+      code: "qr_expired",
+      detail: "The QR Ph code expired before payment was completed.",
+    },
+  });
+  const expiredAt = new Date(Date.now() - 1_000);
+  await prisma.$transaction([
+    prisma.eventRegistration.update({
+      where: { id: expiredRetryRegistration!.id },
+      data: { holdExpiresAt: expiredAt },
+    }),
+    prisma.bookingPayment.update({
+      where: { id: expiredRetryPayment.id },
+      data: { expiresAt: expiredAt },
+    }),
+  ]);
+  const { pollBookingPayment } = await import("@/lib/booking-payments");
+  await pollBookingPayment(expiredRetryPayment.id);
+
+  try {
+    await registerForEventAction({}, retryForm);
+  } catch {
+    // The replacement hold also redirects to its new payment screen.
+  }
+  const retriedRegistration = await prisma.eventRegistration.findUnique({
+    where: {
+      eventId_userId: { eventId: retryEvent.id, userId: player.id },
+    },
+    include: { payment: true },
+  });
+  const retiredPayment = await prisma.bookingPayment.findUnique({
+    where: { id: expiredRetryPayment.id },
+    select: { status: true },
+  });
+  ok(
+    "an expired QR registration gets a fresh hold instead of reopening the expired payment",
+    retriedRegistration?.status === "PENDING" &&
+      retriedRegistration.holdExpiresAt != null &&
+      retriedRegistration.holdExpiresAt > new Date() &&
+      retriedRegistration.bookingPaymentId !== expiredRetryPayment.id &&
+      retriedRegistration.payment?.providerPaymentId?.startsWith("pi_") ===
+        true &&
+      retiredPayment?.status === "FAILED"
+  );
+
   const { GET: getPaymentStatus } = await import(
     "@/app/api/payments/[paymentId]/status/route"
   );
@@ -250,6 +332,62 @@ async function check() {
       Number(addOnPayment.platformFee) === 30
   );
 
+  const expiredAddOnIntent = paymongo.intents.get(
+    addOnPayment!.providerPaymentId!
+  )!;
+  paymongo.intents.set(addOnPayment!.providerPaymentId!, {
+    ...expiredAddOnIntent,
+    status: "awaiting_payment_method",
+    lastPaymentError: {
+      code: "qr_expired",
+      detail: "The QR Ph code expired before payment was completed.",
+    },
+  });
+  const expiredAddOnAt = new Date(Date.now() - 1_000);
+  await prisma.$transaction([
+    prisma.eventGuestSlot.updateMany({
+      where: { bookingPaymentId: addOnPayment!.id },
+      data: { holdExpiresAt: expiredAddOnAt },
+    }),
+    prisma.bookingPayment.update({
+      where: { id: addOnPayment!.id },
+      data: { expiresAt: expiredAddOnAt },
+    }),
+  ]);
+  await pollBookingPayment(addOnPayment!.id);
+  try {
+    await addEventGuestSlotsAction({}, addForm);
+  } catch {
+    // The replacement guest hold redirects to its new payment screen.
+  }
+  const retriedAddOnPayment = await prisma.bookingPayment.findFirst({
+    where: {
+      userId: player.id,
+      id: { notIn: [registration!.bookingPaymentId!, addOnPayment!.id] },
+      eventGuestSlots: {
+        some: { registration: { eventId: event.id, userId: player.id } },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    include: { eventGuestSlots: true },
+  });
+  const retiredAddOnPayment = await prisma.bookingPayment.findUnique({
+    where: { id: addOnPayment!.id },
+    select: { status: true },
+  });
+  ok(
+    "expired guest add-ons get a fresh hold instead of reopening the expired payment",
+    retiredAddOnPayment?.status === "FAILED" &&
+      retriedAddOnPayment?.status === "PENDING" &&
+      retriedAddOnPayment.eventGuestSlots.length === 2 &&
+      retriedAddOnPayment.eventGuestSlots.every(
+        (guest) =>
+          guest.status === "PENDING" &&
+          guest.holdExpiresAt != null &&
+          guest.holdExpiresAt > new Date()
+      )
+  );
+
   const capacityEvent = await prisma.event.create({
     data: {
       publicId: `qr-capacity-${crypto.randomBytes(8).toString("hex")}`,
@@ -294,7 +432,7 @@ async function check() {
       oversizedRegistrationCount === 0
   );
 
-  const addOnIntentId = addOnPayment!.providerPaymentId!;
+  const addOnIntentId = retriedAddOnPayment!.providerPaymentId!;
   const addOnIntent = paymongo.intents.get(addOnIntentId)!;
   paymongo.intents.set(addOnIntentId, {
     ...addOnIntent,
@@ -304,12 +442,12 @@ async function check() {
   stubRequestContext(player);
   await getPaymentStatus(
     new Request("https://www.bunal.club/api/payments/status"),
-    { params: Promise.resolve({ paymentId: addOnPayment!.id }) }
+    { params: Promise.resolve({ paymentId: retriedAddOnPayment!.id }) }
   );
   const { getPublicEvent } = await import("@/lib/events");
   const publicEvent = await getPublicEvent(event.publicId, player.id);
   const settledAddOn = await prisma.bookingPayment.findUnique({
-    where: { id: addOnPayment!.id },
+    where: { id: retriedAddOnPayment!.id },
     select: { status: true },
   });
   ok(

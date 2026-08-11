@@ -607,7 +607,6 @@ export async function registerForEventAction(
           select: {
             status: true,
             chargeStartedAt: true,
-            providerPaymentId: true,
             manualSubmittedAt: true,
           },
         },
@@ -631,7 +630,6 @@ export async function registerForEventAction(
       existing?.bookingPaymentId &&
       existing.payment?.status === "PENDING" &&
       (existing.payment.chargeStartedAt != null ||
-        existing.payment.providerPaymentId != null ||
         existing.payment.manualSubmittedAt != null)
     ) {
       return {
@@ -648,7 +646,7 @@ export async function registerForEventAction(
           id: existing.bookingPaymentId,
           status: "PENDING",
           chargeStartedAt: null,
-          providerPaymentId: null,
+          manualSubmittedAt: null,
         },
         data: {
           status: "FAILED",
@@ -967,7 +965,6 @@ export async function addEventGuestSlotsAction(
               select: {
                 status: true,
                 chargeStartedAt: true,
-                providerPaymentId: true,
                 manualSubmittedAt: true,
               },
             },
@@ -987,13 +984,31 @@ export async function addEventGuestSlotsAction(
         pendingGuest.holdExpiresAt != null &&
         pendingGuest.holdExpiresAt > now) ||
         pendingGuest.payment.chargeStartedAt != null ||
-        pendingGuest.payment.providerPaymentId != null ||
         pendingGuest.payment.manualSubmittedAt != null)
     ) {
       return {
         kind: "payment" as const,
         paymentId: pendingGuest.bookingPaymentId,
       };
+    }
+    if (
+      pendingGuest?.bookingPaymentId &&
+      pendingGuest.payment?.status === "PENDING"
+    ) {
+      await tx.bookingPayment.updateMany({
+        where: {
+          id: pendingGuest.bookingPaymentId,
+          status: "PENDING",
+          chargeStartedAt: null,
+          manualSubmittedAt: null,
+        },
+        data: {
+          status: "FAILED",
+          failureCode: "registration_replaced",
+          failureMessage:
+            "The additional event spot hold expired before checkout completed.",
+        },
+      });
     }
 
     const occupied = await occupiedEventSpots(tx, event.id, now);

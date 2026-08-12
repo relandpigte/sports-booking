@@ -29,6 +29,7 @@ export function AppShell({
   children,
   maxWidth = "max-w-6xl",
   impersonation,
+  hasMessages = false,
 }: {
   user: ShellUser;
   children: ReactNode;
@@ -38,6 +39,7 @@ export function AppShell({
     adminName: string;
     expiresAt: Date;
   } | null;
+  hasMessages?: boolean;
 }) {
   const displayName = user.playerName ?? user.name ?? "Player";
   const workspaceLabel =
@@ -60,6 +62,7 @@ export function AppShell({
             email={user.email}
             image={user.image}
             workspaceLabel={workspaceLabel}
+            hasMessages={hasMessages}
           />
           <Link
             href="/dashboard"
@@ -90,6 +93,7 @@ export function AppShell({
         <DashboardNav
           role={user.role}
           partnerStatus={impersonation ? "ACTIVE" : user.partnerStatus}
+          hasMessages={hasMessages}
         />
 
         <div className="mt-auto hidden rounded-2xl border border-white/10 bg-white/5 p-3 md:flex md:items-center md:gap-3">

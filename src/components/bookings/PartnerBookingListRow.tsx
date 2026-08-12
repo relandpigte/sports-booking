@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { CancelBookingButton } from "@/components/bookings/CancelBookingButton";
@@ -209,6 +211,14 @@ export function PartnerBookingListRow({
 
       {hasBookingActions && (
         <div className="mt-3 flex flex-wrap items-start justify-end gap-1 border-t border-gray-100 pt-2">
+          {booking.status === "CONFIRMED" && (
+            <Link
+              href="/dashboard/messages"
+              className="inline-flex min-h-9 items-center rounded-lg bg-primary-soft px-3 text-xs font-bold text-primary hover:bg-primary/15"
+            >
+              Message player
+            </Link>
+          )}
           {paid && booking.payment?.collectionMode !== "MANUAL" && (
             <RefundBookingButton
               bookingId={booking.id}

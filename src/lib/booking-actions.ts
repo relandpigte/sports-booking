@@ -55,6 +55,7 @@ import {
 } from "@/lib/impersonation";
 import { notifyPartnerOfBooking } from "@/lib/booking-notifications";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import { recordBookingSystemMessage } from "@/lib/message-system-events";
 
 export type BookingFormState = {
   errors?: Record<string, string>;
@@ -279,6 +280,7 @@ export async function createBookingAction(
               totalPrice: slotTotal(group.slots, runHourValues),
               notes: notes ?? null,
               status: requiresPayment ? "PENDING" : "CONFIRMED",
+              confirmedAt: requiresPayment ? null : new Date(),
               holdExpiresAt,
               bookingPaymentId: paymentId,
             },
@@ -342,6 +344,13 @@ export async function createBookingAction(
     actionPath: `/dashboard/bookings?q=${encodeURIComponent(created[0].id)}`,
     idempotencyKey: `partner-court-booking-${paymentId ?? created[0].id}`,
   });
+  if (!paymentId) {
+    await Promise.all(
+      created.map((booking) =>
+        recordBookingSystemMessage(booking.id, "CONFIRMED")
+      )
+    );
+  }
   if (paymentId) {
     // Prepare the one-time QR Ph checkout before showing the payment page so
     // the player lands directly on the QR instead of facing a second Pay step.
@@ -457,6 +466,7 @@ export async function cancelHubBookingAction(
     viewer.role === "ADMIN" ? "ADMIN" : "PARTNER",
     parsed.data.reason
   );
+  await recordBookingSystemMessage(booking.id, "CANCELLED");
   await recordImpersonatedAction({
     action: "BOOKING_CANCELLED",
     targetType: "Booking",
@@ -848,6 +858,7 @@ export async function rescheduleHubBookingAction(
   }
 
   revalidateBookingSurfaces(booking.hubId);
+  await recordBookingSystemMessage(booking.id, "RESCHEDULED");
   await recordImpersonatedAction({
     action: "BOOKING_RESCHEDULED",
     targetType: "Booking",

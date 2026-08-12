@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { AppShell } from "@/components/dashboard/AppShell";
 import { getAuthenticatedUser, getCurrentUser } from "@/lib/dal";
 import { getActivePartnerImpersonation } from "@/lib/impersonation";
+import { hasMessageAccess } from "@/lib/messages";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
@@ -25,6 +26,13 @@ export default async function DashboardLayout({
     actor?.role === "ADMIN"
       ? await getActivePartnerImpersonation(actor.id)
       : null;
+  const hasMessages = impersonation
+    ? false
+    : await hasMessageAccess({
+        userId: user.id,
+        role: user.role,
+        partnerStatus: user.partnerStatus,
+      });
 
   return (
     <AppShell
@@ -39,6 +47,7 @@ export default async function DashboardLayout({
             }
           : null
       }
+      hasMessages={hasMessages}
     >
       {children}
     </AppShell>

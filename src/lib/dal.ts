@@ -29,6 +29,7 @@ const currentUserSelect = {
   partnerPaymentMode: true,
   skillLevel: true,
   privateProfile: true,
+  chatRestrictedAt: true,
 } as const;
 
 const getValidatedSession = cache(async () => {

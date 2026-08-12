@@ -30,6 +30,7 @@ const playerItems: MobileMenuItem[] = [
   { href: "/hubs", label: "Courts", icon: "map" },
   { href: "/events", label: "Events", icon: "trophy" },
   { href: "/dashboard/bookings", label: "Bookings", icon: "booking" },
+  { href: "/dashboard/messages", label: "Messages", icon: "message" },
   { href: "/dashboard/tournaments", label: "Tournaments", icon: "trophy" },
   { href: "/leaderboard", label: "Leaderboard", icon: "report" },
   { href: "/dashboard/account", label: "Account", icon: "account" },
@@ -38,6 +39,7 @@ const playerItems: MobileMenuItem[] = [
 const partnerItems: MobileMenuItem[] = [
   { href: "/dashboard/partner", label: "Home", icon: "home", exact: true },
   { href: "/dashboard/bookings", label: "Bookings", icon: "booking" },
+  { href: "/dashboard/messages", label: "Messages", icon: "message" },
   { href: "/dashboard/hubs", label: "My Hubs", icon: "hub" },
   { href: "/dashboard/reports", label: "Reports", icon: "report" },
   { href: "/dashboard/events", label: "Events", icon: "trophy" },
@@ -74,6 +76,11 @@ const adminItems: MobileMenuItem[] = [
     label: "Settlements",
     icon: "booking",
   },
+  {
+    href: "/dashboard/admin/messages",
+    label: "Message reports",
+    icon: "message",
+  },
   { href: "/users", label: "Manage Users", icon: "shield" },
 ];
 
@@ -90,6 +97,7 @@ export function MobileDashboardMenu({
   email,
   image,
   workspaceLabel,
+  hasMessages = false,
 }: {
   role: Role;
   partnerStatus: PartnerStatus | null;
@@ -97,6 +105,7 @@ export function MobileDashboardMenu({
   email: string;
   image: string | null;
   workspaceLabel: string;
+  hasMessages?: boolean;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -104,7 +113,7 @@ export function MobileDashboardMenu({
   const closeRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
 
-  const items =
+  const roleItems =
     role === "ADMIN"
       ? adminItems
       : role === "PLAYER"
@@ -114,6 +123,9 @@ export function MobileDashboardMenu({
           : partnerStatus === "DRAFT"
             ? draftPartnerItems
             : pendingPartnerItems;
+  const items = roleItems.filter(
+    (item) => item.href !== "/dashboard/messages" || hasMessages
+  );
 
   useEffect(() => {
     if (!open) return;

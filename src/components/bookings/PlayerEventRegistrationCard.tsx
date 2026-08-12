@@ -105,6 +105,14 @@ export function PlayerEventRegistrationCard({
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2">
+          {registration.status === "CONFIRMED" && event.status === "PUBLISHED" && (
+            <Link
+              href="/dashboard/messages"
+              className="rounded-lg bg-primary-soft px-3 py-2 text-xs font-bold text-primary transition-colors hover:bg-primary/15"
+            >
+              Event discussion
+            </Link>
+          )}
           {livePaymentHold && registration.holdExpiresAt && (
             <HoldCountdown
               expiresAt={registration.holdExpiresAt.toISOString()}

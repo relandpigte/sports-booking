@@ -26,6 +26,10 @@ import {
   getActiveManualPaymentMethods,
   type ManualPaymentMethodView,
 } from "@/lib/manual-payments";
+import {
+  recordBookingSystemMessage,
+  recordEventRegistrationSystemMessage,
+} from "@/lib/message-system-events";
 
 // Players paying venues through each partner's own gateway.
 //
@@ -622,6 +626,10 @@ export async function settleBookingPayment(
       return { status: "lost", refunded: refund.ok };
     }
 
+    if (registration.status === "PENDING") {
+      await recordEventRegistrationSystemMessage(registration.id, "CONFIRMED");
+    }
+
     return {
       status: "confirmed",
       bookingIds: [],
@@ -750,7 +758,11 @@ export async function settleBookingPayment(
 
       await tx.booking.updateMany({
         where: { id: { in: ids }, status: "PENDING" },
-        data: { status: "CONFIRMED", holdExpiresAt: null },
+        data: {
+          status: "CONFIRMED",
+          holdExpiresAt: null,
+          confirmedAt: new Date(),
+        },
       });
 
       await ensureServiceFeeCharge(tx, payment);
@@ -776,6 +788,12 @@ export async function settleBookingPayment(
     await recordAutomaticRefundFailure(paymentId, refund);
     return { status: "lost", refunded: refund.ok };
   }
+
+  await Promise.all(
+    ids.map((bookingId) =>
+      recordBookingSystemMessage(bookingId, "CONFIRMED")
+    )
+  );
 
   return { status: "confirmed", bookingIds: ids };
 }

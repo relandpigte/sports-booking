@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function PrivacyPage() {
   return (
     <PageShell maxWidth="max-w-none" padded={false} alwaysPublic>
-      <LegalLayout title="Privacy Policy" updated="August 8, 2026">
+      <LegalLayout title="Privacy Policy" updated="August 12, 2026">
         <p>
           This Privacy Policy explains how Bunal.club (&quot;we&quot;,
           &quot;us&quot;) collects, uses, and protects your personal
@@ -49,6 +49,12 @@ export default function PrivacyPage() {
               the bookings you make and the events you register for.
             </li>
             <li>
+              <span className="font-medium text-gray-800">Messages</span> —
+              messages you send in booking-scoped venue and event
+              conversations, read state, blocks, and reports submitted for
+              moderation.
+            </li>
+            <li>
               <span className="font-medium text-gray-800">Usage data</span> —
               pages visited, referral information, device and browser
               details, and interactions collected through analytics and
@@ -78,9 +84,11 @@ export default function PrivacyPage() {
 
         <LegalSection heading="3. Your privacy controls">
           <p>
-            If you enable a private profile, your name and email are hidden
-            from other players when you join sessions. You can change this
-            setting at any time from your profile.
+            If you enable a private profile, your identity remains hidden on
+            public attendee lists. Confirmed participants in the same private
+            event discussion can still see your player name and avatar so the
+            group can coordinate. Your email and phone are never shown in
+            Messages. You can change the public-profile setting at any time.
           </p>
         </LegalSection>
 
@@ -153,6 +161,12 @@ export default function PrivacyPage() {
               carries messages and automatic replies between you and the
               Bunal.club Facebook Page under Meta&apos;s own privacy terms.
             </li>
+            <li>
+              <span className="font-medium text-gray-800">Ably</span> —
+              delivers content-free realtime update notifications for
+              Messages. Message bodies remain in Bunal.club&apos;s database and
+              are fetched only after our server rechecks booking access.
+            </li>
           </ul>
           <p>
             The public{" "}
@@ -182,7 +196,10 @@ export default function PrivacyPage() {
             We keep your information for as long as your account is active.
             When you delete your account, we remove or anonymize your
             personal data, except where we are required to retain it for
-            legal or accounting purposes.
+            legal, accounting, safety, or dispute-resolution purposes.
+            Message content is retained until a participant or moderator
+            deletes it; deleted messages lose their body while minimal audit
+            metadata and reported evidence may be retained.
           </p>
         </LegalSection>
 

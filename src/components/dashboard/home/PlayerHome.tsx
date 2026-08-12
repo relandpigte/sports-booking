@@ -13,6 +13,7 @@ import { hubPublicPath } from "@/lib/hub-slug";
 import { InstallAppCard } from "@/components/pwa/InstallAppCard";
 import type { PlayerEventRegistrationView } from "@/lib/events";
 import { ProfileCompletionCard } from "@/components/dashboard/home/ProfileCompletionCard";
+import { FacebookAnnouncementBanner } from "@/components/FacebookAnnouncementBanner";
 
 type PlayerHomeUser = {
   name: string | null;
@@ -93,6 +94,8 @@ export function PlayerHome({
           </span>
         }
       />
+
+      <FacebookAnnouncementBanner placement="dashboard" />
 
       <InstallAppCard />
 

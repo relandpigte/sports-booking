@@ -3,6 +3,7 @@ export const SITE_NAME = "Bunal.club";
 // apex domain there. Search metadata must use the final, non-redirecting host.
 export const SITE_URL = "https://www.bunal.club";
 export const DEFAULT_SOCIAL_IMAGE = `${SITE_URL}/opengraph-image`;
+export const BUNAL_FACEBOOK_URL = "https://www.facebook.com/bunal.club";
 
 export const SITE_DESCRIPTION =
   "Find and book pickleball, badminton, volleyball, and tennis courts across the Philippines. Check live availability and pay securely online.";

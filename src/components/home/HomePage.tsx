@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { ClosingCta } from "@/components/ClosingCta";
+import { FacebookAnnouncementBanner } from "@/components/FacebookAnnouncementBanner";
 import { Logo } from "@/components/Logo";
 import { SiteFooter } from "@/components/SiteFooter";
 import { PublicInstallBanner } from "@/components/pwa/PublicInstallBanner";
@@ -367,6 +368,8 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
       </header>
 
       <main>
+        <FacebookAnnouncementBanner placement="homepage" />
+
         <section className="relative overflow-hidden bg-navy">
           <div
             aria-hidden="true"

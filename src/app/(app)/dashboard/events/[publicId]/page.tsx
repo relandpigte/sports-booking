@@ -281,6 +281,14 @@ export default async function PartnerEventDetailsPage({
                 ? formatPHP(event.registrationFee)
                 : "Free"}
             </p>
+            {event.status === "PUBLISHED" && event.confirmedCount > 0 && (
+              <Link
+                href="/dashboard/messages"
+                className="mt-2 inline-flex rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white hover:bg-primary-hover"
+              >
+                Open discussion
+              </Link>
+            )}
           </div>
         </div>
       </header>

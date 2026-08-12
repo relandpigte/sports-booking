@@ -36,6 +36,10 @@ import { firstErrors } from "@/lib/zod-errors";
 import { recordImpersonatedAction } from "@/lib/impersonation";
 import { notifyPartnerOfBooking } from "@/lib/booking-notifications";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import {
+  recordEventRegistrationSystemMessage,
+  recordEventSystemMessage,
+} from "@/lib/messages";
 
 const optionalText = z
   .string()
@@ -474,6 +478,9 @@ export async function saveEventAction(
   }
 
   revalidateEventSurfaces(publicId, values.hubId);
+  if (existing && willPublish && eventId) {
+    await recordEventSystemMessage(eventId, "UPDATED");
+  }
   await recordImpersonatedAction({
     action: existing ? "EVENT_UPDATED" : "EVENT_CREATED",
     targetType: "Event",
@@ -553,6 +560,10 @@ export async function registerForEventAction(
     userId: viewer.id,
   });
   if (paidRecovery.status === "confirmed") {
+    await recordEventRegistrationSystemMessage(
+      paidRecovery.registrationId,
+      "CONFIRMED"
+    );
     revalidateEventSurfaces(event.publicId, event.hubId);
     return { success: "Your paid registration is now confirmed." };
   }
@@ -781,6 +792,18 @@ export async function registerForEventAction(
   });
 
   revalidateEventSurfaces(event.publicId, event.hubId);
+  if (outcome.kind === "confirmed") {
+    const registration = await prisma.eventRegistration.findUnique({
+      where: { eventId_userId: { eventId: event.id, userId: viewer.id } },
+      select: { id: true },
+    });
+    if (registration) {
+      await recordEventRegistrationSystemMessage(
+        registration.id,
+        "CONFIRMED"
+      );
+    }
+  }
   if (
     outcome.kind === "payment" ||
     outcome.kind === "confirmed" ||
@@ -1324,6 +1347,7 @@ export async function cancelEventAction(
   }
 
   revalidateEventSurfaces(event.publicId, event.hubId);
+  await recordEventSystemMessage(event.id, "CANCELLED");
   await recordImpersonatedAction({
     action: "EVENT_CANCELLED",
     targetType: "Event",
@@ -1500,6 +1524,10 @@ export async function cancelEventRegistrationAction(
   revalidateEventSurfaces(
     registration.event.publicId,
     registration.event.hubId
+  );
+  await recordEventRegistrationSystemMessage(
+    registration.id,
+    "CANCELLED"
   );
   await recordImpersonatedAction({
     action: "EVENT_REGISTRATION_CANCELLED",

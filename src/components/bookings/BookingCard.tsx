@@ -256,6 +256,14 @@ export function BookingCard({
 
       {cancellable && (booking.status === "CONFIRMED" || holding) && (
         <div className="mt-4 flex flex-wrap items-start justify-end gap-2 border-t border-gray-100 pt-3">
+          {booking.status === "CONFIRMED" && (
+            <Link
+              href="/dashboard/messages"
+              className="inline-flex min-h-9 items-center rounded-lg border border-primary/20 bg-primary-soft px-3 text-xs font-bold text-primary hover:border-primary/40"
+            >
+              Message {view === "player" ? "venue" : "player"}
+            </Link>
+          )}
           {/* Only a confirmed booking can be moved. Money is in flight for a
               hold, and "moved" has no coherent meaning while it is. */}
           {reschedule && !holding && (
@@ -293,6 +301,16 @@ export function BookingCard({
               Need to change or cancel? Contact the venue.
             </p>
           )}
+        </div>
+      )}
+      {!cancellable && booking.status === "CONFIRMED" && (
+        <div className="mt-4 flex justify-end border-t border-gray-100 pt-3">
+          <Link
+            href="/dashboard/messages"
+            className="inline-flex min-h-9 items-center rounded-lg border border-primary/20 bg-primary-soft px-3 text-xs font-bold text-primary hover:border-primary/40"
+          >
+            Message {view === "player" ? "venue" : "player"}
+          </Link>
         </div>
       )}
     </div>

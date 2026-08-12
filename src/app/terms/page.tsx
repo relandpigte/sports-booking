@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function TermsPage() {
   return (
     <PageShell maxWidth="max-w-none" padded={false} alwaysPublic>
-      <LegalLayout title="Terms & Conditions" updated="August 5, 2026">
+      <LegalLayout title="Terms & Conditions" updated="August 12, 2026">
         <p>
           Welcome to Bunal.club. These Terms &amp; Conditions
           (&quot;Terms&quot;) govern your access to and use of the
@@ -86,6 +86,19 @@ export default function TermsPage() {
             and venue staff with respect — repeated no-shows or abusive
             behavior may result in suspension. We may remove content or
             restrict accounts that violate these Terms.
+          </p>
+        </LegalSection>
+
+        <LegalSection heading="6A. Booking-scoped Messages">
+          <p>
+            Confirmed bookings and event registrations may provide temporary
+            access to a venue conversation or event discussion. Use Messages
+            only for respectful coordination related to that booking or
+            event. Messages do not modify, cancel, reschedule, or refund an
+            official booking; those changes must use the relevant booking or
+            event controls. We may retain reported evidence, remove messages,
+            or restrict messaging access to protect participants and enforce
+            these Terms.
           </p>
         </LegalSection>
 

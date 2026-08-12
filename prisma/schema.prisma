@@ -18,6 +18,29 @@ enum Role {
   PARTNER
 }
 
+enum ChatConversationKind {
+  EVENT
+  HUB_PLAYER
+}
+
+enum ChatMessageKind {
+  USER
+  SYSTEM
+}
+
+enum ChatReportCategory {
+  SPAM
+  HARASSMENT
+  INAPPROPRIATE
+  OTHER
+}
+
+enum ChatReportStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
 enum PartnerStatus {
   DRAFT
   PENDING
@@ -89,17 +112,28 @@ model User {
   partnerActivatedById    String?
   createdAt               DateTime           @default(now())
   updatedAt               DateTime           @updatedAt
+  chatRestrictedAt        DateTime?
+  chatRestrictionReason   String?            @db.VarChar(200)
+  // Scalar audit fact: deleting an administrator must not erase who applied
+  // a restriction to an account.
+  chatRestrictedById      String?
 
-  accounts           Account[]
-  sessions           Session[]
-  hubs               Hub[]
-  bookings           Booking[]
-  passwordResetToken PasswordResetToken?
-  authSessions       AuthSession[]
-  authGrants         AuthGrant[]
-  securityChallenges SecurityChallenge[]
-  securityEvents     SecurityEvent[]
-  mfaRecoveryCodes   MfaRecoveryCode[]
+  accounts             Account[]
+  sessions             Session[]
+  hubs                 Hub[]
+  bookings             Booking[]
+  passwordResetToken   PasswordResetToken?
+  authSessions         AuthSession[]
+  authGrants           AuthGrant[]
+  securityChallenges   SecurityChallenge[]
+  securityEvents       SecurityEvent[]
+  mfaRecoveryCodes     MfaRecoveryCode[]
+  chatHubConversations ChatConversation[]  @relation("ChatHubPlayer")
+  chatMessages         ChatMessage[]       @relation("ChatMessageSender")
+  chatReadStates       ChatReadState[]
+  chatBlocksCreated    ChatBlock[]         @relation("ChatBlocker")
+  chatBlocksReceived   ChatBlock[]         @relation("ChatBlocked")
+  chatReports          ChatReport[]        @relation("ChatReporter")
 
   partnerGateway        PartnerGateway?
   manualPaymentMethods  PartnerManualPaymentMethod[]
@@ -578,11 +612,12 @@ model Hub {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  owner       User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  courts      Court[]
-  bookings    Booking[]
-  events      Event[]
-  courtBlocks CourtBlock[]
+  owner             User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  courts            Court[]
+  bookings          Booking[]
+  events            Event[]
+  courtBlocks       CourtBlock[]
+  chatConversations ChatConversation[]
 
   @@index([ownerId])
 }
@@ -715,6 +750,9 @@ model Booking {
   hourlyRate   Decimal?      @db.Decimal(10, 2)
   totalPrice   Decimal?      @db.Decimal(10, 2)
   status       BookingStatus @default(CONFIRMED)
+  // The moment this reservation first became eligible for Messages. Existing
+  // confirmed rows are backfilled during the chat migration.
+  confirmedAt  DateTime?
   notes        String?       @db.Text
   cancelledAt  DateTime?
   cancelledBy  CancelledBy?
@@ -758,6 +796,8 @@ model Booking {
 
   @@index([userId, startsAt])
   @@index([hubId, startsAt])
+  @@index([userId, status, endsAt])
+  @@index([hubId, userId, status, endsAt])
   @@index([courtId, date])
   @@index([status, holdExpiresAt])
 }
@@ -848,14 +888,115 @@ model Event {
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
-  hub             Hub                   @relation(fields: [hubId], references: [id], onDelete: Cascade)
-  courts          EventCourt[]
-  slots           BookingSlot[]
-  registrations   EventRegistration[]
-  organizerGuests EventOrganizerGuest[]
+  hub              Hub                   @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  courts           EventCourt[]
+  slots            BookingSlot[]
+  registrations    EventRegistration[]
+  organizerGuests  EventOrganizerGuest[]
+  chatConversation ChatConversation?
 
   @@index([hubId, startsAt])
   @@index([status, startsAt])
+  @@index([hubId, status, endsAt])
+}
+
+// Messages has two deliberately narrow room types. EVENT is one shared room
+// for confirmed registrants; HUB_PLAYER is one reusable venue/player thread.
+// Membership is always derived from Bookings/EventRegistrations at request
+// time, never copied into a second table that could drift.
+model ChatConversation {
+  id            String               @id @default(cuid())
+  kind          ChatConversationKind
+  hubId         String?
+  eventId       String?              @unique
+  playerId      String?
+  lastMessageAt DateTime?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  hub        Hub?            @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  event      Event?          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  player     User?           @relation("ChatHubPlayer", fields: [playerId], references: [id], onDelete: SetNull)
+  messages   ChatMessage[]
+  readStates ChatReadState[]
+
+  @@unique([hubId, playerId])
+  @@index([kind, lastMessageAt])
+  @@index([playerId, lastMessageAt])
+}
+
+model ChatMessage {
+  id             String          @id @default(cuid())
+  conversationId String
+  senderId       String?
+  kind           ChatMessageKind @default(USER)
+  body           String?         @db.VarChar(2000)
+  systemType     String?         @db.VarChar(60)
+  systemKey      String?         @unique @db.VarChar(160)
+  targetPath     String?         @db.VarChar(500)
+  clientNonce    String?         @db.VarChar(80)
+  editedAt       DateTime?
+  deletedAt      DateTime?
+  // Scalar audit fact for both user and moderator deletion.
+  deletedById    String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User?            @relation("ChatMessageSender", fields: [senderId], references: [id], onDelete: SetNull)
+  reports      ChatReport[]
+
+  @@unique([conversationId, senderId, clientNonce])
+  @@index([conversationId, createdAt, id])
+  @@index([senderId, createdAt])
+}
+
+model ChatReadState {
+  conversationId String
+  userId         String
+  lastReadAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@index([userId, lastReadAt])
+}
+
+model ChatBlock {
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker User @relation("ChatBlocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("ChatBlocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
+}
+
+model ChatReport {
+  id           String             @id @default(cuid())
+  messageId    String
+  reporterId   String?
+  category     ChatReportCategory
+  details      String?            @db.VarChar(500)
+  evidenceBody String?            @db.VarChar(2000)
+  status       ChatReportStatus   @default(OPEN)
+  reviewerId   String?
+  resolution   String?            @db.VarChar(500)
+  reviewedAt   DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  message  ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  reporter User?       @relation("ChatReporter", fields: [reporterId], references: [id], onDelete: SetNull)
+
+  @@unique([messageId, reporterId])
+  @@index([status, createdAt])
+  @@index([messageId])
 }
 
 model EventCourt {
@@ -893,6 +1034,7 @@ model EventRegistration {
   @@unique([eventId, userId])
   @@index([eventId, status, createdAt])
   @@index([userId, createdAt])
+  @@index([userId, status, eventId])
 }
 
 // One capacity spot for a named guest. Initial guests share the lead player's

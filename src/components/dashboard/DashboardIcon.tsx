@@ -7,6 +7,7 @@ export type DashboardIconName =
   | "home"
   | "hub"
   | "map"
+  | "message"
   | "more"
   | "payment"
   | "profile"
@@ -58,6 +59,12 @@ export function DashboardIcon({
       <>
         <path d="m3 6 5-3 8 3 5-3v15l-5 3-8-3-5 3Z" />
         <path d="M8 3v15M16 6v15" />
+      </>
+    ),
+    message: (
+      <>
+        <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z" />
+        <path d="M8 9h8M8 13h5" />
       </>
     ),
     more: (

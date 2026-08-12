@@ -13,6 +13,7 @@ type Item = {
   exact?: boolean;
   playerOnly?: boolean;
   partnerOnly?: boolean;
+  messagesOnly?: boolean;
   icon: ReactNode;
 };
 
@@ -75,6 +76,18 @@ const items: Item[] = [
     ),
   },
   {
+    href: "/dashboard/messages",
+    label: "Messages",
+    partnerOnly: true,
+    messagesOnly: true,
+    icon: (
+      <svg {...iconProps}>
+        <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z" />
+        <path d="M8 9h8M8 13h5" />
+      </svg>
+    ),
+  },
+  {
     href: "/dashboard/events",
     label: "Events",
     partnerOnly: true,
@@ -120,6 +133,18 @@ const items: Item[] = [
     ),
   },
   {
+    href: "/dashboard/messages",
+    label: "Messages",
+    playerOnly: true,
+    messagesOnly: true,
+    icon: (
+      <svg {...iconProps}>
+        <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z" />
+        <path d="M8 9h8M8 13h5" />
+      </svg>
+    ),
+  },
+  {
     href: "/dashboard/account",
     label: "Account Settings",
     icon: (
@@ -134,9 +159,11 @@ const items: Item[] = [
 export function DashboardNav({
   role,
   partnerStatus,
+  hasMessages = false,
 }: {
   role?: Role;
   partnerStatus?: PartnerStatus | null;
+  hasMessages?: boolean;
 }) {
   const pathname = usePathname();
 
@@ -156,6 +183,7 @@ export function DashboardNav({
     .filter(
       (item) =>
         (!item.playerOnly || role === "PLAYER") &&
+        (!item.messagesOnly || hasMessages) &&
         (!item.partnerOnly ||
           (role === "PARTNER" && partnerStatus === "ACTIVE"))
     )
@@ -258,6 +286,20 @@ export function DashboardNav({
             <path d="M8 9h8M8 13h5M8 17h3" />
           </svg>
           <span>Settlements</span>
+        </Link>
+      )}
+
+      {role === "ADMIN" && (
+        <Link
+          href="/dashboard/admin/messages"
+          aria-current={pathname.startsWith("/dashboard/admin/messages") ? "page" : undefined}
+          className={linkClass(pathname.startsWith("/dashboard/admin/messages"))}
+        >
+          <svg {...iconProps}>
+            <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z" />
+            <path d="m9 10 2 2 4-4" />
+          </svg>
+          <span>Message reports</span>
         </Link>
       )}
 

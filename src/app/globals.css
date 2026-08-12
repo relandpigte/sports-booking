@@ -81,6 +81,11 @@ body {
   outline-offset: 2px;
 }
 
+/* The composer wrapper provides the focus indicator for this control. */
+.message-composer-input:focus-visible {
+  outline: none;
+}
+
 .filter-control {
   min-height: 44px;
   width: 100%;

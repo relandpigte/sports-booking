@@ -468,7 +468,7 @@ export function MessagesWorkspace({
                     }
                   }}
                   placeholder="Write a message…"
-                  className="max-h-32 min-h-10 flex-1 resize-y border-0 bg-transparent px-2 py-2 text-sm text-navy placeholder:text-slate-400 focus:outline-none"
+                  className="message-composer-input max-h-32 min-h-10 flex-1 resize-y border-0 bg-transparent px-2 py-2 text-sm text-navy placeholder:text-slate-400 focus:outline-none"
                 />
                 <button
                   type="submit"

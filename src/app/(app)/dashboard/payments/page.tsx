@@ -13,8 +13,6 @@ import {
 } from "@/lib/service-fee-payments";
 import { getPartnerServiceFeeView } from "@/lib/service-fees";
 import { getCurrentPartnerImpersonation } from "@/lib/impersonation";
-import { getActivePartnerGateway } from "@/lib/partner-gateway";
-import { formatPHP } from "@/lib/currency";
 import { getPartnerManualPaymentSettings } from "@/lib/manual-payments";
 
 export const metadata: Metadata = {
@@ -30,58 +28,17 @@ export default async function PaymentsPage({
   const { settlement, setup } = await searchParams;
   const impersonation = await getCurrentPartnerImpersonation();
 
-  if (impersonation) {
-    const [gateway, serviceFees] = await Promise.all([
-      getActivePartnerGateway(partner.id),
-      getPartnerServiceFeeView(partner.id),
-    ]);
-
-    return (
-      <div>
-        <DashboardPageHeader
-          eyebrow="Payment workspace"
-          title="Payments"
-          description="Review payment readiness and service-fee standing for this partner."
-        />
-        <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-5">
-          <p className="font-bold text-amber-950">Payment controls are protected</p>
-          <p className="mt-1 text-sm leading-6 text-amber-800">
-            You can review status while assisting, but you cannot view or change
-            gateway credentials, connect or disconnect PayMongo, pay a
-            settlement, or submit a receipt.
-          </p>
-        </div>
-        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <PaymentStatusCard
-            label="PayMongo"
-            value={gateway ? "Connected" : "Not connected"}
-          />
-          <PaymentStatusCard
-            label="Outstanding fees"
-            value={formatPHP(serviceFees.balance.amountDue)}
-          />
-          <PaymentStatusCard
-            label="Under review"
-            value={formatPHP(serviceFees.balance.pending)}
-          />
-          <PaymentStatusCard
-            label="Overdue"
-            value={formatPHP(serviceFees.balance.overdueAmount)}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  if (settlement) {
-    await pollServiceFeeCheckout({
-      settlementId: settlement,
-      partnerId: partner.id,
-    });
-  } else {
-    // Recovery for a closed tab, failed return redirect, or temporarily
-    // unavailable webhook: merely reopening Payments reconciles with PayMongo.
-    await pollLatestServiceFeeCheckout(partner.id);
+  if (!impersonation) {
+    if (settlement) {
+      await pollServiceFeeCheckout({
+        settlementId: settlement,
+        partnerId: partner.id,
+      });
+    } else {
+      // Recovery for a closed tab, failed return redirect, or temporarily
+      // unavailable webhook: merely reopening Payments reconciles with PayMongo.
+      await pollLatestServiceFeeCheckout(partner.id);
+    }
   }
   const [gateway, serviceFees, paymentSettings] = await Promise.all([
     getGatewayView(partner.id),
@@ -101,6 +58,17 @@ export default async function PaymentsPage({
         title="Payments"
         description="Configure player checkout, payment destinations, and service-fee settlements."
       />
+      {impersonation && (
+        <div className="mt-5 rounded-2xl border border-ocean/20 bg-ocean-soft p-4">
+          <p className="font-bold text-navy">Full configuration assistance</p>
+          <p className="mt-1 text-sm leading-6 text-slate-600">
+            You can edit checkout mode, manual payment networks, and the
+            PayMongo connection for this partner. Every change is audited and
+            requires your recent admin MFA. Settlement payments remain
+            protected because they move funds rather than edit settings.
+          </p>
+        </div>
+      )}
       {setup === "hub" && (
         <div
           className={`mt-5 rounded-2xl border px-4 py-3 ${
@@ -153,19 +121,9 @@ export default async function PaymentsPage({
             process.env.SERVICE_FEE_PAYMENT_INSTRUCTIONS?.trim() ||
             "Transfer this amount using the payment details provided by the admin, then enter the reference and upload the receipt."
           }
+          readOnly={Boolean(impersonation)}
         />
       </div>
-    </div>
-  );
-}
-
-function PaymentStatusCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-      <p className="text-xs font-bold uppercase tracking-[0.14em] text-gray-500">
-        {label}
-      </p>
-      <p className="mt-2 text-xl font-black text-navy">{value}</p>
     </div>
   );
 }

@@ -133,9 +133,10 @@ export function AppShell({
                   Acting as {impersonation.partnerName}
                 </p>
                 <p className="mt-0.5 text-xs leading-5 text-amber-800">
-                  Signed in as {impersonation.adminName}. Account credentials,
-                  payment connections, and settlement payments remain blocked.
-                  Session ends at {formatImpersonationExpiry(impersonation.expiresAt)}.
+                  Signed in as {impersonation.adminName}. Partner content and
+                  payment configuration edits are audited. Password, MFA,
+                  sessions, and settlement payments remain protected. Session
+                  ends at {formatImpersonationExpiry(impersonation.expiresAt)}.
                 </p>
               </div>
               <form action={stopPartnerImpersonationAction}>

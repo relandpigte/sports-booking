@@ -7,7 +7,7 @@ import { sanitizeImageDataUrl } from "@/lib/avatar";
 import { settleBookingPayment, markBookingPaymentRefunded } from "@/lib/booking-payments";
 import { prisma } from "@/lib/db";
 import { getViewer, requireActivePartner, requireRecentMfa } from "@/lib/dal";
-import { isPartnerImpersonationActive } from "@/lib/impersonation";
+import { recordImpersonatedAction } from "@/lib/impersonation";
 import { manualNetworkPaymentMethod } from "@/lib/manual-payments";
 import { revalidatePartnerPaymentSurfaces } from "@/lib/payment-revalidation";
 import {
@@ -56,9 +56,6 @@ export async function savePartnerPaymentModeAction(
   _previous: ManualPaymentFormState,
   formData: FormData
 ): Promise<ManualPaymentFormState> {
-  if (await isPartnerImpersonationActive()) {
-    return { message: "Payment settings are protected during assisted access." };
-  }
   const partner = await requireActivePartner();
   await requireRecentMfa("/dashboard/payments");
   const mode = value(formData, "mode", 20);
@@ -78,6 +75,12 @@ export async function savePartnerPaymentModeAction(
     data: { partnerPaymentMode: mode },
   });
   await revalidatePartnerPaymentSurfaces(partner.id);
+  await recordImpersonatedAction({
+    action: "PARTNER_PAYMENT_MODE_UPDATED",
+    targetType: "User",
+    targetId: partner.id,
+    metadata: { mode },
+  });
   return {
     success:
       mode === "MANUAL"
@@ -90,9 +93,6 @@ export async function saveManualPaymentMethodAction(
   _previous: ManualPaymentFormState,
   formData: FormData
 ): Promise<ManualPaymentFormState> {
-  if (await isPartnerImpersonationActive()) {
-    return { message: "Payment settings are protected during assisted access." };
-  }
   const partner = await requireActivePartner();
   await requireRecentMfa("/dashboard/payments");
   const id = value(formData, "id", 40);
@@ -106,6 +106,7 @@ export async function saveManualPaymentMethodAction(
     ? await sanitizeImageDataUrl(rawQrImage, "qr")
     : null;
   const active = formData.get("active") === "on";
+  let targetMethodId = id;
   const errors: Record<string, string> = {};
   if (!NETWORKS.has(network)) errors.network = "Choose a valid network.";
   if (label.length < 2) errors.label = "Enter a payment-method label.";
@@ -153,7 +154,7 @@ export async function saveManualPaymentMethodAction(
     const sortOrder = await prisma.partnerManualPaymentMethod.count({
       where: { partnerId: partner.id },
     });
-    await prisma.partnerManualPaymentMethod.create({
+    const created = await prisma.partnerManualPaymentMethod.create({
       data: {
         partnerId: partner.id,
         network,
@@ -165,9 +166,19 @@ export async function saveManualPaymentMethodAction(
         active,
         sortOrder,
       },
+      select: { id: true },
     });
+    targetMethodId = created.id;
   }
   await revalidatePartnerPaymentSurfaces(partner.id);
+  await recordImpersonatedAction({
+    action: id
+      ? "MANUAL_PAYMENT_METHOD_UPDATED"
+      : "MANUAL_PAYMENT_METHOD_CREATED",
+    targetType: "PartnerManualPaymentMethod",
+    targetId: targetMethodId,
+    metadata: { network, label, active },
+  });
   return { success: id ? "Payment method updated." : "Payment method added." };
 }
 
@@ -576,6 +587,15 @@ export async function reviewManualPaymentAction(
       payment.eventRegistration?.event.publicId ??
       payment.eventGuestSlots[0]?.registration.event.publicId,
   });
+  await recordImpersonatedAction({
+    action:
+      decision === "approve"
+        ? "MANUAL_PAYMENT_APPROVED"
+        : "MANUAL_PAYMENT_DECLINED",
+    targetType: "BookingPayment",
+    targetId: payment.id,
+    metadata: { note: note || null },
+  });
   return {
     success:
       decision === "approve"
@@ -625,6 +645,15 @@ export async function recordManualRefundAction(
     eventPublicId:
       payment.eventRegistration?.event.publicId ??
       payment.eventGuestSlots[0]?.registration.event.publicId,
+  });
+  await recordImpersonatedAction({
+    action: "MANUAL_REFUND_RECORDED",
+    targetType: "BookingPayment",
+    targetId: payment.id,
+    metadata: {
+      reference: reference || null,
+      reason: reason || null,
+    },
   });
   return {
     success:

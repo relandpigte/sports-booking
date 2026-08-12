@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 
 import { normalizeAvatar, normalizeCoverPhotos } from "@/lib/avatar";
 import { prisma } from "@/lib/db";
-import { isPartnerImpersonationActive } from "@/lib/impersonation";
+import { recordImpersonatedAction } from "@/lib/impersonation";
 import { requirePartner } from "@/lib/dal";
 import { PartnerApplicationSchema } from "@/lib/validation";
 import { firstErrors } from "@/lib/zod-errors";
@@ -28,12 +28,6 @@ export async function submitPartnerApplicationAction(
   _previous: PartnerApplicationFormState,
   formData: FormData
 ): Promise<PartnerApplicationFormState> {
-  if (await isPartnerImpersonationActive()) {
-    return {
-      message:
-        "Partner applications cannot be submitted during assisted access.",
-    };
-  }
   const partner = await requirePartner();
   if (partner.partnerStatus !== "DRAFT") {
     return { message: "This partner application has already been submitted." };
@@ -174,5 +168,11 @@ export async function submitPartnerApplicationAction(
 
   revalidatePath("/dashboard/partner");
   revalidatePath("/users");
+  await recordImpersonatedAction({
+    action: "PARTNER_APPLICATION_SUBMITTED",
+    targetType: "User",
+    targetId: partner.id,
+    metadata: { hubId: existingHub?.id ?? null },
+  });
   redirect("/dashboard/partner?submitted=1");
 }

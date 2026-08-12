@@ -26,7 +26,11 @@ import {
   REGISTRATION_EVENT_COOKIE,
   REGISTRATION_SUCCESS_PATH,
 } from "@/lib/registration-tracking";
-import { endImpersonationForLogout, isPartnerImpersonationActive } from "@/lib/impersonation";
+import {
+  endImpersonationForLogout,
+  getWorkspaceMutationTarget,
+  recordImpersonatedAction,
+} from "@/lib/impersonation";
 import {
   authenticatePassword,
   createLoginGrant,
@@ -481,13 +485,8 @@ export async function updateProfileAction(
   _prev: ProfileFormState,
   formData: FormData
 ): Promise<ProfileFormState> {
-  if (await isPartnerImpersonationActive()) {
-    return {
-      message:
-        "Account profile changes are blocked during assisted partner access.",
-    };
-  }
-  const { userId } = await verifySession();
+  await verifySession();
+  const target = await getWorkspaceMutationTarget();
 
   const raw = {
     name: String(formData.get("name") ?? ""),
@@ -511,7 +510,7 @@ export async function updateProfileAction(
 
   const data = parsed.data;
   await prisma.user.update({
-    where: { id: userId },
+    where: { id: target.userId },
     data: {
       name: data.name ?? null,
       playerName: data.playerName ?? null,
@@ -525,6 +524,23 @@ export async function updateProfileAction(
       skillLevel: data.skillLevel,
       privateProfile: data.privateProfile,
       image: avatar.value,
+    },
+  });
+
+  await recordImpersonatedAction({
+    action: "PARTNER_PROFILE_UPDATED",
+    targetType: "User",
+    targetId: target.userId,
+    metadata: {
+      fields: [
+        "name",
+        "playerName",
+        "phone",
+        ...(formData.has("facebookPage") ? ["facebookPage"] : []),
+        "skillLevel",
+        "privateProfile",
+        "image",
+      ],
     },
   });
 

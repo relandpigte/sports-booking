@@ -6,7 +6,7 @@ import { randomBytes } from "node:crypto";
 
 import { PrismaClient } from "@prisma/client";
 
-import { ok, run } from "./harness";
+import { ok, run, stubRequestContext } from "./harness";
 import {
   hashImpersonationToken,
   PARTNER_IMPERSONATION_MINUTES,
@@ -97,6 +97,58 @@ async function check() {
     audit?.adminId === admin.id &&
       audit.partnerId === partner.id &&
       audit.targetId === "check-hub"
+  );
+
+  const assistedActions: Array<Record<string, unknown>> = [];
+  stubRequestContext(
+    { id: admin.id, email: emails[0], role: "ADMIN" },
+    {
+      workspaceMutationTargetUserId: partner.id,
+      onImpersonatedAction: (input) => assistedActions.push(input),
+    }
+  );
+  const { updateProfileAction } = await import("@/lib/actions");
+  const profile = new FormData();
+  profile.set("name", "Updated Assisted Partner");
+  profile.set("playerName", "Assisted Player");
+  profile.set("phone", "+63 917 123 4567");
+  profile.set("facebookPage", "https://www.facebook.com/bunal.club");
+  profile.set("skillLevel", "advanced");
+  profile.set("privateProfile", "on");
+  profile.set("image", "");
+  const profileResult = await updateProfileAction({}, profile);
+  const [adminAfterEdit, partnerAfterEdit] = await Promise.all([
+    prisma.user.findUniqueOrThrow({
+      where: { id: admin.id },
+      select: { name: true },
+    }),
+    prisma.user.findUniqueOrThrow({
+      where: { id: partner.id },
+      select: {
+        name: true,
+        playerName: true,
+        skillLevel: true,
+        privateProfile: true,
+      },
+    }),
+  ]);
+  ok(
+    "an assisted profile edit updates the partner instead of the admin",
+    profileResult.ok === true &&
+      adminAfterEdit.name === "Assistance Admin" &&
+      partnerAfterEdit.name === "Updated Assisted Partner" &&
+      partnerAfterEdit.playerName === "Assisted Player" &&
+      partnerAfterEdit.skillLevel === "advanced" &&
+      partnerAfterEdit.privateProfile
+  );
+  ok(
+    "the assisted profile edit emits an actor-target audit event",
+    assistedActions.some(
+      (entry) =>
+        entry.action === "PARTNER_PROFILE_UPDATED" &&
+        entry.targetType === "User" &&
+        entry.targetId === partner.id
+    )
   );
 
   await prisma.partnerImpersonationSession.update({

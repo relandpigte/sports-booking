@@ -19,7 +19,7 @@ import {
   registerPaymongoWebhook,
 } from "@/lib/payments/paymongo-venue";
 import { appUrl } from "@/lib/urls";
-import { isPartnerImpersonationActive } from "@/lib/impersonation";
+import { recordImpersonatedAction } from "@/lib/impersonation";
 import { revalidatePartnerPaymentSurfaces } from "@/lib/payment-revalidation";
 
 // Deliberately NO `values` field: unlike a hub form, a gateway form's contents
@@ -38,12 +38,6 @@ export async function connectGatewayAction(
   _prev: GatewayFormState,
   formData: FormData
 ): Promise<GatewayFormState> {
-  if (await isPartnerImpersonationActive()) {
-    return {
-      message:
-        "Payment credentials are protected during assisted access. Ask the partner to connect PayMongo from their own session.",
-    };
-  }
   const partner = await requireActivePartner();
   await requireRecentMfa("/dashboard/payments");
 
@@ -118,7 +112,7 @@ export async function connectGatewayAction(
     CRYPTO_PURPOSE.gatewayWebhookSecret
   );
 
-  await prisma.partnerGateway.upsert({
+  const gateway = await prisma.partnerGateway.upsert({
     where: { userId: partner.id },
     create: {
       userId: partner.id,
@@ -143,9 +137,16 @@ export async function connectGatewayAction(
       // partner doesn't have to re-paste the URL.
       disconnectedAt: null,
     },
+    select: { id: true },
   });
 
   await revalidatePartnerPaymentSurfaces(partner.id);
+  await recordImpersonatedAction({
+    action: "PAYMENT_GATEWAY_CONNECTED",
+    targetType: "PartnerGateway",
+    targetId: gateway.id,
+    metadata: { provider, accountLabel: check.accountLabel },
+  });
   return {
     success: parsed.data.webhookSecret
       ? "Connected. Booking subtotals are deposited into your PayMongo account; remit Bunal.club service fees from Payments."
@@ -157,12 +158,6 @@ export async function disconnectGatewayAction(
   _prev: GatewayFormState,
   _formData: FormData
 ): Promise<GatewayFormState> {
-  if (await isPartnerImpersonationActive()) {
-    return {
-      message:
-        "Payment connections cannot be changed during assisted access.",
-    };
-  }
   // Active partners can turn off taking money at any time.
   const partner = await requireActivePartner();
   await requireRecentMfa("/dashboard/payments");
@@ -182,6 +177,11 @@ export async function disconnectGatewayAction(
   });
 
   await revalidatePartnerPaymentSurfaces(partner.id);
+  await recordImpersonatedAction({
+    action: "PAYMENT_GATEWAY_DISCONNECTED",
+    targetType: "PartnerGateway",
+    targetId: existing.id,
+  });
   return {
     success:
       "Disconnected. Complete hubs remain public as Coming soon, but new online bookings are paused until you reconnect. Refunds on existing paid bookings still work.",

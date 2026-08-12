@@ -91,17 +91,27 @@ export default async function AccountPage({
           Security
         </Link>
       </nav>
-      {impersonation ? (
-        <section className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5">
-          <h2 className="font-bold text-amber-950">Account details are protected</h2>
-          <p className="mt-1 text-sm leading-6 text-amber-800">
-            Profile, email, privacy, and password changes are unavailable while
-            you are assisting a partner. The partner must make these changes
-            from their own signed-in session.
+      {impersonation && activeTab === "profile" && (
+        <section className="mt-6 rounded-2xl border border-ocean/20 bg-ocean-soft p-4">
+          <h2 className="font-bold text-navy">Editing the assisted partner</h2>
+          <p className="mt-1 text-sm leading-6 text-slate-600">
+            Profile changes save to this partner and are recorded in the
+            assistance audit. Email, password, MFA, and active sessions remain
+            protected account-owner controls.
           </p>
         </section>
-      ) : activeTab === "profile" ? (
+      )}
+      {activeTab === "profile" ? (
         <AccountForm user={user} />
+      ) : impersonation ? (
+        <section className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5">
+          <h2 className="font-bold text-amber-950">Security remains protected</h2>
+          <p className="mt-1 text-sm leading-6 text-amber-800">
+            Password, MFA, and session controls require the partner&apos;s own
+            authenticated session. Exit assistance to manage your admin
+            account security.
+          </p>
+        </section>
       ) : security ? (
         <SecuritySettings
           overview={security}

@@ -97,6 +97,24 @@ export async function isPartnerImpersonationActive(): Promise<boolean> {
   return Boolean(await getCurrentPartnerImpersonation());
 }
 
+// Returns the account a workspace mutation is allowed to change. A normal
+// session may only mutate itself; an ADMIN in an active assisted session may
+// mutate only that session's partner. Server Actions use this instead of a
+// client-supplied target id so the cookie-backed assistance session remains
+// the authorization boundary.
+export async function getWorkspaceMutationTarget(): Promise<{
+  userId: string;
+  assisted: boolean;
+}> {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("UNAUTHENTICATED");
+
+  const context = await getActivePartnerImpersonation(session.user.id);
+  return context
+    ? { userId: context.partner.id, assisted: true }
+    : { userId: session.user.id, assisted: false };
+}
+
 export async function recordImpersonatedAction({
   action,
   targetType,

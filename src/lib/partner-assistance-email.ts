@@ -21,7 +21,7 @@ export function partnerAssistanceEmailContent(
     `The session ends by ${expiry}. The administrator can manage venue details, courts, schedules, bookings, events, and reports on your behalf.`,
   ];
   const note =
-    "Your password, email, PayMongo credentials, and settlement payments remain protected. Contact Bunal.club immediately if you did not expect this assistance.";
+    "The administrator can edit your workspace content and payment configuration. Your password, email, MFA, active sessions, and settlement payments remain protected. Every assisted change is audited. Contact Bunal.club immediately if you did not expect this assistance.";
 
   return {
     subject,

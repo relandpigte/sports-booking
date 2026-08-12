@@ -65,7 +65,11 @@ export async function run(
 // is loaded first.
 export function stubRequestContext(
   actor: { id: string; email: string; role?: string },
-  options: { stubAdminModule?: boolean } = {}
+  options: {
+    stubAdminModule?: boolean;
+    workspaceMutationTargetUserId?: string;
+    onImpersonatedAction?: (input: Record<string, unknown>) => void;
+  } = {}
 ): void {
   const req = createRequire(import.meta.url);
   const root = process.cwd();
@@ -116,7 +120,13 @@ export function stubRequestContext(
     getActivePartnerImpersonation: async () => null,
     getCurrentPartnerImpersonation: async () => null,
     isPartnerImpersonationActive: async () => false,
-    recordImpersonatedAction: async () => undefined,
+    getWorkspaceMutationTarget: async () => ({
+      userId: options.workspaceMutationTargetUserId ?? actor.id,
+      assisted: Boolean(options.workspaceMutationTargetUserId),
+    }),
+    recordImpersonatedAction: async (input: Record<string, unknown>) => {
+      options.onImpersonatedAction?.(input);
+    },
     endImpersonationForLogout: async () => undefined,
   });
 }

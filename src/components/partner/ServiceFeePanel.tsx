@@ -37,11 +37,13 @@ export function ServiceFeePanel({
   settlements,
   paymongoSettlementEnabled,
   paymentInstructions,
+  readOnly = false,
 }: {
   balance: ServiceFeeBalance;
   settlements: ServiceFeeSettlementView[];
   paymongoSettlementEnabled: boolean;
   paymentInstructions: string;
+  readOnly?: boolean;
 }) {
   const [state, action, pending] = useActionState(
     submitServiceFeeSettlementAction,
@@ -169,7 +171,14 @@ export function ServiceFeePanel({
         </p>
       )}
 
-      {balance.amountDue > 0 && balance.pending < 0.01 && (
+      {readOnly && balance.amountDue > 0 && (
+        <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+          Settlement payment and receipt submission must be completed by the
+          partner from their own signed-in session.
+        </p>
+      )}
+
+      {!readOnly && balance.amountDue > 0 && balance.pending < 0.01 && (
         <div className="mt-5 flex flex-col gap-5">
           {paymongoSettlementEnabled && (
             <form

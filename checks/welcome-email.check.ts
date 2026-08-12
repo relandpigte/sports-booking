@@ -97,7 +97,8 @@ async function check() {
     ok(
       "assistance email explains the temporary protected session",
       String(assistance?.body.html).includes("temporary assisted setup") &&
-        String(assistance?.body.html).includes("PayMongo credentials") &&
+        String(assistance?.body.html).includes("payment configuration") &&
+        String(assistance?.body.html).includes("Every assisted change is audited") &&
         String(assistance?.body.html).includes("Bunal Support")
     );
     ok(

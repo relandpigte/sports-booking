@@ -55,7 +55,7 @@ import {
 } from "@/lib/impersonation";
 import { notifyPartnerOfBooking } from "@/lib/booking-notifications";
 import { consumeRateLimit } from "@/lib/rate-limit";
-import { recordBookingSystemMessage } from "@/lib/messages";
+import { recordBookingSystemMessage } from "@/lib/message-system-events";
 
 export type BookingFormState = {
   errors?: Record<string, string>;

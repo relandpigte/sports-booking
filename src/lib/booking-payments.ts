@@ -29,7 +29,7 @@ import {
 import {
   recordBookingSystemMessage,
   recordEventRegistrationSystemMessage,
-} from "@/lib/messages";
+} from "@/lib/message-system-events";
 
 // Players paying venues through each partner's own gateway.
 //

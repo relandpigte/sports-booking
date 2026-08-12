@@ -39,7 +39,7 @@ import { consumeRateLimit } from "@/lib/rate-limit";
 import {
   recordEventRegistrationSystemMessage,
   recordEventSystemMessage,
-} from "@/lib/messages";
+} from "@/lib/message-system-events";
 
 const optionalText = z
   .string()

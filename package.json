@@ -57,7 +57,7 @@
   },
   "dependencies": {
     "@auth/prisma-adapter": "2.11.3",
-    "@googlemaps/js-api-loader": "^2.1.0",
+    "@googlemaps/js-api-loader": "^2.1.1",
     "@prisma/client": "^6.19.3",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
@@ -66,9 +66,9 @@
     "next": "16.3.0",
     "next-auth": "5.0.0-beta.32",
     "qrcode-generator": "^2.0.4",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "resend": "^6.18.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "resend": "^6.19.0",
     "server-only": "^0.0.1",
     "sharp": "0.35.3",
     "zod": "^4.4.3"

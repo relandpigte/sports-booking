@@ -385,6 +385,7 @@ export async function acceptStaffInvitationAction(
           reports: invitation.reports,
           messages: invitation.messages,
           payments: invitation.payments,
+          openPlay: invitation.openPlay,
         },
         select: { id: true },
       });
@@ -458,6 +459,7 @@ export async function getStaffInvitationView(token: string) {
       reports: true,
       messages: true,
       payments: true,
+      openPlay: true,
       partner: { select: { name: true, email: true, partnerStatus: true } },
     },
   });

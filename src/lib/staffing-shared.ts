@@ -7,6 +7,7 @@ export const STAFF_MODULES = [
   "reports",
   "messages",
   "payments",
+  "openPlay",
 ] as const;
 
 export type StaffModule = (typeof STAFF_MODULES)[number];

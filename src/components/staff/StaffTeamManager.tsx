@@ -30,6 +30,7 @@ const moduleLabels: Record<StaffModule, string> = {
   reports: "Reports",
   messages: "Messages",
   payments: "Payments",
+  openPlay: "Open Play",
 };
 
 type Member = {
@@ -41,6 +42,7 @@ type Member = {
   reports: StaffAccessLevel;
   messages: StaffAccessLevel;
   payments: StaffAccessLevel;
+  openPlay: StaffAccessLevel;
   user: {
     id: string;
     name: string | null;
@@ -60,6 +62,7 @@ type Invitation = {
   reports: StaffAccessLevel;
   messages: StaffAccessLevel;
   payments: StaffAccessLevel;
+  openPlay: StaffAccessLevel;
 };
 
 type Activity = {

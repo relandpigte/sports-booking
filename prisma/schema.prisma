@@ -59,6 +59,53 @@ enum StaffAccessLevel {
   MANAGE
 }
 
+enum OpenPlaySessionStatus {
+  SETUP
+  ACTIVE
+  ENDED
+}
+
+enum OpenPlayMatchingMode {
+  BALANCED
+  SKILL_SEPARATED
+  WINNERS_LOSERS
+  FIXED_PARTNERS
+}
+
+enum OpenPlayParticipantSource {
+  REGISTERED_PLAYER
+  REGISTRATION_GUEST
+  ORGANIZER_GUEST
+  WALK_IN
+}
+
+enum OpenPlayParticipantStatus {
+  NOT_CHECKED_IN
+  QUEUED
+  STAGED
+  PLAYING
+  PAUSED
+  CHECKED_OUT
+}
+
+enum OpenPlayLastResult {
+  UNCLASSIFIED
+  WIN
+  LOSS
+}
+
+enum OpenPlayGameStatus {
+  STAGED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum OpenPlaySelectionMethod {
+  AUTOMATIC
+  MANUAL
+}
+
 enum PaymentCollectionMode {
   AUTOMATIC
   MANUAL
@@ -146,6 +193,7 @@ model User {
   bookingPayments       BookingPayment[]             @relation("PlayerBookingPayments")
   venuePayments         BookingPayment[]             @relation("PartnerBookingPayments")
   eventRegistrations    EventRegistration[]
+  openPlayParticipants  OpenPlayParticipant[]
   organizerEventGuests  EventOrganizerGuest[]        @relation("OrganizerEventGuestCreator")
   serviceFeeEntries     ServiceFeeEntry[]            @relation("PartnerServiceFeeEntries")
   serviceFeeSettlements ServiceFeeSettlement[]       @relation("PartnerServiceFeeSettlements")
@@ -174,6 +222,7 @@ model PartnerStaffMembership {
   reports     StaffAccessLevel @default(NONE)
   messages    StaffAccessLevel @default(NONE)
   payments    StaffAccessLevel @default(NONE)
+  openPlay    StaffAccessLevel @default(NONE)
   acceptedAt  DateTime         @default(now())
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
@@ -200,6 +249,7 @@ model PartnerStaffInvitation {
   reports     StaffAccessLevel @default(NONE)
   messages    StaffAccessLevel @default(NONE)
   payments    StaffAccessLevel @default(NONE)
+  openPlay    StaffAccessLevel @default(NONE)
   expiresAt   DateTime
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
@@ -715,10 +765,12 @@ model Court {
   hourlyRate Decimal? @db.Decimal(10, 2)
   createdAt  DateTime @default(now())
 
-  hub           Hub             @relation(fields: [hubId], references: [id], onDelete: Cascade)
-  bookings      Booking[]
-  scheduleRules CourtSlotRule[]
-  eventCourts   EventCourt[]
+  hub            Hub                    @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  bookings       Booking[]
+  scheduleRules  CourtSlotRule[]
+  eventCourts    EventCourt[]
+  openPlayCourts OpenPlaySessionCourt[]
+  openPlayGames  OpenPlayGame[]
 
   @@index([hubId])
 }
@@ -977,6 +1029,7 @@ model Event {
   registrations    EventRegistration[]
   organizerGuests  EventOrganizerGuest[]
   chatConversation ChatConversation?
+  openPlaySession  OpenPlaySession?
 
   @@index([hubId, startsAt])
   @@index([status, startsAt])
@@ -1093,6 +1146,130 @@ model EventCourt {
   @@index([courtId])
 }
 
+// Live operations for one published pickleball Event. Event and BookingSlot
+// continue to own scheduling; these rows only track attendance and play.
+model OpenPlaySession {
+  id                String                @id @default(cuid())
+  eventId           String                @unique
+  status            OpenPlaySessionStatus @default(SETUP)
+  matchingMode      OpenPlayMatchingMode  @default(BALANCED)
+  nextQueuePosition Int                   @default(0)
+  createdById       String
+  startedAt         DateTime?
+  endedAt           DateTime?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  event        Event                  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  courts       OpenPlaySessionCourt[]
+  participants OpenPlayParticipant[]
+  pairs        OpenPlayPair[]
+  games        OpenPlayGame[]
+
+  @@index([status, updatedAt])
+}
+
+model OpenPlaySessionCourt {
+  sessionId String
+  courtId   String
+  position  Int
+  active    Boolean @default(true)
+
+  session OpenPlaySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  court   Court           @relation(fields: [courtId], references: [id], onDelete: Cascade)
+
+  @@id([sessionId, courtId])
+  @@unique([sessionId, position])
+  @@index([courtId])
+}
+
+model OpenPlayPair {
+  id        String   @id @default(cuid())
+  sessionId String
+  createdAt DateTime @default(now())
+
+  session      OpenPlaySession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  participants OpenPlayParticipant[]
+
+  @@index([sessionId])
+}
+
+model OpenPlayParticipant {
+  id                  String                    @id @default(cuid())
+  sessionId           String
+  source              OpenPlayParticipantSource
+  userId              String?
+  eventRegistrationId String?
+  eventGuestSlotId    String?
+  organizerGuestId    String?
+  pairId              String?
+  displayName         String                    @db.VarChar(120)
+  skillLevel          String                    @default("intermediate") @db.VarChar(24)
+  status              OpenPlayParticipantStatus @default(NOT_CHECKED_IN)
+  lastResult          OpenPlayLastResult        @default(UNCLASSIFIED)
+  queuePosition       Int?
+  checkedInAt         DateTime?
+  queuedAt            DateTime?
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+
+  session           OpenPlaySession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user              User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  eventRegistration EventRegistration?   @relation(fields: [eventRegistrationId], references: [id], onDelete: SetNull)
+  eventGuestSlot    EventGuestSlot?      @relation(fields: [eventGuestSlotId], references: [id], onDelete: SetNull)
+  organizerGuest    EventOrganizerGuest? @relation(fields: [organizerGuestId], references: [id], onDelete: SetNull)
+  pair              OpenPlayPair?        @relation(fields: [pairId], references: [id], onDelete: SetNull)
+  gameSlots         OpenPlayGamePlayer[]
+
+  @@unique([sessionId, eventRegistrationId])
+  @@unique([sessionId, eventGuestSlotId])
+  @@unique([sessionId, organizerGuestId])
+  @@index([sessionId, status, queuePosition])
+  @@index([pairId])
+  @@index([userId])
+}
+
+model OpenPlayGame {
+  id              String                  @id @default(cuid())
+  sessionId       String
+  courtId         String
+  sequence        Int
+  matchingMode    OpenPlayMatchingMode
+  selectionMethod OpenPlaySelectionMethod @default(AUTOMATIC)
+  status          OpenPlayGameStatus      @default(STAGED)
+  winningTeam     Int?
+  createdById     String
+  startedAt       DateTime?
+  completedAt     DateTime?
+  cancelledAt     DateTime?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  session OpenPlaySession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  court   Court                @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  players OpenPlayGamePlayer[]
+
+  @@unique([sessionId, sequence])
+  @@index([sessionId, status, courtId])
+  @@index([courtId, createdAt])
+}
+
+model OpenPlayGamePlayer {
+  id                  String @id @default(cuid())
+  gameId              String
+  participantId       String
+  team                Int
+  slot                Int
+  queuePositionBefore Int
+
+  game        OpenPlayGame        @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  participant OpenPlayParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, participantId])
+  @@unique([gameId, slot])
+  @@index([participantId])
+}
+
 // A registration always represents the signed-in lead player. Named guests
 // live in EventGuestSlot so a lead can buy more capacity later without
 // replacing or mutating the original successful payment.
@@ -1109,10 +1286,11 @@ model EventRegistration {
   createdAt        DateTime                @default(now())
   updatedAt        DateTime                @updatedAt
 
-  event   Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  payment BookingPayment?  @relation(fields: [bookingPaymentId], references: [id])
-  guests  EventGuestSlot[]
+  event                Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payment              BookingPayment?       @relation(fields: [bookingPaymentId], references: [id])
+  guests               EventGuestSlot[]
+  openPlayParticipants OpenPlayParticipant[]
 
   @@unique([eventId, userId])
   @@index([eventId, status, createdAt])
@@ -1135,8 +1313,9 @@ model EventGuestSlot {
   createdAt           DateTime                @default(now())
   updatedAt           DateTime                @updatedAt
 
-  registration EventRegistration @relation(fields: [eventRegistrationId], references: [id], onDelete: Cascade)
-  payment      BookingPayment?   @relation(fields: [bookingPaymentId], references: [id])
+  registration         EventRegistration     @relation(fields: [eventRegistrationId], references: [id], onDelete: Cascade)
+  payment              BookingPayment?       @relation(fields: [bookingPaymentId], references: [id])
+  openPlayParticipants OpenPlayParticipant[]
 
   @@index([eventRegistrationId, status, createdAt])
   @@index([bookingPaymentId])
@@ -1157,8 +1336,9 @@ model EventOrganizerGuest {
   createdAt   DateTime                @default(now())
   updatedAt   DateTime                @updatedAt
 
-  event     Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  createdBy User  @relation("OrganizerEventGuestCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  event                Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdBy            User                  @relation("OrganizerEventGuestCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  openPlayParticipants OpenPlayParticipant[]
 
   @@index([eventId, status, createdAt])
   @@index([createdById, createdAt])

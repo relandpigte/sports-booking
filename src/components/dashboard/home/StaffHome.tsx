@@ -42,6 +42,11 @@ const moduleDetails: Record<
     href: "/dashboard/payments",
     description: "Checkout configuration and payment status.",
   },
+  openPlay: {
+    label: "Open Play",
+    href: "/dashboard/open-play",
+    description: "Live attendance, matching, court rotation, and results.",
+  },
 };
 
 export function StaffHome({ workspace }: { workspace: PartnerWorkspace }) {

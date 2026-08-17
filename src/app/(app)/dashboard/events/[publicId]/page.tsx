@@ -113,6 +113,7 @@ export default async function PartnerEventDetailsPage({
 }) {
   const workspace = await requirePartnerWorkspace("events");
   const canManage = hasStaffAccess(workspace, "events", "MANAGE");
+  const canUseOpenPlay = hasStaffAccess(workspace, "openPlay", "VIEW");
   const canMessage = hasStaffAccess(workspace, "messages", "VIEW");
   const [{ publicId }, queryParams] = await Promise.all([params, searchParams]);
   const requestedTab = firstSearchValue(queryParams.tab) as EventTab;
@@ -251,6 +252,14 @@ export default async function PartnerEventDetailsPage({
         >
           View public page ↗
         </Link>
+        {canUseOpenPlay && event.sport === "pickleball" && event.status !== "DRAFT" ? (
+          <Link
+            href={`/dashboard/events/${event.publicId}/open-play`}
+            className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white hover:bg-primary-hover"
+          >
+            Open Play console
+          </Link>
+        ) : null}
       </div>
 
       <header className="mt-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm shadow-navy/5 sm:p-7">

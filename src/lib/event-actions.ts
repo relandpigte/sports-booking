@@ -1340,6 +1340,24 @@ export async function cancelEventAction(
       where: { eventId: event.id, status: "CONFIRMED" },
       data: { status: "CANCELLED", cancelledAt: new Date() },
     }),
+    prisma.openPlaySession.updateMany({
+      where: { eventId: event.id, status: { in: ["SETUP", "ACTIVE"] } },
+      data: { status: "ENDED", endedAt: new Date() },
+    }),
+    prisma.openPlayGame.updateMany({
+      where: {
+        session: { eventId: event.id },
+        status: { in: ["STAGED", "ACTIVE"] },
+      },
+      data: { status: "CANCELLED", cancelledAt: new Date() },
+    }),
+    prisma.openPlayParticipant.updateMany({
+      where: {
+        session: { eventId: event.id },
+        status: { not: "CHECKED_OUT" },
+      },
+      data: { status: "CHECKED_OUT", queuePosition: null, queuedAt: null },
+    }),
   ]);
 
   let failedRefunds = 0;

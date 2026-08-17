@@ -4,6 +4,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { HubCoverFallback } from "@/components/hubs/HubCoverFallback";
+
 export function HubPhotoGallery({
   photos,
   hubName,
@@ -105,9 +107,7 @@ export function HubPhotoGallery({
                 onClick={() => openViewer(0)}
               />
             ) : (
-              <div className="flex h-full w-full items-center justify-center text-sm font-medium text-slate-400">
-                No cover photo
-              </div>
+              <HubCoverFallback hubName={hubName} />
             )}
 
             {comingSoon && (

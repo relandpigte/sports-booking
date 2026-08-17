@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Avatar } from "@/components/ui/Avatar";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { DeleteHubButton } from "@/components/dashboard/hubs/DeleteHubButton";
+import { HubCoverFallback } from "@/components/hubs/HubCoverFallback";
 import { listMyHubs } from "@/lib/hubs";
 import {
   getPartnerPaymentSetup,
@@ -95,9 +96,7 @@ export default async function HubsPage() {
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center text-sm text-gray-400">
-                    No cover photo
-                  </div>
+                  <HubCoverFallback hubName={hub.name} />
                 )}
               </div>
               <div className="flex items-start gap-3 p-4">

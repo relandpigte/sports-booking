@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HubCoverFallback } from "@/components/hubs/HubCoverFallback";
 import { formatPHP } from "@/lib/currency";
 import { GAME_LABELS, WEEKDAYS } from "@/lib/constants";
 import type { Hub } from "@/lib/hubs";
@@ -56,9 +57,7 @@ export function HubCard({
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-sm text-gray-400">
-            No cover photo
-          </div>
+          <HubCoverFallback hubName={hub.name} />
         )}
         {comingSoon && (
           <div className="absolute -left-12 top-6 z-10 w-48 -rotate-45 bg-navy py-1.5 text-center shadow-lg">

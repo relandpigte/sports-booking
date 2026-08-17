@@ -22,6 +22,7 @@ type Registration = {
   status: "PENDING" | "CONFIRMED" | "WAITLISTED" | "CANCELLED" | "EXPIRED";
   paymentId: string | null;
   paymentStatus: "PENDING" | "SUCCEEDED" | "FAILED" | "REFUNDED" | null;
+  paymentReviewPending: boolean;
   confirmedGuestNames: string[];
   confirmedSlotCount: number;
   pendingGuestPaymentId: string | null;
@@ -126,6 +127,21 @@ export function EventRegistrationPanel({
                   No additional spots are available.
                 </p>
               )}
+            </div>
+          ) : registration?.status === "PENDING" &&
+            registration.paymentId &&
+            registration.paymentReviewPending ? (
+            <div className="space-y-3">
+              <StatusBox tone="warning">
+                Payment submitted. Your registration is awaiting organizer
+                review.
+              </StatusBox>
+              <Link
+                href={`/events/${publicId}/pay/${registration.paymentId}`}
+                className="block rounded-2xl border border-navy px-4 py-3.5 text-center text-sm font-bold text-navy transition-colors hover:bg-navy-soft"
+              >
+                View payment status
+              </Link>
             </div>
           ) : registration?.status === "PENDING" && registration.paymentId ? (
             <Link
@@ -413,13 +429,15 @@ function StatusBox({
   tone,
 }: {
   children: React.ReactNode;
-  tone: "success" | "neutral";
+  tone: "success" | "neutral" | "warning";
 }) {
   return (
     <p
       className={`rounded-2xl px-4 py-4 text-sm font-semibold ${
         tone === "success"
           ? "bg-green-50 text-green-700"
+          : tone === "warning"
+            ? "border border-amber-200 bg-amber-50 text-amber-800"
           : "bg-slate-100 text-slate-600"
       }`}
     >

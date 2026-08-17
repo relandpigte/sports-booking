@@ -20,6 +20,7 @@ export type EventRegistrationView = {
   holdExpiresAt: Date | null;
   paymentId: string | null;
   paymentStatus: "PENDING" | "SUCCEEDED" | "FAILED" | "REFUNDED" | null;
+  paymentReviewPending: boolean;
   confirmedGuestNames: string[];
   confirmedSlotCount: number;
   pendingGuestPaymentId: string | null;
@@ -508,6 +509,9 @@ export async function getPublicEvent(
           holdExpiresAt: viewer.holdExpiresAt,
           paymentId: viewer.bookingPaymentId,
           paymentStatus: viewer.payment?.status ?? null,
+          paymentReviewPending:
+            viewer.payment?.status === "PENDING" &&
+            viewer.payment.manualSubmittedAt != null,
           confirmedGuestNames: viewer.guests
             .filter((guest) => guest.status === "CONFIRMED")
             .map((guest) => guest.name),

@@ -369,7 +369,12 @@ async function check() {
   const publicEvent = await getPublicEvent(event.publicId, player.id);
   ok(
     "a submitted three-person manual group continues occupying three event spots",
-    publicEvent?.pendingCount === 3 && publicEvent.remainingSpots === 0
+    publicEvent?.pendingCount === 3 &&
+      publicEvent.remainingSpots === 0
+  );
+  ok(
+    "the event page exposes a submitted manual registration as awaiting review",
+    publicEvent?.viewerRegistration?.paymentReviewPending === true
   );
   await prisma.bookingPayment.update({
     where: { id: eventPayment.id },

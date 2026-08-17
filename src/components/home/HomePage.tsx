@@ -16,6 +16,7 @@ type IconName =
   | "clock"
   | "court"
   | "map"
+  | "message"
   | "phone"
   | "shield"
   | "users";
@@ -67,6 +68,27 @@ const FEATURES: {
     description:
       "Secure PayMongo checkout, automatic verification, and duplicate-charge protection make every booking easier.",
   },
+  {
+    icon: "message",
+    title: "Booking-scoped messaging",
+    description:
+      "Confirmed court bookings create private player–venue conversations, while confirmed event registrations open group discussions.",
+  },
+];
+
+const TEAM_PERMISSION_LEVELS = ["None", "View", "Manage"] as const;
+
+const TEAM_PERMISSION_ROWS: {
+  module: string;
+  selected: (typeof TEAM_PERMISSION_LEVELS)[number];
+  manageAvailable?: boolean;
+}[] = [
+  { module: "Hubs", selected: "View" },
+  { module: "Bookings", selected: "Manage" },
+  { module: "Events", selected: "Manage" },
+  { module: "Reports", selected: "View", manageAvailable: false },
+  { module: "Messages", selected: "Manage" },
+  { module: "Payments", selected: "None" },
 ];
 
 const FAQS = [
@@ -160,6 +182,12 @@ function Icon({
       <>
         <path d="m3 6 5-3 8 3 5-3v15l-5 3-8-3-5 3Z" />
         <path d="M8 3v15M16 6v15" />
+      </>
+    ),
+    message: (
+      <>
+        <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z" />
+        <path d="M8 9h8M8 13h5" />
       </>
     ),
     phone: (
@@ -330,6 +358,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
               ["How it works", "#how-it-works"],
               ["Payments", "#payments"],
               ["Features", "#features"],
+              ["Teams", "#teams"],
               ["Events", "/events"],
               ["Rankings", "/leaderboard"],
               ["For partners", "#partners"],
@@ -762,6 +791,166 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                   </p>
                 </article>
               ))}
+            </div>
+          </div>
+        </section>
+
+        <section
+          id="teams"
+          className="scroll-mt-24 border-t border-slate-100 px-5 py-20 sm:px-6 sm:py-24 lg:px-8"
+        >
+          <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+            <div>
+              <SectionHeading
+                eyebrow="Partner teams"
+                title="Run your hub with a team."
+                description="Invite player accounts as staff by email and decide exactly where each person can view information or help manage your venue."
+              />
+
+              <ul className="mt-8 space-y-4">
+                {[
+                  {
+                    icon: "users" as const,
+                    title: "Configurable module access",
+                    copy: "Set None, View, or Manage access for hubs, bookings, events, messages, and payments. Reports stay read-only.",
+                  },
+                  {
+                    icon: "chart" as const,
+                    title: "Activity and operational updates",
+                    copy: "Review staff activity and keep the owner and relevant managers informed about booking operations.",
+                  },
+                  {
+                    icon: "shield" as const,
+                    title: "Owner-only protection",
+                    copy: "Team administration, whole-hub creation or deletion, and settlements remain with the owner.",
+                  },
+                ].map((item) => (
+                  <li key={item.title} className="flex items-start gap-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
+                      <Icon name={item.icon} className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <h3 className="text-sm font-extrabold text-navy">
+                        {item.title}
+                      </h3>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">
+                        {item.copy}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-500">
+                <span className="font-extrabold text-navy">Staff experience:</span>{" "}
+                invited players keep their personal court and event booking
+                workspace, then switch into the staff workspace when they need
+                to help the venue.
+              </div>
+
+              <Link
+                href="/register/partner"
+                className="mt-8 inline-flex min-h-12 items-center justify-center rounded-xl bg-primary px-6 py-3 text-sm font-bold text-white shadow-sm shadow-primary/20 transition-all hover:-translate-y-0.5 hover:bg-primary-hover"
+              >
+                Start your team
+              </Link>
+            </div>
+
+            <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-xl shadow-navy/5 sm:p-6">
+              <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-5">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">
+                    Staff access example
+                  </p>
+                  <h3 className="mt-1 text-xl font-black text-navy">
+                    Hub coordinator
+                  </h3>
+                </div>
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
+                  <Icon name="shield" className="h-5 w-5" />
+                </span>
+              </div>
+
+              <div className="mt-5" role="table" aria-label="Example staff module permissions">
+                <div
+                  role="row"
+                  className="grid grid-cols-[minmax(72px,1fr)_40px_40px_52px] items-center gap-2 px-2 sm:grid-cols-[minmax(120px,1fr)_56px_56px_64px]"
+                >
+                  <span role="columnheader" className="text-xs font-extrabold text-navy">
+                    Module
+                  </span>
+                  {TEAM_PERMISSION_LEVELS.map((level) => (
+                    <span
+                      key={level}
+                      role="columnheader"
+                      className="text-center text-[9px] font-bold uppercase tracking-[0.08em] text-slate-400 sm:text-[10px]"
+                    >
+                      {level}
+                    </span>
+                  ))}
+                </div>
+
+                <div role="rowgroup" className="mt-2 space-y-2">
+                  {TEAM_PERMISSION_ROWS.map((row) => (
+                    <div
+                      key={row.module}
+                      role="row"
+                      className={`grid grid-cols-[minmax(72px,1fr)_40px_40px_52px] items-center gap-2 rounded-xl px-2 py-3 sm:grid-cols-[minmax(120px,1fr)_56px_56px_64px] sm:px-3 ${
+                        row.selected === "Manage"
+                          ? "border border-primary/20 bg-primary-soft"
+                          : "bg-slate-50"
+                      }`}
+                    >
+                      <span
+                        role="rowheader"
+                        className={`truncate text-xs font-bold sm:text-sm ${
+                          row.selected === "Manage" ? "text-primary" : "text-navy"
+                        }`}
+                      >
+                        {row.module}
+                      </span>
+                      {TEAM_PERMISSION_LEVELS.map((level) => {
+                        const unavailable =
+                          level === "Manage" && row.manageAvailable === false;
+                        const selected = row.selected === level;
+                        return (
+                          <span
+                            key={level}
+                            role="cell"
+                            aria-label={`${row.module}: ${level}${
+                              unavailable
+                                ? " unavailable"
+                                : selected
+                                  ? " selected"
+                                  : " not selected"
+                            }`}
+                            className="flex justify-center"
+                          >
+                            <span
+                              aria-hidden="true"
+                              className={`h-3.5 w-3.5 rounded-full ${
+                                unavailable
+                                  ? "bg-slate-200"
+                                  : selected
+                                    ? "bg-primary ring-2 ring-white outline outline-2 outline-primary"
+                                    : "border border-slate-300 bg-white"
+                              }`}
+                            />
+                          </span>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-5 flex items-start gap-2 rounded-xl border border-ocean/20 bg-ocean-soft p-3 text-ocean">
+                <Icon name="message" className="mt-0.5 h-4 w-4 shrink-0" />
+                <p className="text-xs font-bold leading-5">
+                  Messages View can read conversations. Messages Manage can
+                  also reply to players and event participants.
+                </p>
+              </div>
             </div>
           </div>
         </section>

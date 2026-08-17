@@ -758,54 +758,8 @@ export async function hasMessageAccess(args: {
   partnerStatus: MessageViewer["partnerStatus"];
 }): Promise<boolean> {
   if (args.role === "ADMIN") return false;
-  if (args.role === "PARTNER" && args.partnerStatus !== "ACTIVE") return false;
-  const activeAfter = cutoff();
-  if (args.role === "PLAYER") {
-    const [booking, registration] = await Promise.all([
-      prisma.booking.findFirst({
-        where: {
-          userId: args.userId,
-          status: "CONFIRMED",
-          endsAt: { gt: activeAfter },
-          hub: { owner: { partnerStatus: "ACTIVE" } },
-        },
-        select: { id: true },
-      }),
-      prisma.eventRegistration.findFirst({
-        where: {
-          userId: args.userId,
-          status: "CONFIRMED",
-          event: {
-            status: "PUBLISHED",
-            endsAt: { gt: activeAfter },
-            hub: { owner: { partnerStatus: "ACTIVE" } },
-          },
-        },
-        select: { id: true },
-      }),
-    ]);
-    return Boolean(booking || registration);
-  }
-  const [booking, event] = await Promise.all([
-    prisma.booking.findFirst({
-      where: {
-        hub: { ownerId: args.userId },
-        status: "CONFIRMED",
-        endsAt: { gt: activeAfter },
-      },
-      select: { id: true },
-    }),
-    prisma.event.findFirst({
-      where: {
-        hub: { ownerId: args.userId },
-        status: "PUBLISHED",
-        endsAt: { gt: activeAfter },
-        registrations: { some: { status: "CONFIRMED" } },
-      },
-      select: { id: true },
-    }),
-  ]);
-  return Boolean(booking || event);
+  if (args.role === "PLAYER") return true;
+  return args.role === "PARTNER" && args.partnerStatus === "ACTIVE";
 }
 
 async function conversationDetailsForViewer(

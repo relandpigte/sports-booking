@@ -180,6 +180,31 @@ page composition consistent.
 - Do not expose owner/admin functionality, approval tools, reports, or
   settlement information in the public homepage or other signed-out content.
 
+## Partner team management
+
+- `/dashboard/team` is an owner-only operational page for inviting staff,
+  reviewing pending invitations, changing access, removing staff, and auditing
+  recent team activity.
+- Give the page a clear summary layer before the detailed lists: active staff,
+  pending invitations, and recent activity should be understandable at a
+  glance without inventing business metrics.
+- Invitations and member editing use one consistent permission matrix. Rows are
+  Hubs, Bookings, Events, Reports, Messages, and Payments; columns are None,
+  View, and Manage. Each row behaves as a radio group with one selected value.
+- Use the homepage staff-access example as the interaction reference: large
+  calm rows, strong selected circles, selected manage rows may receive a soft
+  green tint, and unavailable access levels are visibly disabled. Reports can
+  only be None or View; its Manage choice is disabled.
+- Keep module descriptions available without making the matrix excessively
+  tall. On narrow screens, preserve readable labels and 44px radio targets with
+  no horizontal page overflow.
+- Editing a staff member should feel contextual and deliberate: retain their
+  identity at the top of the editor, show save/cancel actions clearly, and keep
+  the destructive remove action visually separate.
+- Pending invitations need visible expiry, a concise access summary, and clear
+  Resend and Cancel actions. Activity entries should identify the action,
+  actor, target type when available, and Manila-local date.
+
 ## Registration success pages
 
 - Successful player registration lands at `/welcome/player`; successful

@@ -51,3 +51,4 @@ __resources/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.superdesign/tmp/

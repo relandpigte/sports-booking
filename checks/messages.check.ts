@@ -40,6 +40,15 @@ async function check() {
       })
     )
   );
+  const emptyPartner = await prisma.user.create({
+    data: {
+      name: "Messages Empty Partner",
+      email: `${EMAIL_PREFIX}empty-partner@example.test`,
+      role: "PARTNER",
+      partnerStatus: "ACTIVE",
+    },
+    select: { id: true, role: true, partnerStatus: true },
+  });
   const hub = await prisma.hub.create({
     data: {
       ownerId: partner.id,
@@ -95,6 +104,30 @@ async function check() {
 
   stubRequestContext(players[0]);
   const messages = await import("@/lib/messages");
+  ok(
+    "an active partner sees Messages before receiving a booking",
+    await messages.hasMessageAccess({
+      userId: emptyPartner.id,
+      role: emptyPartner.role,
+      partnerStatus: emptyPartner.partnerStatus,
+    })
+  );
+  ok(
+    "a player sees Messages before making a booking",
+    await messages.hasMessageAccess({
+      userId: players[2].id,
+      role: players[2].role,
+      partnerStatus: null,
+    })
+  );
+  ok(
+    "an inactive partner cannot open the Messages workspace",
+    !(await messages.hasMessageAccess({
+      userId: emptyPartner.id,
+      role: emptyPartner.role,
+      partnerStatus: "DRAFT",
+    }))
+  );
   const listed = await messages.listMessageConversations();
   ok(
     "a confirmed player receives one event room and one private venue room",

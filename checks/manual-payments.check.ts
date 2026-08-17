@@ -361,7 +361,8 @@ async function check() {
   ok(
     "manual event proof freezes the lead and guest capacity in one claim",
     Boolean(eventSubmission.success) &&
-      frozenEvent?.holdExpiresAt == null &&
+      frozenEvent != null &&
+      frozenEvent.holdExpiresAt == null &&
       frozenEvent.guests.every((guest) => guest.holdExpiresAt == null)
   );
   const { getPublicEvent } = await import("@/lib/events");

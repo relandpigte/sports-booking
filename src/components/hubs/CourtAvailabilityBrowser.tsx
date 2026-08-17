@@ -194,10 +194,26 @@ function CourtComparisonGrid({
     );
   }
 
+  const singleCourt = courts.length === 1 ? courts[0] : null;
+
   return (
     <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200 bg-white">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[680px] border-separate border-spacing-0">
+      {singleCourt && (
+        <SingleCourtMobileSchedule
+          court={singleCourt}
+          active={singleCourt.id === activeCourtId}
+          selected={selectedByCourt[singleCourt.id] ?? []}
+          onSelectCourt={onSelectCourt}
+          onToggle={onToggle}
+        />
+      )}
+
+      <div className={singleCourt ? "hidden sm:block" : "overflow-x-auto"}>
+        <table
+          className={`w-full border-separate border-spacing-0 ${
+            singleCourt ? "" : "min-w-[680px]"
+          }`}
+        >
           <thead>
             <tr>
               <th className="sticky left-0 z-20 w-40 border-b border-r border-gray-200 bg-gray-50 px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-[0.16em] text-gray-400">
@@ -208,7 +224,9 @@ function CourtComparisonGrid({
                 return (
                   <th
                     key={court.id}
-                    className={`min-w-32 border-b border-r border-gray-200 px-2 py-1.5 text-center last:border-r-0 ${
+                    className={`border-b border-r border-gray-200 px-2 py-1.5 text-center last:border-r-0 ${
+                      singleCourt ? "" : "min-w-32"
+                    } ${
                       active ? "bg-primary-soft/70" : "bg-gray-50"
                     }`}
                   >
@@ -272,9 +290,78 @@ function CourtComparisonGrid({
           </tbody>
         </table>
       </div>
-      <p className="border-t border-gray-100 px-4 py-3 text-xs text-gray-500 sm:hidden">
-        Swipe sideways to compare every court.
-      </p>
+      {!singleCourt && (
+        <p className="border-t border-gray-100 px-4 py-3 text-xs text-gray-500 sm:hidden">
+          Swipe sideways to compare every court.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function SingleCourtMobileSchedule({
+  court,
+  active,
+  selected,
+  onSelectCourt,
+  onToggle,
+}: {
+  court: BrowserCourt;
+  active: boolean;
+  selected: number[];
+  onSelectCourt: (courtId: string) => void;
+  onToggle: (courtId: string, hour: number) => void;
+}) {
+  const availableCount = court.slots.filter((slot) => slot.available).length;
+
+  return (
+    <div className="sm:hidden">
+      <button
+        type="button"
+        onClick={() => onSelectCourt(court.id)}
+        aria-pressed={active}
+        className="flex min-h-16 w-full items-center justify-between gap-3 border-b border-gray-200 bg-primary-soft/70 px-4 py-3 text-left"
+      >
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-extrabold text-navy">
+            {court.name}
+          </span>
+          <span className="mt-1 inline-flex">
+            <CourtTypeBadge courtType={court.courtType} />
+          </span>
+        </span>
+        <span
+          className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${
+            availableCount > 0
+              ? "bg-primary text-white"
+              : "bg-gray-100 text-gray-500"
+          }`}
+        >
+          {availableCount} open
+        </span>
+      </button>
+
+      <div role="group" aria-label={`${court.name} time slots`}>
+        {court.slots.map((slot) => (
+          <div
+            key={slot.hour}
+            className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] border-b border-gray-100 last:border-b-0"
+          >
+            <span className="flex min-h-14 items-center border-r border-gray-100 px-3 py-2 text-xs font-bold leading-snug text-navy">
+              {slot.label}
+            </span>
+            <span className="flex items-center p-1">
+              <SlotCell
+                court={court}
+                slot={slot}
+                selected={selected.includes(slot.hour)}
+                compact
+                onToggle={onToggle}
+              />
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

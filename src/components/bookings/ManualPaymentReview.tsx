@@ -16,6 +16,9 @@ type ManualPaymentReviewProps = {
     id: string;
     status: "PENDING" | "SUCCEEDED" | "FAILED" | "REFUNDED";
     amount: number;
+    venueAmount?: number;
+    platformFee?: number;
+    playerName?: string;
     receiptImage: string | null;
     methodLabel: string | null;
     paymentReference: string | null;
@@ -23,7 +26,7 @@ type ManualPaymentReviewProps = {
     reviewNote: string | null;
     refundedAt: Date | null;
   };
-  variant?: "card" | "list";
+  variant?: "card" | "list" | "eventTable";
 };
 
 export function ManualPaymentReview({
@@ -54,6 +57,7 @@ export function ManualPaymentReview({
     return () => window.clearTimeout(timeout);
   }, [awaitingReview, payment.submittedAt]);
   const overdueAwaitingReview = Boolean(awaitingReview && reviewOverdue);
+  const reviewFormId = `manual-payment-review-${payment.id}`;
 
   useEffect(() => {
     if (!showReceipt) return;
@@ -117,6 +121,300 @@ export function ManualPaymentReview({
       )}
     </form>
   );
+
+  if (variant === "eventTable") {
+    return (
+      <>
+        <div className="flex min-w-44 flex-col items-start gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-amber-700">
+              Manual
+            </span>
+            {payment.methodLabel && (
+              <span className="text-xs font-bold text-navy">
+                {payment.methodLabel}
+              </span>
+            )}
+          </div>
+          {awaitingReview && (
+            <p className="text-[11px] font-semibold text-amber-700">
+              {overdueAwaitingReview
+                ? "Review overdue"
+                : "Proof awaiting review"}
+            </p>
+          )}
+          {payment.submittedAt && (
+            <p className="text-[11px] text-slate-400">
+              Submitted {formatSubmittedAt(payment.submittedAt)}
+            </p>
+          )}
+          {payment.receiptImage ? (
+            <button
+              type="button"
+              onClick={() => setShowReceipt(true)}
+              className="mt-0.5 inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-navy shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary/30"
+            >
+              <ReceiptIcon />
+              {awaitingReview ? "Review proof" : "View proof"}
+            </button>
+          ) : (
+            <span className="text-xs text-slate-400">Proof unavailable</span>
+          )}
+        </div>
+
+        {showReceipt && payment.receiptImage && (
+          <div
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-navy/70 p-3 backdrop-blur-sm sm:p-6"
+            onMouseDown={(event) => {
+              if (event.currentTarget === event.target) setShowReceipt(false);
+            }}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={`receipt-title-${payment.id}`}
+              aria-describedby={`receipt-help-${payment.id}`}
+              className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:rounded-3xl"
+            >
+              <header className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 bg-white px-4 py-4 sm:px-6">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">
+                    Manual payment review
+                  </p>
+                  <h2
+                    id={`receipt-title-${payment.id}`}
+                    className="mt-1 text-xl font-black text-navy"
+                  >
+                    Review player receipt
+                  </h2>
+                  {payment.playerName && (
+                    <p className="mt-1 text-sm text-slate-500">
+                      Submitted by {payment.playerName}
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowReceipt(false)}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-xl text-slate-500 transition-colors hover:bg-slate-50 hover:text-navy"
+                  aria-label="Close payment review"
+                  autoFocus
+                >
+                  ×
+                </button>
+              </header>
+
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <div className="grid lg:grid-cols-[minmax(0,1.35fr)_minmax(20rem,.85fr)]">
+                  <div className="flex min-h-72 items-center justify-center border-b border-slate-200 bg-slate-50 p-4 sm:p-6 lg:min-h-[32rem] lg:border-b-0 lg:border-r">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={payment.receiptImage}
+                      alt="Full player payment receipt"
+                      className="max-h-[58dvh] max-w-full rounded-xl object-contain shadow-sm"
+                    />
+                  </div>
+
+                  <aside className="p-4 sm:p-6">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                        Transaction details
+                      </p>
+                      {payment.methodLabel && (
+                        <span className="rounded-full bg-primary-soft px-2.5 py-1 text-xs font-bold text-primary">
+                          {payment.methodLabel}
+                        </span>
+                      )}
+                    </div>
+                    <dl className="mt-4 space-y-3 text-sm">
+                      {payment.playerName && (
+                        <ReceiptDetail label="Player" value={payment.playerName} />
+                      )}
+                      <ReceiptDetail
+                        label="Checkout total"
+                        value={formatPHP(payment.amount)}
+                        strong
+                      />
+                      {payment.venueAmount != null && (
+                        <ReceiptDetail
+                          label="Venue revenue"
+                          value={formatPHP(payment.venueAmount)}
+                        />
+                      )}
+                      {payment.platformFee != null && (
+                        <ReceiptDetail
+                          label="Bunal.club fee"
+                          value={formatPHP(payment.platformFee)}
+                        />
+                      )}
+                      <ReceiptDetail
+                        label="Reference"
+                        value={payment.paymentReference ?? "Not provided"}
+                      />
+                      <ReceiptDetail
+                        label="Submitted"
+                        value={
+                          payment.submittedAt
+                            ? formatSubmittedAt(payment.submittedAt)
+                            : "Not available"
+                        }
+                      />
+                    </dl>
+
+                    {awaitingReview && (
+                      <form
+                        id={reviewFormId}
+                        action={action}
+                        className="mt-5 border-t border-slate-100 pt-5"
+                      >
+                        <input
+                          type="hidden"
+                          name="paymentId"
+                          value={payment.id}
+                        />
+                        <label className="block">
+                          <span className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                            Partner note (optional)
+                          </span>
+                          <textarea
+                            name="note"
+                            value={note}
+                            onChange={(event) => setNote(event.target.value)}
+                            maxLength={500}
+                            rows={3}
+                            placeholder="Add a note or reason for declining…"
+                            className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-white p-3 text-sm text-navy placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                          />
+                        </label>
+                      </form>
+                    )}
+
+                    <div
+                      id={`receipt-help-${payment.id}`}
+                      className={`mt-4 rounded-xl px-3 py-2.5 text-xs leading-5 ${
+                        awaitingReview
+                          ? "bg-ocean-soft text-navy"
+                          : "bg-slate-50 text-slate-600"
+                      }`}
+                    >
+                      {awaitingReview
+                        ? "Approving confirms this event registration immediately. Declining rejects the proof and releases the held event capacity."
+                        : "This receipt has already been reviewed. Its recorded payment status is shown in the transaction table."}
+                    </div>
+
+                    {state.message && (
+                      <p className="mt-3 text-xs font-semibold text-red-600" role="alert">
+                        {state.message}
+                      </p>
+                    )}
+                    {state.success && (
+                      <p className="mt-3 text-xs font-semibold text-green-700" role="status">
+                        {state.success}
+                      </p>
+                    )}
+
+                    {payment.status === "SUCCEEDED" && (
+                      <div className="mt-5 border-t border-slate-100 pt-5">
+                        {!showRefund ? (
+                          <button
+                            type="button"
+                            onClick={() => setShowRefund(true)}
+                            className="text-xs font-bold text-red-600 hover:underline"
+                          >
+                            Record external refund
+                          </button>
+                        ) : (
+                          <form action={refundAction} className="space-y-2">
+                            <input
+                              type="hidden"
+                              name="paymentId"
+                              value={payment.id}
+                            />
+                            <input
+                              name="reference"
+                              maxLength={120}
+                              placeholder="Refund reference (optional)"
+                              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            />
+                            <input
+                              name="reason"
+                              maxLength={500}
+                              placeholder="Reason (optional)"
+                              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            />
+                            <p className="text-xs leading-5 text-slate-600">
+                              Send the full venue amount outside Bunal first,
+                              then record it here.
+                            </p>
+                            {refundState.message && (
+                              <p className="text-xs text-red-600">
+                                {refundState.message}
+                              </p>
+                            )}
+                            {refundState.success && (
+                              <p className="text-xs text-green-700">
+                                {refundState.success}
+                              </p>
+                            )}
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                disabled={refunding}
+                                className="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+                              >
+                                Record full refund
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setShowRefund(false)}
+                                className="px-3 py-2 text-xs font-bold text-slate-500"
+                              >
+                                Keep booking
+                              </button>
+                            </div>
+                          </form>
+                        )}
+                      </div>
+                    )}
+
+                    {payment.reviewNote && (
+                      <p className="mt-4 text-xs leading-5 text-slate-600">
+                        Review note: {payment.reviewNote}
+                      </p>
+                    )}
+                  </aside>
+                </div>
+              </div>
+
+              {awaitingReview && (
+                <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-200 bg-white px-4 py-4 sm:flex-row sm:justify-end sm:px-6">
+                  <button
+                    type="submit"
+                    form={reviewFormId}
+                    name="decision"
+                    value="decline"
+                    disabled={pending}
+                    className="min-h-11 rounded-xl border border-red-200 bg-white px-5 text-sm font-bold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+                  >
+                    Decline & release spot
+                  </button>
+                  <button
+                    type="submit"
+                    form={reviewFormId}
+                    name="decision"
+                    value="approve"
+                    disabled={pending}
+                    className="min-h-11 rounded-xl bg-primary px-5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-hover disabled:opacity-50"
+                  >
+                    {pending ? "Reviewing…" : "Approve & confirm"}
+                  </button>
+                </footer>
+              )}
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
 
   return (
     <>
@@ -375,6 +673,26 @@ function ReceiptDetail({
         {value}
       </dd>
     </div>
+  );
+}
+
+function ReceiptIcon() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="text-primary"
+    >
+      <path d="M14 2H6a2 2 0 0 0-2 2v16l3-2 3 2 3-2 3 2 3-2V7Z" />
+      <path d="M14 2v5h5M8 10h7M8 14h5" />
+    </svg>
   );
 }
 

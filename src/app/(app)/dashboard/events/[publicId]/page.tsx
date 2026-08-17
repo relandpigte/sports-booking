@@ -552,27 +552,31 @@ export default async function PartnerEventDetailsPage({
                         <td className="px-4 py-4 text-right text-slate-600">
                           {formatPHP(payment.platformFee)}
                         </td>
-                        <td className="max-w-52 px-6 py-4">
-                          <p className="truncate font-mono text-xs text-slate-500">
-                            {payment.providerRef ?? "Not available"}
-                          </p>
+                        <td className="max-w-56 px-6 py-4 align-middle">
+                          {payment.collectionMode !== "MANUAL" && (
+                            <p className="truncate font-mono text-xs text-slate-500">
+                              {payment.providerRef ?? "Not available"}
+                            </p>
+                          )}
                           {payment.collectionMode === "MANUAL" &&
                             payment.manualSubmittedAt && (
-                              <div className="min-w-80">
-                                <ManualPaymentReview
-                                  payment={{
-                                    id: payment.id,
-                                    status: payment.status,
-                                    amount: payment.amount,
-                                    receiptImage: payment.manualReceiptImage,
-                                    methodLabel: payment.manualMethodLabel,
-                                    paymentReference: payment.manualPaymentRef,
-                                    submittedAt: payment.manualSubmittedAt,
-                                    reviewNote: payment.manualReviewNote,
-                                    refundedAt: payment.refundedAt,
-                                  }}
-                                />
-                              </div>
+                              <ManualPaymentReview
+                                variant="eventTable"
+                                payment={{
+                                  id: payment.id,
+                                  status: payment.status,
+                                  amount: payment.amount,
+                                  venueAmount: payment.venueAmount,
+                                  platformFee: payment.platformFee,
+                                  playerName: name,
+                                  receiptImage: payment.manualReceiptImage,
+                                  methodLabel: payment.manualMethodLabel,
+                                  paymentReference: payment.manualPaymentRef,
+                                  submittedAt: payment.manualSubmittedAt,
+                                  reviewNote: payment.manualReviewNote,
+                                  refundedAt: payment.refundedAt,
+                                }}
+                              />
                             )}
                         </td>
                       </tr>

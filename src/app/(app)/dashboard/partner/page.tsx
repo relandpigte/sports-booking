@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { PartnerHome } from "@/components/dashboard/home/PartnerHome";
 import { getCurrentUser } from "@/lib/dal";
 import { dashboardHomeFor } from "@/lib/dashboard";
+import { prisma } from "@/lib/db";
 import {
   getPartnerPaymentSetup,
   isPartnerPaymentReady,
@@ -22,10 +23,10 @@ export default async function PartnerDashboardPage() {
   const impersonation = await getCurrentPartnerImpersonation();
   const canOperate =
     user.partnerStatus === "ACTIVE" || impersonation?.partner.id === user.id;
-  const paymentSetup =
-    canOperate
-      ? await getPartnerPaymentSetup(user.id)
-      : null;
+  const [paymentSetup, hubCount] = await Promise.all([
+    canOperate ? getPartnerPaymentSetup(user.id) : Promise.resolve(null),
+    prisma.hub.count({ where: { ownerId: user.id } }),
+  ]);
 
   return (
     <PartnerHome
@@ -34,6 +35,7 @@ export default async function PartnerDashboardPage() {
       isPaymentReady={
         paymentSetup ? isPartnerPaymentReady(paymentSetup) : false
       }
+      hasHub={hubCount > 0}
       canOperate={canOperate}
     />
   );

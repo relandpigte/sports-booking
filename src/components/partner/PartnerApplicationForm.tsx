@@ -19,6 +19,7 @@ const initialState: PartnerApplicationFormState = {};
 
 export function PartnerApplicationForm({
   user,
+  existingHub,
 }: {
   user: {
     playerName: string | null;
@@ -26,6 +27,19 @@ export function PartnerApplicationForm({
     facebookPage: string | null;
     email: string;
   };
+  existingHub: {
+    name: string;
+    slug: string | null;
+    about: string | null;
+    logo: string | null;
+    coverPhotos: string[];
+    games: string[];
+    address: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    phone: string | null;
+    email: string | null;
+  } | null;
 }) {
   const [state, action, pending] = useActionState(
     submitPartnerApplicationAction,
@@ -40,6 +54,13 @@ export function PartnerApplicationForm({
           className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600"
         >
           {state.message}
+        </p>
+      )}
+
+      {existingHub && (
+        <p className="rounded-xl border border-primary/20 bg-primary-soft/40 px-4 py-3 text-sm font-semibold text-primary">
+          We loaded your existing hub. Review the owner and venue details below,
+          then submit the application for admin approval.
         </p>
       )}
 
@@ -78,15 +99,19 @@ export function PartnerApplicationForm({
             <AvatarUpload
               name="hubLogo"
               label="Hub logo"
+              defaultValue={existingHub?.logo}
               error={state.errors?.hubLogo}
             />
-            <CoverPhotosUpload error={state.errors?.coverPhotos} />
+            <CoverPhotosUpload
+              defaultValue={existingHub?.coverPhotos}
+              error={state.errors?.coverPhotos}
+            />
           </div>
 
           <HubIdentityFields
             nameField="hubName"
-            defaultName={state.values?.hubName ?? ""}
-            defaultSlug={state.values?.slug ?? ""}
+            defaultName={state.values?.hubName ?? existingHub?.name ?? ""}
+            defaultSlug={state.values?.slug ?? existingHub?.slug ?? ""}
             nameError={state.errors?.hubName}
             slugError={state.errors?.slug}
           />
@@ -94,24 +119,31 @@ export function PartnerApplicationForm({
             label="Hub Description (Optional)"
             name="hubAbout"
             rows={4}
-            defaultValue={state.values?.hubAbout ?? ""}
+            defaultValue={state.values?.hubAbout ?? existingHub?.about ?? ""}
             error={state.errors?.hubAbout}
           />
-          <GamesSelect defaultValue={["pickleball"]} error={state.errors?.games} />
+          <GamesSelect
+            defaultValue={existingHub?.games ?? ["pickleball"]}
+            error={state.errors?.games}
+          />
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Input
               label="Hub Email (Optional)"
               name="hubEmail"
               type="email"
-              defaultValue={state.values?.hubEmail ?? user.email}
+              defaultValue={
+                state.values?.hubEmail ?? existingHub?.email ?? user.email
+              }
               error={state.errors?.hubEmail}
             />
             <Input
               label="Hub Phone (Optional)"
               name="hubPhone"
               type="tel"
-              defaultValue={state.values?.hubPhone ?? ""}
+              defaultValue={
+                state.values?.hubPhone ?? existingHub?.phone ?? ""
+              }
               error={state.errors?.hubPhone}
             />
             <div className="sm:col-span-2">
@@ -127,7 +159,13 @@ export function PartnerApplicationForm({
           </div>
 
           <div>
-            <LocationPicker defaultAddress={state.values?.address ?? ""} />
+            <LocationPicker
+              defaultAddress={
+                state.values?.address ?? existingHub?.address ?? ""
+              }
+              defaultLat={existingHub?.latitude}
+              defaultLng={existingHub?.longitude}
+            />
             {state.errors?.address && (
               <p className="mt-1 text-xs text-red-500">
                 {state.errors.address}

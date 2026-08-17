@@ -18,17 +18,20 @@ export function PartnerHome({
   user,
   partnerStatus,
   isPaymentReady,
+  hasHub,
   canOperate,
 }: {
   user: PartnerHomeUser;
   partnerStatus: PartnerStatus | null;
   isPaymentReady: boolean;
+  hasHub: boolean;
   canOperate?: boolean;
 }) {
   const active = partnerStatus === "ACTIVE";
   const draft = partnerStatus === "DRAFT";
   const deactivated = partnerStatus === "DEACTIVATED";
   const operational = canOperate ?? active;
+  const remainingBookingSteps = Number(!hasHub) + Number(!isPaymentReady);
   const shortcuts: {
     label: string;
     desc: string;
@@ -112,8 +115,9 @@ export function PartnerHome({
                 Submit your venue details
               </h2>
               <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
-                Add your owner details and first hub when you are ready. Your
-                application enters the review queue only after you submit it.
+                {hasHub
+                  ? "Your existing hub is ready. Review the owner and venue details, then explicitly submit the application for admin approval. Payment setup is only required before accepting bookings."
+                  : "Add your owner details and first hub when you are ready. Your application enters the review queue only after you submit it."}
               </p>
             </div>
             <Link
@@ -174,7 +178,7 @@ export function PartnerHome({
                 Venue onboarding
               </p>
               <h2 className="mt-1 text-lg font-bold text-navy">
-                Complete your venue setup
+                Complete your booking setup
               </h2>
               <p className="mt-1 text-sm leading-6 text-slate-500">
                 Add your first hub now, then configure automatic or manual
@@ -182,7 +186,9 @@ export function PartnerHome({
               </p>
             </div>
             <span className="w-fit rounded-full bg-navy-soft px-3 py-1.5 text-xs font-bold text-navy">
-              {isPaymentReady ? "Payment ready" : "1 required step"}
+              {remainingBookingSteps === 0
+                ? "Booking setup ready"
+                : `${remainingBookingSteps} booking ${remainingBookingSteps === 1 ? "step" : "steps"}`}
             </span>
           </div>
 
@@ -196,7 +202,7 @@ export function PartnerHome({
                   Step 01
                 </span>
                 <span className="rounded-full bg-primary-soft px-2 py-0.5 text-[11px] font-semibold text-primary">
-                  Ready
+                  {hasHub ? "Ready" : "Required for booking"}
                 </span>
               </div>
               <h3 className="mt-4 font-semibold text-gray-900">
@@ -206,7 +212,7 @@ export function PartnerHome({
                 Publish your venue as Coming soon with courts, rates, and hours.
               </p>
               <p className="mt-4 text-xs font-bold uppercase tracking-[0.12em] text-primary">
-                Open hubs →
+                {hasHub ? "Open hubs →" : "Add hub →"}
               </p>
             </Link>
 

@@ -18,7 +18,11 @@ export function PartnerActivationButton({
       <button
         type="submit"
         disabled={disabled}
-        title={disabled ? "The partner must submit venue details first" : undefined}
+        title={
+          disabled
+            ? "The partner must submit the application for review first"
+            : undefined
+        }
         className={`rounded-md px-2 py-1 text-xs font-semibold ${
           disabled
             ? "cursor-not-allowed bg-gray-100 text-gray-400"
@@ -28,7 +32,7 @@ export function PartnerActivationButton({
         }`}
       >
         {disabled
-          ? "Incomplete"
+          ? "Awaiting submission"
           : active
             ? "Deactivate"
             : deactivated

@@ -119,7 +119,7 @@ function CourtList({
             <button
               type="button"
               onClick={() => onSelectCourt(court.id)}
-              className="flex min-h-16 w-full items-center justify-between gap-4 bg-gray-50/70 px-4 py-3 text-left sm:px-5"
+              className="flex min-h-14 w-full items-center justify-between gap-3 bg-gray-50/70 px-3 py-2 text-left sm:min-h-16 sm:gap-4 sm:px-5 sm:py-3"
               aria-pressed={active}
             >
               <span className="min-w-0">
@@ -142,7 +142,7 @@ function CourtList({
             </button>
             {court.slots.length > 0 ? (
               <div
-                className="grid grid-cols-1 gap-2 p-4 sm:grid-cols-2 xl:grid-cols-3"
+                className="grid grid-cols-1 gap-1 p-2 sm:grid-cols-2 sm:gap-2 sm:p-4 xl:grid-cols-3"
                 role="group"
                 aria-label={`${court.name} time slots`}
               >
@@ -384,6 +384,34 @@ function SlotCell({
   const openPlay = slot.reason === "openPlay";
   const status = slotStatus(slot, selected);
   const title = slotTitle(slot);
+  const detailSpacing = showTime
+    ? "sm:mt-0.5"
+    : compact
+      ? ""
+      : "mt-0.5";
+
+  const detail =
+    slot.available && slot.hourlyRate != null ? (
+      <span
+        className={`block shrink-0 text-[10px] font-semibold ${detailSpacing} ${
+          selected ? "text-white/80" : "text-gray-400"
+        }`}
+      >
+        {formatPHP(slot.hourlyRate)}
+      </span>
+    ) : openPlay ? (
+      <span
+        className={`block shrink-0 text-[10px] font-semibold text-ocean/75 ${detailSpacing}`}
+      >
+        Event time
+      </span>
+    ) : slot.reason === "closed" && slot.closureReason ? (
+      <span
+        className={`block min-w-0 truncate text-[10px] font-semibold text-gray-400 ${detailSpacing}`}
+      >
+        {slot.closureReason}
+      </span>
+    ) : null;
 
   return (
     <button
@@ -394,32 +422,27 @@ function SlotCell({
       title={title}
       onClick={() => onToggle(court.id, slot.hour)}
       className={`w-full rounded-lg text-xs font-bold leading-tight transition-all ${
-        compact ? "min-h-10 border px-1.5 py-1" : "min-h-14 rounded-xl border-2 px-2 py-2"
+        showTime
+          ? "flex min-h-11 items-center justify-between gap-2 rounded-xl border px-3 py-1 text-left sm:block sm:min-h-14 sm:border-2 sm:px-2 sm:py-2 sm:text-center"
+          : compact
+            ? "min-h-10 border px-1.5 py-1"
+            : "min-h-14 rounded-xl border-2 px-2 py-2"
       } ${slotClasses(slot, selected)}`}
     >
-      {showTime && <span className="block text-[11px]">{slot.label}</span>}
-      <span className={`block ${showTime ? "mt-0.5" : ""}`}>{status}</span>
-      {slot.available && slot.hourlyRate != null ? (
-        <span
-          className={`block text-[10px] font-semibold ${compact ? "" : "mt-0.5"} ${
-            selected ? "text-white/80" : "text-gray-400"
-          }`}
-        >
-          {formatPHP(slot.hourlyRate)}
-        </span>
-      ) : openPlay ? (
-        <span
-          className={`block text-[10px] font-semibold text-ocean/75 ${compact ? "" : "mt-0.5"}`}
-        >
-          Event time
-        </span>
-      ) : slot.reason === "closed" && slot.closureReason ? (
-        <span
-          className={`block truncate text-[10px] font-semibold text-gray-400 ${compact ? "" : "mt-0.5"}`}
-        >
-          {slot.closureReason}
-        </span>
-      ) : null}
+      {showTime ? (
+        <>
+          <span className="shrink-0 text-[11px]">{slot.label}</span>
+          <span className="flex min-w-0 items-center justify-end gap-2 sm:mt-0.5 sm:block">
+            <span className="block shrink-0">{status}</span>
+            {detail}
+          </span>
+        </>
+      ) : (
+        <>
+          <span className="block">{status}</span>
+          {detail}
+        </>
+      )}
     </button>
   );
 }

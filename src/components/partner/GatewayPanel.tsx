@@ -213,13 +213,13 @@ export function GatewayPanel({ gateway }: { gateway: GatewayView | null }) {
   const connected = gateway?.connected ?? false;
 
   return (
-    <section className="rounded-2xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5 sm:p-6">
+    <section className="rounded-2xl border border-[#dfe7e2] bg-white p-4 shadow-sm shadow-navy/5 sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-gray-900">
             Automatic payments · PayMongo
           </h2>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-gray-500">
             Used when Checkout mode is Automatic. Players pay you directly and
             you keep your full court rate. A {SERVICE_FEE_PERCENT}% service fee
             is deposited alongside it and remitted to Bunal.club through the
@@ -234,72 +234,95 @@ export function GatewayPanel({ gateway }: { gateway: GatewayView | null }) {
         <PayMongoSetupGuide connected={connected} />
 
         {connected && gateway && (
-          <>
-            <div className="rounded-xl border border-ocean/20 bg-ocean-soft px-4 py-3">
-              <p className="text-sm font-bold text-navy">QR Ph-only checkout</p>
-              <p className="mt-1 text-xs leading-5 text-slate-600">
-                Bunal.club requests only QR Ph for court bookings and paid
-                events. Confirm that QR Ph is available under{" "}
-                <span className="font-semibold text-navy">
-                  Settings → Payment Methods
-                </span>{" "}
-                in PayMongo live mode.
-              </p>
-              <a
-                href="https://docs.paymongo.com/docs/account-settings-account-capabilities"
-                target="_blank"
-                rel="noreferrer"
-                className="mt-2 inline-flex text-xs font-bold text-ocean hover:underline"
-              >
-                Read PayMongo&apos;s payment-method guide ↗
-              </a>
-            </div>
-            <dl className="flex flex-col gap-2 rounded-xl bg-gray-50 px-3 py-3 text-sm">
-              <div className="flex items-center justify-between gap-3">
-                <dt className="text-gray-500">Account</dt>
-                <dd className="text-gray-900">
-                  {gateway.accountLabel ?? gateway.provider}
-                </dd>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <dt className="text-gray-500">Secret key</dt>
-                <dd className="font-mono text-gray-900">
-                  {gateway.secretKeyHint}
-                </dd>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <dt className="text-gray-500">Publishable key</dt>
-                <dd className="truncate font-mono text-gray-900">
-                  {gateway.publicKey}
-                </dd>
-              </div>
-            </dl>
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
+            <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
+              <dl className="space-y-2.5 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-gray-500">Account</dt>
+                  <dd className="truncate font-medium text-gray-900">
+                    {gateway.accountLabel ?? gateway.provider}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-gray-500">Secret key</dt>
+                  <dd className="font-mono text-xs text-gray-900">
+                    {gateway.secretKeyHint}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-gray-500">Publishable key</dt>
+                  <dd className="max-w-[65%] truncate font-mono text-xs text-gray-900">
+                    {gateway.publicKey}
+                  </dd>
+                </div>
+              </dl>
 
-            <CopyField label="Your webhook URL" value={gateway.webhookUrl} />
-            <p className="-mt-1 text-xs text-gray-400">
-              Registered in your PayMongo account automatically — this is how
-              they tell us a payment succeeded. Shown here for reference only.
-            </p>
+              <div className="mt-4 border-t border-slate-200 pt-4">
+                <CopyField label="Webhook destination" value={gateway.webhookUrl} />
+                <p className="mt-1.5 text-[11px] leading-4 text-gray-400">
+                  Registered automatically for secure payment confirmations.
+                </p>
+              </div>
 
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setShowForm((v) => !v)}
-                className="text-sm font-medium text-primary hover:underline"
-              >
-                {showForm ? "Cancel" : "Replace keys"}
-              </button>
-              <form action={disconnectAction}>
+              <div className="mt-4 flex items-center gap-3 border-t border-slate-200 pt-3">
                 <button
-                  type="submit"
-                  disabled={disconnecting}
-                  className="text-sm text-gray-500 hover:underline disabled:opacity-50"
+                  type="button"
+                  onClick={() => setShowForm((value) => !value)}
+                  className="text-xs font-bold text-primary hover:underline"
                 >
-                  {disconnecting ? "Disconnecting…" : "Disconnect"}
+                  {showForm ? "Cancel replacement" : "Replace keys"}
                 </button>
-              </form>
+                <form action={disconnectAction}>
+                  <button
+                    type="submit"
+                    disabled={disconnecting}
+                    className="text-xs font-semibold text-gray-500 hover:text-red-600 disabled:opacity-50"
+                  >
+                    {disconnecting ? "Disconnecting…" : "Disconnect"}
+                  </button>
+                </form>
+              </div>
             </div>
-          </>
+
+            <div className="rounded-xl border border-ocean/20 bg-ocean-soft px-4 py-3.5">
+              <div className="flex items-start gap-3">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white text-ocean ring-1 ring-ocean/10">
+                  <svg
+                    width="17"
+                    height="17"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 16v-4M12 8h.01" />
+                  </svg>
+                </span>
+                <div>
+                  <p className="text-sm font-bold text-navy">QR Ph-only checkout</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-600">
+                    Confirm QR Ph is active under{" "}
+                    <span className="font-semibold text-navy">
+                      Settings → Payment Methods
+                    </span>{" "}
+                    in your PayMongo live account.
+                  </p>
+                  <a
+                    href="https://docs.paymongo.com/docs/account-settings-account-capabilities"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-flex text-xs font-bold text-ocean hover:underline"
+                  >
+                    View PayMongo guide ↗
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         {(!connected || showForm) && (

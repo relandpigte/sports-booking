@@ -67,7 +67,7 @@ export function ServiceFeePanel({
   );
 
   return (
-    <section className="rounded-2xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5 sm:p-6">
+    <section className="rounded-2xl border border-[#dfe7e2] bg-white p-4 shadow-sm shadow-navy/5 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-gray-900">
@@ -90,27 +90,27 @@ export function ServiceFeePanel({
         )}
       </div>
 
-      <dl className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <dl className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
         <div className="rounded-xl bg-gray-50 p-3">
-          <dt className="text-xs text-gray-500">Outstanding</dt>
+          <dt className="text-[11px] text-gray-500">Outstanding</dt>
           <dd className="mt-1 text-lg font-bold text-gray-900">
             {formatPHP(balance.amountDue)}
           </dd>
         </div>
         <div className="rounded-xl bg-gray-50 p-3">
-          <dt className="text-xs text-gray-500">Under review</dt>
+          <dt className="text-[11px] text-gray-500">Under review</dt>
           <dd className="mt-1 text-lg font-bold text-gray-900">
             {formatPHP(balance.pending)}
           </dd>
         </div>
         <div className="rounded-xl bg-gray-50 p-3">
-          <dt className="text-xs text-gray-500">Settled</dt>
+          <dt className="text-[11px] text-gray-500">Settled</dt>
           <dd className="mt-1 text-lg font-bold text-gray-900">
             {formatPHP(balance.paid)}
           </dd>
         </div>
         <div className="rounded-xl bg-gray-50 p-3">
-          <dt className="text-xs text-gray-500">Next deadline</dt>
+          <dt className="text-[11px] text-gray-500">Next deadline</dt>
           <dd className="mt-1 text-sm font-semibold text-gray-900">
             {balance.nextDueAt ? formatDate(balance.nextDueAt) : "No balance"}
           </dd>
@@ -179,11 +179,11 @@ export function ServiceFeePanel({
       )}
 
       {!readOnly && balance.amountDue > 0 && balance.pending < 0.01 && (
-        <div className="mt-5 flex flex-col gap-5">
+        <div className="mt-4 flex flex-col gap-4">
           {paymongoSettlementEnabled && (
             <form
               action={checkoutAction}
-              className="rounded-xl border border-primary/20 bg-primary-soft p-4"
+              className="rounded-xl border border-primary/20 bg-primary-soft p-3.5"
             >
               <h3 className="text-sm font-semibold text-gray-900">
                 Pay {formatPHP(balance.amountDue)} with PayMongo
@@ -195,7 +195,7 @@ export function ServiceFeePanel({
               <Button
                 type="submit"
                 disabled={startingCheckout}
-                className="mt-3 sm:w-fit sm:px-8"
+                className="mt-3 sm:w-fit sm:px-6"
               >
                 {startingCheckout
                   ? "Opening PayMongo…"
@@ -207,7 +207,7 @@ export function ServiceFeePanel({
           )}
 
           {!awaitingCheckout && (
-            <form action={action} className="flex flex-col gap-4">
+            <form action={action} className="flex flex-col gap-3.5 rounded-xl border border-slate-100 bg-slate-50/50 p-3.5">
               <div>
                 <h3 className="text-sm font-semibold text-gray-900">
                   {paymongoSettlementEnabled
@@ -228,7 +228,7 @@ export function ServiceFeePanel({
               <Button
                 type="submit"
                 disabled={pending}
-                className="sm:w-fit sm:px-8"
+                className="sm:w-fit sm:px-6"
               >
                 {pending ? "Submitting…" : "Submit for review"}
               </Button>
@@ -238,17 +238,17 @@ export function ServiceFeePanel({
       )}
 
       {settlements.length > 0 && (
-        <div className="mt-6 border-t border-gray-100 pt-5">
+        <div className="mt-5 border-t border-gray-100 pt-4">
           <h3 className="text-sm font-semibold text-gray-900">
             Settlement history
           </h3>
-          <div className="mt-3 flex flex-col gap-2">
+          <div className="mt-2.5 overflow-hidden rounded-xl border border-slate-100">
             {settlements.map((settlement) => {
               const meta = statusMeta[settlement.status];
               return (
                 <div
                   key={settlement.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-3 text-sm"
+                  className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/60 px-3 py-2.5 text-sm last:border-b-0"
                 >
                   <div>
                     <p className="font-medium text-gray-900">

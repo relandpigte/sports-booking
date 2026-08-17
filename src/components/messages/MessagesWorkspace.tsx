@@ -263,11 +263,11 @@ export function MessagesWorkspace({
       : null;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-navy/5 lg:grid lg:h-[clamp(600px,calc(100vh-5rem),740px)] lg:grid-cols-[290px_minmax(0,1fr)] xl:grid-cols-[328px_minmax(0,1fr)]">
+    <div className="overflow-hidden rounded-2xl border border-[#dfe7e2] bg-white shadow-sm shadow-navy/5 lg:grid lg:h-[clamp(620px,calc(100vh-5rem),760px)] lg:grid-cols-[268px_minmax(0,1fr)] xl:grid-cols-[268px_minmax(0,1fr)_248px]">
       <aside className="hidden min-h-0 border-r border-slate-200 bg-white lg:flex lg:flex-col">
-        <div className="border-b border-slate-100 px-5 py-[18px] xl:px-6">
-          <h1 className="text-lg font-bold tracking-tight text-navy">Messages</h1>
-          <p className="mt-1 text-xs text-slate-500">
+        <div className="border-b border-slate-100 px-4 py-3.5">
+          <h1 className="text-base font-bold tracking-tight text-navy">Messages</h1>
+          <p className="mt-0.5 text-[11px] text-slate-500">
             Booking-scoped conversations
           </p>
         </div>
@@ -276,7 +276,7 @@ export function MessagesWorkspace({
 
       <section className="flex min-h-[calc(100dvh-7.5rem)] min-w-0 flex-col bg-white lg:min-h-0">
         <header className="border-b border-slate-100">
-          <div className="flex items-center gap-3 px-4 py-3 sm:px-5 sm:py-3.5">
+          <div className="flex min-h-[60px] items-center gap-3 px-4 py-2.5 sm:px-5">
             {conversations.length > 1 && (
               <Link
                 href="/dashboard/messages"
@@ -321,7 +321,7 @@ export function MessagesWorkspace({
             )}
           </div>
 
-          <div className="flex items-start gap-3 border-t border-slate-100 bg-slate-50/70 px-4 py-2.5 sm:items-center sm:px-5">
+          <div className="flex items-start gap-3 border-t border-slate-100 bg-slate-50/70 px-4 py-2.5 sm:items-center sm:px-5 xl:hidden">
             <div
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-sm text-ocean ring-1 ring-slate-200/80"
               aria-hidden="true"
@@ -356,7 +356,7 @@ export function MessagesWorkspace({
         </header>
 
         {conversation.kind === "EVENT" && (
-          <details className="border-b border-slate-100 bg-white px-4 py-2 text-xs text-slate-600 sm:px-5">
+          <details className="border-b border-slate-100 bg-white px-4 py-2 text-xs text-slate-600 sm:px-5 xl:hidden">
             <summary className="cursor-pointer text-[11px] font-semibold text-slate-600 transition-colors hover:text-navy">
               {conversation.participants.length} participants
             </summary>
@@ -385,12 +385,12 @@ export function MessagesWorkspace({
         )}
 
         <div
-          className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-white px-4 py-6 sm:px-6 sm:py-7"
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-[#fbfdfc] px-4 py-4 sm:px-5 sm:py-5"
           aria-live="polite"
         >
           <div className="mx-auto flex w-full max-w-[720px] flex-1 flex-col">
             {nextCursor && (
-              <div className="mb-6 text-center">
+              <div className="mb-4 text-center">
                 <button
                   type="button"
                   disabled={loadingOlder}
@@ -415,7 +415,7 @@ export function MessagesWorkspace({
                 </p>
               </div>
             )}
-            <div className="mt-auto space-y-5">
+            <div className="mt-auto space-y-4">
               {messages.map((message) =>
                 message.kind === "SYSTEM" ? (
                   <SystemMessage key={message.id} message={message} />
@@ -436,7 +436,7 @@ export function MessagesWorkspace({
 
         <form
           onSubmit={sendMessage}
-          className="border-t border-slate-100 bg-white px-3 py-3 sm:px-6 sm:py-4"
+          className="border-t border-slate-100 bg-white px-3 py-2.5 sm:px-5 sm:py-3"
         >
           <div className="mx-auto w-full max-w-[720px]">
             {error && (
@@ -451,7 +451,7 @@ export function MessagesWorkspace({
                   : "Your account cannot send messages right now."}
               </p>
             ) : (
-              <div className="flex items-end gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary-soft">
+              <div className="flex items-end gap-1.5 rounded-xl border border-slate-200 bg-slate-50 p-1.5 shadow-sm transition focus-within:border-primary focus-within:bg-white focus-within:ring-2 focus-within:ring-primary-soft">
                 <label className="sr-only" htmlFor="message-body">
                   Message
                 </label>
@@ -468,18 +468,18 @@ export function MessagesWorkspace({
                     }
                   }}
                   placeholder="Write a message…"
-                  className="message-composer-input max-h-32 min-h-10 flex-1 resize-y border-0 bg-transparent px-2 py-2 text-sm text-navy placeholder:text-slate-400 focus:outline-none"
+                  className="message-composer-input max-h-28 min-h-10 flex-1 resize-y border-0 bg-transparent px-2 py-2 text-[13px] text-navy placeholder:text-slate-400 focus:outline-none"
                 />
                 <button
                   type="submit"
                   disabled={sending || !body.trim()}
-                  className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl bg-primary px-4 text-xs font-bold text-white shadow-sm transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none sm:px-5 sm:text-sm"
+                  className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg bg-primary px-4 text-xs font-bold text-white shadow-sm transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
                 >
                   {sending ? "Sending…" : "Send"}
                 </button>
               </div>
             )}
-            <p className="mt-2 text-center text-[10px] text-slate-400">
+            <p className="mt-1.5 text-center text-[10px] text-slate-400">
               {conversation.kind === "EVENT"
                 ? "Visible only to confirmed participants in this event."
                 : "Visible only to you and this venue."}
@@ -487,6 +487,12 @@ export function MessagesWorkspace({
           </div>
         </form>
       </section>
+
+      <ConversationContextRail
+        conversation={conversation}
+        viewerId={viewerId}
+        onBlockMember={blockMember}
+      />
     </div>
   );
 }
@@ -508,7 +514,7 @@ export function ConversationList({
           key={item.id}
           href={item.href}
           aria-current={item.id === activeId ? "page" : undefined}
-          className={`relative flex gap-3 border-b border-slate-100 px-5 py-4 transition-colors xl:px-6 ${
+          className={`relative flex min-h-[68px] gap-3 border-b border-slate-100 px-4 py-3 transition-colors ${
             item.id === activeId ? "bg-primary-soft" : "hover:bg-slate-50"
           }`}
         >
@@ -518,7 +524,7 @@ export function ConversationList({
               className="absolute inset-y-0 left-0 w-[3px] bg-primary"
             />
           )}
-          <Avatar src={item.image} name={item.title} size={44} />
+          <Avatar src={item.image} name={item.title} size={40} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2">
               <p className="truncate text-sm font-bold text-navy">{item.title}</p>
@@ -539,7 +545,7 @@ export function ConversationList({
             >
               {item.subtitle}
             </p>
-            <p className="mt-1 truncate text-xs text-slate-400">
+            <p className="mt-0.5 truncate text-[11px] text-slate-400">
               {item.lastMessage ?? "No messages yet"}
             </p>
           </div>
@@ -549,17 +555,133 @@ export function ConversationList({
   );
 }
 
+function ConversationContextRail({
+  conversation,
+  viewerId,
+  onBlockMember,
+}: {
+  conversation: ConversationDetails;
+  viewerId: string;
+  onBlockMember: (targetUserId: string, blocked: boolean) => Promise<void>;
+}) {
+  return (
+    <aside className="hidden min-h-0 flex-col border-l border-[#dfe7e2] bg-[#fcfdfc] xl:flex">
+      <div className="flex min-h-[60px] items-center border-b border-[#dfe7e2] px-4">
+        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
+          {conversation.kind === "EVENT" ? "Event context" : "Booking context"}
+        </p>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <div className="flex size-10 items-center justify-center rounded-xl bg-white text-ocean ring-1 ring-[#dfe7e2]">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            {conversation.kind === "EVENT" ? (
+              <>
+                <path d="M6 4h12v3a6 6 0 0 1-12 0z" />
+                <path d="M9 18h6M10 14v4M14 14v4M8 21h8" />
+              </>
+            ) : (
+              <>
+                <rect x="3" y="4" width="18" height="18" rx="2" />
+                <path d="M16 2v4M8 2v4M3 10h18" />
+              </>
+            )}
+          </svg>
+        </div>
+
+        <h3 className="mt-3 text-sm font-bold leading-5 text-navy">
+          {conversation.context.title}
+        </h3>
+        <p className="mt-1 text-xs leading-5 text-slate-500">
+          {conversation.context.schedule}
+        </p>
+
+        <dl className="mt-5 space-y-4 border-t border-slate-100 pt-4">
+          <div>
+            <dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
+              Venue
+            </dt>
+            <dd className="mt-1 text-xs leading-5 text-slate-600">
+              {conversation.context.venue}
+            </dd>
+          </div>
+          {conversation.context.note && (
+            <div>
+              <dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                Note
+              </dt>
+              <dd className="mt-1 rounded-lg border border-slate-100 bg-white px-3 py-2 text-[11px] leading-5 text-slate-500">
+                {conversation.context.note}
+              </dd>
+            </div>
+          )}
+        </dl>
+
+        <div className="mt-5 border-t border-slate-100 pt-4">
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
+            Participants · {conversation.participants.length}
+          </p>
+          <div className="mt-2.5 space-y-2">
+            {conversation.participants.map((member) => (
+              <div key={member.id} className="flex min-w-0 items-center gap-2">
+                <Avatar src={member.image} name={member.name} size={28} />
+                <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-600">
+                  {member.name}
+                  {member.id === viewerId ? " (you)" : ""}
+                </span>
+                {conversation.kind === "EVENT" && member.id !== viewerId && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void onBlockMember(member.id, !member.blockedByMe)
+                    }
+                    className="text-[10px] font-semibold text-slate-400 hover:text-red-600"
+                  >
+                    {member.blockedByMe ? "Unblock" : "Block"}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t border-[#dfe7e2] p-4">
+        <Link
+          href={conversation.context.href}
+          className="inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-[#dfe7e2] bg-white px-3 text-xs font-bold text-navy transition-colors hover:border-ocean/30 hover:text-ocean"
+        >
+          {conversation.context.hrefLabel}
+          <span aria-hidden="true" className="ml-1.5">
+            →
+          </span>
+        </Link>
+      </div>
+    </aside>
+  );
+}
+
 function SystemMessage({ message }: { message: MessageView }) {
   const content = (
-    <div className="mx-auto flex max-w-md flex-col items-center py-1 text-center">
-      <div className="mb-2 h-px w-12 bg-slate-100" />
+    <div className="mx-auto flex max-w-md flex-col items-center text-center">
+      <div className="mb-1.5 h-px w-12 bg-slate-200/70" />
       <p className="text-[11px] font-medium leading-5 text-slate-500">
         {message.body}
       </p>
       <p className="mt-1 text-[9px] font-medium uppercase tracking-[0.12em] text-slate-300">
         {formatMessageTime(message.createdAt)}
       </p>
-      <div className="mt-2 h-px w-12 bg-slate-100" />
+      <div className="mt-1.5 h-px w-12 bg-slate-200/70" />
     </div>
   );
   return message.targetPath ? (
@@ -592,7 +714,7 @@ function UserMessage({
         <Avatar
           src={message.sender?.image}
           name={message.sender?.name}
-          size={34}
+          size={30}
         />
       )}
       <div
@@ -606,7 +728,7 @@ function UserMessage({
           </p>
         )}
         <div
-          className={`rounded-2xl border px-4 py-2.5 text-sm leading-6 ${
+          className={`rounded-2xl border px-3.5 py-2 text-[13px] leading-5 ${
             message.mine
               ? "rounded-br-md border-primary bg-primary text-white shadow-sm shadow-primary/10"
               : "rounded-bl-md border-slate-100 bg-slate-50/80 text-navy"

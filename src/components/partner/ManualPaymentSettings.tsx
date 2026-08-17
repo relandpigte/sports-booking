@@ -60,7 +60,7 @@ function ModeActivation({
   return (
     <form
       action={action}
-      className="rounded-2xl border border-primary/20 bg-primary-soft/60 p-4"
+      className="rounded-xl border border-primary/20 bg-primary-soft/60 p-3.5"
     >
       <input type="hidden" name="mode" value={mode} />
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -81,7 +81,7 @@ function ModeActivation({
         ) : (
           <button
             disabled={pending}
-            className="rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white hover:bg-primary-hover disabled:opacity-50"
+            className="min-h-10 rounded-lg bg-primary px-4 text-sm font-bold text-white hover:bg-primary-hover disabled:opacity-50"
           >
             {pending
               ? "Activating…"
@@ -89,7 +89,7 @@ function ModeActivation({
           </button>
         )}
       </div>
-      <div className="mt-3">
+      <div className="mt-2.5">
         <Result state={state} />
       </div>
     </form>
@@ -459,7 +459,7 @@ export function CheckoutModeSettings({
 
   if (readOnly) {
     return (
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+      <section className="rounded-2xl border border-[#dfe7e2] bg-white p-4 shadow-sm shadow-navy/5 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold text-navy">Checkout configuration</h2>
@@ -467,12 +467,12 @@ export function CheckoutModeSettings({
           </div>
           <Badge tone="success">{mode === "MANUAL" ? "Manual" : "PayMongo"} active</Badge>
         </div>
-        <dl className="mt-5 grid gap-3 sm:grid-cols-2">
-          <div className="rounded-xl bg-slate-50 p-4">
+        <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl bg-slate-50 p-3.5">
             <dt className="text-xs font-bold uppercase tracking-wide text-slate-400">PayMongo</dt>
             <dd className="mt-1 font-bold text-navy">{gateway?.connected ? "Connected" : "Not connected"}</dd>
           </div>
-          <div className="rounded-xl bg-slate-50 p-4">
+          <div className="rounded-xl bg-slate-50 p-3.5">
             <dt className="text-xs font-bold uppercase tracking-wide text-slate-400">Manual destinations</dt>
             <dd className="mt-1 font-bold text-navy">{methods.filter((method) => method.active).length} active</dd>
           </div>
@@ -492,14 +492,22 @@ export function CheckoutModeSettings({
   }
 
   return (
-    <div className="space-y-5">
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-        <h2 className="text-base font-semibold text-navy">Checkout mode</h2>
-        <p className="mt-1 text-sm leading-6 text-slate-500">
-          Select a mode to manage its settings. Viewing a tab does not change
-          the checkout players currently use.
-        </p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2" role="tablist" aria-label="Checkout mode settings">
+    <div className="space-y-4">
+      <section className="rounded-2xl border border-[#dfe7e2] bg-white p-4 shadow-sm shadow-navy/5 sm:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-navy">
+              Checkout configuration
+            </h2>
+            <p className="mt-0.5 text-xs leading-5 text-slate-500">
+              Choose a mode to review its setup. Switching views does not activate it.
+            </p>
+          </div>
+          <div
+            className="inline-flex w-full rounded-xl bg-slate-100 p-1 sm:w-auto"
+            role="tablist"
+            aria-label="Checkout mode settings"
+          >
           <button
             type="button"
             role="tab"
@@ -507,19 +515,14 @@ export function CheckoutModeSettings({
             aria-controls="automatic-settings-panel"
             aria-selected={selectedMode === "AUTOMATIC"}
             onClick={() => setSelectedMode("AUTOMATIC")}
-            className={`rounded-2xl border p-4 text-left transition-colors ${
+            className={`flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg px-3 text-xs font-bold transition-all sm:flex-none sm:px-4 ${
               selectedMode === "AUTOMATIC"
-                ? "border-primary bg-primary-soft"
-                : "border-slate-200 hover:border-primary/40 hover:bg-slate-50"
+                ? "bg-white text-navy shadow-sm"
+                : "text-slate-500 hover:text-navy"
             }`}
           >
-            <span className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-bold text-navy">Automatic · PayMongo QR Ph</span>
-              {mode === "AUTOMATIC" && <Badge tone="success">Active</Badge>}
-            </span>
-            <span className="mt-1 block text-xs leading-5 text-slate-500">
-              {SERVICE_FEE_PERCENT}% Bunal fee plus PayMongo processing. Successful payments confirm automatically.
-            </span>
+            Automatic
+            {mode === "AUTOMATIC" && <span className="size-1.5 rounded-full bg-primary" />}
           </button>
           <button
             type="button"
@@ -528,21 +531,22 @@ export function CheckoutModeSettings({
             aria-controls="manual-settings-panel"
             aria-selected={selectedMode === "MANUAL"}
             onClick={() => setSelectedMode("MANUAL")}
-            className={`rounded-2xl border p-4 text-left transition-colors ${
+            className={`flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg px-3 text-xs font-bold transition-all sm:flex-none sm:px-4 ${
               selectedMode === "MANUAL"
-                ? "border-primary bg-primary-soft"
-                : "border-slate-200 hover:border-primary/40 hover:bg-slate-50"
+                ? "bg-white text-navy shadow-sm"
+                : "text-slate-500 hover:text-navy"
             }`}
           >
-            <span className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-bold text-navy">Manual · Your payment networks</span>
-              {mode === "MANUAL" && <Badge tone="success">Active</Badge>}
-            </span>
-            <span className="mt-1 block text-xs leading-5 text-slate-500">
-              Players upload a receipt in 15 minutes. A {MANUAL_SERVICE_FEE_PERCENT}% Bunal fee applies; no PayMongo processing fee.
-            </span>
+            Manual
+            {mode === "MANUAL" && <span className="size-1.5 rounded-full bg-primary" />}
           </button>
+          </div>
         </div>
+        <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500">
+          {selectedMode === "AUTOMATIC"
+            ? `${SERVICE_FEE_PERCENT}% Bunal fee plus PayMongo processing. Successful payments confirm automatically.`
+            : `Players upload a receipt in 15 minutes. A ${MANUAL_SERVICE_FEE_PERCENT}% Bunal fee applies with no PayMongo processing fee.`}
+        </p>
       </section>
 
       <div
@@ -550,7 +554,7 @@ export function CheckoutModeSettings({
         role="tabpanel"
         aria-labelledby="automatic-settings-tab"
         hidden={selectedMode !== "AUTOMATIC"}
-        className="space-y-4"
+        className="space-y-3"
       >
         <GatewayPanel gateway={gateway} />
         <ModeActivation mode="AUTOMATIC" activeMode={mode} />
@@ -561,9 +565,9 @@ export function CheckoutModeSettings({
         role="tabpanel"
         aria-labelledby="manual-settings-tab"
         hidden={selectedMode !== "MANUAL"}
-        className="space-y-4"
+        className="space-y-3"
       >
-        <section className="space-y-3">
+        <section className="rounded-2xl border border-[#dfe7e2] bg-white p-4 shadow-sm shadow-navy/5 sm:p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="text-base font-semibold text-navy">Manual payment networks</h2>

@@ -3,7 +3,9 @@ import Link from "next/link";
 
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { CheckoutModeSettings } from "@/components/partner/ManualPaymentSettings";
+import { PaymentWorkspace } from "@/components/partner/PaymentWorkspace";
 import { ServiceFeePanel } from "@/components/partner/ServiceFeePanel";
+import { formatPHP } from "@/lib/currency";
 import { getGatewayView } from "@/lib/partner-gateway";
 import { platformPaymongoConfigured } from "@/lib/payments/paymongo-platform";
 import {
@@ -52,6 +54,16 @@ export default async function PaymentsPage({
     paymentSettings.mode === "MANUAL"
       ? paymentSettings.methods.some((method) => method.active)
       : gateway?.connected === true;
+  const activeManualMethods = paymentSettings.methods.filter(
+    (method) => method.active
+  ).length;
+  const settlementStatus = serviceFees.balance.blocked
+    ? { value: "Overdue", tone: "danger" as const }
+    : serviceFees.balance.inEnforcementGrace
+      ? { value: "Due soon", tone: "warning" as const }
+      : serviceFees.balance.pending > 0
+        ? { value: "Under review", tone: "warning" as const }
+        : { value: "Current", tone: "success" as const };
 
   return (
     <div>
@@ -109,24 +121,78 @@ export default async function PaymentsPage({
           )}
         </div>
       )}
-      <div className="mt-6 flex flex-col gap-5">
-        <CheckoutModeSettings
-          mode={paymentSettings.mode}
-          methods={paymentSettings.methods}
-          gateway={gateway}
-          readOnly={!canManage}
-        />
-        <ServiceFeePanel
-          balance={serviceFees.balance}
-          settlements={serviceFees.settlements}
-          paymongoSettlementEnabled={paymongoSettlementEnabled}
-          paymentInstructions={
-            process.env.SERVICE_FEE_PAYMENT_INSTRUCTIONS?.trim() ||
-            "Transfer this amount using the payment details provided by the admin, then enter the reference and upload the receipt."
-          }
-          readOnly={!canSettle || Boolean(impersonation)}
-        />
-      </div>
+      <PaymentWorkspace
+        initialTab={settlement ? "settlement" : "checkout"}
+        summary={[
+          {
+            label: "Checkout mode",
+            value:
+              paymentSettings.mode === "MANUAL"
+                ? "Manual transfer"
+                : "Automatic QR Ph",
+            detail: "Used for new bookings and registrations",
+            tone: "default",
+          },
+          {
+            label: "Payment destination",
+            value:
+              paymentSettings.mode === "MANUAL"
+                ? activeManualMethods > 0
+                  ? `${activeManualMethods} active network${activeManualMethods === 1 ? "" : "s"}`
+                  : "Needs setup"
+                : gateway?.connected
+                  ? "PayMongo connected"
+                  : "Needs setup",
+            detail: checkoutReady ? "Ready to receive player payments" : "Complete setup to open bookings",
+            tone: checkoutReady ? "success" : "warning",
+          },
+          {
+            label: "Service-fee balance",
+            value: formatPHP(serviceFees.balance.amountDue),
+            detail:
+              serviceFees.balance.pending > 0
+                ? `${formatPHP(serviceFees.balance.pending)} under review`
+                : `${formatPHP(serviceFees.balance.paid)} settled`,
+            tone: serviceFees.balance.amountDue > 0 ? "warning" : "default",
+          },
+          {
+            label: "Settlement status",
+            value: settlementStatus.value,
+            detail: serviceFees.balance.nextDueAt
+              ? `Due ${formatSummaryDate(serviceFees.balance.nextDueAt)}`
+              : "No upcoming deadline",
+            tone: settlementStatus.tone,
+          },
+        ]}
+        checkout={
+          <CheckoutModeSettings
+            mode={paymentSettings.mode}
+            methods={paymentSettings.methods}
+            gateway={gateway}
+            readOnly={!canManage}
+          />
+        }
+        settlement={
+          <ServiceFeePanel
+            balance={serviceFees.balance}
+            settlements={serviceFees.settlements}
+            paymongoSettlementEnabled={paymongoSettlementEnabled}
+            paymentInstructions={
+              process.env.SERVICE_FEE_PAYMENT_INSTRUCTIONS?.trim() ||
+              "Transfer this amount using the payment details provided by the admin, then enter the reference and upload the receipt."
+            }
+            readOnly={!canSettle || Boolean(impersonation)}
+          />
+        }
+      />
     </div>
   );
+}
+
+function formatSummaryDate(value: Date): string {
+  return new Intl.DateTimeFormat("en-PH", {
+    month: "short",
+    day: "numeric",
+    timeZone: "Asia/Manila",
+  }).format(value);
 }

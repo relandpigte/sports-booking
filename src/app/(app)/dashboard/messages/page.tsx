@@ -17,7 +17,7 @@ export default async function MessagesPage() {
   if (result.conversation && result.messages) {
     return (
       <MessagesWorkspace
-        viewerId={result.viewer.id}
+        viewerId={result.viewer.actorId}
         initialConversations={result.conversations}
         conversation={result.conversation}
         initialMessages={result.messages.messages}

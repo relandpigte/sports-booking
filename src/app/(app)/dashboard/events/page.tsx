@@ -3,9 +3,9 @@ import Link from "next/link";
 
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { Badge } from "@/components/ui/Badge";
-import { requireActivePartner } from "@/lib/dal";
 import { listMyEvents } from "@/lib/events";
 import { formatManilaDate, formatSlotRange, manilaToday } from "@/lib/time";
+import { hasStaffAccess, requirePartnerWorkspace } from "@/lib/staffing";
 
 export const metadata: Metadata = { title: "Events — Bunal.club" };
 
@@ -18,12 +18,13 @@ const tabs = [
 type View = (typeof tabs)[number]["value"];
 
 export default async function OwnerEventsPage({ searchParams }: { searchParams: Promise<{ view?: string | string[] }> }) {
-  const partner = await requireActivePartner();
+  const workspace = await requirePartnerWorkspace("events");
+  const canManage = hasStaffAccess(workspace, "events", "MANAGE");
   const query = await searchParams;
   const requested = Array.isArray(query.view) ? query.view[0] : query.view;
   const view: View = tabs.some((tab) => tab.value === requested) ? requested as View : "today";
   const today = manilaToday();
-  const allEvents = await listMyEvents(partner.id);
+  const allEvents = await listMyEvents(workspace.partnerId);
   const events = allEvents
     .filter((event) => view === "today" ? event.date === today : view === "upcoming" ? event.date > today : event.date < today)
     .sort((left, right) => view === "past" ? right.startsAt.getTime() - left.startsAt.getTime() : left.startsAt.getTime() - right.startsAt.getTime());
@@ -34,7 +35,7 @@ export default async function OwnerEventsPage({ searchParams }: { searchParams: 
         eyebrow="Open play management"
         title="Events"
         description="Create open play sessions, protect court time, and manage player registrations in one place."
-        actions={<Link href="/dashboard/events/new" className="inline-flex min-h-11 items-center rounded-xl bg-primary px-4 text-sm font-black text-white hover:bg-primary-hover">+ Create event</Link>}
+        actions={canManage ? <Link href="/dashboard/events/new" className="inline-flex min-h-11 items-center rounded-xl bg-primary px-4 text-sm font-black text-white hover:bg-primary-hover">+ Create event</Link> : undefined}
       />
 
       <nav className="mt-7 inline-flex rounded-2xl border border-slate-200 bg-white p-1" aria-label="Event periods">
@@ -61,7 +62,7 @@ export default async function OwnerEventsPage({ searchParams }: { searchParams: 
           </div>
         </div>
       ) : (
-        <div className="mt-6 rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center"><h2 className="text-lg font-black text-navy">No {view} events</h2><p className="mt-2 text-sm text-slate-500">Create an open play session and invite your court community.</p><Link href="/dashboard/events/new" className="mt-5 inline-flex rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white">Create event</Link></div>
+        <div className="mt-6 rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center"><h2 className="text-lg font-black text-navy">No {view} events</h2><p className="mt-2 text-sm text-slate-500">Create an open play session and invite your court community.</p>{canManage && <Link href="/dashboard/events/new" className="mt-5 inline-flex rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white">Create event</Link>}</div>
       )}
     </div>
   );

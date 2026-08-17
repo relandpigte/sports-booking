@@ -5,6 +5,7 @@ import { AppShell } from "@/components/dashboard/AppShell";
 import { getAuthenticatedUser, getCurrentUser } from "@/lib/dal";
 import { getActivePartnerImpersonation } from "@/lib/impersonation";
 import { hasMessageAccess } from "@/lib/messages";
+import { getPartnerWorkspace } from "@/lib/staffing";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
@@ -26,13 +27,21 @@ export default async function DashboardLayout({
     actor?.role === "ADMIN"
       ? await getActivePartnerImpersonation(actor.id)
       : null;
+  const [workspace, availableStaffWorkspace] = await Promise.all([
+    getPartnerWorkspace(),
+    user.role === "PLAYER"
+      ? getPartnerWorkspace({ selectedStaffOnly: false })
+      : Promise.resolve(null),
+  ]);
   const hasMessages = impersonation
     ? false
-    : await hasMessageAccess({
-        userId: user.id,
-        role: user.role,
-        partnerStatus: user.partnerStatus,
-      });
+    : workspace?.kind === "STAFF"
+      ? workspace.permissions.messages !== "NONE"
+      : await hasMessageAccess({
+          userId: user.id,
+          role: user.role,
+          partnerStatus: user.partnerStatus,
+        });
 
   return (
     <AppShell
@@ -48,6 +57,8 @@ export default async function DashboardLayout({
           : null
       }
       hasMessages={hasMessages}
+      workspace={workspace}
+      staffWorkspaceAvailable={Boolean(availableStaffWorkspace)}
     >
       {children}
     </AppShell>

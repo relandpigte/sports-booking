@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { HubForm } from "@/components/dashboard/hubs/HubForm";
 import { getMyHub } from "@/lib/hubs";
-import { requireActivePartner } from "@/lib/dal";
+import { requirePartnerWorkspace } from "@/lib/staffing";
 
 export const metadata: Metadata = {
   title: "Edit Hub — Bunal.club",
@@ -15,8 +15,8 @@ export default async function EditHubPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  await requireActivePartner();
-  const hub = await getMyHub(id);
+  const workspace = await requirePartnerWorkspace("hubs", "MANAGE");
+  const hub = await getMyHub(id, workspace.partnerId);
 
   if (!hub) {
     notFound();

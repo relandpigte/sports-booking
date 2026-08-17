@@ -2,15 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { EventForm } from "@/components/events/EventForm";
-import { requireActivePartner } from "@/lib/dal";
 import { listEventFormHubs } from "@/lib/events";
 import { manilaToday } from "@/lib/time";
+import { requirePartnerWorkspace } from "@/lib/staffing";
 
 export const metadata: Metadata = { title: "Create Event — Bunal.club" };
 
 export default async function NewEventPage() {
-  const partner = await requireActivePartner();
-  const hubs = await listEventFormHubs(partner.id);
+  const workspace = await requirePartnerWorkspace("events", "MANAGE");
+  const hubs = await listEventFormHubs(workspace.partnerId);
   return (
     <div className="mx-auto w-full max-w-4xl">
       <Link href="/dashboard/events" className="text-sm font-bold text-primary hover:underline">← Back to events</Link>

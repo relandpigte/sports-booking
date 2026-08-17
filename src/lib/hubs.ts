@@ -129,10 +129,10 @@ function mapHub<
   };
 }
 
-export async function listMyHubs(): Promise<Hub[]> {
-  const partner = await requireActivePartner();
+export async function listMyHubs(ownerId?: string): Promise<Hub[]> {
+  const partnerId = ownerId ?? (await requireActivePartner()).id;
   const rows = await prisma.hub.findMany({
-    where: { ownerId: partner.id },
+    where: { ownerId: partnerId },
     orderBy: { createdAt: "desc" },
     select: hubSelect,
   });
@@ -437,10 +437,10 @@ export const getPublicHub = cache(
 );
 
 // Fetches one hub, scoped to the current partner (ownership enforced).
-export async function getMyHub(id: string): Promise<Hub | null> {
-  const partner = await requireActivePartner();
+export async function getMyHub(id: string, ownerId?: string): Promise<Hub | null> {
+  const partnerId = ownerId ?? (await requireActivePartner()).id;
   const row = await prisma.hub.findFirst({
-    where: { id, ownerId: partner.id },
+    where: { id, ownerId: partnerId },
     select: hubSelect,
   });
   if (!row) return null;
@@ -470,12 +470,12 @@ export type UpcomingCourtBlock = {
 // Recurring hours with at least one upcoming booking are locked in the weekly
 // editor. Rate changes remain safe because Booking snapshots its price, but a
 // partner must cancel/move the booking before closing that recurring hour.
-export async function getMyHubSchedule(id: string): Promise<{
+export async function getMyHubSchedule(id: string, ownerId?: string): Promise<{
   hub: Hub;
   lockedSlots: LockedCourtScheduleSlot[];
   upcomingBlocks: UpcomingCourtBlock[];
 } | null> {
-  const hub = await getMyHub(id);
+  const hub = await getMyHub(id, ownerId);
   if (!hub) return null;
 
   const now = new Date();

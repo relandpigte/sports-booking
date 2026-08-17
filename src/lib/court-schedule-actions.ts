@@ -6,7 +6,6 @@ import { revalidatePath } from "next/cache";
 
 import { WEEKDAYS, type OperatingHours, type Weekday } from "@/lib/constants";
 import { prisma } from "@/lib/db";
-import { requireActivePartner } from "@/lib/dal";
 import { dayWindow, weekdayIndexForDate } from "@/lib/slots";
 import {
   formatHourLabel,
@@ -14,6 +13,7 @@ import {
   manilaToday,
 } from "@/lib/time";
 import { recordImpersonatedAction } from "@/lib/impersonation";
+import { recordPartnerActivity, requirePartnerWorkspace } from "@/lib/staffing";
 
 const ScheduleRuleSchema = z.object({
   courtId: z.string().min(1),
@@ -79,7 +79,7 @@ export async function updateCourtScheduleAction(
   _previous: CourtScheduleFormState,
   formData: FormData
 ): Promise<CourtScheduleFormState> {
-  const partner = await requireActivePartner();
+  const workspace = await requirePartnerWorkspace("hubs", "MANAGE");
   const hubId = String(formData.get("hubId") ?? "");
   const rawRules = String(formData.get("rules") ?? "[]");
 
@@ -98,7 +98,7 @@ export async function updateCourtScheduleAction(
   }
 
   const hub = await prisma.hub.findFirst({
-    where: { id: hubId, ownerId: partner.id },
+    where: { id: hubId, ownerId: workspace.partnerId },
     select: {
       id: true,
       slug: true,
@@ -202,6 +202,13 @@ export async function updateCourtScheduleAction(
     targetId: hub.id,
     metadata: { ruleCount: rules.length },
   });
+  await recordPartnerActivity({
+    workspace,
+    action: "COURT_SCHEDULE_UPDATED",
+    targetType: "Hub",
+    targetId: hub.id,
+    metadata: { ruleCount: rules.length },
+  });
 
   revalidateScheduleSurfaces(hub);
 
@@ -212,7 +219,7 @@ export async function createCourtBlockAction(
   _previous: CourtBlockFormState,
   formData: FormData
 ): Promise<CourtBlockFormState> {
-  const partner = await requireActivePartner();
+  const workspace = await requirePartnerWorkspace("bookings", "MANAGE");
   const parsed = CourtBlockSchema.safeParse({
     hubId: String(formData.get("hubId") ?? ""),
     date: String(formData.get("date") ?? ""),
@@ -239,7 +246,7 @@ export async function createCourtBlockAction(
 
   const uniqueCourtIds = [...new Set(values.courtIds)];
   const hub = await prisma.hub.findFirst({
-    where: { id: values.hubId, ownerId: partner.id },
+    where: { id: values.hubId, ownerId: workspace.partnerId },
     select: {
       id: true,
       slug: true,
@@ -322,7 +329,7 @@ export async function createCourtBlockAction(
               ? new Prisma.Decimal(Math.round(values.amountPaid * 100) / 100)
               : null,
           internalNote: values.internalNote,
-          createdById: partner.id,
+          createdById: workspace.actorId,
         },
         select: { id: true },
       });
@@ -368,17 +375,28 @@ export async function createCourtBlockAction(
       courtCount: uniqueCourtIds.length,
     },
   });
+  await recordPartnerActivity({
+    workspace,
+    action: "COURT_BLOCK_CREATED",
+    targetType: "CourtBlock",
+    targetId: blockId,
+    metadata: { hubId: hub.id, date: values.date },
+  });
   revalidateScheduleSurfaces(hub);
   return { success: "Court time blocked successfully." };
 }
 
 export async function releaseCourtBlockAction(formData: FormData): Promise<void> {
-  const partner = await requireActivePartner();
+  const workspace = await requirePartnerWorkspace("bookings", "MANAGE");
   const blockId = String(formData.get("blockId") ?? "");
   if (!blockId) return;
 
   const block = await prisma.courtBlock.findFirst({
-    where: { id: blockId, releasedAt: null, hub: { ownerId: partner.id } },
+    where: {
+      id: blockId,
+      releasedAt: null,
+      hub: { ownerId: workspace.partnerId },
+    },
     select: { id: true, hub: { select: { id: true, slug: true } } },
   });
   if (!block) return;
@@ -386,7 +404,7 @@ export async function releaseCourtBlockAction(formData: FormData): Promise<void>
   const released = await prisma.$transaction(async (tx) => {
     const updated = await tx.courtBlock.updateMany({
       where: { id: block.id, releasedAt: null },
-      data: { releasedAt: new Date(), releasedById: partner.id },
+      data: { releasedAt: new Date(), releasedById: workspace.actorId },
     });
     if (updated.count !== 1) return false;
     await tx.bookingSlot.deleteMany({ where: { blockId: block.id } });
@@ -395,6 +413,13 @@ export async function releaseCourtBlockAction(formData: FormData): Promise<void>
   if (!released) return;
 
   await recordImpersonatedAction({
+    action: "COURT_BLOCK_RELEASED",
+    targetType: "CourtBlock",
+    targetId: block.id,
+    metadata: { hubId: block.hub.id },
+  });
+  await recordPartnerActivity({
+    workspace,
     action: "COURT_BLOCK_RELEASED",
     targetType: "CourtBlock",
     targetId: block.id,

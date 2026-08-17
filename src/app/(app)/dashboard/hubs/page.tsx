@@ -4,22 +4,25 @@ import { Avatar } from "@/components/ui/Avatar";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { DeleteHubButton } from "@/components/dashboard/hubs/DeleteHubButton";
 import { listMyHubs } from "@/lib/hubs";
-import { requireActivePartner } from "@/lib/dal";
 import {
   getPartnerPaymentSetup,
   isPartnerPaymentReady,
 } from "@/lib/manual-payments";
 import { hubPublicPath } from "@/lib/hub-slug";
+import { hasStaffAccess, requirePartnerWorkspace } from "@/lib/staffing";
 
 export const metadata: Metadata = {
   title: "My Hubs — Bunal.club",
 };
 
 export default async function HubsPage() {
-  const partner = await requireActivePartner();
+  const workspace = await requirePartnerWorkspace("hubs");
+  const canManage = hasStaffAccess(workspace, "hubs", "MANAGE");
+  const canManagePayments = hasStaffAccess(workspace, "payments", "MANAGE");
+  const isOwner = workspace.kind === "OWNER";
   const [hubs, paymentSetup] = await Promise.all([
-    listMyHubs(),
-    getPartnerPaymentSetup(partner.id),
+    listMyHubs(workspace.partnerId),
+    getPartnerPaymentSetup(workspace.partnerId),
   ]);
   const paymentReady = isPartnerPaymentReady(paymentSetup);
 
@@ -29,14 +32,14 @@ export default async function HubsPage() {
         eyebrow="Venue management"
         title="My hubs"
         description="Create and manage your venues, courts, rates, and operating hours."
-        actions={
+        actions={isOwner ? (
           <Link
             href="/dashboard/hubs/new"
             className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-hover"
           >
             + New hub
           </Link>
-        }
+        ) : undefined}
       />
 
       {!paymentReady && (
@@ -49,12 +52,14 @@ export default async function HubsPage() {
             appear publicly as Coming soon until your selected payment setup
             is ready. Online booking stays disabled in the meantime.
           </p>
-          <Link
-            href="/dashboard/payments?setup=hub"
-            className="mt-2 inline-block text-sm font-semibold text-amber-900 hover:underline"
-          >
-            Set up payments →
-          </Link>
+          {canManagePayments && (
+            <Link
+              href="/dashboard/payments?setup=hub"
+              className="mt-2 inline-block text-sm font-semibold text-amber-900 hover:underline"
+            >
+              Set up payments →
+            </Link>
+          )}
         </div>
       )}
 
@@ -65,12 +70,14 @@ export default async function HubsPage() {
               ? "Your payment setup is ready. Add your first venue to start accepting bookings."
               : "Create your first venue now. It can appear as Coming soon while you finish the selected payment setup."}
           </p>
-          <Link
-            href="/dashboard/hubs/new"
-            className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
-          >
-            Create your first hub
-          </Link>
+          {isOwner && (
+            <Link
+              href="/dashboard/hubs/new"
+              className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
+            >
+              Create your first hub
+            </Link>
+          )}
         </div>
       ) : (
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -158,13 +165,15 @@ export default async function HubsPage() {
                 >
                   Schedule
                 </Link>
-                <Link
-                  href={`/dashboard/hubs/${hub.id}/edit`}
-                  className="rounded-md px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary-soft"
-                >
-                  Edit
-                </Link>
-                <DeleteHubButton hubId={hub.id} name={hub.name} />
+                {canManage && (
+                  <Link
+                    href={`/dashboard/hubs/${hub.id}/edit`}
+                    className="rounded-md px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary-soft"
+                  >
+                    Edit
+                  </Link>
+                )}
+                {isOwner && <DeleteHubButton hubId={hub.id} name={hub.name} />}
               </div>
             </div>
           ))}

@@ -26,6 +26,10 @@ import {
   serviceFeeOverdueEmailContent,
   type ServiceFeeOverdueEmailContentInput,
 } from "@/lib/service-fee-notification-email";
+import {
+  staffInvitationEmailContent,
+  type StaffInvitationEmailContentInput,
+} from "@/lib/staff-invitation-email";
 
 type PasswordResetEmailInput = {
   to: string;
@@ -71,6 +75,11 @@ type PlayerBookingConfirmedEmailInput =
   };
 
 type ServiceFeeOverdueEmailInput = ServiceFeeOverdueEmailContentInput & {
+  to: string;
+  idempotencyKey: string;
+};
+
+type StaffInvitationEmailInput = StaffInvitationEmailContentInput & {
   to: string;
   idempotencyKey: string;
 };
@@ -164,6 +173,21 @@ export async function sendWelcomeEmail(
     category:
       input.audience === "PLAYER" ? "welcome-player" : "welcome-partner",
     description: "Welcome email delivery",
+  });
+}
+
+export async function sendStaffInvitationEmail(
+  input: StaffInvitationEmailInput
+): Promise<void> {
+  const content = staffInvitationEmailContent(input);
+  await deliverEmail({
+    to: input.to,
+    subject: content.subject,
+    html: content.html,
+    text: content.text,
+    idempotencyKey: input.idempotencyKey,
+    category: "partner-staff-invitation",
+    description: "Partner staff-invitation email delivery",
   });
 }
 

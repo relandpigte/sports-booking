@@ -73,6 +73,8 @@ export function CourtScheduleEditor({
   lockedSlots,
   upcomingBlocks,
   today,
+  canManageSchedule,
+  canManageBlocks,
 }: {
   hubId: string;
   hubName: string;
@@ -81,6 +83,8 @@ export function CourtScheduleEditor({
   lockedSlots: LockedSlot[];
   upcomingBlocks: UpcomingCourtBlock[];
   today: string;
+  canManageSchedule: boolean;
+  canManageBlocks: boolean;
 }) {
   const [courtId, setCourtId] = useState(courts[0]?.id ?? "");
   const [weekday, setWeekday] = useState(0);
@@ -299,14 +303,16 @@ export function CourtScheduleEditor({
               Upcoming reservations stay protected.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setDrawerOpen(true)}
-            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-hover"
-          >
-            <span aria-hidden="true">▣</span>
-            Block court time
-          </button>
+          {canManageBlocks && (
+            <button
+              type="button"
+              onClick={() => setDrawerOpen(true)}
+              className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-hover"
+            >
+              <span aria-hidden="true">▣</span>
+              Block court time
+            </button>
+          )}
         </div>
       </div>
 
@@ -394,29 +400,34 @@ export function CourtScheduleEditor({
                     )}
                   </div>
                 </div>
-                <form
-                  action={releaseCourtBlockAction}
-                  onSubmit={(event) => {
-                    if (!globalThis.confirm("Release this court time and make it bookable again?")) {
-                      event.preventDefault();
-                    }
-                  }}
-                >
-                  <input type="hidden" name="blockId" value={block.id} />
-                  <button
-                    type="submit"
-                    className="text-xs font-bold text-red-600 hover:text-red-700 hover:underline"
+                {canManageBlocks && (
+                  <form
+                    action={releaseCourtBlockAction}
+                    onSubmit={(event) => {
+                      if (!globalThis.confirm("Release this court time and make it bookable again?")) {
+                        event.preventDefault();
+                      }
+                    }}
                   >
-                    Release
-                  </button>
-                </form>
+                    <input type="hidden" name="blockId" value={block.id} />
+                    <button
+                      type="submit"
+                      className="text-xs font-bold text-red-600 hover:text-red-700 hover:underline"
+                    >
+                      Release
+                    </button>
+                  </form>
+                )}
               </article>
             ))}
           </div>
         )}
       </section>
 
-      <form action={formAction} className="space-y-6">
+      <form
+        action={formAction}
+        className={`space-y-6 ${canManageSchedule ? "" : "pointer-events-none"}`}
+      >
         <input type="hidden" name="hubId" value={hubId} />
         <input
           type="hidden"
@@ -720,17 +731,23 @@ export function CourtScheduleEditor({
         >
           Cancel
         </Link>
-        <button
-          type="submit"
-          disabled={pending}
-          className="inline-flex min-h-12 items-center justify-center rounded-xl bg-primary px-7 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {pending ? "Saving…" : "Save weekly schedule"}
-        </button>
+        {canManageSchedule ? (
+          <button
+            type="submit"
+            disabled={pending}
+            className="inline-flex min-h-12 items-center justify-center rounded-xl bg-primary px-7 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {pending ? "Saving…" : "Save weekly schedule"}
+          </button>
+        ) : (
+          <p className="self-center text-sm font-semibold text-gray-500">
+            View-only schedule access
+          </p>
+        )}
         </div>
       </form>
 
-      {drawerOpen && (
+      {drawerOpen && canManageBlocks && (
         <div
           className="fixed inset-0 z-[70] bg-navy/35 backdrop-blur-[1px]"
           role="presentation"

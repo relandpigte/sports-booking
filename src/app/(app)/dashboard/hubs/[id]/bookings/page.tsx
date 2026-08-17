@@ -6,6 +6,7 @@ import { getMyHub } from "@/lib/hubs";
 import { listHubBookings } from "@/lib/bookings";
 import { BookingCard } from "@/components/bookings/BookingCard";
 import { manilaNowHour, manilaToday } from "@/lib/time";
+import { hasStaffAccess, requirePartnerWorkspace } from "@/lib/staffing";
 
 export const metadata: Metadata = {
   title: "Hub Bookings — Bunal.club",
@@ -17,11 +18,14 @@ export default async function HubBookingsPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const workspace = await requirePartnerWorkspace("bookings");
+  const canManage = hasStaffAccess(workspace, "bookings", "MANAGE");
+  const canMessage = hasStaffAccess(workspace, "messages", "VIEW");
   // Both are ownership-scoped; either returning null means it isn't this
   // partner's hub.
   const [hub, bookings] = await Promise.all([
-    getMyHub(id),
-    listHubBookings(id),
+    getMyHub(id, workspace.partnerId),
+    listHubBookings(id, workspace.partnerId),
   ]);
   if (!hub || !bookings) notFound();
 
@@ -62,8 +66,10 @@ export default async function HubBookingsPage({
                 key={b.id}
                 booking={b}
                 view="partner"
-                cancellable
-                reschedule={reschedule}
+                cancellable={canManage}
+                manageable={canManage}
+                canMessage={canMessage}
+                reschedule={canManage ? reschedule : undefined}
               />
             ))}
           </div>
@@ -84,6 +90,8 @@ export default async function HubBookingsPage({
                 booking={b}
                 view="partner"
                 cancellable={false}
+                manageable={canManage}
+                canMessage={canMessage}
               />
             ))}
           </div>

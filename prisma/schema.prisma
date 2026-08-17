@@ -53,6 +53,12 @@ enum PartnerPaymentMode {
   MANUAL
 }
 
+enum StaffAccessLevel {
+  NONE
+  VIEW
+  MANAGE
+}
+
 enum PaymentCollectionMode {
   AUTOMATIC
   MANUAL
@@ -143,6 +149,83 @@ model User {
   organizerEventGuests  EventOrganizerGuest[]        @relation("OrganizerEventGuestCreator")
   serviceFeeEntries     ServiceFeeEntry[]            @relation("PartnerServiceFeeEntries")
   serviceFeeSettlements ServiceFeeSettlement[]       @relation("PartnerServiceFeeSettlements")
+
+  staffMembershipsOwned   PartnerStaffMembership[] @relation("PartnerStaffOwner")
+  staffMembership         PartnerStaffMembership?  @relation("PartnerStaffUser")
+  staffMembershipsInvited PartnerStaffMembership[] @relation("PartnerStaffMembershipInviter")
+  staffInvitationsOwned   PartnerStaffInvitation[] @relation("PartnerStaffInvitationOwner")
+  staffInvitationsSent    PartnerStaffInvitation[] @relation("PartnerStaffInvitationInviter")
+  staffActivityOwned      PartnerStaffActivity[]   @relation("PartnerStaffActivityOwner")
+  staffActivityPerformed  PartnerStaffActivity[]   @relation("PartnerStaffActivityActor")
+}
+
+// A player identity may work for one partner team. Permissions are explicit
+// columns so every query and mutation can be checked without interpreting
+// untyped JSON. Removing staff deletes this active row; the activity log keeps
+// the durable audit history.
+model PartnerStaffMembership {
+  id          String           @id @default(cuid())
+  partnerId   String
+  userId      String           @unique
+  invitedById String
+  hubs        StaffAccessLevel @default(NONE)
+  bookings    StaffAccessLevel @default(NONE)
+  events      StaffAccessLevel @default(NONE)
+  reports     StaffAccessLevel @default(NONE)
+  messages    StaffAccessLevel @default(NONE)
+  payments    StaffAccessLevel @default(NONE)
+  acceptedAt  DateTime         @default(now())
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  partner   User @relation("PartnerStaffOwner", fields: [partnerId], references: [id], onDelete: Cascade)
+  user      User @relation("PartnerStaffUser", fields: [userId], references: [id], onDelete: Cascade)
+  invitedBy User @relation("PartnerStaffMembershipInviter", fields: [invitedById], references: [id], onDelete: Restrict)
+
+  @@unique([partnerId, userId])
+  @@index([partnerId, createdAt])
+}
+
+// Only live invitations are retained. Resending rotates tokenHash/expiresAt;
+// accepting or cancelling deletes the row after writing an activity record.
+model PartnerStaffInvitation {
+  id          String           @id @default(cuid())
+  partnerId   String
+  invitedById String
+  email       String           @unique
+  tokenHash   String           @unique
+  hubs        StaffAccessLevel @default(NONE)
+  bookings    StaffAccessLevel @default(NONE)
+  events      StaffAccessLevel @default(NONE)
+  reports     StaffAccessLevel @default(NONE)
+  messages    StaffAccessLevel @default(NONE)
+  payments    StaffAccessLevel @default(NONE)
+  expiresAt   DateTime
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  partner   User @relation("PartnerStaffInvitationOwner", fields: [partnerId], references: [id], onDelete: Cascade)
+  invitedBy User @relation("PartnerStaffInvitationInviter", fields: [invitedById], references: [id], onDelete: Restrict)
+
+  @@index([partnerId, createdAt])
+  @@index([expiresAt])
+}
+
+model PartnerStaffActivity {
+  id         String   @id @default(cuid())
+  partnerId  String
+  actorId    String?
+  action     String   @db.VarChar(80)
+  targetType String?  @db.VarChar(80)
+  targetId   String?  @db.VarChar(120)
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  partner User  @relation("PartnerStaffActivityOwner", fields: [partnerId], references: [id], onDelete: Cascade)
+  actor   User? @relation("PartnerStaffActivityActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([partnerId, createdAt])
+  @@index([actorId, createdAt])
 }
 
 // A short-lived, single-use credential exchanged for an Auth.js JWT. Passwords

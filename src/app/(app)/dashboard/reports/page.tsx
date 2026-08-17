@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { PeriodPicker } from "@/components/reports/PeriodPicker";
 import { RevenueReport, type StatTile } from "@/components/reports/RevenueReport";
-import { requireActivePartner } from "@/lib/dal";
 import { listMyHubs } from "@/lib/hubs";
 import { getPartnerPaymentSetup } from "@/lib/manual-payments";
 import {
@@ -13,6 +12,7 @@ import {
 } from "@/lib/analytics";
 import { formatPHP } from "@/lib/currency";
 import { MONTHS } from "@/lib/constants";
+import { requirePartnerWorkspace } from "@/lib/staffing";
 
 export const metadata: Metadata = {
   title: "Reports — Bunal.club",
@@ -31,7 +31,7 @@ export default async function PartnerReportsPage({
     source?: string;
   }>;
 }) {
-  const partner = await requireActivePartner();
+  const workspace = await requirePartnerWorkspace("reports");
   const sp = await searchParams;
 
   const now = new Date();
@@ -41,7 +41,7 @@ export default async function PartnerReportsPage({
   const source =
     sp.source === "court" || sp.source === "event" ? sp.source : "all";
 
-  const hubs = await listMyHubs();
+  const hubs = await listMyHubs(workspace.partnerId);
   // An unknown hub id would silently show everything, which is worse than
   // showing nothing — so it has to be one of theirs.
   const hubId = hubs.some((h) => h.id === sp.hub) ? sp.hub : undefined;
@@ -49,8 +49,8 @@ export default async function PartnerReportsPage({
   const range =
     grain === "month" ? monthsRange(year, month, 12) : monthRange(year, month);
   const [breakdown, paymentSetup] = await Promise.all([
-    venueRevenueBreakdown({ partnerId: partner.id, hubId, range }),
-    getPartnerPaymentSetup(partner.id),
+    venueRevenueBreakdown({ partnerId: workspace.partnerId, hubId, range }),
+    getPartnerPaymentSetup(workspace.partnerId),
   ]);
   const series = breakdown[source];
 

@@ -6,15 +6,21 @@ import { revalidatePath } from "next/cache";
 import { sanitizeImageDataUrl } from "@/lib/avatar";
 import { settleBookingPayment, markBookingPaymentRefunded } from "@/lib/booking-payments";
 import { prisma } from "@/lib/db";
-import { getViewer, requireActivePartner, requireRecentMfa } from "@/lib/dal";
+import { getViewer, requireRecentMfa } from "@/lib/dal";
 import { recordImpersonatedAction } from "@/lib/impersonation";
 import { revalidatePartnerPaymentSurfaces } from "@/lib/payment-revalidation";
 import {
-  notifyPartnerOfBooking,
+  notifyPartnerTeamOfBooking,
   notifyPlayerBookingConfirmed,
 } from "@/lib/booking-notifications";
 import { formatManilaDateLong, formatSlotRange } from "@/lib/time";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import {
+  getPartnerWorkspace,
+  hasStaffAccess,
+  recordPartnerActivity,
+  requirePartnerWorkspace,
+} from "@/lib/staffing";
 
 const NETWORKS = new Set<ManualPaymentNetwork>([
   "GCASH",
@@ -55,29 +61,38 @@ export async function savePartnerPaymentModeAction(
   _previous: ManualPaymentFormState,
   formData: FormData
 ): Promise<ManualPaymentFormState> {
-  const partner = await requireActivePartner();
-  await requireRecentMfa("/dashboard/payments");
+  const workspace = await requirePartnerWorkspace("payments", "MANAGE");
+  if (workspace.kind !== "STAFF") {
+    await requireRecentMfa("/dashboard/payments");
+  }
   const mode = value(formData, "mode", 20);
   if (mode !== "AUTOMATIC" && mode !== "MANUAL") {
     return { message: "Choose a valid payment mode." };
   }
   if (mode === "MANUAL") {
     const count = await prisma.partnerManualPaymentMethod.count({
-      where: { partnerId: partner.id, active: true },
+      where: { partnerId: workspace.partnerId, active: true },
     });
     if (count === 0) {
       return { message: "Add and enable at least one manual payment method first." };
     }
   }
   await prisma.user.update({
-    where: { id: partner.id },
+    where: { id: workspace.partnerId },
     data: { partnerPaymentMode: mode },
   });
-  await revalidatePartnerPaymentSurfaces(partner.id);
+  await revalidatePartnerPaymentSurfaces(workspace.partnerId);
   await recordImpersonatedAction({
     action: "PARTNER_PAYMENT_MODE_UPDATED",
     targetType: "User",
-    targetId: partner.id,
+    targetId: workspace.partnerId,
+    metadata: { mode },
+  });
+  await recordPartnerActivity({
+    workspace,
+    action: "PARTNER_PAYMENT_MODE_UPDATED",
+    targetType: "User",
+    targetId: workspace.partnerId,
     metadata: { mode },
   });
   return {
@@ -92,8 +107,11 @@ export async function saveManualPaymentMethodAction(
   _previous: ManualPaymentFormState,
   formData: FormData
 ): Promise<ManualPaymentFormState> {
-  const partner = await requireActivePartner();
-  await requireRecentMfa("/dashboard/payments");
+  const workspace = await requirePartnerWorkspace("payments", "MANAGE");
+  const partner = { id: workspace.partnerId };
+  if (workspace.kind !== "STAFF") {
+    await requireRecentMfa("/dashboard/payments");
+  }
   const id = value(formData, "id", 40);
   const network = value(formData, "network", 30) as ManualPaymentNetwork;
   const label = value(formData, "label", 80);
@@ -171,6 +189,15 @@ export async function saveManualPaymentMethodAction(
   }
   await revalidatePartnerPaymentSurfaces(partner.id);
   await recordImpersonatedAction({
+    action: id
+      ? "MANUAL_PAYMENT_METHOD_UPDATED"
+      : "MANUAL_PAYMENT_METHOD_CREATED",
+    targetType: "PartnerManualPaymentMethod",
+    targetId: targetMethodId,
+    metadata: { network, label, active },
+  });
+  await recordPartnerActivity({
+    workspace,
     action: id
       ? "MANUAL_PAYMENT_METHOD_UPDATED"
       : "MANUAL_PAYMENT_METHOD_CREATED",
@@ -402,7 +429,7 @@ export async function submitManualPaymentProofAction(
       const payment = await prisma.bookingPayment.findUnique({
         where: { id: result.payment.id },
         select: {
-          partner: { select: { email: true, name: true, playerName: true } },
+          partner: { select: { id: true } },
           user: { select: { name: true, playerName: true } },
           bookings: {
             take: 1,
@@ -462,10 +489,9 @@ export async function submitManualPaymentProofAction(
             eventPublicId: event.publicId,
           });
         }
-        await notifyPartnerOfBooking({
-          to: payment.partner.email,
-          partnerName:
-            payment.partner.playerName ?? payment.partner.name ?? "Venue partner",
+        await notifyPartnerTeamOfBooking({
+          partnerId: payment.partner.id,
+          module: event ? "events" : "bookings",
           playerName:
             payment.user.playerName ?? payment.user.name ?? "A player",
           kind: event ? "EVENT" : "COURT",
@@ -524,8 +550,11 @@ export async function reviewManualPaymentAction(
   _previous: ManualPaymentFormState,
   formData: FormData
 ): Promise<ManualPaymentFormState> {
-  const partner = await requireActivePartner();
-  await requireRecentMfa("/dashboard/bookings");
+  const workspace = await getPartnerWorkspace();
+  if (!workspace) return { message: "Partner workspace access is required." };
+  if (workspace.kind !== "STAFF") {
+    await requireRecentMfa("/dashboard/bookings");
+  }
   const paymentId = value(formData, "paymentId", 40);
   const decision = value(formData, "decision", 20);
   const note = value(formData, "note", 500);
@@ -535,7 +564,7 @@ export async function reviewManualPaymentAction(
   const payment = await prisma.bookingPayment.findFirst({
     where: {
       id: paymentId,
-      partnerId: partner.id,
+      partnerId: workspace.partnerId,
       collectionMode: "MANUAL",
       status: "PENDING",
       manualSubmittedAt: { not: null },
@@ -593,6 +622,13 @@ export async function reviewManualPaymentAction(
     },
   });
   if (!payment) return { message: "This proof was already reviewed or is unavailable." };
+  const requiredModule =
+    payment.eventRegistration || payment.eventGuestSlots.length > 0
+      ? "events"
+      : "bookings";
+  if (!hasStaffAccess(workspace, requiredModule, "MANAGE")) {
+    return { message: `Manage access to ${requiredModule} is required.` };
+  }
 
   if (decision === "approve") {
     const updated = await prisma.bookingPayment.updateMany({
@@ -601,7 +637,7 @@ export async function reviewManualPaymentAction(
         status: "SUCCEEDED",
         paidAt: new Date(),
         manualReviewedAt: new Date(),
-        manualReviewedById: partner.id,
+        manualReviewedById: workspace.actorId,
         manualReviewNote: note || null,
       },
     });
@@ -662,7 +698,7 @@ export async function reviewManualPaymentAction(
           failureCode: "manual_payment_declined",
           failureMessage: note || "The venue declined the submitted payment proof.",
           manualReviewedAt: new Date(),
-          manualReviewedById: partner.id,
+          manualReviewedById: workspace.actorId,
           manualReviewNote: note || null,
         },
       }),
@@ -684,6 +720,16 @@ export async function reviewManualPaymentAction(
     targetId: payment.id,
     metadata: { note: note || null },
   });
+  await recordPartnerActivity({
+    workspace,
+    action:
+      decision === "approve"
+        ? "MANUAL_PAYMENT_APPROVED"
+        : "MANUAL_PAYMENT_DECLINED",
+    targetType: "BookingPayment",
+    targetId: payment.id,
+    metadata: { note: note || null, module: requiredModule },
+  });
   return {
     success:
       decision === "approve"
@@ -696,15 +742,18 @@ export async function recordManualRefundAction(
   _previous: ManualPaymentFormState,
   formData: FormData
 ): Promise<ManualPaymentFormState> {
-  const partner = await requireActivePartner();
-  await requireRecentMfa("/dashboard/bookings");
+  const workspace = await getPartnerWorkspace();
+  if (!workspace) return { message: "Partner workspace access is required." };
+  if (workspace.kind !== "STAFF") {
+    await requireRecentMfa("/dashboard/bookings");
+  }
   const paymentId = value(formData, "paymentId", 40);
   const reference = value(formData, "reference", 120);
   const reason = value(formData, "reason", 500);
   const payment = await prisma.bookingPayment.findFirst({
     where: {
       id: paymentId,
-      partnerId: partner.id,
+      partnerId: workspace.partnerId,
       collectionMode: "MANUAL",
       status: "SUCCEEDED",
     },
@@ -720,12 +769,19 @@ export async function recordManualRefundAction(
     },
   });
   if (!payment) return { message: "Manual payment not found or already refunded." };
+  const requiredModule =
+    payment.eventRegistration || payment.eventGuestSlots.length > 0
+      ? "events"
+      : "bookings";
+  if (!hasStaffAccess(workspace, requiredModule, "MANAGE")) {
+    return { message: `Manage access to ${requiredModule} is required.` };
+  }
   await markBookingPaymentRefunded({
     paymentId: payment.id,
     amount: Number(payment.venueAmount),
     refundRef: reference || null,
     reason: reason || "Manual refund recorded by the venue.",
-    refundedById: partner.id,
+    refundedById: workspace.actorId,
   });
   revalidatePayment({
     id: payment.id,
@@ -742,6 +798,13 @@ export async function recordManualRefundAction(
       reference: reference || null,
       reason: reason || null,
     },
+  });
+  await recordPartnerActivity({
+    workspace,
+    action: "MANUAL_REFUND_RECORDED",
+    targetType: "BookingPayment",
+    targetId: payment.id,
+    metadata: { reference: reference || null, module: requiredModule },
   });
   return {
     success:

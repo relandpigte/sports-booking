@@ -3,7 +3,7 @@
 import crypto from "node:crypto";
 
 import { prisma } from "@/lib/db";
-import { requireActivePartner, requireRecentMfa } from "@/lib/dal";
+import { requireRecentMfa } from "@/lib/dal";
 import { firstErrors } from "@/lib/zod-errors";
 import { ConnectGatewaySchema } from "@/lib/validation";
 import {
@@ -21,6 +21,7 @@ import {
 import { appUrl } from "@/lib/urls";
 import { recordImpersonatedAction } from "@/lib/impersonation";
 import { revalidatePartnerPaymentSurfaces } from "@/lib/payment-revalidation";
+import { recordPartnerActivity, requirePartnerWorkspace } from "@/lib/staffing";
 
 // Deliberately NO `values` field: unlike a hub form, a gateway form's contents
 // must never round-trip through rendered state.
@@ -38,8 +39,10 @@ export async function connectGatewayAction(
   _prev: GatewayFormState,
   formData: FormData
 ): Promise<GatewayFormState> {
-  const partner = await requireActivePartner();
-  await requireRecentMfa("/dashboard/payments");
+  const workspace = await requirePartnerWorkspace("payments", "MANAGE");
+  if (workspace.kind !== "STAFF") {
+    await requireRecentMfa("/dashboard/payments");
+  }
 
   // Refuse rather than ever storing a secret in plaintext.
   if (!isEncryptionConfigured()) {
@@ -63,7 +66,7 @@ export async function connectGatewayAction(
   // URL it forms has to be registered with the gateway first. Reconnecting
   // keeps the existing one, so a partner's URL never changes under them.
   const existing = await prisma.partnerGateway.findUnique({
-    where: { userId: partner.id },
+    where: { userId: workspace.partnerId },
     select: { webhookToken: true },
   });
   // Random, not the user id — this ends up in a third party's dashboard.
@@ -113,9 +116,9 @@ export async function connectGatewayAction(
   );
 
   const gateway = await prisma.partnerGateway.upsert({
-    where: { userId: partner.id },
+    where: { userId: workspace.partnerId },
     create: {
-      userId: partner.id,
+      userId: workspace.partnerId,
       provider: creds.provider,
       publicKey: creds.publicKey,
       secretKeyEnc,
@@ -140,12 +143,19 @@ export async function connectGatewayAction(
     select: { id: true },
   });
 
-  await revalidatePartnerPaymentSurfaces(partner.id);
+  await revalidatePartnerPaymentSurfaces(workspace.partnerId);
   await recordImpersonatedAction({
     action: "PAYMENT_GATEWAY_CONNECTED",
     targetType: "PartnerGateway",
     targetId: gateway.id,
     metadata: { provider, accountLabel: check.accountLabel },
+  });
+  await recordPartnerActivity({
+    workspace,
+    action: "PAYMENT_GATEWAY_CONNECTED",
+    targetType: "PartnerGateway",
+    targetId: gateway.id,
+    metadata: { provider },
   });
   return {
     success: parsed.data.webhookSecret
@@ -159,11 +169,13 @@ export async function disconnectGatewayAction(
   _formData: FormData
 ): Promise<GatewayFormState> {
   // Active partners can turn off taking money at any time.
-  const partner = await requireActivePartner();
-  await requireRecentMfa("/dashboard/payments");
+  const workspace = await requirePartnerWorkspace("payments", "MANAGE");
+  if (workspace.kind !== "STAFF") {
+    await requireRecentMfa("/dashboard/payments");
+  }
 
   const existing = await prisma.partnerGateway.findUnique({
-    where: { userId: partner.id },
+    where: { userId: workspace.partnerId },
     select: { id: true },
   });
   if (!existing) return { message: "No gateway is connected." };
@@ -172,12 +184,18 @@ export async function disconnectGatewayAction(
   // work. Live holds are left alone — those players are mid-checkout and their
   // payment should still settle.
   await prisma.partnerGateway.update({
-    where: { userId: partner.id },
+    where: { userId: workspace.partnerId },
     data: { disconnectedAt: new Date() },
   });
 
-  await revalidatePartnerPaymentSurfaces(partner.id);
+  await revalidatePartnerPaymentSurfaces(workspace.partnerId);
   await recordImpersonatedAction({
+    action: "PAYMENT_GATEWAY_DISCONNECTED",
+    targetType: "PartnerGateway",
+    targetId: existing.id,
+  });
+  await recordPartnerActivity({
+    workspace,
     action: "PAYMENT_GATEWAY_DISCONNECTED",
     targetType: "PartnerGateway",
     targetId: existing.id,

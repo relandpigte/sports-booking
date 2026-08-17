@@ -6,6 +6,7 @@ import {
   sendPlayerBookingConfirmedEmail,
 } from "@/lib/email";
 import { appUrl } from "@/lib/urls";
+import { listOperationalRecipients } from "@/lib/staffing";
 
 export async function notifyPartnerOfBooking(input: {
   to: string;
@@ -35,6 +36,35 @@ export async function notifyPartnerOfBooking(input: {
       error instanceof Error ? error.message : "Unknown provider error"
     );
   }
+}
+
+export async function notifyPartnerTeamOfBooking(input: {
+  partnerId: string;
+  module: "bookings" | "events";
+  playerName: string;
+  kind: "COURT" | "EVENT";
+  venueName: string;
+  bookingTitle: string;
+  schedule: string;
+  status: string;
+  spots?: number;
+  actionPath: string;
+  idempotencyKey: string;
+}): Promise<void> {
+  const recipients = await listOperationalRecipients(
+    input.partnerId,
+    input.module
+  );
+  await Promise.all(
+    recipients.map((recipient) =>
+      notifyPartnerOfBooking({
+        ...input,
+        to: recipient.email,
+        partnerName: recipient.name,
+        idempotencyKey: `${input.idempotencyKey}-${recipient.key}`,
+      })
+    )
+  );
 }
 
 export async function notifyPlayerBookingConfirmed(input: {

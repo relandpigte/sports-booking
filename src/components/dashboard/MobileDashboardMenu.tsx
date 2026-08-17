@@ -17,12 +17,15 @@ import {
 import { Logo } from "@/components/Logo";
 import { Avatar } from "@/components/ui/Avatar";
 import { logoutAction } from "@/lib/actions";
+import type { PartnerWorkspace, StaffModule } from "@/lib/staffing";
 
 type MobileMenuItem = {
   href: string;
   label: string;
   icon: DashboardIconName;
   exact?: boolean;
+  staffModule?: StaffModule;
+  ownerOnly?: boolean;
 };
 
 const playerItems: MobileMenuItem[] = [
@@ -38,12 +41,13 @@ const playerItems: MobileMenuItem[] = [
 
 const partnerItems: MobileMenuItem[] = [
   { href: "/dashboard/partner", label: "Home", icon: "home", exact: true },
-  { href: "/dashboard/bookings", label: "Bookings", icon: "booking" },
-  { href: "/dashboard/messages", label: "Messages", icon: "message" },
-  { href: "/dashboard/hubs", label: "My Hubs", icon: "hub" },
-  { href: "/dashboard/reports", label: "Reports", icon: "report" },
-  { href: "/dashboard/events", label: "Events", icon: "trophy" },
-  { href: "/dashboard/payments", label: "Payments", icon: "payment" },
+  { href: "/dashboard/bookings", label: "Bookings", icon: "booking", staffModule: "bookings" },
+  { href: "/dashboard/messages", label: "Messages", icon: "message", staffModule: "messages" },
+  { href: "/dashboard/hubs", label: "My Hubs", icon: "hub", staffModule: "hubs" },
+  { href: "/dashboard/reports", label: "Reports", icon: "report", staffModule: "reports" },
+  { href: "/dashboard/events", label: "Events", icon: "trophy", staffModule: "events" },
+  { href: "/dashboard/payments", label: "Payments", icon: "payment", staffModule: "payments" },
+  { href: "/dashboard/team", label: "Team", icon: "account", ownerOnly: true },
   { href: "/dashboard/account", label: "Account", icon: "account" },
 ];
 
@@ -98,6 +102,7 @@ export function MobileDashboardMenu({
   image,
   workspaceLabel,
   hasMessages = false,
+  workspace,
 }: {
   role: Role;
   partnerStatus: PartnerStatus | null;
@@ -106,6 +111,7 @@ export function MobileDashboardMenu({
   image: string | null;
   workspaceLabel: string;
   hasMessages?: boolean;
+  workspace?: PartnerWorkspace | null;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -113,9 +119,12 @@ export function MobileDashboardMenu({
   const closeRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
 
+  const staffWorkspace = workspace?.kind === "STAFF";
   const roleItems =
     role === "ADMIN"
       ? adminItems
+      : staffWorkspace
+        ? partnerItems
       : role === "PLAYER"
         ? playerItems
         : partnerStatus === "ACTIVE"
@@ -123,9 +132,18 @@ export function MobileDashboardMenu({
           : partnerStatus === "DRAFT"
             ? draftPartnerItems
             : pendingPartnerItems;
-  const items = roleItems.filter(
-    (item) => item.href !== "/dashboard/messages" || hasMessages
-  );
+  const items = roleItems.filter((item) => {
+    if (item.href === "/dashboard/messages" && !hasMessages) return false;
+    if (item.ownerOnly && workspace?.kind !== "OWNER") return false;
+    if (
+      staffWorkspace &&
+      item.staffModule &&
+      workspace.permissions[item.staffModule] === "NONE"
+    ) {
+      return false;
+    }
+    return true;
+  });
 
   useEffect(() => {
     if (!open) return;

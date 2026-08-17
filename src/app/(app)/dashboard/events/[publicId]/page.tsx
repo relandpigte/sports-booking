@@ -17,7 +17,6 @@ import {
 } from "@/components/events/OwnerEventRegistrations";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { formatPHP } from "@/lib/currency";
-import { requireActivePartner } from "@/lib/dal";
 import {
   getOwnerEventDetails,
   listEventFormHubs,
@@ -27,6 +26,7 @@ import {
   formatSlotRange,
   manilaToday,
 } from "@/lib/time";
+import { hasStaffAccess, requirePartnerWorkspace } from "@/lib/staffing";
 
 export const metadata: Metadata = {
   title: "Event details — Bunal.club",
@@ -111,13 +111,15 @@ export default async function PartnerEventDetailsPage({
   params: Promise<{ publicId: string }>;
   searchParams: SearchParams;
 }) {
-  const partner = await requireActivePartner();
+  const workspace = await requirePartnerWorkspace("events");
+  const canManage = hasStaffAccess(workspace, "events", "MANAGE");
+  const canMessage = hasStaffAccess(workspace, "messages", "VIEW");
   const [{ publicId }, queryParams] = await Promise.all([params, searchParams]);
   const requestedTab = firstSearchValue(queryParams.tab) as EventTab;
   const tab = tabs.some((item) => item.value === requestedTab)
     ? requestedTab
     : "overview";
-  const event = await getOwnerEventDetails(publicId, partner.id);
+  const event = await getOwnerEventDetails(publicId, workspace.partnerId);
   if (!event) notFound();
 
   const query = firstSearchValue(queryParams.q).trim().slice(0, 100);
@@ -229,8 +231,8 @@ export default async function PartnerEventDetailsPage({
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE
   );
-  const hubs = tab === "settings"
-    ? await listEventFormHubs(partner.id)
+  const hubs = tab === "settings" && canManage
+    ? await listEventFormHubs(workspace.partnerId)
     : [];
 
   return (
@@ -281,7 +283,7 @@ export default async function PartnerEventDetailsPage({
                 ? formatPHP(event.registrationFee)
                 : "Free"}
             </p>
-            {event.status === "PUBLISHED" && event.confirmedCount > 0 && (
+            {canMessage && event.status === "PUBLISHED" && event.confirmedCount > 0 && (
               <Link
                 href="/dashboard/messages"
                 className="mt-2 inline-flex rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white hover:bg-primary-hover"
@@ -447,7 +449,7 @@ export default async function PartnerEventDetailsPage({
                 Search players, review registration status, and manage spots.
               </p>
             </div>
-            {event.status === "PUBLISHED" && event.startsAt > new Date() ? (
+            {canManage && event.status === "PUBLISHED" && event.startsAt > new Date() ? (
               <OrganizerGuestPanel
                 eventId={event.id}
                 remainingSpots={event.remainingSpots}
@@ -467,7 +469,10 @@ export default async function PartnerEventDetailsPage({
             statuses={registrationStatuses}
           />
           <div className="mt-5">
-            <OwnerEventRegistrations participants={visibleParticipants} />
+            <OwnerEventRegistrations
+              participants={visibleParticipants}
+              canManage={canManage}
+            />
           </div>
           <Pagination
             publicId={event.publicId}
@@ -558,7 +563,7 @@ export default async function PartnerEventDetailsPage({
                               {payment.providerRef ?? "Not available"}
                             </p>
                           )}
-                          {payment.collectionMode === "MANUAL" &&
+                          {canManage && payment.collectionMode === "MANUAL" &&
                             payment.manualSubmittedAt && (
                               <ManualPaymentReview
                                 variant="eventTable"
@@ -605,8 +610,14 @@ export default async function PartnerEventDetailsPage({
 
       {tab === "settings" ? (
         <div className="mt-6 space-y-6">
-          <EventForm hubs={hubs} event={event} today={manilaToday()} />
-          {event.status !== "CANCELLED" ? (
+          {canManage ? (
+            <EventForm hubs={hubs} event={event} today={manilaToday()} />
+          ) : (
+            <section className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
+              You have view-only access to this event. Ask the account owner to grant Events management access to change its settings.
+            </section>
+          )}
+          {canManage && event.status !== "CANCELLED" ? (
             <section className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-7">
               <h2 className="text-lg font-black text-navy">Event controls</h2>
               <p className="mb-5 mt-1 text-sm text-slate-500">
@@ -616,7 +627,7 @@ export default async function PartnerEventDetailsPage({
               </p>
               <CancelEventPanel eventId={event.id} />
             </section>
-          ) : (
+          ) : canManage ? (
             <section className="rounded-3xl border border-red-100 bg-white p-5 sm:p-7">
               <p className="text-[11px] font-black uppercase tracking-[0.18em] text-red-600">
                 Cancelled event
@@ -634,7 +645,7 @@ export default async function PartnerEventDetailsPage({
                 title={event.title}
               />
             </section>
-          )}
+          ) : null}
         </div>
       ) : null}
     </div>

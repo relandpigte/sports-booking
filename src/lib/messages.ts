@@ -13,6 +13,7 @@ import { getAuthenticatedUser } from "@/lib/dal";
 import { prisma } from "@/lib/db";
 import { publishMessageEvent } from "@/lib/messages-realtime";
 import { formatManilaDateLong, formatSlotRange } from "@/lib/time";
+import { getPartnerWorkspace, hasStaffAccess } from "@/lib/staffing";
 
 export const MESSAGE_PAGE_SIZE = 50;
 export const MESSAGE_GRACE_MS = 24 * 60 * 60_000;
@@ -45,12 +46,14 @@ export const ReportMessageSchema = z.object({
 
 type MessageViewer = {
   id: string;
+  actorId: string;
   name: string | null;
   playerName: string | null;
   image: string | null;
   role: Role;
   partnerStatus: "DRAFT" | "PENDING" | "ACTIVE" | "DEACTIVATED" | null;
   chatRestrictedAt: Date | null;
+  canSend: boolean;
 };
 
 export type MessageConversationSummary = {
@@ -158,7 +161,37 @@ async function messageViewer(): Promise<MessageViewer | null> {
   const user = await getAuthenticatedUser();
   if (!user || user.role === "ADMIN") return null;
   if (user.role === "PARTNER" && user.partnerStatus !== "ACTIVE") return null;
-  return user;
+  const workspace = user.role === "PLAYER" ? await getPartnerWorkspace() : null;
+  if (workspace) {
+    if (!hasStaffAccess(workspace, "messages", "VIEW")) return null;
+    return {
+      ...user,
+      id: workspace.partnerId,
+      actorId: user.id,
+      role: "PARTNER",
+      partnerStatus: "ACTIVE",
+      canSend: hasStaffAccess(workspace, "messages", "MANAGE"),
+    };
+  }
+  return { ...user, actorId: user.id, canSend: true };
+}
+
+async function recordStaffMessageActivity(
+  viewer: MessageViewer,
+  action: string,
+  targetType: string,
+  targetId: string
+) {
+  if (viewer.actorId === viewer.id) return;
+  await prisma.partnerStaffActivity.create({
+    data: {
+      partnerId: viewer.id,
+      actorId: viewer.actorId,
+      action,
+      targetType,
+      targetId,
+    },
+  });
 }
 
 export async function getMessageViewer(): Promise<MessageViewer | null> {
@@ -674,9 +707,9 @@ async function conversationActivity(
 async function loadConversationList(viewer: MessageViewer) {
   const [accesses, blockedIds] = await Promise.all([
     listConversationAccesses(viewer),
-    blockedUserIds(viewer.id),
+    blockedUserIds(viewer.actorId),
   ]);
-  const activity = await conversationActivity(accesses, viewer.id, blockedIds);
+  const activity = await conversationActivity(accesses, viewer.actorId, blockedIds);
   const conversations = accesses.map((access) => {
     const latest = activity.get(access.conversationId);
     const presentation = conversationPresentation(access, viewer);
@@ -881,8 +914,8 @@ async function conversationDetailsForViewer(
     ? await prisma.chatBlock.findFirst({
           where: {
             OR: [
-              { blockerId: viewer.id, blockedId: otherId },
-              { blockerId: otherId, blockedId: viewer.id },
+              { blockerId: viewer.actorId, blockedId: otherId },
+              { blockerId: otherId, blockedId: viewer.actorId },
             ],
           },
           select: { blockerId: true },
@@ -892,9 +925,9 @@ async function conversationDetailsForViewer(
     id: conversationId,
     kind: conversation.kind,
     ...presentation,
-    restricted: viewer.chatRestrictedAt != null,
+    restricted: viewer.chatRestrictedAt != null || !viewer.canSend,
     blocked: Boolean(privateBlock),
-    blockedByMe: privateBlock?.blockerId === viewer.id,
+    blockedByMe: privateBlock?.blockerId === viewer.actorId,
     context,
     participants,
   };
@@ -907,7 +940,7 @@ export async function getConversationDetails(
   if (!viewer) return null;
   const access = await accessConversation(conversationId, viewer);
   if (!access) return null;
-  const blockedIds = await blockedUserIds(viewer.id);
+  const blockedIds = await blockedUserIds(viewer.actorId);
   return conversationDetailsForViewer(access, viewer, blockedIds);
 }
 
@@ -956,7 +989,7 @@ async function conversationMessagesForViewer(
             image: row.sender.image,
           }
         : null,
-      mine: row.senderId === viewer.id,
+      mine: row.senderId === viewer.actorId,
       editedAt: row.editedAt?.toISOString() ?? null,
       deletedAt: row.deletedAt?.toISOString() ?? null,
       createdAt: row.createdAt.toISOString(),
@@ -973,7 +1006,7 @@ export async function listConversationMessages(args: {
   if (!viewer) return null;
   const access = await accessConversation(args.conversationId, viewer);
   if (!access) return null;
-  const blockedIds = await blockedUserIds(viewer.id);
+  const blockedIds = await blockedUserIds(viewer.actorId);
   return conversationMessagesForViewer(args, viewer, access, blockedIds);
 }
 
@@ -1042,7 +1075,7 @@ export async function sendConversationMessage(
 ): Promise<{ message?: MessageView; error?: string }> {
   const viewer = authenticatedViewer ?? (await messageViewer());
   if (!viewer) return { error: "Conversation not available." };
-  if (viewer.chatRestrictedAt) {
+  if (viewer.chatRestrictedAt || !viewer.canSend) {
     return { error: "Your account cannot send messages right now." };
   }
   const parsed = SendMessageSchema.safeParse(input);
@@ -1051,7 +1084,7 @@ export async function sendConversationMessage(
   }
   const access = await accessConversation(conversationId, viewer);
   if (!access) return { error: "Conversation not available." };
-  if (await privateConversationBlocked(access, viewer.id)) {
+  if (await privateConversationBlocked(access, viewer.actorId)) {
     return { error: "This conversation is blocked." };
   }
   const now = new Date();
@@ -1080,7 +1113,7 @@ export async function sendConversationMessage(
       ) VALUES (
         ${randomUUID()},
         ${conversationId},
-        ${viewer.id},
+        ${viewer.actorId},
         'USER'::"ChatMessageKind",
         ${parsed.data.body},
         ${parsed.data.clientNonce},
@@ -1111,7 +1144,7 @@ export async function sendConversationMessage(
         "lastReadAt",
         "createdAt",
         "updatedAt"
-      ) VALUES (${conversationId}, ${viewer.id}, ${now}, ${now}, ${now})
+      ) VALUES (${conversationId}, ${viewer.actorId}, ${now}, ${now}, ${now})
       ON CONFLICT ("conversationId", "userId")
       DO UPDATE SET
         "lastReadAt" = EXCLUDED."lastReadAt",
@@ -1121,6 +1154,12 @@ export async function sendConversationMessage(
   `);
   const row = rows[0];
   if (!row) return { error: "Message could not be sent." };
+  await recordStaffMessageActivity(
+    viewer,
+    "MESSAGE_SENT",
+    "ChatMessage",
+    row.id
+  );
   await publishMessageEvent(conversationId, "created");
   return {
     message: {
@@ -1129,7 +1168,7 @@ export async function sendConversationMessage(
       body: row.body,
       targetPath: row.targetPath,
       sender: {
-        id: viewer.id,
+        id: viewer.actorId,
         name: displayName(viewer),
         image: viewer.image,
       },
@@ -1146,7 +1185,7 @@ export async function editConversationMessage(
   input: unknown
 ): Promise<{ ok: boolean; error?: string }> {
   const viewer = await messageViewer();
-  if (!viewer || viewer.chatRestrictedAt) return { ok: false, error: "Not allowed." };
+  if (!viewer || viewer.chatRestrictedAt || !viewer.canSend) return { ok: false, error: "Not allowed." };
   const parsed = EditMessageSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message };
   const message = await prisma.chatMessage.findUnique({
@@ -1155,7 +1194,7 @@ export async function editConversationMessage(
   });
   if (
     !message ||
-    message.senderId !== viewer.id ||
+    message.senderId !== viewer.actorId ||
     message.kind !== "USER" ||
     message.deletedAt ||
     !(await accessConversation(message.conversationId, viewer))
@@ -1166,6 +1205,12 @@ export async function editConversationMessage(
     where: { id: messageId },
     data: { body: parsed.data.body, editedAt: new Date() },
   });
+  await recordStaffMessageActivity(
+    viewer,
+    "MESSAGE_EDITED",
+    "ChatMessage",
+    messageId
+  );
   await publishMessageEvent(message.conversationId, "updated");
   return { ok: true };
 }
@@ -1174,14 +1219,14 @@ export async function deleteConversationMessage(
   messageId: string
 ): Promise<{ ok: boolean; error?: string }> {
   const viewer = await messageViewer();
-  if (!viewer) return { ok: false, error: "Not allowed." };
+  if (!viewer || !viewer.canSend) return { ok: false, error: "Not allowed." };
   const message = await prisma.chatMessage.findUnique({
     where: { id: messageId },
     select: { conversationId: true, senderId: true, kind: true, deletedAt: true },
   });
   if (
     !message ||
-    message.senderId !== viewer.id ||
+    message.senderId !== viewer.actorId ||
     message.kind !== "USER" ||
     message.deletedAt ||
     !(await accessConversation(message.conversationId, viewer))
@@ -1190,8 +1235,14 @@ export async function deleteConversationMessage(
   }
   await prisma.chatMessage.update({
     where: { id: messageId },
-    data: { body: null, deletedAt: new Date(), deletedById: viewer.id },
+    data: { body: null, deletedAt: new Date(), deletedById: viewer.actorId },
   });
+  await recordStaffMessageActivity(
+    viewer,
+    "MESSAGE_DELETED",
+    "ChatMessage",
+    messageId
+  );
   await publishMessageEvent(message.conversationId, "deleted");
   return { ok: true };
 }
@@ -1202,8 +1253,8 @@ export async function markConversationRead(
   const viewer = await messageViewer();
   if (!viewer || !(await accessConversation(conversationId, viewer))) return false;
   await prisma.chatReadState.upsert({
-    where: { conversationId_userId: { conversationId, userId: viewer.id } },
-    create: { conversationId, userId: viewer.id, lastReadAt: new Date() },
+    where: { conversationId_userId: { conversationId, userId: viewer.actorId } },
+    create: { conversationId, userId: viewer.actorId, lastReadAt: new Date() },
     update: { lastReadAt: new Date() },
   });
   return true;
@@ -1215,7 +1266,7 @@ export async function setConversationBlock(args: {
   blocked: boolean;
 }): Promise<{ ok: boolean; error?: string }> {
   const viewer = await messageViewer();
-  if (!viewer || viewer.id === args.targetUserId) return { ok: false, error: "Not allowed." };
+  if (!viewer || !viewer.canSend || viewer.actorId === args.targetUserId) return { ok: false, error: "Not allowed." };
   const access = await accessConversation(args.conversationId, viewer);
   if (!access) return { ok: false, error: "Conversation not available." };
   const details = await getConversationDetails(args.conversationId);
@@ -1226,16 +1277,16 @@ export async function setConversationBlock(args: {
     await prisma.chatBlock.upsert({
       where: {
         blockerId_blockedId: {
-          blockerId: viewer.id,
+          blockerId: viewer.actorId,
           blockedId: args.targetUserId,
         },
       },
-      create: { blockerId: viewer.id, blockedId: args.targetUserId },
+      create: { blockerId: viewer.actorId, blockedId: args.targetUserId },
       update: {},
     });
   } else {
     await prisma.chatBlock.deleteMany({
-      where: { blockerId: viewer.id, blockedId: args.targetUserId },
+      where: { blockerId: viewer.actorId, blockedId: args.targetUserId },
     });
   }
   await publishMessageEvent(args.conversationId, "updated");
@@ -1246,7 +1297,7 @@ export async function reportConversationMessage(
   input: unknown
 ): Promise<{ ok: boolean; error?: string }> {
   const viewer = await messageViewer();
-  if (!viewer) return { ok: false, error: "Not allowed." };
+  if (!viewer || !viewer.canSend) return { ok: false, error: "Not allowed." };
   const parsed = ReportMessageSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message };
   const message = await prisma.chatMessage.findUnique({
@@ -1256,7 +1307,7 @@ export async function reportConversationMessage(
   if (
     !message ||
     message.kind !== "USER" ||
-    message.senderId === viewer.id ||
+    message.senderId === viewer.actorId ||
     !(await accessConversation(message.conversationId, viewer))
   ) {
     return { ok: false, error: "Message not available." };
@@ -1265,12 +1316,12 @@ export async function reportConversationMessage(
     where: {
       messageId_reporterId: {
         messageId: parsed.data.messageId,
-        reporterId: viewer.id,
+        reporterId: viewer.actorId,
       },
     },
     create: {
       messageId: parsed.data.messageId,
-      reporterId: viewer.id,
+      reporterId: viewer.actorId,
       category: parsed.data.category,
       details: parsed.data.details || null,
       evidenceBody: message.body,
@@ -1295,7 +1346,7 @@ export async function eligibleConversationIds(): Promise<{
   const listed = await listMessageConversations();
   if (!listed) return null;
   return {
-    userId: listed.viewer.id,
+    userId: listed.viewer.actorId,
     conversationIds: listed.conversations.map((item) => item.id),
   };
 }

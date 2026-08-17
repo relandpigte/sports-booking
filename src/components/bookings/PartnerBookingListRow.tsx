@@ -33,9 +33,13 @@ export function PartnerBookingListRow({
   booking,
   cancellable,
   reschedule,
+  manageable = true,
+  canMessage = true,
 }: {
   booking: BookingView;
   cancellable: boolean;
+  manageable?: boolean;
+  canMessage?: boolean;
   reschedule?: RescheduleOptions;
 }) {
   const cancelled = booking.status === "CANCELLED";
@@ -54,8 +58,9 @@ export function PartnerBookingListRow({
   const playerName =
     booking.player.playerName ?? booking.player.name ?? "Player";
   const hasBookingActions =
-    paid ||
-    (cancellable &&
+    (canMessage && booking.status === "CONFIRMED") ||
+    (manageable && paid) ||
+    (manageable && cancellable &&
       !manualProofPending &&
       (booking.status === "CONFIRMED" || booking.status === "PENDING"));
 
@@ -149,7 +154,7 @@ export function PartnerBookingListRow({
         </p>
       )}
 
-      {booking.payment?.collectionMode === "MANUAL" &&
+      {manageable && booking.payment?.collectionMode === "MANUAL" &&
         booking.payment.manualSubmittedAt && (
           <ManualPaymentReview
             variant="list"
@@ -211,7 +216,7 @@ export function PartnerBookingListRow({
 
       {hasBookingActions && (
         <div className="mt-3 flex flex-wrap items-start justify-end gap-1 border-t border-gray-100 pt-2">
-          {booking.status === "CONFIRMED" && (
+          {booking.status === "CONFIRMED" && canMessage && (
             <Link
               href="/dashboard/messages"
               className="inline-flex min-h-9 items-center rounded-lg bg-primary-soft px-3 text-xs font-bold text-primary hover:bg-primary/15"

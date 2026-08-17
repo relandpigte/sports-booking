@@ -14,7 +14,7 @@ import {
   manualBookingServiceFeeFor,
   manualGrossFor,
 } from "@/lib/constants";
-import { getViewer, requireActivePartner } from "@/lib/dal";
+import { getViewer } from "@/lib/dal";
 import { prisma } from "@/lib/db";
 import { getEventCourtAvailability } from "@/lib/events";
 import { getPartnerPaymentSetup } from "@/lib/manual-payments";
@@ -34,12 +34,13 @@ import {
 } from "@/lib/time";
 import { firstErrors } from "@/lib/zod-errors";
 import { recordImpersonatedAction } from "@/lib/impersonation";
-import { notifyPartnerOfBooking } from "@/lib/booking-notifications";
+import { notifyPartnerTeamOfBooking } from "@/lib/booking-notifications";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import {
   recordEventRegistrationSystemMessage,
   recordEventSystemMessage,
 } from "@/lib/message-system-events";
+import { recordPartnerActivity, requirePartnerWorkspace } from "@/lib/staffing";
 
 const optionalText = z
   .string()
@@ -231,7 +232,8 @@ export async function saveEventAction(
   _previous: EventFormState,
   formData: FormData
 ): Promise<EventFormState> {
-  const partner = await requireActivePartner();
+  const workspace = await requirePartnerWorkspace("events", "MANAGE");
+  const partner = { id: workspace.partnerId };
   const parsed = EventFormSchema.safeParse({
     eventId: String(formData.get("eventId") ?? "") || undefined,
     hubId: String(formData.get("hubId") ?? ""),
@@ -482,6 +484,13 @@ export async function saveEventAction(
     await recordEventSystemMessage(eventId, "UPDATED");
   }
   await recordImpersonatedAction({
+    action: existing ? "EVENT_UPDATED" : "EVENT_CREATED",
+    targetType: "Event",
+    targetId: eventId,
+    metadata: { published: willPublish },
+  });
+  await recordPartnerActivity({
+    workspace,
     action: existing ? "EVENT_UPDATED" : "EVENT_CREATED",
     targetType: "Event",
     targetId: eventId,
@@ -809,10 +818,9 @@ export async function registerForEventAction(
     outcome.kind === "confirmed" ||
     outcome.kind === "waitlist"
   ) {
-    await notifyPartnerOfBooking({
-      to: event.hub.owner.email,
-      partnerName:
-        event.hub.owner.playerName ?? event.hub.owner.name ?? "Event organizer",
+    await notifyPartnerTeamOfBooking({
+      partnerId: event.hub.ownerId,
+      module: "events",
       playerName: viewer.playerName ?? viewer.name ?? "A player",
       kind: "EVENT",
       venueName: event.hub.name,
@@ -1123,7 +1131,8 @@ export async function addOrganizerEventGuestsAction(
   _previous: EventFormState,
   formData: FormData
 ): Promise<EventFormState> {
-  const partner = await requireActivePartner();
+  const workspace = await requirePartnerWorkspace("events", "MANAGE");
+  const partner = { id: workspace.partnerId };
   const eventId = String(formData.get("eventId") ?? "");
   const guests = guestNamesFrom(formData);
   if (!eventId) return { message: "Event not found." };
@@ -1164,7 +1173,7 @@ export async function addOrganizerEventGuestsAction(
     await tx.eventOrganizerGuest.createMany({
       data: guests.names.map((name) => ({
         eventId: event.id,
-        createdById: partner.id,
+        createdById: workspace.actorId,
         name,
         status: "CONFIRMED" as const,
         confirmedAt: now,
@@ -1193,6 +1202,13 @@ export async function addOrganizerEventGuestsAction(
     targetId: outcome.event.id,
     metadata: { guestCount: guests.names.length },
   });
+  await recordPartnerActivity({
+    workspace,
+    action: "EVENT_ORGANIZER_GUESTS_ADDED",
+    targetType: "Event",
+    targetId: outcome.event.id,
+    metadata: { guestCount: guests.names.length },
+  });
   return {
     success: `${guests.names.length} complimentary guest${guests.names.length === 1 ? "" : "s"} added.`,
   };
@@ -1202,7 +1218,8 @@ export async function removeOrganizerEventGuestAction(
   _previous: EventFormState,
   formData: FormData
 ): Promise<EventFormState> {
-  const partner = await requireActivePartner();
+  const workspace = await requirePartnerWorkspace("events", "MANAGE");
+  const partner = { id: workspace.partnerId };
   const parsed = OrganizerGuestSchema.safeParse({
     guestId: String(formData.get("guestId") ?? ""),
   });
@@ -1239,6 +1256,13 @@ export async function removeOrganizerEventGuestAction(
     targetId: guest.id,
     metadata: { eventId: guest.event.id },
   });
+  await recordPartnerActivity({
+    workspace,
+    action: "EVENT_ORGANIZER_GUEST_REMOVED",
+    targetType: "EventOrganizerGuest",
+    targetId: guest.id,
+    metadata: { eventId: guest.event.id },
+  });
   return { success: "Complimentary guest removed." };
 }
 
@@ -1246,7 +1270,8 @@ export async function cancelEventAction(
   _previous: EventFormState,
   formData: FormData
 ): Promise<EventFormState> {
-  const partner = await requireActivePartner();
+  const workspace = await requirePartnerWorkspace("events", "MANAGE");
+  const partner = { id: workspace.partnerId };
   const parsed = CancelEventSchema.safeParse({
     eventId: String(formData.get("eventId") ?? ""),
     reason: String(formData.get("reason") ?? ""),
@@ -1340,7 +1365,7 @@ export async function cancelEventAction(
       const refund = await refundBookingPayment({
         paymentId,
         reason: parsed.data.reason,
-        refundedById: partner.id,
+        refundedById: workspace.actorId,
       });
       if (!refund.ok) failedRefunds += 1;
     }
@@ -1349,6 +1374,16 @@ export async function cancelEventAction(
   revalidateEventSurfaces(event.publicId, event.hubId);
   await recordEventSystemMessage(event.id, "CANCELLED");
   await recordImpersonatedAction({
+    action: "EVENT_CANCELLED",
+    targetType: "Event",
+    targetId: event.id,
+    metadata: {
+      refundRequested: parsed.data.refund === "full",
+      failedRefunds,
+    },
+  });
+  await recordPartnerActivity({
+    workspace,
     action: "EVENT_CANCELLED",
     targetType: "Event",
     targetId: event.id,
@@ -1371,7 +1406,8 @@ export async function deleteCancelledEventAction(
   _previous: EventFormState,
   formData: FormData
 ): Promise<EventFormState> {
-  const partner = await requireActivePartner();
+  const workspace = await requirePartnerWorkspace("events", "MANAGE");
+  const partner = { id: workspace.partnerId };
   const parsed = DeleteCancelledEventSchema.safeParse({
     eventId: String(formData.get("eventId") ?? ""),
   });
@@ -1431,6 +1467,13 @@ export async function deleteCancelledEventAction(
     targetId: outcome.event.id,
     metadata: { title: outcome.event.title, previousStatus: "CANCELLED" },
   });
+  await recordPartnerActivity({
+    workspace,
+    action: "EVENT_DELETED",
+    targetType: "Event",
+    targetId: outcome.event.id,
+    metadata: { title: outcome.event.title },
+  });
   return { success: "Cancelled event deleted." };
 }
 
@@ -1438,7 +1481,8 @@ export async function cancelEventRegistrationAction(
   _previous: EventFormState,
   formData: FormData
 ): Promise<EventFormState> {
-  const partner = await requireActivePartner();
+  const workspace = await requirePartnerWorkspace("events", "MANAGE");
+  const partner = { id: workspace.partnerId };
   const parsed = ManageRegistrationSchema.safeParse({
     registrationId: String(formData.get("registrationId") ?? ""),
     reason: String(formData.get("reason") ?? ""),
@@ -1512,7 +1556,7 @@ export async function cancelEventRegistrationAction(
       const refund = await refundBookingPayment({
         paymentId,
         reason: parsed.data.reason,
-        refundedById: partner.id,
+        refundedById: workspace.actorId,
       });
       if (!refund.ok) failures.push(refund.message);
     }
@@ -1530,6 +1574,13 @@ export async function cancelEventRegistrationAction(
     "CANCELLED"
   );
   await recordImpersonatedAction({
+    action: "EVENT_REGISTRATION_CANCELLED",
+    targetType: "EventRegistration",
+    targetId: registration.id,
+    metadata: { refundRequested: parsed.data.refund === "full" },
+  });
+  await recordPartnerActivity({
+    workspace,
     action: "EVENT_REGISTRATION_CANCELLED",
     targetType: "EventRegistration",
     targetId: registration.id,

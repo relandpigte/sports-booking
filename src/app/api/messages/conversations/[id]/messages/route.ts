@@ -33,7 +33,7 @@ export async function POST(
   const [userAllowed, ipAllowed] = await Promise.all([
     consumeRateLimit({
       namespace: "messages-send-user",
-      subject: viewer.id,
+      subject: viewer.actorId,
       limit: 30,
       windowSeconds: 60,
     }),

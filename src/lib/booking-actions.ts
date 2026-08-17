@@ -50,12 +50,17 @@ import {
   manilaToday,
 } from "@/lib/time";
 import {
-  isPartnerImpersonationActive,
   recordImpersonatedAction,
 } from "@/lib/impersonation";
-import { notifyPartnerOfBooking } from "@/lib/booking-notifications";
+import { notifyPartnerTeamOfBooking } from "@/lib/booking-notifications";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { recordBookingSystemMessage } from "@/lib/message-system-events";
+import {
+  getPartnerWorkspace,
+  hasStaffAccess,
+  recordPartnerActivity,
+  type PartnerWorkspace,
+} from "@/lib/staffing";
 
 export type BookingFormState = {
   errors?: Record<string, string>;
@@ -68,6 +73,36 @@ export type BookingFormState = {
 // business failures back out of it.
 class StaleBooking extends Error {}
 class PlayerClash extends Error {}
+
+type BookingManager = {
+  actorId: string;
+  ownerId: string | null;
+  workspace: PartnerWorkspace | null;
+  cancelledBy: CancelledBy;
+};
+
+async function resolveBookingManager(): Promise<BookingManager | null> {
+  const viewer = await getViewer();
+  if (!viewer) return null;
+  const workspace = await getPartnerWorkspace();
+  if (viewer.role === "ADMIN" && !workspace) {
+    return {
+      actorId: viewer.id,
+      ownerId: null,
+      workspace: null,
+      cancelledBy: "ADMIN",
+    };
+  }
+  if (!workspace || !hasStaffAccess(workspace, "bookings", "MANAGE")) {
+    return null;
+  }
+  return {
+    actorId: workspace.actorId,
+    ownerId: workspace.partnerId,
+    workspace,
+    cancelledBy: viewer.role === "ADMIN" ? "ADMIN" : "PARTNER",
+  };
+}
 
 // Revalidates every surface a booking or cancellation shows up on.
 function revalidateBookingSurfaces(hubId: string) {
@@ -315,9 +350,9 @@ export async function createBookingAction(
   }
 
   revalidateBookingSurfaces(hub.id);
-  await notifyPartnerOfBooking({
-    to: hub.owner.email,
-    partnerName: hub.owner.playerName ?? hub.owner.name ?? "Venue partner",
+  await notifyPartnerTeamOfBooking({
+    partnerId: hub.ownerId,
+    module: "bookings",
     playerName: viewer.playerName ?? viewer.name ?? "A player",
     kind: "COURT",
     venueName: hub.name,
@@ -403,23 +438,8 @@ export async function cancelHubBookingAction(
   _prev: BookingFormState,
   formData: FormData
 ): Promise<BookingFormState> {
-  const viewer = await getViewer();
-  if (!viewer) return { message: "Sign in to manage bookings." };
-  if (viewer.role !== "PARTNER" && viewer.role !== "ADMIN") {
-    return { message: "Only the hub owner can cancel this booking." };
-  }
-  if (
-    viewer.role === "PARTNER" &&
-    viewer.partnerStatus !== "ACTIVE" &&
-    !(await isPartnerImpersonationActive())
-  ) {
-    return {
-      message:
-        viewer.partnerStatus === "DEACTIVATED"
-          ? "Your partner account is deactivated. Contact Bunal.club support to request reactivation."
-          : "Your partner account is waiting for admin verification.",
-    };
-  }
+  const manager = await resolveBookingManager();
+  if (!manager) return { message: "Manage access to bookings is required." };
 
   const parsed = PartnerCancelBookingSchema.safeParse({
     id: String(formData.get("id") ?? ""),
@@ -430,10 +450,9 @@ export async function cancelHubBookingAction(
 
   // Admins can cancel anywhere; partners only within hubs they own.
   const booking = await prisma.booking.findFirst({
-    where:
-      viewer.role === "ADMIN"
-        ? { id: parsed.data.id }
-        : { id: parsed.data.id, hub: { ownerId: viewer.id } },
+    where: manager.ownerId
+      ? { id: parsed.data.id, hub: { ownerId: manager.ownerId } }
+      : { id: parsed.data.id },
     select: {
       id: true,
       hubId: true,
@@ -463,7 +482,7 @@ export async function cancelHubBookingAction(
 
   await cancelBooking(
     booking.id,
-    viewer.role === "ADMIN" ? "ADMIN" : "PARTNER",
+    manager.cancelledBy,
     parsed.data.reason
   );
   await recordBookingSystemMessage(booking.id, "CANCELLED");
@@ -473,6 +492,15 @@ export async function cancelHubBookingAction(
     targetId: booking.id,
     metadata: { refundRequested: parsed.data.refund === "full" },
   });
+  if (manager.workspace) {
+    await recordPartnerActivity({
+      workspace: manager.workspace,
+      action: "BOOKING_CANCELLED",
+      targetType: "Booking",
+      targetId: booking.id,
+      metadata: { refundRequested: parsed.data.refund === "full" },
+    });
+  }
   revalidateBookingSurfaces(booking.hubId);
 
   const wasPaid = booking.bookingPayment?.status === "SUCCEEDED";
@@ -491,7 +519,7 @@ export async function cancelHubBookingAction(
   const refund = await refundBookingPayment({
     paymentId: booking.bookingPaymentId!,
     reason: parsed.data.reason,
-    refundedById: viewer.id,
+    refundedById: manager.actorId,
   });
   if (!refund.ok) {
     return {
@@ -510,23 +538,8 @@ export async function refundBookingAction(
   _prev: BookingFormState,
   formData: FormData
 ): Promise<BookingFormState> {
-  const viewer = await getViewer();
-  if (!viewer) return { message: "Sign in to manage bookings." };
-  if (viewer.role !== "PARTNER" && viewer.role !== "ADMIN") {
-    return { message: "Only the venue can refund this booking." };
-  }
-  if (
-    viewer.role === "PARTNER" &&
-    viewer.partnerStatus !== "ACTIVE" &&
-    !(await isPartnerImpersonationActive())
-  ) {
-    return {
-      message:
-        viewer.partnerStatus === "DEACTIVATED"
-          ? "Your partner account is deactivated. Contact Bunal.club support to request reactivation."
-          : "Your partner account is waiting for admin verification.",
-    };
-  }
+  const manager = await resolveBookingManager();
+  if (!manager) return { message: "Manage access to bookings is required." };
 
   const parsed = RefundBookingSchema.safeParse({
     id: String(formData.get("id") ?? ""),
@@ -536,10 +549,9 @@ export async function refundBookingAction(
 
   // Ownership in the where clause, as everywhere else here.
   const booking = await prisma.booking.findFirst({
-    where:
-      viewer.role === "ADMIN"
-        ? { id: parsed.data.id }
-        : { id: parsed.data.id, hub: { ownerId: viewer.id } },
+    where: manager.ownerId
+      ? { id: parsed.data.id, hub: { ownerId: manager.ownerId } }
+      : { id: parsed.data.id },
     select: { id: true, hubId: true, bookingPaymentId: true },
   });
   if (!booking) return { message: "Booking not found." };
@@ -550,7 +562,7 @@ export async function refundBookingAction(
   const refund = await refundBookingPayment({
     paymentId: booking.bookingPaymentId,
     reason: parsed.data.reason,
-    refundedById: viewer.id,
+    refundedById: manager.actorId,
   });
   if (!refund.ok) return { message: refund.message };
 
@@ -560,6 +572,15 @@ export async function refundBookingAction(
     targetId: booking.id,
     metadata: { alreadyRefunded: refund.alreadyRefunded },
   });
+  if (manager.workspace) {
+    await recordPartnerActivity({
+      workspace: manager.workspace,
+      action: "BOOKING_REFUNDED",
+      targetType: "Booking",
+      targetId: booking.id,
+      metadata: { alreadyRefunded: refund.alreadyRefunded },
+    });
+  }
 
   revalidateBookingSurfaces(booking.hubId);
   return {
@@ -575,23 +596,8 @@ export async function rescheduleHubBookingAction(
   _prev: BookingFormState,
   formData: FormData
 ): Promise<BookingFormState> {
-  const viewer = await getViewer();
-  if (!viewer) return { message: "Sign in to manage bookings." };
-  if (viewer.role !== "PARTNER" && viewer.role !== "ADMIN") {
-    return { message: "Only the hub owner can move this booking." };
-  }
-  if (
-    viewer.role === "PARTNER" &&
-    viewer.partnerStatus !== "ACTIVE" &&
-    !(await isPartnerImpersonationActive())
-  ) {
-    return {
-      message:
-        viewer.partnerStatus === "DEACTIVATED"
-          ? "Your partner account is deactivated. Contact Bunal.club support to request reactivation."
-          : "Your partner account is waiting for admin verification.",
-    };
-  }
+  const manager = await resolveBookingManager();
+  if (!manager) return { message: "Manage access to bookings is required." };
 
   const parsed = RescheduleBookingSchema.safeParse({
     id: String(formData.get("id") ?? ""),
@@ -608,8 +614,9 @@ export async function rescheduleHubBookingAction(
 
   // Admins can move anything; partners only within hubs they own.
   const booking = await prisma.booking.findFirst({
-    where:
-      viewer.role === "ADMIN" ? { id } : { id, hub: { ownerId: viewer.id } },
+    where: manager.ownerId
+      ? { id, hub: { ownerId: manager.ownerId } }
+      : { id },
     select: {
       id: true,
       hubId: true,
@@ -727,7 +734,7 @@ export async function rescheduleHubBookingAction(
     prevEndHour: booking.endHour,
     prevTotalPrice: booking.totalPrice,
     rescheduledAt: new Date(),
-    rescheduledBy: (viewer.role === "ADMIN" ? "ADMIN" : "PARTNER") as
+    rescheduledBy: (manager.cancelledBy === "ADMIN" ? "ADMIN" : "PARTNER") as
       | "ADMIN"
       | "PARTNER",
     // null rather than undefined, so a second move without a reason clears
@@ -865,6 +872,15 @@ export async function rescheduleHubBookingAction(
     targetId: booking.id,
     metadata: { sessionCount: runs.length },
   });
+  if (manager.workspace) {
+    await recordPartnerActivity({
+      workspace: manager.workspace,
+      action: "BOOKING_RESCHEDULED",
+      targetType: "Booking",
+      targetId: booking.id,
+      metadata: { sessionCount: runs.length },
+    });
+  }
   return {
     success:
       runs.length === 1

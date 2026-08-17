@@ -45,7 +45,7 @@ async function check() {
       role: "PARTNER",
       partnerStatus: "ACTIVE",
     },
-    select: { id: true, email: true },
+    select: { id: true, email: true, role: true, partnerStatus: true },
   });
   partnerId = partner.id;
   const player = await prisma.user.create({

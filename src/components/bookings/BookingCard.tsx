@@ -28,10 +28,14 @@ export function BookingCard({
   view,
   cancellable,
   reschedule,
+  manageable = true,
+  canMessage = true,
 }: {
   booking: BookingView;
   view: "player" | "partner";
   cancellable: boolean;
+  manageable?: boolean;
+  canMessage?: boolean;
   reschedule?: {
     courts: {
       id: string;
@@ -185,7 +189,7 @@ export function BookingCard({
         </p>
       )}
 
-      {view === "partner" &&
+      {view === "partner" && manageable &&
         booking.payment?.collectionMode === "MANUAL" &&
         booking.payment.manualSubmittedAt && (
           <ManualPaymentReview
@@ -241,7 +245,7 @@ export function BookingCard({
 
       {/* Money can be given back whatever state the booking is in — including
           a cancellation whose refund leg failed at the gateway. */}
-      {view === "partner" && paid && booking.payment?.collectionMode !== "MANUAL" && (
+      {view === "partner" && manageable && paid && booking.payment?.collectionMode !== "MANUAL" && (
         <div className="mt-3 flex justify-end border-t border-gray-100 pt-3">
           <RefundBookingButton
             bookingId={booking.id}
@@ -256,7 +260,7 @@ export function BookingCard({
 
       {cancellable && (booking.status === "CONFIRMED" || holding) && (
         <div className="mt-4 flex flex-wrap items-start justify-end gap-2 border-t border-gray-100 pt-3">
-          {booking.status === "CONFIRMED" && (
+          {booking.status === "CONFIRMED" && canMessage && (
             <Link
               href="/dashboard/messages"
               className="inline-flex min-h-9 items-center rounded-lg border border-primary/20 bg-primary-soft px-3 text-xs font-bold text-primary hover:border-primary/40"
@@ -303,7 +307,7 @@ export function BookingCard({
           )}
         </div>
       )}
-      {!cancellable && booking.status === "CONFIRMED" && (
+      {!cancellable && booking.status === "CONFIRMED" && canMessage && (
         <div className="mt-4 flex justify-end border-t border-gray-100 pt-3">
           <Link
             href="/dashboard/messages"

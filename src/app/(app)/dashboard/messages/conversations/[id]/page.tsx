@@ -19,7 +19,7 @@ export default async function ConversationPage({
 
   return (
     <MessagesWorkspace
-      viewerId={workspace.viewer.id}
+      viewerId={workspace.viewer.actorId}
       initialConversations={workspace.conversations}
       conversation={workspace.conversation}
       initialMessages={workspace.messages.messages}

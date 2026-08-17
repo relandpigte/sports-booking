@@ -29,8 +29,10 @@ export type OwnerEventParticipant =
 
 export function OwnerEventRegistrations({
   participants,
+  canManage = true,
 }: {
   participants: OwnerEventParticipant[];
+  canManage?: boolean;
 }) {
   if (participants.length === 0) {
     return (
@@ -47,11 +49,13 @@ export function OwnerEventRegistrations({
           <RegistrationRow
             key={`registration-${participant.registration.id}`}
             registration={participant.registration}
+            canManage={canManage}
           />
         ) : (
           <OrganizerGuestRow
             key={`organizer-guest-${participant.guest.id}`}
             guest={participant.guest}
+            canManage={canManage}
           />
         )
       )}
@@ -61,8 +65,10 @@ export function OwnerEventRegistrations({
 
 function RegistrationRow({
   registration,
+  canManage,
 }: {
   registration: OwnerEventRegistrationView;
+  canManage: boolean;
 }) {
   const [state, action, pending] = useActionState(
     cancelEventRegistrationAction,
@@ -110,7 +116,7 @@ function RegistrationRow({
         <span className="w-fit rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-600">
           {registration.status}
         </span>
-        {active ? (
+        {canManage && active ? (
           <form action={action} className="flex flex-wrap items-center gap-2">
             <input
               type="hidden"
@@ -156,8 +162,10 @@ function RegistrationRow({
 
 function OrganizerGuestRow({
   guest,
+  canManage,
 }: {
   guest: OwnerEventOrganizerGuestView;
+  canManage: boolean;
 }) {
   const [state, action, pending] = useActionState(
     removeOrganizerEventGuestAction,
@@ -194,7 +202,7 @@ function OrganizerGuestRow({
         >
           {guest.status}
         </span>
-        {active ? (
+        {canManage && active ? (
           <form action={action}>
             <input type="hidden" name="guestId" value={guest.id} />
             <button

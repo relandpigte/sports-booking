@@ -608,13 +608,13 @@ export async function getMyNextBooking(): Promise<BookingView | null> {
 
 // Bookings across a hub's courts. Returns null when the hub isn't owned by the
 // current partner, so the page can notFound() — same shape as getMyHub.
-export async function listHubBookings(hubId: string): Promise<{
+export async function listHubBookings(hubId: string, ownerId?: string): Promise<{
   upcoming: BookingView[];
   past: BookingView[];
 } | null> {
-  const partner = await requireActivePartner();
+  const partnerId = ownerId ?? (await requireActivePartner()).id;
   const owned = await prisma.hub.findFirst({
-    where: { id: hubId, ownerId: partner.id },
+    where: { id: hubId, ownerId: partnerId },
     select: { id: true },
   });
   if (!owned) return null;
@@ -733,12 +733,13 @@ function partnerBookingOrderBy(
 // database predicate while every filter and page is also resolved server-side,
 // so large booking histories never need to be shipped to the browser.
 export async function listPartnerBookings(
-  filters: PartnerBookingFilters
+  filters: PartnerBookingFilters,
+  ownerId?: string
 ): Promise<PartnerBookingsPage> {
-  const partner = await requireActivePartner();
+  const partnerId = ownerId ?? (await requireActivePartner()).id;
   const now = new Date();
   const constraints: Prisma.BookingWhereInput[] = [
-    { hub: { ownerId: partner.id } },
+    { hub: { ownerId: partnerId } },
   ];
 
   if (filters.query) {

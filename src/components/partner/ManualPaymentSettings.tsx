@@ -448,12 +448,48 @@ export function CheckoutModeSettings({
   mode,
   methods,
   gateway,
+  readOnly = false,
 }: {
   mode: PartnerPaymentMode;
   methods: ManualPaymentMethodView[];
   gateway: GatewayView | null;
+  readOnly?: boolean;
 }) {
   const [selectedMode, setSelectedMode] = useState<PartnerPaymentMode>(mode);
+
+  if (readOnly) {
+    return (
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-navy">Checkout configuration</h2>
+            <p className="mt-1 text-sm text-slate-500">View-only payment access</p>
+          </div>
+          <Badge tone="success">{mode === "MANUAL" ? "Manual" : "PayMongo"} active</Badge>
+        </div>
+        <dl className="mt-5 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl bg-slate-50 p-4">
+            <dt className="text-xs font-bold uppercase tracking-wide text-slate-400">PayMongo</dt>
+            <dd className="mt-1 font-bold text-navy">{gateway?.connected ? "Connected" : "Not connected"}</dd>
+          </div>
+          <div className="rounded-xl bg-slate-50 p-4">
+            <dt className="text-xs font-bold uppercase tracking-wide text-slate-400">Manual destinations</dt>
+            <dd className="mt-1 font-bold text-navy">{methods.filter((method) => method.active).length} active</dd>
+          </div>
+        </dl>
+        {methods.length > 0 && (
+          <div className="mt-4 divide-y divide-slate-100 rounded-xl border border-slate-200 px-4">
+            {methods.map((method) => (
+              <div key={method.id} className="flex items-center justify-between gap-3 py-3 text-sm">
+                <span className="font-semibold text-navy">{method.label}</span>
+                <span className="text-slate-500">{method.active ? "Enabled" : "Disabled"}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    );
+  }
 
   return (
     <div className="space-y-5">

@@ -28,6 +28,7 @@ import {
   listMyEventRegistrations,
   type PlayerEventRegistrationView,
 } from "@/lib/events";
+import { getPartnerWorkspace, hasStaffAccess } from "@/lib/staffing";
 
 export const metadata: Metadata = {
   title: "Bookings — Bunal.club",
@@ -200,9 +201,10 @@ export default async function BookingsPage({
 }: {
   searchParams: SearchParams;
 }) {
-  const [user, impersonation] = await Promise.all([
+  const [user, impersonation, workspace] = await Promise.all([
     getCurrentUser(),
     getCurrentPartnerImpersonation(),
+    getPartnerWorkspace(),
   ]);
   if (!user || user.role === "ADMIN") redirect("/dashboard");
   if (
@@ -212,9 +214,14 @@ export default async function BookingsPage({
   ) {
     redirect("/dashboard/partner");
   }
+  if (workspace && !hasStaffAccess(workspace, "bookings", "VIEW")) {
+    redirect("/dashboard/partner?access=denied");
+  }
   const params = await searchParams;
 
-  if (user.role === "PARTNER") {
+  if (workspace) {
+    const canManage = hasStaffAccess(workspace, "bookings", "MANAGE");
+    const canMessage = hasStaffAccess(workspace, "messages", "VIEW");
     const section: PartnerBookingSection =
       firstSearchValue(params.tab) === "history" ? "history" : "upcoming";
     const query = firstSearchValue(params.q).trim().slice(0, 100);
@@ -249,8 +256,8 @@ export default async function BookingsPage({
         : 1,
     };
     const [bookings, hubs] = await Promise.all([
-      listPartnerBookings(filters),
-      listMyHubs(),
+      listPartnerBookings(filters, workspace.partnerId),
+      listMyHubs(workspace.partnerId),
     ]);
     const rescheduleByHub = new Map(
       hubs.map((hub) => [
@@ -331,9 +338,11 @@ export default async function BookingsPage({
           <PartnerBookingListRow
             key={booking.id}
             booking={booking}
-            cancellable={bookings.section === "upcoming"}
+            cancellable={canManage && bookings.section === "upcoming"}
+            manageable={canManage}
+            canMessage={canMessage}
             reschedule={
-              bookings.section === "upcoming"
+              canManage && bookings.section === "upcoming"
                 ? rescheduleByHub.get(booking.hub.id)
                 : undefined
             }
@@ -344,9 +353,11 @@ export default async function BookingsPage({
             key={booking.id}
             booking={booking}
             view="partner"
-            cancellable={bookings.section === "upcoming"}
+            cancellable={canManage && bookings.section === "upcoming"}
+            manageable={canManage}
+            canMessage={canMessage}
             reschedule={
-              bookings.section === "upcoming"
+              canManage && bookings.section === "upcoming"
                 ? rescheduleByHub.get(booking.hub.id)
                 : undefined
             }

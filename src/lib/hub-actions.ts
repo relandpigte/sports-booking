@@ -18,6 +18,7 @@ import {
   type Weekday,
 } from "@/lib/constants";
 import { recordImpersonatedAction } from "@/lib/impersonation";
+import { recordPartnerActivity, requirePartnerWorkspace } from "@/lib/staffing";
 
 type CourtInput = {
   id: string;
@@ -224,11 +225,11 @@ export async function updateHubAction(
   _prev: HubFormState,
   formData: FormData
 ): Promise<HubFormState> {
-  const partner = await requireActivePartner();
+  const workspace = await requirePartnerWorkspace("hubs", "MANAGE");
   const id = String(formData.get("id") ?? "");
 
   const owned = await prisma.hub.findFirst({
-    where: { id, ownerId: partner.id },
+    where: { id, ownerId: workspace.partnerId },
     select: { id: true },
   });
   if (!owned) {
@@ -347,6 +348,12 @@ export async function updateHubAction(
   if (ops.length) await prisma.$transaction(ops);
 
   await recordImpersonatedAction({
+    action: "HUB_UPDATED",
+    targetType: "Hub",
+    targetId: id,
+  });
+  await recordPartnerActivity({
+    workspace,
     action: "HUB_UPDATED",
     targetType: "Hub",
     targetId: id,

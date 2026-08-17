@@ -41,7 +41,7 @@ async function check() {
       role: "PARTNER",
       partnerStatus: "ACTIVE",
     },
-    select: { id: true, email: true },
+    select: { id: true, email: true, role: true, partnerStatus: true },
   });
   const players = await Promise.all(
     PLAYER_EMAILS.map((email, index) =>
@@ -52,7 +52,7 @@ async function check() {
           passwordHash: "x",
           role: "PLAYER",
         },
-        select: { id: true, email: true },
+        select: { id: true, email: true, role: true },
       })
     )
   );

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { CheckoutModeSettings } from "@/components/partner/ManualPaymentSettings";
 import { ServiceFeePanel } from "@/components/partner/ServiceFeePanel";
-import { requireActivePartner } from "@/lib/dal";
 import { getGatewayView } from "@/lib/partner-gateway";
 import { platformPaymongoConfigured } from "@/lib/payments/paymongo-platform";
 import {
@@ -14,6 +13,7 @@ import {
 import { getPartnerServiceFeeView } from "@/lib/service-fees";
 import { getCurrentPartnerImpersonation } from "@/lib/impersonation";
 import { getPartnerManualPaymentSettings } from "@/lib/manual-payments";
+import { hasStaffAccess, requirePartnerWorkspace } from "@/lib/staffing";
 
 export const metadata: Metadata = {
   title: "Payments — Bunal.club",
@@ -24,26 +24,28 @@ export default async function PaymentsPage({
 }: {
   searchParams: Promise<{ settlement?: string; setup?: string }>;
 }) {
-  const partner = await requireActivePartner();
+  const workspace = await requirePartnerWorkspace("payments");
+  const canManage = hasStaffAccess(workspace, "payments", "MANAGE");
+  const canSettle = workspace.kind === "OWNER";
   const { settlement, setup } = await searchParams;
   const impersonation = await getCurrentPartnerImpersonation();
 
-  if (!impersonation) {
+  if (canSettle && !impersonation) {
     if (settlement) {
       await pollServiceFeeCheckout({
         settlementId: settlement,
-        partnerId: partner.id,
+        partnerId: workspace.partnerId,
       });
     } else {
       // Recovery for a closed tab, failed return redirect, or temporarily
       // unavailable webhook: merely reopening Payments reconciles with PayMongo.
-      await pollLatestServiceFeeCheckout(partner.id);
+      await pollLatestServiceFeeCheckout(workspace.partnerId);
     }
   }
   const [gateway, serviceFees, paymentSettings] = await Promise.all([
-    getGatewayView(partner.id),
-    getPartnerServiceFeeView(partner.id),
-    getPartnerManualPaymentSettings(partner.id),
+    getGatewayView(workspace.partnerId),
+    getPartnerServiceFeeView(workspace.partnerId),
+    getPartnerManualPaymentSettings(workspace.partnerId),
   ]);
   const paymongoSettlementEnabled = await platformPaymongoConfigured();
   const checkoutReady =
@@ -112,6 +114,7 @@ export default async function PaymentsPage({
           mode={paymentSettings.mode}
           methods={paymentSettings.methods}
           gateway={gateway}
+          readOnly={!canManage}
         />
         <ServiceFeePanel
           balance={serviceFees.balance}
@@ -121,7 +124,7 @@ export default async function PaymentsPage({
             process.env.SERVICE_FEE_PAYMENT_INSTRUCTIONS?.trim() ||
             "Transfer this amount using the payment details provided by the admin, then enter the reference and upload the receipt."
           }
-          readOnly={Boolean(impersonation)}
+          readOnly={!canSettle || Boolean(impersonation)}
         />
       </div>
     </div>

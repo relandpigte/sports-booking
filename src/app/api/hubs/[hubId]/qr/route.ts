@@ -2,10 +2,10 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { prisma } from "@/lib/db";
-import { requireActivePartner } from "@/lib/dal";
 import { hubPublicPath } from "@/lib/hub-slug";
 import { hubQrSvg } from "@/lib/qr";
 import { absoluteUrl } from "@/lib/site";
+import { requirePartnerWorkspace } from "@/lib/staffing";
 
 export const dynamic = "force-dynamic";
 
@@ -22,10 +22,10 @@ export async function GET(
   _request: Request,
   ctx: { params: Promise<{ hubId: string }> }
 ) {
-  const partner = await requireActivePartner();
+  const workspace = await requirePartnerWorkspace("hubs");
   const { hubId } = await ctx.params;
   const hub = await prisma.hub.findFirst({
-    where: { id: hubId, ownerId: partner.id },
+    where: { id: hubId, ownerId: workspace.partnerId },
     select: { id: true, name: true, slug: true },
   });
   if (!hub) return new Response("Hub not found", { status: 404 });

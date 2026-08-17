@@ -8,6 +8,11 @@ import { DashboardNav } from "@/components/dashboard/DashboardNav";
 import { MobileDashboardMenu } from "@/components/dashboard/MobileDashboardMenu";
 import { logoutAction } from "@/lib/actions";
 import { stopPartnerImpersonationAction } from "@/lib/impersonation-actions";
+import {
+  enterPersonalWorkspaceAction,
+  enterStaffWorkspaceAction,
+} from "@/lib/staffing-actions";
+import type { PartnerWorkspace } from "@/lib/staffing";
 
 export type ShellUser = {
   name: string | null;
@@ -30,6 +35,8 @@ export function AppShell({
   maxWidth = "max-w-6xl",
   impersonation,
   hasMessages = false,
+  workspace,
+  staffWorkspaceAvailable = false,
 }: {
   user: ShellUser;
   children: ReactNode;
@@ -40,6 +47,8 @@ export function AppShell({
     expiresAt: Date;
   } | null;
   hasMessages?: boolean;
+  workspace?: PartnerWorkspace | null;
+  staffWorkspaceAvailable?: boolean;
 }) {
   const displayName = user.playerName ?? user.name ?? "Player";
   const workspaceLabel =
@@ -47,6 +56,8 @@ export function AppShell({
       ? "Assisted partner workspace"
       : user.role === "ADMIN"
       ? "Owner workspace"
+      : workspace?.kind === "STAFF"
+        ? `${workspace.partnerName} workspace`
       : user.role === "PARTNER"
         ? "Venue workspace"
         : "Player workspace";
@@ -63,6 +74,7 @@ export function AppShell({
             image={user.image}
             workspaceLabel={workspaceLabel}
             hasMessages={hasMessages}
+            workspace={workspace}
           />
           <Link
             href="/dashboard"
@@ -94,6 +106,7 @@ export function AppShell({
           role={user.role}
           partnerStatus={impersonation ? "ACTIVE" : user.partnerStatus}
           hasMessages={hasMessages}
+          workspace={workspace}
         />
 
         <div className="mt-auto hidden rounded-2xl border border-white/10 bg-white/5 p-3 md:flex md:items-center md:gap-3">
@@ -149,6 +162,38 @@ export function AppShell({
               </form>
             </div>
           )}
+          {!impersonation && workspace?.kind === "STAFF" && (
+            <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-primary/20 bg-primary-soft/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-bold text-navy">
+                  Working with {workspace.partnerName}
+                </p>
+                <p className="mt-0.5 text-xs text-slate-600">
+                  Your navigation and actions follow the access assigned by the partner owner.
+                </p>
+              </div>
+              <form action={enterPersonalWorkspaceAction}>
+                <button className="inline-flex min-h-10 items-center justify-center rounded-xl border border-primary/30 bg-white px-4 text-sm font-bold text-primary">
+                  Switch to player workspace
+                </button>
+              </form>
+            </div>
+          )}
+          {!impersonation &&
+            !workspace &&
+            staffWorkspaceAvailable &&
+            user.role === "PLAYER" && (
+              <div className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-ocean/20 bg-ocean-soft px-4 py-3">
+                <p className="text-sm font-semibold text-navy">
+                  You also have access to a venue team.
+                </p>
+                <form action={enterStaffWorkspaceAction}>
+                  <button className="rounded-xl bg-navy px-4 py-2.5 text-sm font-bold text-white">
+                    Open staff workspace
+                  </button>
+                </form>
+              </div>
+            )}
           {children}
         </div>
       </main>

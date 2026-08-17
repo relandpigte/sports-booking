@@ -21,11 +21,13 @@ export default function RegisterPage({
 }: {
   searchParams: Promise<{
     next?: string | string[];
+    email?: string | string[];
     error?: string | string[];
   }>;
 }) {
   const query = use(searchParams);
   const next = Array.isArray(query.next) ? query.next[0] : query.next;
+  const invitedEmail = Array.isArray(query.email) ? query.email[0] : query.email;
   const [state, formAction, pending] = useActionState(
     registerAction,
     initialState
@@ -80,7 +82,7 @@ export default function RegisterPage({
               type="email"
               placeholder="you@example.com"
               autoComplete="email"
-              defaultValue={state.values?.email}
+              defaultValue={state.values?.email ?? invitedEmail}
               error={state.errors?.email}
             />
             <RegistrationPasswordField error={state.errors?.password} />

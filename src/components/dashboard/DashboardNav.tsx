@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import type { PartnerStatus, Role } from "@prisma/client";
 
 import { dashboardHomeFor } from "@/lib/dashboard";
+import type { PartnerWorkspace, StaffModule } from "@/lib/staffing";
 
 type Item = {
   href: string;
@@ -14,6 +15,8 @@ type Item = {
   playerOnly?: boolean;
   partnerOnly?: boolean;
   messagesOnly?: boolean;
+  staffModule?: StaffModule;
+  ownerOnly?: boolean;
   icon: ReactNode;
 };
 
@@ -45,6 +48,7 @@ const items: Item[] = [
     href: "/dashboard/hubs",
     label: "My Hubs",
     partnerOnly: true,
+    staffModule: "hubs",
     icon: (
       <svg {...iconProps}>
         <path d="M3 21h18M5 21V8l7-4 7 4v13" />
@@ -56,6 +60,7 @@ const items: Item[] = [
     href: "/dashboard/reports",
     label: "Reports",
     partnerOnly: true,
+    staffModule: "reports",
     icon: (
       <svg {...iconProps}>
         <path d="M3 3v18h18" />
@@ -67,6 +72,7 @@ const items: Item[] = [
     href: "/dashboard/bookings",
     label: "Bookings",
     partnerOnly: true,
+    staffModule: "bookings",
     icon: (
       <svg {...iconProps}>
         <rect x="3" y="4" width="18" height="18" rx="2" />
@@ -80,6 +86,7 @@ const items: Item[] = [
     label: "Messages",
     partnerOnly: true,
     messagesOnly: true,
+    staffModule: "messages",
     icon: (
       <svg {...iconProps}>
         <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z" />
@@ -91,6 +98,7 @@ const items: Item[] = [
     href: "/dashboard/events",
     label: "Events",
     partnerOnly: true,
+    staffModule: "events",
     icon: (
       <svg {...iconProps}>
         <rect x="3" y="5" width="18" height="16" rx="2" />
@@ -102,10 +110,24 @@ const items: Item[] = [
     href: "/dashboard/payments",
     label: "Payments",
     partnerOnly: true,
+    staffModule: "payments",
     icon: (
       <svg {...iconProps}>
         <rect x="2" y="5" width="20" height="14" rx="2" />
         <path d="M2 10h20" />
+      </svg>
+    ),
+  },
+  {
+    href: "/dashboard/team",
+    label: "Team",
+    partnerOnly: true,
+    ownerOnly: true,
+    icon: (
+      <svg {...iconProps}>
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
       </svg>
     ),
   },
@@ -160,10 +182,12 @@ export function DashboardNav({
   role,
   partnerStatus,
   hasMessages = false,
+  workspace,
 }: {
   role?: Role;
   partnerStatus?: PartnerStatus | null;
   hasMessages?: boolean;
+  workspace?: PartnerWorkspace | null;
 }) {
   const pathname = usePathname();
 
@@ -182,16 +206,27 @@ export function DashboardNav({
   const visibleItems = items
     .filter(
       (item) =>
-        (!item.playerOnly || role === "PLAYER") &&
+        (!item.playerOnly ||
+          (role === "PLAYER" && workspace?.kind !== "STAFF")) &&
         (!item.messagesOnly || hasMessages) &&
+        (!item.ownerOnly || workspace?.kind === "OWNER") &&
         (!item.partnerOnly ||
-          (role === "PARTNER" && partnerStatus === "ACTIVE"))
+          (role === "PARTNER" && partnerStatus === "ACTIVE") ||
+          (workspace?.kind === "STAFF" &&
+            (!item.staffModule ||
+              workspace.permissions[item.staffModule] !== "NONE")))
     )
     // Home points straight at the role's own dashboard, so the link highlights
     // when you're on it — /dashboard only ever redirects there anyway.
     .map((item) =>
       item.href === "/dashboard" && role
-        ? { ...item, href: dashboardHomeFor(role) }
+        ? {
+            ...item,
+            href:
+              workspace?.kind === "STAFF"
+                ? "/dashboard/partner"
+                : dashboardHomeFor(role),
+          }
         : item
     );
 

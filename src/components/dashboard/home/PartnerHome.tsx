@@ -217,7 +217,11 @@ export function PartnerHome({
             </Link>
 
             <Link
-              href="/dashboard/payments?setup=hub"
+              href={
+                isPaymentReady
+                  ? "/dashboard/payments"
+                  : "/dashboard/payments?setup=hub"
+              }
               className={`rounded-xl border bg-white p-5 shadow-sm shadow-navy/5 transition-all hover:-translate-y-0.5 ${
                 isPaymentReady
                   ? "border-primary/25 hover:border-primary/40"

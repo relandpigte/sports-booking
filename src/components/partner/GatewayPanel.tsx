@@ -46,10 +46,10 @@ function Banner({ state }: { state: GatewayFormState }) {
 function CopyField({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex min-w-0 flex-col gap-1.5">
       <span className="text-sm font-medium text-gray-800">{label}</span>
-      <div className="flex items-center gap-2">
-        <code className="min-w-0 flex-1 truncate rounded-lg bg-gray-50 px-3 py-2.5 text-xs text-gray-600">
+      <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+        <code className="block w-full min-w-0 overflow-hidden text-ellipsis whitespace-nowrap rounded-lg bg-gray-50 px-3 py-2.5 text-xs text-gray-600 sm:flex-1">
           {value}
         </code>
         <button
@@ -59,7 +59,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
             setCopied(true);
             setTimeout(() => setCopied(false), 1500);
           }}
-          className="shrink-0 rounded-lg border border-gray-300 px-3 py-2.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
+          className="w-full shrink-0 rounded-lg border border-gray-300 px-3 py-2.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 sm:w-auto"
         >
           {copied ? "Copied" : "Copy"}
         </button>
@@ -72,7 +72,7 @@ function PayMongoSetupGuide({ connected }: { connected: boolean }) {
   return (
     <details
       open={!connected}
-      className="rounded-xl border border-gray-200 bg-gray-50"
+      className="min-w-0 overflow-hidden rounded-xl border border-gray-200 bg-gray-50"
     >
       <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-gray-900">
         How to create and connect your PayMongo account
@@ -83,7 +83,7 @@ function PayMongoSetupGuide({ connected }: { connected: boolean }) {
             <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
               1
             </span>
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-medium text-gray-900">
                 Create your PayMongo account
               </p>
@@ -106,7 +106,7 @@ function PayMongoSetupGuide({ connected }: { connected: boolean }) {
             <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
               2
             </span>
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-medium text-gray-900">
                 Copy a matching API-key pair
               </p>
@@ -126,7 +126,7 @@ function PayMongoSetupGuide({ connected }: { connected: boolean }) {
             <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
               3
             </span>
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-medium text-gray-900">
                 Connect the keys below
               </p>
@@ -142,7 +142,7 @@ function PayMongoSetupGuide({ connected }: { connected: boolean }) {
             <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
               4
             </span>
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-medium text-gray-900">
                 Confirm QR Ph is available
               </p>
@@ -160,7 +160,7 @@ function PayMongoSetupGuide({ connected }: { connected: boolean }) {
             <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
               5
             </span>
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-medium text-gray-900">
                 Test, then switch to live
               </p>
@@ -234,12 +234,12 @@ export function GatewayPanel({ gateway }: { gateway: GatewayView | null }) {
         <PayMongoSetupGuide connected={connected} />
 
         {connected && gateway && (
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
-            <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
+          <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
+            <div className="min-w-0 rounded-xl border border-slate-100 bg-slate-50/70 p-4">
               <dl className="space-y-2.5 text-sm">
                 <div className="flex items-center justify-between gap-3">
                   <dt className="text-gray-500">Account</dt>
-                  <dd className="truncate font-medium text-gray-900">
+                  <dd className="min-w-0 truncate font-medium text-gray-900">
                     {gateway.accountLabel ?? gateway.provider}
                   </dd>
                 </div>
@@ -284,7 +284,7 @@ export function GatewayPanel({ gateway }: { gateway: GatewayView | null }) {
               </div>
             </div>
 
-            <div className="rounded-xl border border-ocean/20 bg-ocean-soft px-4 py-3.5">
+            <div className="min-w-0 rounded-xl border border-ocean/20 bg-ocean-soft px-4 py-3.5">
               <div className="flex items-start gap-3">
                 <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white text-ocean ring-1 ring-ocean/10">
                   <svg
@@ -302,7 +302,7 @@ export function GatewayPanel({ gateway }: { gateway: GatewayView | null }) {
                     <path d="M12 16v-4M12 8h.01" />
                   </svg>
                 </span>
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm font-bold text-navy">QR Ph-only checkout</p>
                   <p className="mt-1 text-xs leading-5 text-slate-600">
                     Confirm QR Ph is active under{" "}
@@ -386,7 +386,7 @@ export function GatewayPanel({ gateway }: { gateway: GatewayView | null }) {
                 />
                 <p className="text-xs text-gray-400">
                   Create a webhook in PayMongo pointing at the URL above for the{" "}
-                  <code className="text-gray-500">
+                  <code className="break-all text-gray-500">
                     checkout_session.payment.paid
                   </code>{" "}
                   event, then paste the signing secret it shows you.

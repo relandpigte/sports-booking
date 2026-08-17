@@ -20,16 +20,21 @@ const toneClasses = {
 
 export function PaymentWorkspace({
   initialTab = "checkout",
+  settlementFirst = false,
   summary,
   checkout,
   settlement,
 }: {
   initialTab?: PaymentWorkspaceTab;
+  settlementFirst?: boolean;
   summary: PaymentSummaryItem[];
   checkout: ReactNode;
   settlement: ReactNode;
 }) {
   const [activeTab, setActiveTab] = useState<PaymentWorkspaceTab>(initialTab);
+  const orderedTabs: PaymentWorkspaceTab[] = settlementFirst
+    ? ["settlement", "checkout"]
+    : ["checkout", "settlement"];
 
   return (
     <div className="mt-6">
@@ -68,22 +73,27 @@ export function PaymentWorkspace({
         role="tablist"
         aria-label="Payment workspace"
       >
-        <WorkspaceTab
-          active={activeTab === "checkout"}
-          controls="player-checkout-panel"
-          id="player-checkout-tab"
-          onClick={() => setActiveTab("checkout")}
-        >
-          Player checkout
-        </WorkspaceTab>
-        <WorkspaceTab
-          active={activeTab === "settlement"}
-          controls="service-fee-settlement-panel"
-          id="service-fee-settlement-tab"
-          onClick={() => setActiveTab("settlement")}
-        >
-          Service-fee settlement
-        </WorkspaceTab>
+        {orderedTabs.map((tab) => (
+          <WorkspaceTab
+            key={tab}
+            active={activeTab === tab}
+            controls={
+              tab === "checkout"
+                ? "player-checkout-panel"
+                : "service-fee-settlement-panel"
+            }
+            id={
+              tab === "checkout"
+                ? "player-checkout-tab"
+                : "service-fee-settlement-tab"
+            }
+            onClick={() => setActiveTab(tab)}
+          >
+            {tab === "checkout"
+              ? "Player checkout"
+              : "Service-fee settlement"}
+          </WorkspaceTab>
+        ))}
       </div>
 
       <div

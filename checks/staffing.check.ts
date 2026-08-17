@@ -94,6 +94,7 @@ async function check() {
       reports: membership.reports,
       messages: membership.messages,
       payments: membership.payments,
+      openPlay: membership.openPlay,
     },
   };
   ok(

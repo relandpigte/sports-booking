@@ -107,6 +107,18 @@ const items: Item[] = [
     ),
   },
   {
+    href: "/dashboard/open-play",
+    label: "Open Play",
+    partnerOnly: true,
+    staffModule: "openPlay",
+    icon: (
+      <svg {...iconProps}>
+        <path d="M4 6h16M4 12h10M4 18h7" />
+        <circle cx="19" cy="17" r="3" />
+      </svg>
+    ),
+  },
+  {
     href: "/dashboard/payments",
     label: "Payments",
     partnerOnly: true,

@@ -32,6 +32,7 @@ const fullAccess: StaffPermissions = {
   reports: "MANAGE",
   messages: "MANAGE",
   payments: "MANAGE",
+  openPlay: "MANAGE",
 };
 
 export async function getPartnerWorkspace({
@@ -95,6 +96,7 @@ export async function getPartnerWorkspace({
       reports: true,
       messages: true,
       payments: true,
+      openPlay: true,
       partner: {
         select: { name: true, email: true, partnerStatus: true },
       },
@@ -115,6 +117,7 @@ export async function getPartnerWorkspace({
       reports: membership.reports,
       messages: membership.messages,
       payments: membership.payments,
+      openPlay: membership.openPlay,
     },
   };
 }

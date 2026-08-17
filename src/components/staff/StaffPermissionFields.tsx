@@ -34,6 +34,10 @@ const labels: Record<StaffModule, { name: string; description: string }> = {
     name: "Payments",
     description: "Checkout mode, PayMongo, and manual payment destinations.",
   },
+  openPlay: {
+    name: "Open Play",
+    description: "Live attendance, court rotation, matching, and results.",
+  },
 };
 
 const accessLevels: StaffAccessLevel[] = ["NONE", "VIEW", "MANAGE"];
@@ -51,6 +55,7 @@ const defaultPermissions: StaffPermissions = {
   reports: "NONE",
   messages: "MANAGE",
   payments: "NONE",
+  openPlay: "MANAGE",
 };
 
 export function StaffPermissionFields({

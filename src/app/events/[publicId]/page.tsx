@@ -80,6 +80,14 @@ export default async function EventDetailPage({
                   >
                     {event.hub.name}
                   </Link>
+                  {event.sport === "pickleball" ? (
+                    <Link
+                      href={`/events/${event.publicId}/live`}
+                      className="rounded-full bg-primary-soft px-3 py-1 text-xs font-black text-primary hover:bg-accent-soft"
+                    >
+                      Live queue
+                    </Link>
+                  ) : null}
                 </div>
                 <h1 className="mt-5 break-words text-3xl font-black uppercase leading-[1.08] tracking-[-0.04em] text-navy sm:text-5xl">
                   {event.title}

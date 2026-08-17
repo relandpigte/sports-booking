@@ -174,7 +174,7 @@ export function paymongoQrPhTotalFor(subtotal: number): number {
 // separate Booking rows. Joining is free.
 export const SERVICE_FEE_RATE = 0.03;
 export const SERVICE_FEE_PERCENT = SERVICE_FEE_RATE * 100;
-export const MANUAL_SERVICE_FEE_RATE = 0.025;
+export const MANUAL_SERVICE_FEE_RATE = 0.03;
 export const MANUAL_SERVICE_FEE_PERCENT = MANUAL_SERVICE_FEE_RATE * 100;
 
 // Every surface computes the fee through here so the quote and payment ledger
@@ -186,8 +186,8 @@ export function bookingServiceFeeFor(courtTotal: number): number {
 }
 
 // Manual transfers avoid PayMongo processing but still carry Bunal.club's
-// lower platform fee. Keep this separate from the automatic rate so each
-// payment snapshots the policy selected when its checkout was created.
+// platform fee. Keep this separate from the automatic rate so each payment
+// snapshots the policy selected when its checkout was created.
 export function manualBookingServiceFeeFor(courtTotal: number): number {
   if (courtTotal <= 0) return 0;
   const courtCentavos = Math.round(courtTotal * 100);

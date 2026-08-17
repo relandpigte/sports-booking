@@ -1,4 +1,4 @@
-// Manual collection: 2.5% fee ledgers, frozen review holds, event capacity,
+// Manual collection: 3% fee ledgers, frozen review holds, event capacity,
 // approval settlement, and venue-only external-refund recording.
 //
 //   npm run check:manual-payments
@@ -252,14 +252,14 @@ async function check() {
       (await prisma.booking.count({ where: { bookingPaymentId: courtPayment.id, status: "CONFIRMED" } })) === 1
   );
   ok(
-    "manual approval accrues the 2.5% service fee without a gateway processing fee",
+    "manual approval accrues the 3% service fee without a gateway processing fee",
     (await prisma.bookingPayment.count({
       where: {
         id: courtPayment.id,
         gatewayId: null,
-        amount: 512.5,
+        amount: 515,
         venueAmount: 500,
-        platformFee: 12.5,
+        platformFee: 15,
         processingFee: 0,
       },
     })) === 1 &&
@@ -267,7 +267,7 @@ async function check() {
         where: {
           bookingPaymentId: courtPayment.id,
           type: "CHARGE",
-          amount: 12.5,
+          amount: 15,
         },
       })) === 1
   );
@@ -383,12 +383,12 @@ async function check() {
       (await prisma.eventGuestSlot.count({ where: { bookingPaymentId: eventPayment.id, status: "CONFIRMED" } })) === 2
   );
   ok(
-    "a three-person manual event accrues one 2.5% service-fee charge",
+    "a three-person manual event accrues one 3% service-fee charge",
     (await prisma.serviceFeeEntry.count({
       where: {
         bookingPaymentId: eventPayment.id,
         type: "CHARGE",
-        amount: 7.5,
+        amount: 9,
       },
     })) === 1
   );
@@ -413,7 +413,7 @@ async function check() {
         where: {
           bookingPaymentId: eventPayment.id,
           type: "CHARGE",
-          amount: 7.5,
+          amount: 9,
         },
       })) === 1
   );

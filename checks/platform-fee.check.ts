@@ -36,8 +36,8 @@ async function check() {
   // --- 1. The arithmetic ----------------------------------------------------
   ok("the service-fee rate is 3%", SERVICE_FEE_RATE === 0.03);
   ok("the display percentage is 3", SERVICE_FEE_PERCENT === 3);
-  ok("the manual service-fee rate is 2.5%", MANUAL_SERVICE_FEE_RATE === 0.025);
-  ok("the manual display percentage is 2.5", MANUAL_SERVICE_FEE_PERCENT === 2.5);
+  ok("the manual service-fee rate is 3%", MANUAL_SERVICE_FEE_RATE === 0.03);
+  ok("the manual display percentage is 3", MANUAL_SERVICE_FEE_PERCENT === 3);
   ok("an empty court total has no fee", bookingServiceFeeFor(0) === 0);
   ok("a ₱250 court total carries a ₱7.50 fee", bookingServiceFeeFor(250) === 7.5);
   ok("a ₱500 court total carries a ₱15 fee", bookingServiceFeeFor(500) === 15);
@@ -48,13 +48,13 @@ async function check() {
   ok("a ₱250 booking grosses ₱257.50", grossFor(250) === 257.5);
   ok("a ₱500 booking grosses ₱515", grossFor(500) === 515);
   ok(
-    "a ₱300 manual event carries a ₱7.50 fee",
-    manualBookingServiceFeeFor(300) === 7.5
+    "a ₱300 manual event carries a ₱9 fee",
+    manualBookingServiceFeeFor(300) === 9
   );
-  ok("a ₱500 manual booking grosses ₱512.50", manualGrossFor(500) === 512.5);
+  ok("a ₱500 manual booking grosses ₱515", manualGrossFor(500) === 515);
   ok(
     "manual half-cent percentage results round to the nearest centavo",
-    manualBookingServiceFeeFor(33.4) === 0.84
+    manualBookingServiceFeeFor(33.4) === 1
   );
   ok(
     "a ₱257.50 subtotal carries the approved ₱3.92 QR Ph fee",
@@ -95,7 +95,7 @@ async function check() {
     }
   }
   ok(
-    "court + 2.5% fee === manual gross across booking totals",
+    "court + 3% fee === manual gross across booking totals",
     manualDrifted.length === 0
   );
 

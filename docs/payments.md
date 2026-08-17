@@ -35,16 +35,16 @@ plus VAT. `PAYMONGO_QRPH_PROCESSING_RATE` can override the VAT-inclusive rate
 for negotiated merchant pricing. For example, a ₱257.50 booking subtotal adds
 ₱3.92 and generates a ₱261.42 QR.
 
-In manual mode, the player pays `venueAmount` plus a 2.5% service fee;
+In manual mode, the player pays `venueAmount` plus a 3% service fee;
 `processingFee` remains zero because PayMongo is not involved. The service fee
 is added to the ledger only after the partner approves the receipt and the
 booking or event capacity is confirmed.
 
 For open play and other paid events, the registration fee is per person. A
 lead player may include named guests in the first checkout, so a ₱100 event
-with two guests charges `₱100 × 3`, plus the active mode's service fee: 3% for
-automatic checkout or 2.5% for manual checkout. Automatic checkout also adds
-PayMongo's QR processing fee. The entire group is capacity-checked under one
+with two guests charges `₱100 × 3`, plus the active mode's 3% service fee.
+Automatic checkout also adds PayMongo's QR processing fee. The entire group is
+capacity-checked under one
 event lock and is held only when every requested spot is available. Confirmed
 players can add more named guests later through an incremental payment; an
 expired or failed add-on never changes the already-confirmed registration.
@@ -60,7 +60,7 @@ For every manual checkout:
 
 1. The requested court hours or event capacity are held for 15 minutes.
 2. The player chooses one of the partner's destinations, transfers the venue
-   amount plus the displayed 2.5% service fee, uploads a receipt image, and may
+   amount plus the displayed 3% service fee, uploads a receipt image, and may
    add a transaction reference.
 3. No upload by the deadline releases the court hours or event capacity.
 4. A valid on-time upload freezes the reservation as **Pending booking** with
@@ -72,7 +72,7 @@ For every manual checkout:
 
 Manual refunds happen outside Bunal.club through the original network. After
 returning the venue amount, the partner records the refund and optional
-reference on the booking or event payment. The 2.5% service fee remains in the
+reference on the booking or event payment. The 3% service fee remains in the
 settlement ledger and is non-refundable.
 
 Venue partners may also add named complimentary guests from the event player
@@ -147,9 +147,9 @@ PayMongo deducts the separately charged QR Ph processing fee. That processing
 fee is grossed up from the complete booking subtotal—venue amount plus Bunal's
 service fee—so the partner still receives both ledger amounts in full. After a
 successful automatic booking or an approved manual booking is confirmed, an
-immutable `ServiceFeeEntry` records the snapshotted fee owed to Bunal.club: 3%
-for automatic checkout or 2.5% for manual checkout. That service fee is
-non-refundable: a refund returns the venue amount and, for automatic checkout,
+immutable `ServiceFeeEntry` records the snapshotted 3% fee owed to Bunal.club.
+That service fee is non-refundable: a refund returns the venue amount and, for
+automatic checkout,
 the separately charged PayMongo processing fee, retains the service fee, and
 does not create a negative ledger entry.
 Partners remit the outstanding balance from `/dashboard/payments`. The primary

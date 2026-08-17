@@ -73,12 +73,12 @@ const FAQS = [
   {
     question: "Does Bunal.club charge partners a monthly fee?",
     answer:
-      "No. There are no plans, subscriptions, or monthly charges. Bunal.club uses a 3% service fee for automatic checkout and 2.5% for manual checkout.",
+      "No. There are no plans, subscriptions, or monthly charges. Bunal.club uses a 3% service fee for every paid booking.",
   },
   {
     question: "How much is the booking service fee?",
     answer:
-      "The Bunal.club service fee is 3% of the booking total for automatic PayMongo checkout and 2.5% for partner-reviewed manual checkout.",
+      "The Bunal.club service fee is 3% of the booking total for both automatic PayMongo checkout and partner-reviewed manual checkout.",
   },
   {
     question: "Where does the player's court payment go?",

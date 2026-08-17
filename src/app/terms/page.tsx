@@ -48,7 +48,7 @@ export default function TermsPage() {
             partner-reviewed manual transfer. Selected hours are held for a
             limited window while you pay. Automatic checkout includes the
             displayed Bunal.club service fee and may include a PayMongo
-            processing fee. Manual checkout includes a 2.5% Bunal.club service
+            processing fee. Manual checkout includes a 3% Bunal.club service
             fee, requires an on-time receipt upload, and remains pending until
             venue approval; no PayMongo processing fee is added.
             Automatic refunds are returned through PayMongo; manual refunds

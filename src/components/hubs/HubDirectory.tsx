@@ -480,8 +480,8 @@ function EmptyDirectoryState() {
               List your venue
             </Link>
             <p className="mt-4 text-xs text-white/45">
-              No monthly subscription. Bunal.club charges 3% for automatic
-              checkout or 2.5% for manual checkout.
+              No monthly subscription. Bunal.club charges a 3% service fee on
+              every paid booking, whether automatic or manual.
             </p>
           </div>
         </aside>

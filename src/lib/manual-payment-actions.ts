@@ -8,7 +8,6 @@ import { settleBookingPayment, markBookingPaymentRefunded } from "@/lib/booking-
 import { prisma } from "@/lib/db";
 import { getViewer, requireActivePartner, requireRecentMfa } from "@/lib/dal";
 import { recordImpersonatedAction } from "@/lib/impersonation";
-import { manualNetworkPaymentMethod } from "@/lib/manual-payments";
 import { revalidatePartnerPaymentSurfaces } from "@/lib/payment-revalidation";
 import {
   notifyPartnerOfBooking,
@@ -210,203 +209,292 @@ export async function submitManualPaymentProofAction(
   if (!receiptImage) {
     errors.receiptImage = "Upload a valid JPG, PNG, or WebP receipt under 800KB.";
   }
-  if (paymentReference.length < 4) {
+  if (paymentReference && paymentReference.length < 4) {
     errors.paymentReference = "Enter the transfer reference shown by your payment app.";
   }
   if (Object.keys(errors).length > 0) return { errors };
 
   const now = new Date();
   const result = await prisma.$transaction(async (tx) => {
-    await tx.$queryRaw(
-      Prisma.sql`SELECT "id" FROM "BookingPayment" WHERE "id" = ${paymentId} FOR UPDATE`
-    );
-    const payment = await tx.bookingPayment.findFirst({
-      where: {
-        id: paymentId,
-        userId: viewer.id,
-        collectionMode: "MANUAL",
-      },
-      select: {
-        id: true,
-        partnerId: true,
-        hubId: true,
-        status: true,
-        expiresAt: true,
-        manualSubmittedAt: true,
-        partner: { select: { email: true, name: true, playerName: true } },
-        user: { select: { name: true, playerName: true } },
-        bookings: {
-          take: 1,
-          orderBy: { startsAt: "asc" },
-          select: {
-            date: true,
-            startHour: true,
-            endHour: true,
-            court: { select: { name: true } },
-            hub: { select: { name: true } },
-          },
-        },
-        eventRegistration: {
-          select: {
-            event: {
-              select: {
-                publicId: true,
-                title: true,
-                date: true,
-                startHour: true,
-                endHour: true,
-                hub: { select: { name: true } },
-              },
-            },
-          },
-        },
-        eventGuestSlots: {
-          take: 1,
-          select: {
-            registration: {
-              select: {
-                event: {
-                  select: {
-                    publicId: true,
-                    title: true,
-                    date: true,
-                    startHour: true,
-                    endHour: true,
-                    hub: { select: { name: true } },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    });
+    // Lock the payment and venue together in one round trip. The venue lock
+    // serializes duplicate-reference and one-pending-proof checks.
+    const [payment] = await tx.$queryRaw<
+      Array<{
+        id: string;
+        partnerId: string;
+        hubId: string;
+        status: string;
+        expiresAt: Date;
+        manualSubmittedAt: Date | null;
+      }>
+    >(Prisma.sql`
+      SELECT
+        payment."id",
+        payment."partnerId",
+        payment."hubId",
+        payment."status"::text AS "status",
+        payment."expiresAt",
+        payment."manualSubmittedAt"
+      FROM "BookingPayment" payment
+      INNER JOIN "Hub" hub ON hub."id" = payment."hubId"
+      WHERE payment."id" = ${paymentId}
+        AND payment."userId" = ${viewer.id}
+        AND payment."collectionMode" = 'MANUAL'::"PaymentCollectionMode"
+      FOR UPDATE OF payment, hub
+    `);
     if (!payment) return { kind: "missing" as const };
     if (payment.status !== "PENDING") return { kind: "closed" as const };
     if (payment.manualSubmittedAt) {
       return { kind: "already" as const, payment };
     }
     if (payment.expiresAt <= now) return { kind: "expired" as const, payment };
-    // Serialize proof claims per venue so simultaneous submissions cannot
-    // bypass the pending-proof or duplicate-reference checks.
-    await tx.$queryRaw(
-      Prisma.sql`SELECT "id" FROM "Hub" WHERE "id" = ${payment.hubId} FOR UPDATE`
-    );
-    const [otherPendingProofs, duplicateReference] = await Promise.all([
-      tx.bookingPayment.count({
-        where: {
-          id: { not: payment.id },
-          userId: viewer.id,
-          hubId: payment.hubId,
-          collectionMode: "MANUAL",
-          status: "PENDING",
-          manualSubmittedAt: { not: null },
-        },
-      }),
-      tx.bookingPayment.count({
-        where: {
-          id: { not: payment.id },
-          hubId: payment.hubId,
-          collectionMode: "MANUAL",
-          manualPaymentRef: paymentReference,
-        },
-      }),
-    ]);
-    if (otherPendingProofs > 0) {
+
+    // Perform validation, the proof claim, and every hold freeze as one SQL
+    // statement. This avoids expiring an interactive transaction on a remote
+    // database while preserving the locks acquired above.
+    const [claim] = await tx.$queryRaw<
+      Array<{
+        methodAvailable: boolean;
+        otherPendingProofs: number;
+        duplicateReferences: number;
+        submitted: boolean;
+      }>
+    >(Prisma.sql`
+      WITH method AS MATERIALIZED (
+        SELECT
+          manual_method."id",
+          manual_method."network",
+          manual_method."label",
+          manual_method."accountName",
+          manual_method."accountIdentifier",
+          manual_method."instructions",
+          manual_method."qrImage"
+        FROM "PartnerManualPaymentMethod" manual_method
+        WHERE manual_method."id" = ${methodId}
+          AND manual_method."partnerId" = ${payment.partnerId}
+          AND manual_method."active" = TRUE
+      ),
+      facts AS MATERIALIZED (
+        SELECT
+          EXISTS(SELECT 1 FROM method) AS "methodAvailable",
+          (
+            SELECT COUNT(*)::int
+            FROM "BookingPayment" other
+            WHERE other."id" <> ${payment.id}
+              AND other."userId" = ${viewer.id}
+              AND other."hubId" = ${payment.hubId}
+              AND other."collectionMode" = 'MANUAL'::"PaymentCollectionMode"
+              AND other."status" = 'PENDING'::"PaymentStatus"
+              AND other."manualSubmittedAt" IS NOT NULL
+          ) AS "otherPendingProofs",
+          CASE
+            WHEN ${paymentReference} = '' THEN 0
+            ELSE (
+              SELECT COUNT(*)::int
+              FROM "BookingPayment" other
+              WHERE other."id" <> ${payment.id}
+                AND other."hubId" = ${payment.hubId}
+                AND other."collectionMode" = 'MANUAL'::"PaymentCollectionMode"
+                AND other."manualPaymentRef" = ${paymentReference}
+            )
+          END AS "duplicateReferences"
+      ),
+      eligible AS MATERIALIZED (
+        SELECT method.*
+        FROM method
+        CROSS JOIN facts
+        WHERE facts."otherPendingProofs" = 0
+          AND facts."duplicateReferences" = 0
+      ),
+      updated_payment AS (
+        UPDATE "BookingPayment" payment
+        SET
+          "method" = eligible."network"::text::"PaymentMethodType",
+          "manualPaymentMethodId" = eligible."id",
+          "manualMethodLabel" = eligible."label",
+          "manualAccountName" = eligible."accountName",
+          "manualAccountDetails" = eligible."accountIdentifier",
+          "manualInstructions" = eligible."instructions",
+          "manualQrImage" = eligible."qrImage",
+          "manualReceiptImage" = ${receiptImage},
+          "manualPaymentRef" = NULLIF(${paymentReference}, ''),
+          "providerRef" = NULLIF(${paymentReference}, ''),
+          "manualSubmittedAt" = ${now},
+          "failureCode" = NULL,
+          "failureMessage" = NULL,
+          "updatedAt" = ${now}
+        FROM eligible
+        WHERE payment."id" = ${payment.id}
+          AND payment."status" = 'PENDING'::"PaymentStatus"
+          AND payment."manualSubmittedAt" IS NULL
+          AND payment."expiresAt" > ${now}
+        RETURNING payment."id"
+      ),
+      updated_slots AS (
+        UPDATE "BookingSlot" slot
+        SET "holdExpiresAt" = NULL
+        FROM "Booking" booking, updated_payment
+        WHERE slot."bookingId" = booking."id"
+          AND booking."bookingPaymentId" = updated_payment."id"
+          AND booking."status" = 'PENDING'::"BookingStatus"
+        RETURNING slot."id"
+      ),
+      updated_bookings AS (
+        UPDATE "Booking" booking
+        SET "holdExpiresAt" = NULL, "updatedAt" = ${now}
+        FROM updated_payment
+        WHERE booking."bookingPaymentId" = updated_payment."id"
+          AND booking."status" = 'PENDING'::"BookingStatus"
+        RETURNING booking."id"
+      ),
+      updated_registrations AS (
+        UPDATE "EventRegistration" registration
+        SET "holdExpiresAt" = NULL, "updatedAt" = ${now}
+        FROM updated_payment
+        WHERE registration."bookingPaymentId" = updated_payment."id"
+          AND registration."status" = 'PENDING'::"EventRegistrationStatus"
+        RETURNING registration."id"
+      ),
+      updated_guests AS (
+        UPDATE "EventGuestSlot" guest
+        SET "holdExpiresAt" = NULL, "updatedAt" = ${now}
+        FROM updated_payment
+        WHERE guest."bookingPaymentId" = updated_payment."id"
+          AND guest."status" = 'PENDING'::"EventRegistrationStatus"
+        RETURNING guest."id"
+      )
+      SELECT
+        facts."methodAvailable",
+        facts."otherPendingProofs",
+        facts."duplicateReferences",
+        EXISTS(SELECT 1 FROM updated_payment) AS "submitted",
+        (SELECT COUNT(*) FROM updated_slots) AS "updatedSlotCount",
+        (SELECT COUNT(*) FROM updated_bookings) AS "updatedBookingCount",
+        (SELECT COUNT(*) FROM updated_registrations) AS "updatedRegistrationCount",
+        (SELECT COUNT(*) FROM updated_guests) AS "updatedGuestCount"
+      FROM facts
+    `);
+    if (claim.otherPendingProofs > 0) {
       return { kind: "pending-limit" as const, payment };
     }
-    if (duplicateReference > 0) {
+    if (claim.duplicateReferences > 0) {
       return { kind: "duplicate-reference" as const, payment };
     }
-    const method = await tx.partnerManualPaymentMethod.findFirst({
-      where: { id: methodId, partnerId: payment.partnerId, active: true },
-    });
-    if (!method) return { kind: "method" as const, payment };
-
-    await tx.bookingPayment.update({
-      where: { id: payment.id },
-      data: {
-        method: manualNetworkPaymentMethod(method.network),
-        manualPaymentMethodId: method.id,
-        manualMethodLabel: method.label,
-        manualAccountName: method.accountName,
-        manualAccountDetails: method.accountIdentifier,
-        manualInstructions: method.instructions,
-        manualQrImage: method.qrImage,
-        manualReceiptImage: receiptImage,
-        manualPaymentRef: paymentReference || null,
-        providerRef: paymentReference || null,
-        manualSubmittedAt: now,
-        failureCode: null,
-        failureMessage: null,
-      },
-    });
-    const bookings = await tx.booking.findMany({
-      where: { bookingPaymentId: payment.id, status: "PENDING" },
-      select: { id: true },
-    });
-    if (bookings.length > 0) {
-      const ids = bookings.map((booking) => booking.id);
-      await tx.booking.updateMany({
-        where: { id: { in: ids }, status: "PENDING" },
-        data: { holdExpiresAt: null },
-      });
-      await tx.bookingSlot.updateMany({
-        where: { bookingId: { in: ids } },
-        data: { holdExpiresAt: null },
-      });
-    }
-    await tx.eventRegistration.updateMany({
-      where: { bookingPaymentId: payment.id, status: "PENDING" },
-      data: { holdExpiresAt: null },
-    });
-    await tx.eventGuestSlot.updateMany({
-      where: { bookingPaymentId: payment.id, status: "PENDING" },
-      data: { holdExpiresAt: null },
-    });
+    if (!claim.methodAvailable) return { kind: "method" as const, payment };
+    if (!claim.submitted) return { kind: "closed" as const, payment };
     return { kind: "submitted" as const, payment };
+  }, {
+    maxWait: 10_000,
+    timeout: 30_000,
   });
 
   if ("payment" in result && result.payment) {
     revalidatePayment({
       id: result.payment.id,
       hubId: result.payment.hubId,
-      eventPublicId:
-        result.payment.eventRegistration?.event.publicId ??
-        result.payment.eventGuestSlots[0]?.registration.event.publicId,
     });
   }
   if (result.kind === "submitted") {
-    const event =
-      result.payment.eventRegistration?.event ??
-      result.payment.eventGuestSlots[0]?.registration.event;
-    const booking = result.payment.bookings[0];
-    await notifyPartnerOfBooking({
-      to: result.payment.partner.email,
-      partnerName:
-        result.payment.partner.playerName ??
-        result.payment.partner.name ??
-        "Venue partner",
-      playerName:
-        result.payment.user.playerName ?? result.payment.user.name ?? "A player",
-      kind: event ? "EVENT" : "COURT",
-      venueName: event?.hub.name ?? booking?.hub.name ?? "Your venue",
-      bookingTitle: event?.title ?? booking?.court.name ?? "Manual booking",
-      schedule: event
-        ? `${formatManilaDateLong(event.date)} · ${formatSlotRange(
-            event.startHour,
-            event.endHour
-          )}`
-        : booking
-          ? `${formatManilaDateLong(booking.date)} · ${formatSlotRange(
-              booking.startHour,
-              booking.endHour
-            )}`
-          : "See the booking workspace for details",
-      status: "Manual payment proof submitted — review required",
-      actionPath: `/dashboard/bookings?q=${encodeURIComponent(result.payment.id)}`,
-      idempotencyKey: `partner-manual-proof-submitted-${result.payment.id}`,
-    });
+    try {
+      // Notification details are intentionally loaded after commit. Keeping
+      // these relation reads outside the lock prevents a slow remote database
+      // from expiring the proof-submission transaction.
+      const payment = await prisma.bookingPayment.findUnique({
+        where: { id: result.payment.id },
+        select: {
+          partner: { select: { email: true, name: true, playerName: true } },
+          user: { select: { name: true, playerName: true } },
+          bookings: {
+            take: 1,
+            orderBy: { startsAt: "asc" },
+            select: {
+              date: true,
+              startHour: true,
+              endHour: true,
+              court: { select: { name: true } },
+              hub: { select: { name: true } },
+            },
+          },
+          eventRegistration: {
+            select: {
+              event: {
+                select: {
+                  publicId: true,
+                  title: true,
+                  date: true,
+                  startHour: true,
+                  endHour: true,
+                  hub: { select: { name: true } },
+                },
+              },
+            },
+          },
+          eventGuestSlots: {
+            take: 1,
+            select: {
+              registration: {
+                select: {
+                  event: {
+                    select: {
+                      publicId: true,
+                      title: true,
+                      date: true,
+                      startHour: true,
+                      endHour: true,
+                      hub: { select: { name: true } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+      if (payment) {
+        const event =
+          payment.eventRegistration?.event ??
+          payment.eventGuestSlots[0]?.registration.event;
+        const booking = payment.bookings[0];
+        if (event) {
+          revalidatePayment({
+            id: result.payment.id,
+            hubId: result.payment.hubId,
+            eventPublicId: event.publicId,
+          });
+        }
+        await notifyPartnerOfBooking({
+          to: payment.partner.email,
+          partnerName:
+            payment.partner.playerName ?? payment.partner.name ?? "Venue partner",
+          playerName:
+            payment.user.playerName ?? payment.user.name ?? "A player",
+          kind: event ? "EVENT" : "COURT",
+          venueName: event?.hub.name ?? booking?.hub.name ?? "Your venue",
+          bookingTitle: event?.title ?? booking?.court.name ?? "Manual booking",
+          schedule: event
+            ? `${formatManilaDateLong(event.date)} · ${formatSlotRange(
+                event.startHour,
+                event.endHour
+              )}`
+            : booking
+              ? `${formatManilaDateLong(booking.date)} · ${formatSlotRange(
+                  booking.startHour,
+                  booking.endHour
+                )}`
+              : "See the booking workspace for details",
+          status: "Manual payment proof submitted — review required",
+          actionPath: `/dashboard/bookings?q=${encodeURIComponent(result.payment.id)}`,
+          idempotencyKey: `partner-manual-proof-submitted-${result.payment.id}`,
+        });
+      }
+    } catch (error) {
+      // The proof is already committed. A notification outage must not tell
+      // the player that the receipt failed or encourage a duplicate upload.
+      console.error(
+        "Manual payment proof notification failed:",
+        error instanceof Error ? error.message : "Unknown notification error"
+      );
+    }
   }
   if (result.kind === "submitted" || result.kind === "already") {
     return { success: "Payment proof submitted. Your booking is pending venue review." };

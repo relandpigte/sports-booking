@@ -36,7 +36,11 @@ export function ReceiptUpload({
       setValue(nextValue);
       onValueChange?.(nextValue);
     } catch {
-      setLocalError("Couldn't process that receipt. Try another image.");
+      setValue("");
+      onValueChange?.("");
+      setLocalError(
+        "Couldn't prepare that receipt. Try a screenshot or a smaller JPG, PNG, or WebP image."
+      );
     } finally {
       setBusy(false);
       if (inputRef.current) inputRef.current.value = "";
@@ -99,7 +103,7 @@ export function ReceiptUpload({
           <span>{busy ? "Processing…" : `Upload ${label.toLowerCase()}`}</span>
           {variant === "checkout" && !busy && (
             <span className="mt-1 text-xs font-normal text-slate-400">
-              PNG, JPG, or WebP · processed under 800KB
+              PNG, JPG, or WebP · compressed below 800KB
             </span>
           )}
         </button>

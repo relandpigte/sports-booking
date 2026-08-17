@@ -12,6 +12,20 @@ import type { ManualPaymentMethodView } from "@/lib/manual-payments";
 
 const initialState: ManualPaymentFormState = {};
 
+async function submitProofWithUploadFallback(
+  previous: ManualPaymentFormState,
+  formData: FormData
+): Promise<ManualPaymentFormState> {
+  try {
+    return await submitManualPaymentProofAction(previous, formData);
+  } catch {
+    return {
+      message:
+        "We couldn't upload the receipt. Check your connection and try again with a smaller image.",
+    };
+  }
+}
+
 export type ManualPaymentCheckoutSummary = {
   venueName: string;
   venueHref: string;
@@ -44,7 +58,7 @@ export function ManualPaymentCheckout({
   summary?: ManualPaymentCheckoutSummary;
 }) {
   const [state, action, pending] = useActionState(
-    submitManualPaymentProofAction,
+    submitProofWithUploadFallback,
     initialState
   );
   const [selectedId, setSelectedId] = useState(methods[0]?.id ?? "");
@@ -175,8 +189,14 @@ export function ManualPaymentCheckout({
                     name="paymentReference"
                     maxLength={120}
                     placeholder="e.g. 0012 345 678901"
+                    aria-invalid={Boolean(state.errors?.paymentReference)}
                     className="mt-1.5 h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-navy shadow-sm focus:border-primary focus:outline-none"
                   />
+                  {state.errors?.paymentReference && (
+                    <span className="mt-1.5 block text-xs text-red-500">
+                      {state.errors.paymentReference}
+                    </span>
+                  )}
                 </label>
                 {state.message && (
                   <p
@@ -428,8 +448,14 @@ function CompactManualPaymentForm({
             name="paymentReference"
             maxLength={120}
             placeholder="e.g. 0012 345 678901"
+            aria-invalid={Boolean(state.errors?.paymentReference)}
             className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm text-navy"
           />
+          {state.errors?.paymentReference && (
+            <span className="mt-1.5 block text-xs text-red-500">
+              {state.errors.paymentReference}
+            </span>
+          )}
         </label>
       </section>
 

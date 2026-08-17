@@ -10,9 +10,15 @@ import {
   MAX_AVATAR_BYTES,
   MAX_COVER_BYTES,
   MAX_COVERS,
+  MAX_RECEIPT_BYTES,
 } from "@/lib/image-constants";
 
-export { MAX_AVATAR_BYTES, MAX_COVER_BYTES, MAX_COVERS } from "@/lib/image-constants";
+export {
+  MAX_AVATAR_BYTES,
+  MAX_COVER_BYTES,
+  MAX_COVERS,
+  MAX_RECEIPT_BYTES,
+} from "@/lib/image-constants";
 
 const DATA_URL_RE = /^data:image\/(png|jpe?g|webp);base64,/;
 const IMAGE_FORMATS = new Set(["jpeg", "png", "webp"]);
@@ -36,8 +42,8 @@ const IMAGE_LIMITS: Record<
     maxHeight: 1200,
   },
   receipt: {
-    maxInputBytes: 800 * 1024,
-    maxOutputBytes: 800 * 1024,
+    maxInputBytes: MAX_RECEIPT_BYTES,
+    maxOutputBytes: MAX_RECEIPT_BYTES,
     maxWidth: 2000,
     maxHeight: 2000,
   },

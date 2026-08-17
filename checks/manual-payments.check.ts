@@ -159,6 +159,20 @@ async function check() {
   const { submitManualPaymentProofAction } = await import(
     "@/lib/manual-payment-actions"
   );
+  const optionalReferenceProof = new FormData();
+  optionalReferenceProof.set("paymentId", "missing-manual-payment");
+  optionalReferenceProof.set("methodId", partner.manualPaymentMethods[0].id);
+  optionalReferenceProof.set("receiptImage", VALID_PNG_DATA_URL);
+  const optionalReferenceResult = await submitManualPaymentProofAction(
+    {},
+    optionalReferenceProof
+  );
+  ok(
+    "manual proof accepts the transaction reference as optional",
+    optionalReferenceResult.message === "Payment not found." &&
+      !optionalReferenceResult.errors?.paymentReference
+  );
+
   const proof = new FormData();
   proof.set("paymentId", courtPayment.id);
   proof.set("methodId", partner.manualPaymentMethods[0].id);
@@ -196,7 +210,7 @@ async function check() {
       collectionMode: "MANUAL",
       status: "PENDING",
       provider: "manual",
-      expiresAt: new Date(Date.now() + 15 * 60_000),
+      expiresAt: new Date(Date.now() + 60 * 60_000),
     },
     select: { id: true },
   });
@@ -258,6 +272,23 @@ async function check() {
       })) === 1
   );
 
+  const duplicateProof = new FormData();
+  duplicateProof.set("paymentId", secondPayment.id);
+  duplicateProof.set("methodId", partner.manualPaymentMethods[0].id);
+  duplicateProof.set("receiptImage", VALID_PNG_DATA_URL);
+  duplicateProof.set("paymentReference", "manual-proof-check");
+  const duplicateSubmission = await submitManualPaymentProofAction(
+    {},
+    duplicateProof
+  );
+  ok(
+    "a venue cannot receive the same manual transfer reference twice",
+    duplicateSubmission.code === "DUPLICATE_PAYMENT_REFERENCE" &&
+      (await prisma.bookingPayment.count({
+        where: { id: secondPayment.id, manualSubmittedAt: null },
+      })) === 1
+  );
+
   const event = await prisma.event.create({
     data: {
       publicId: `manual-event-${partner.id}`,
@@ -277,6 +308,7 @@ async function check() {
     },
     select: { id: true, publicId: true },
   });
+  const eventHoldExpiresAt = new Date(Date.now() + 15 * 60_000);
   const eventPayment = await prisma.bookingPayment.create({
     data: {
       partnerId: partner.id,
@@ -290,19 +322,18 @@ async function check() {
       collectionMode: "MANUAL",
       status: "PENDING",
       provider: "manual",
-      expiresAt: new Date(Date.now() - 60_000),
-      manualSubmittedAt: new Date(),
-      manualReceiptImage: "data:image/png;base64,YQ==",
+      expiresAt: eventHoldExpiresAt,
       eventRegistration: {
         create: {
           eventId: event.id,
           userId: player.id,
           status: "PENDING",
+          holdExpiresAt: eventHoldExpiresAt,
           guests: {
             create: ["Guest One", "Guest Two"].map((name) => ({
               name,
               status: "PENDING" as const,
-              holdExpiresAt: null,
+              holdExpiresAt: eventHoldExpiresAt,
             })),
           },
         },
@@ -314,6 +345,25 @@ async function check() {
     where: { registration: { bookingPaymentId: eventPayment.id } },
     data: { bookingPaymentId: eventPayment.id },
   });
+  const eventProof = new FormData();
+  eventProof.set("paymentId", eventPayment.id);
+  eventProof.set("methodId", partner.manualPaymentMethods[0].id);
+  eventProof.set("receiptImage", VALID_PNG_DATA_URL);
+  eventProof.set("paymentReference", "event-manual-proof");
+  const eventSubmission = await submitManualPaymentProofAction({}, eventProof);
+  const frozenEvent = await prisma.eventRegistration.findUnique({
+    where: { bookingPaymentId: eventPayment.id },
+    select: {
+      holdExpiresAt: true,
+      guests: { select: { holdExpiresAt: true } },
+    },
+  });
+  ok(
+    "manual event proof freezes the lead and guest capacity in one claim",
+    Boolean(eventSubmission.success) &&
+      frozenEvent?.holdExpiresAt == null &&
+      frozenEvent.guests.every((guest) => guest.holdExpiresAt == null)
+  );
   const { getPublicEvent } = await import("@/lib/events");
   const publicEvent = await getPublicEvent(event.publicId, player.id);
   ok(

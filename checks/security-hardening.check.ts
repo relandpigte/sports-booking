@@ -62,14 +62,19 @@ async function check() {
     typeof nextConfig.headers === "function" ? await nextConfig.headers() : [];
   const globalHeaders = configuredHeaders.find((entry) => entry.source === "/:path*");
   const names = new Set(globalHeaders?.headers.map((header) => header.key));
+  const reportOnlyPolicy = globalHeaders?.headers.find(
+    (header) => header.key === "Content-Security-Policy-Report-Only"
+  )?.value;
   ok(
-    "global browser security headers and CSP reporting are configured",
+    "global browser security headers and intentional third-party CSP sources are configured",
     nextConfig.poweredByHeader === false &&
       names.has("X-Content-Type-Options") &&
       names.has("X-Frame-Options") &&
       names.has("Referrer-Policy") &&
       names.has("Permissions-Policy") &&
-      names.has("Content-Security-Policy-Report-Only")
+      names.has("Content-Security-Policy-Report-Only") &&
+      reportOnlyPolicy?.includes("https://connect.facebook.net") === true &&
+      reportOnlyPolicy.includes("form-action 'self' https://www.facebook.com")
   );
 }
 

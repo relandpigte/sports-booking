@@ -54,6 +54,7 @@ export default async function PaymentsPage({
     paymentSettings.mode === "MANUAL"
       ? paymentSettings.methods.some((method) => method.active)
       : gateway?.connected === true;
+  const settlementFirst = canSettle && !impersonation && checkoutReady;
   const activeManualMethods = paymentSettings.methods.filter(
     (method) => method.active
   ).length;
@@ -122,7 +123,16 @@ export default async function PaymentsPage({
         </div>
       )}
       <PaymentWorkspace
-        initialTab={settlement ? "settlement" : "checkout"}
+        initialTab={
+          settlement
+            ? "settlement"
+            : setup === "hub"
+              ? "checkout"
+              : settlementFirst
+                ? "settlement"
+                : "checkout"
+        }
+        settlementFirst={settlementFirst}
         summary={[
           {
             label: "Checkout mode",

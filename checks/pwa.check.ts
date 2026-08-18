@@ -51,6 +51,35 @@ async function main() {
   );
   assert.match(homepage, /<PublicInstallBanner \/>/);
 
+  const hubQrDownload = await readFile(
+    path.join(
+      root,
+      "src",
+      "components",
+      "dashboard",
+      "hubs",
+      "HubQrDownloadButton.tsx"
+    ),
+    "utf8"
+  );
+  assert.match(hubQrDownload, /navigator\.canShare\(\{ files:/);
+  assert.match(hubQrDownload, /new File\(\[blob\]/);
+  assert.doesNotMatch(hubQrDownload, /window\.location/);
+
+  const manualCheckout = await readFile(
+    path.join(
+      root,
+      "src",
+      "components",
+      "bookings",
+      "ManualPaymentCheckout.tsx"
+    ),
+    "utf8"
+  );
+  assert.match(manualCheckout, /navigator\.canShare\(\{ files:/);
+  assert.match(manualCheckout, /Save QR image/);
+  assert.doesNotMatch(manualCheckout, /Open the image/);
+
   const offline = await readFile(
     path.join(root, "public", "offline.html"),
     "utf8"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import { HoldCountdown } from "@/components/bookings/HoldCountdown";
 import { ReceiptUpload } from "@/components/partner/ReceiptUpload";
@@ -597,45 +597,94 @@ function QrImageDownloadButton({
   label: string;
   compact?: boolean;
 }) {
-  const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
+  const [status, setStatus] = useState<
+    "preparing" | "idle" | "saving" | "error"
+  >("preparing");
+  const [prepared, setPrepared] = useState<{
+    blob: Blob;
+    file: File;
+    filename: string;
+  } | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+
+    async function prepareImage() {
+      setPrepared(null);
+      setStatus("preparing");
+
+      try {
+        const response = await fetch(src);
+        if (!response.ok) throw new Error("QR image could not be loaded");
+
+        const sourceBlob = await response.blob();
+        if (!sourceBlob.type.startsWith("image/")) {
+          throw new Error("QR download was not an image");
+        }
+
+        let blob = sourceBlob;
+        let type = sourceBlob.type;
+        let extension = type === "image/jpeg" ? "jpg" : type.split("/")[1] || "png";
+        try {
+          blob = await focusQrImageBlob(sourceBlob);
+          type = "image/png";
+          extension = "png";
+        } catch {
+          // Older iOS PWA builds can reject createImageBitmap. The original
+          // partner image is still more useful than a failed save action.
+        }
+
+        const safeLabel =
+          label
+            .normalize("NFKD")
+            .replace(/[^a-zA-Z0-9]+/g, "-")
+            .replace(/^-+|-+$/g, "")
+            .toLowerCase() || "manual-payment";
+        const filename = `${safeLabel}-payment-qr.${extension}`;
+        if (!active) return;
+        setPrepared({
+          blob,
+          file: new File([blob], filename, { type }),
+          filename,
+        });
+        setStatus("idle");
+      } catch {
+        if (!active) return;
+        setStatus("error");
+      }
+    }
+
+    void prepareImage();
+    return () => {
+      active = false;
+    };
+  }, [label, retryKey, src]);
 
   async function downloadImage() {
+    if (status === "error") {
+      setRetryKey((current) => current + 1);
+      return;
+    }
+    if (!prepared) return;
     setStatus("saving");
 
     try {
-      const response = await fetch(src);
-      if (!response.ok) throw new Error("QR image could not be loaded");
-
-      const sourceBlob = await response.blob();
-      if (!sourceBlob.type.startsWith("image/")) {
-        throw new Error("QR download was not an image");
-      }
-
-      const blob = await focusQrImageBlob(sourceBlob);
-      const safeLabel =
-        label
-          .normalize("NFKD")
-          .replace(/[^a-zA-Z0-9]+/g, "-")
-          .replace(/^-+|-+$/g, "")
-          .toLowerCase() || "manual-payment";
-      const filename = `${safeLabel}-payment-qr.png`;
-      const file = new File([blob], filename, { type: "image/png" });
-
       if (
         navigator.maxTouchPoints > 0 &&
         typeof navigator.share === "function" &&
         typeof navigator.canShare === "function" &&
-        navigator.canShare({ files: [file] })
+        navigator.canShare({ files: [prepared.file] })
       ) {
         await navigator.share({
-          files: [file],
+          files: [prepared.file],
           title: `${label} payment QR`,
         });
       } else {
-        const objectUrl = URL.createObjectURL(blob);
+        const objectUrl = URL.createObjectURL(prepared.blob);
         const anchor = document.createElement("a");
         anchor.href = objectUrl;
-        anchor.download = filename;
+        anchor.download = prepared.filename;
         anchor.rel = "noopener";
         document.body.appendChild(anchor);
         anchor.click();
@@ -658,23 +707,20 @@ function QrImageDownloadButton({
       <button
         type="button"
         onClick={downloadImage}
-        disabled={status === "saving"}
+        disabled={status === "preparing" || status === "saving"}
         className="flex min-h-10 w-full items-center justify-center rounded-xl border border-navy/10 bg-white px-3 text-xs font-bold text-primary transition-colors hover:bg-primary-soft disabled:cursor-wait disabled:opacity-60"
       >
-        {status === "saving" ? "Preparing image…" : "Download image"}
+        {status === "preparing"
+          ? "Preparing image…"
+          : status === "saving"
+            ? "Opening save options…"
+            : status === "error"
+              ? "Retry download"
+              : "Save QR image"}
       </button>
       {status === "error" && (
         <p className="mt-2 text-center text-[11px] leading-4 text-red-600">
-          Download failed.{" "}
-          <a
-            href={src}
-            target="_blank"
-            rel="noreferrer"
-            className="font-bold underline underline-offset-2"
-          >
-            Open the image
-          </a>{" "}
-          and save it from your browser.
+          The image could not be prepared. Tap Retry download.
         </p>
       )}
     </div>

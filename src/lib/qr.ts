@@ -85,7 +85,7 @@ export function qrSvg(
 // quiet zone make it resilient on posters, counters, and social graphics.
 export function hubQrSvg(
   data: string,
-  opts: { hubName: string; logoDataUrl: string }
+  opts: { hubName: string; logoDataUrl: string; renderText?: boolean }
 ): string {
   const quiet = 4;
   const { size, path } = qrDrawing(data, "H", quiet);
@@ -96,20 +96,28 @@ export function hubQrSvg(
     opts.hubName.length > 34
       ? `${opts.hubName.slice(0, 33).trimEnd()}…`
       : opts.hubName;
+  const renderText = opts.renderText !== false;
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}"`,
     ` role="img" aria-label="${escapeMarkup(`QR code for ${opts.hubName}`)}">`,
     `<rect width="${width}" height="${height}" rx="4" fill="#f5faf7"/>`,
     `<rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="3" fill="#ffffff" stroke="#dfe7e2" stroke-width="0.5"/>`,
+    `<rect x="3" y="3" width="${width - 6}" height="14" rx="3" fill="#10243a"/>`,
     `<image href="${escapeMarkup(opts.logoDataUrl)}" x="${(width - 20) / 2}" y="3" width="20" height="14" preserveAspectRatio="xMidYMid meet"/>`,
-    `<text x="${width / 2}" y="22" text-anchor="middle" fill="#10243a" font-family="Arial, sans-serif" font-size="3.4" font-weight="700">${escapeMarkup(displayName)}</text>`,
+    renderText
+      ? `<text x="${width / 2}" y="22" text-anchor="middle" fill="#10243a" font-family="Arial, sans-serif" font-size="3.4" font-weight="700">${escapeMarkup(displayName)}</text>`
+      : "",
     `<g transform="translate(10 ${qrY})" shape-rendering="crispEdges">`,
     `<rect width="${size}" height="${size}" fill="#ffffff"/>`,
     `<path d="${path}" fill="#10243a"/>`,
     `</g>`,
-    `<text x="${width / 2}" y="${qrY + size + 8}" text-anchor="middle" fill="#0b8643" font-family="Arial, sans-serif" font-size="3.2" font-weight="700">Scan to view &amp; book courts</text>`,
-    `<text x="${width / 2}" y="${qrY + size + 14}" text-anchor="middle" fill="#64748b" font-family="Arial, sans-serif" font-size="2.6">www.bunal.club</text>`,
+    renderText
+      ? `<text x="${width / 2}" y="${qrY + size + 8}" text-anchor="middle" fill="#0b8643" font-family="Arial, sans-serif" font-size="3.2" font-weight="700">Scan to view &amp; book courts</text>`
+      : "",
+    renderText
+      ? `<text x="${width / 2}" y="${qrY + size + 14}" text-anchor="middle" fill="#64748b" font-family="Arial, sans-serif" font-size="2.6">www.bunal.club</text>`
+      : "",
     `</svg>`,
   ].join("");
 }

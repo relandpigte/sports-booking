@@ -122,6 +122,18 @@ async function check() {
     branded.includes("Bunal Test &amp; &quot;Play&quot;") &&
       !branded.includes('Bunal Test & "Play"')
   );
+  const rasterArtwork = hubQrSvg(
+    "https://www.bunal.club/hubs/bunal-test",
+    {
+      hubName: "Bunal Test Hub",
+      logoDataUrl,
+      renderText: false,
+    }
+  );
+  ok(
+    "the JPEG artwork can omit system-font-dependent SVG text",
+    !rasterArtwork.includes("<text")
+  );
 
   const brandedReference = qrcode(0, "H");
   brandedReference.addData("https://www.bunal.club/hubs/bunal-test");

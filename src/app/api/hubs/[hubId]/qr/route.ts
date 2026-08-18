@@ -2,8 +2,8 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { prisma } from "@/lib/db";
+import { hubQrJpeg } from "@/lib/hub-qr-image";
 import { hubPublicPath } from "@/lib/hub-slug";
-import { hubQrSvg } from "@/lib/qr";
 import { absoluteUrl } from "@/lib/site";
 import { requirePartnerWorkspace } from "@/lib/staffing";
 
@@ -15,7 +15,7 @@ function downloadName(name: string): string {
     .replace(/[^a-zA-Z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .toLowerCase();
-  return `${safe || "hub"}-bunal-qr.svg`;
+  return `${safe || "hub"}-bunal-qr.jpg`;
 }
 
 export async function GET(
@@ -33,14 +33,14 @@ export async function GET(
   const logo = await readFile(
     path.join(process.cwd(), "public", "bunal-logo-v2-wordmark.png")
   );
-  const svg = hubQrSvg(absoluteUrl(hubPublicPath(hub)), {
+  const jpeg = await hubQrJpeg(absoluteUrl(hubPublicPath(hub)), {
     hubName: hub.name,
     logoDataUrl: `data:image/png;base64,${logo.toString("base64")}`,
   });
 
-  return new Response(svg, {
+  return new Response(new Uint8Array(jpeg), {
     headers: {
-      "Content-Type": "image/svg+xml; charset=utf-8",
+      "Content-Type": "image/jpeg",
       "Content-Disposition": `attachment; filename="${downloadName(hub.name)}"`,
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",

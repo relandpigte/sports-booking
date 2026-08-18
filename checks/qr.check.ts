@@ -8,8 +8,10 @@
 // emitted path and checks it against the encoder's own, then confirms the
 // finder patterns are where a scanner will look for them.
 import qrcode from "qrcode-generator";
+import sharp from "sharp";
 
 import { ok, run } from "./harness";
+import { HUB_QR_JPEG_WIDTH, hubQrJpeg } from "@/lib/hub-qr-image";
 import { hubQrSvg, qrSvg } from "@/lib/qr";
 
 const QUIET = 2;
@@ -137,6 +139,53 @@ async function check() {
   ok(
     "the branded download still contains the exact high-correction QR matrix",
     brandedMismatches === 0
+  );
+
+  const jpeg = await hubQrJpeg("https://www.bunal.club/hubs/bunal-test", {
+    hubName: "Bunal Test Hub",
+    logoDataUrl,
+  });
+  const metadata = await sharp(jpeg).metadata();
+  ok(
+    "the hub download is encoded as a high-resolution JPEG",
+    jpeg[0] === 0xff &&
+      jpeg[1] === 0xd8 &&
+      jpeg[2] === 0xff &&
+      metadata.format === "jpeg" &&
+      metadata.width === HUB_QR_JPEG_WIDTH &&
+      Boolean(metadata.height)
+  );
+  ok(
+    "the JPEG is flattened without an alpha channel",
+    metadata.hasAlpha === false
+  );
+
+  const raster = await sharp(jpeg)
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const brandedSize = brandedCount + 8;
+  const brandedWidth = brandedSize + 20;
+  const scale = raster.info.width / brandedWidth;
+  let jpegMismatches = 0;
+  for (let row = 0; row < brandedCount; row++) {
+    for (let col = 0; col < brandedCount; col++) {
+      const x = Math.floor((10 + 4 + col + 0.5) * scale);
+      const y = Math.floor((28 + 4 + row + 0.5) * scale);
+      const offset = (y * raster.info.width + x) * raster.info.channels;
+      const luminance =
+        (raster.data[offset] +
+          raster.data[offset + 1] +
+          raster.data[offset + 2]) /
+        3;
+      if ((luminance < 128) !== brandedReference.isDark(row, col)) {
+        jpegMismatches++;
+      }
+    }
+  }
+  ok(
+    "JPEG compression preserves every QR module at its center",
+    jpegMismatches === 0
   );
 }
 

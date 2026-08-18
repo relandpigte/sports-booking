@@ -127,7 +127,7 @@ export default async function HubsPage() {
                   href={`/api/hubs/${hub.id}/qr`}
                   download
                   className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
-                  title={`Download a branded QR code for ${hub.name}`}
+                  title={`Download a branded JPEG QR code for ${hub.name}`}
                 >
                   <svg
                     width="13"

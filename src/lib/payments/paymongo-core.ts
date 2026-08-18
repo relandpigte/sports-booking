@@ -331,6 +331,18 @@ export async function getPaymentIntent(
   return data.attributes as PaymentIntent;
 }
 
+export async function cancelPaymentIntent(
+  secretKey: string,
+  intentId: string
+): Promise<PaymentIntent> {
+  const data = await paymongoRequest(
+    secretKey,
+    "POST",
+    `/payment_intents/${intentId}/cancel`
+  );
+  return data.attributes as PaymentIntent;
+}
+
 // A refund needs the pay_… id, but the ledger stores either the current pi_…
 // intent id or a legacy cs_… session id.
 export async function resolvePaymentId(

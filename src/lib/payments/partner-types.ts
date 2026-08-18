@@ -1,4 +1,5 @@
 import type {
+  CancelChargeResult,
   ChargeResult,
   Money,
   ProviderWebhookEvent,
@@ -44,6 +45,9 @@ export interface VenueGateway {
   charge(input: VenueChargeInput): Promise<ChargeResult>;
   // Polling fallback when the browser observes payment before the webhook.
   getCharge(providerPaymentId: string): Promise<ChargeResult>;
+  // Cancels an unpaid provider request before local inventory is released.
+  // A successful charge wins the race and is returned instead of cancelled.
+  cancelCharge(providerPaymentId: string): Promise<CancelChargeResult>;
   refund(
     providerPaymentId: string,
     amount: Money,

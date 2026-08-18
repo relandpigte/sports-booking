@@ -8,7 +8,10 @@ import { getViewer } from "@/lib/dal";
 import { prisma } from "@/lib/db";
 import { firstErrors } from "@/lib/zod-errors";
 import { PayBookingSchema } from "@/lib/validation";
-import { chargeBookingPayment } from "@/lib/booking-payments";
+import {
+  cancelAutomaticBookingHold,
+  chargeBookingPayment,
+} from "@/lib/booking-payments";
 import { consumeRateLimit } from "@/lib/rate-limit";
 
 // Starting a payment is now a single button: PayMongo hosts the form, so there
@@ -99,9 +102,10 @@ export async function continueHeldBookingPaymentAction(
   }
 }
 
-// A hold can be released only before any transfer proof or provider payment
-// begins. Locking the payment row serializes this with the automatic-payment
-// claim, so exactly one of Release slots or Pay now can win.
+// Before payment begins, the local hold can be released immediately. Once a
+// direct QR intent exists, cancelAutomaticBookingHold cancels it at PayMongo
+// first and frees inventory only after the provider confirms no late payment
+// can arrive.
 export async function releaseBookingHoldAction(
   _prev: HeldBookingActionState,
   formData: FormData
@@ -210,10 +214,30 @@ export async function releaseBookingHoldAction(
   switch (result.kind) {
     case "released":
       return { released: true };
-    case "started":
-      return {
-        message: "Payment has already started, so these slots can no longer be released here.",
-      };
+    case "started": {
+      const cancelled = await cancelAutomaticBookingHold({
+        paymentId: parsed.data.paymentId,
+        userId: viewer.id,
+      });
+      revalidateHeldBookingPaths(
+        parsed.data.paymentId,
+        "hubId" in cancelled ? cancelled.hubId : result.hubId
+      );
+      if (cancelled.status === "cancelled") return { released: true };
+      if (cancelled.status === "already-paid") {
+        return {
+          message:
+            "Payment completed before cancellation. Your booking is confirmed.",
+        };
+      }
+      if (cancelled.status === "closed") {
+        return { message: "This booking hold is already closed." };
+      }
+      if (cancelled.status === "unavailable") {
+        return { message: cancelled.message };
+      }
+      return { message: "We couldn't find that booking hold." };
+    }
     case "expired":
       return { released: true };
     case "closed":

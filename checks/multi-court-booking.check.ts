@@ -6,7 +6,7 @@ import crypto from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 
 import { ok, run, stubRequestContext } from "./harness";
-import { installPaymongoMock } from "./paymongo-mock";
+import { installPaymongoMock, payMockIntent } from "./paymongo-mock";
 import {
   BOOKING_HOLD_MINUTES,
   WEEKDAYS,
@@ -218,24 +218,11 @@ async function check() {
     "the same player may reserve the same hour on multiple courts",
     sameHourSlots.length === 2
   );
-  const startedReleaseForm = new FormData();
-  startedReleaseForm.set("paymentId", created.hold!.paymentId);
-  const startedRelease = await releaseBookingHoldAction(
-    {},
-    startedReleaseForm
-  );
+  const startedHold = await getActiveBookingHoldForUser({ userId: player.id });
   ok(
-    "a hold cannot be released after provider payment begins",
-    startedRelease.released !== true &&
-      startedRelease.message?.includes("already started") === true &&
-      (await prisma.bookingSlot.count({
-        where: { date, hour: 9, courtId: { in: [courtOne.id, courtTwo.id] } },
-      })) === 2
-  );
-  ok(
-    "a provider-backed checkout remains global but cannot be released",
-    (await getActiveBookingHoldForUser({ userId: player.id }))
-      ?.releaseAllowed === false
+    "a provider-backed checkout remains global and can be cancelled safely",
+    startedHold?.releaseAllowed === false &&
+      startedHold.cancellationAllowed === true
   );
 
   const collision = new FormData();
@@ -260,27 +247,71 @@ async function check() {
     })) === 0
   );
 
-  if (!payment) throw new Error("Expected the test payment to exist.");
-  const firstPaymentBookingIds = payment.bookings.map((booking) => booking.id);
-  await prisma.$transaction([
-    prisma.bookingSlot.deleteMany({
-      where: { bookingId: { in: firstPaymentBookingIds } },
-    }),
-    prisma.booking.updateMany({
-      where: { id: { in: firstPaymentBookingIds } },
-      data: { status: "EXPIRED", holdExpiresAt: null },
-    }),
-    prisma.bookingPayment.update({
-      where: { id: payment.id },
-      data: {
-        status: "FAILED",
-        failureCode: "check_closed",
-        failureMessage: "Closed by the focused check.",
-      },
-    }),
-  ]);
+  const startedReleaseForm = new FormData();
+  startedReleaseForm.set("paymentId", created.hold!.paymentId);
+  const startedRelease = await releaseBookingHoldAction(
+    {},
+    startedReleaseForm
+  );
+  const cancelledPayment = await prisma.bookingPayment.findUnique({
+    where: { id: created.hold!.paymentId },
+    include: { bookings: true },
+  });
+  ok(
+    "cancelling an active QR intent releases every reserved slot",
+    startedRelease.released === true &&
+      (await prisma.bookingSlot.count({
+        where: { date, hour: 9, courtId: { in: [courtOne.id, courtTwo.id] } },
+      })) === 0 &&
+      cancelledPayment?.status === "FAILED" &&
+      cancelledPayment.failureCode === "player_cancelled" &&
+      cancelledPayment.bookings.every(
+        (booking) => booking.status === "EXPIRED"
+      ) &&
+      paymongo.intents.get(cancelledPayment.providerPaymentId ?? "")?.status ===
+        "cancelled"
+  );
 
-  const releaseDate = addDays(manilaToday(), 8);
+  const raceDate = addDays(manilaToday(), 8);
+  const raceForm = new FormData();
+  raceForm.set("date", raceDate);
+  raceForm.append("courtIds", courtOne.id);
+  raceForm.append("hours", "12");
+  const raceResult = await createBookingAction({}, raceForm);
+  const racePayForm = new FormData();
+  racePayForm.set("paymentId", raceResult.hold!.paymentId);
+  try {
+    await continueHeldBookingPaymentAction({}, racePayForm);
+  } catch {
+    // The action redirects to the checkout after creating the QR intent.
+  }
+  const racePayment = await prisma.bookingPayment.findUnique({
+    where: { id: raceResult.hold!.paymentId },
+    select: { providerPaymentId: true },
+  });
+  if (!racePayment?.providerPaymentId) {
+    throw new Error("Expected a provider intent for the cancellation race.");
+  }
+  payMockIntent(paymongo, racePayment.providerPaymentId);
+  const raceCancelForm = new FormData();
+  raceCancelForm.set("paymentId", raceResult.hold!.paymentId);
+  const raceCancel = await releaseBookingHoldAction({}, raceCancelForm);
+  const paidRace = await prisma.bookingPayment.findUnique({
+    where: { id: raceResult.hold!.paymentId },
+    include: { bookings: true },
+  });
+  ok(
+    "a completed payment wins the cancellation race and keeps its slots",
+    raceCancel.released !== true &&
+      raceCancel.message?.includes("confirmed") === true &&
+      paidRace?.status === "SUCCEEDED" &&
+      paidRace.bookings.every((booking) => booking.status === "CONFIRMED") &&
+      (await prisma.bookingSlot.count({
+        where: { courtId: courtOne.id, date: raceDate, hour: 12 },
+      })) === 1
+  );
+
+  const releaseDate = addDays(manilaToday(), 9);
   const releasable = new FormData();
   releasable.set("date", releaseDate);
   releasable.append("courtIds", courtOne.id);

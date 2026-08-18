@@ -257,6 +257,33 @@ export function installPaymongoMock(): MockState {
       });
     }
 
+    const cancelIntent = url.match(
+      /\/payment_intents\/(pi_[^/]+)\/cancel$/
+    );
+    if (cancelIntent && method === "POST") {
+      const found = state.intents.get(cancelIntent[1]);
+      if (!found) return json(404, { errors: [{ detail: "No such intent" }] });
+      if (found.status === "succeeded") {
+        return json(409, {
+          errors: [{ code: "intent_already_paid", detail: "Intent already paid." }],
+        });
+      }
+      const cancelled = { ...found, status: "cancelled" };
+      state.intents.set(cancelIntent[1], cancelled);
+      return json(200, {
+        data: {
+          id: cancelIntent[1],
+          attributes: {
+            amount: cancelled.amount,
+            status: cancelled.status,
+            client_key: cancelled.clientKey,
+            payments: [],
+            next_action: null,
+          },
+        },
+      });
+    }
+
     if (url.endsWith("/checkout_sessions") && method === "POST") {
       const sessionId = id("cs");
       state.sessions.set(sessionId, {

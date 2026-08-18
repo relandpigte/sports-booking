@@ -79,7 +79,8 @@ class PlayerClash extends Error {}
 class ActiveBookingHold extends Error {
   constructor(
     readonly venueName: string,
-    readonly releaseAllowed: boolean
+    readonly releaseAllowed: boolean,
+    readonly cancellationAllowed: boolean
   ) {
     super("The player already has an active booking hold.");
   }
@@ -313,6 +314,7 @@ export async function createBookingAction(
           },
           orderBy: [{ expiresAt: "asc" }, { createdAt: "asc" }],
           select: {
+            collectionMode: true,
             chargeStartedAt: true,
             providerPaymentId: true,
             bookings: {
@@ -326,7 +328,11 @@ export async function createBookingAction(
           throw new ActiveBookingHold(
             existingHold.bookings[0]?.hub.name ?? "another venue",
             existingHold.chargeStartedAt == null &&
-              existingHold.providerPaymentId == null
+              existingHold.providerPaymentId == null,
+            (existingHold.chargeStartedAt == null &&
+              existingHold.providerPaymentId == null) ||
+              (existingHold.collectionMode === "AUTOMATIC" &&
+                existingHold.providerPaymentId?.startsWith("pi_") === true)
           );
         }
 
@@ -417,6 +423,8 @@ export async function createBookingAction(
       return {
         message: error.releaseAllowed
           ? `You already have reserved slots at ${error.venueName}. Pay or release them before starting another booking.`
+          : error.cancellationAllowed
+            ? `You already have a payment in progress at ${error.venueName}. Complete or cancel it before starting another booking.`
           : `You already have a payment in progress at ${error.venueName}. Complete it before starting another booking.`,
         activeHoldConflict: true,
       };
@@ -486,6 +494,7 @@ export async function createBookingAction(
         date,
         paymentMode: manualPayment ? "MANUAL" : "AUTOMATIC",
         releaseAllowed: true,
+        cancellationAllowed: true,
         courtHours: selections.length,
         lines: created.map((booking) => ({
           bookingId: booking.id,

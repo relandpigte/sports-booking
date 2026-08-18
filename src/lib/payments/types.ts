@@ -40,6 +40,16 @@ export type RefundResult =
     }
   | { status: "failed"; code: string; message: string; raw: unknown };
 
+export type CancelChargeResult =
+  | { status: "cancelled"; raw: unknown }
+  | {
+      status: "succeeded";
+      paymentId: string;
+      reference: string | null;
+      raw: unknown;
+    }
+  | { status: "failed"; code: string; message: string; raw: unknown };
+
 export type ProviderWebhookEvent = {
   eventId: string;
   type: "payment.succeeded" | "payment.failed" | "payment.refunded";

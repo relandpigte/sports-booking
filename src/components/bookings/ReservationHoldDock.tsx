@@ -153,20 +153,38 @@ export function ReservationHoldDock({
 
           <div
             className={`col-span-2 grid gap-2 lg:flex lg:shrink-0 ${
-              hold.releaseAllowed
+              hold.cancellationAllowed
                 ? "grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)]"
                 : "grid-cols-1"
             }`}
           >
-            {hold.releaseAllowed && (
-              <form action={releaseAction}>
+            {hold.cancellationAllowed && (
+              <form
+                action={releaseAction}
+                onSubmit={(event) => {
+                  if (
+                    !hold.releaseAllowed &&
+                    !window.confirm(
+                      "Cancel this reservation? The selected court slots will immediately become available to other players."
+                    )
+                  ) {
+                    event.preventDefault();
+                  }
+                }}
+              >
                 <input type="hidden" name="paymentId" value={hold.paymentId} />
                 <button
                   type="submit"
                   disabled={releasing || startingPayment || !isOnline}
                   className="min-h-11 w-full rounded-xl border border-white/20 bg-white/5 px-3 text-xs font-bold text-white transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-12 sm:px-5 sm:text-sm"
                 >
-                  {releasing ? "Releasing…" : "Release slots"}
+                  {releasing
+                    ? hold.releaseAllowed
+                      ? "Releasing…"
+                      : "Cancelling…"
+                    : hold.releaseAllowed
+                      ? "Release slots"
+                      : "Cancel reservation"}
                 </button>
               </form>
             )}

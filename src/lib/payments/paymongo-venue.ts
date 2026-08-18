@@ -1,6 +1,7 @@
 import "server-only";
 
 import type {
+  CancelChargeResult,
   ChargeResult,
   Money,
   ProviderWebhookEvent,
@@ -14,6 +15,7 @@ import type {
 import {
   MIN_CENTAVOS,
   PayMongoRequestError,
+  cancelPaymentIntent,
   createQrPhPaymentIntent,
   createRefund,
   getCheckoutSession,
@@ -47,6 +49,30 @@ export {
   registerPaymongoWebhook,
   signPaymongoBody,
 } from "./paymongo-core";
+
+function cancellationResult(
+  providerPaymentId: string,
+  intent: Awaited<ReturnType<typeof getPaymentIntent>>
+): CancelChargeResult {
+  const paid = paidPayment(intent);
+  if (intent.status === "succeeded" && paid?.id) {
+    return {
+      status: "succeeded",
+      paymentId: providerPaymentId,
+      reference: paid.id,
+      raw: intent,
+    };
+  }
+  if (intent.status === "cancelled" || intent.status === "canceled") {
+    return { status: "cancelled", raw: intent };
+  }
+  return {
+    status: "failed",
+    code: "payment_not_cancelled",
+    message: "PayMongo could not cancel this QR Ph payment yet. Please try again.",
+    raw: intent,
+  };
+}
 
 export function paymongoVenueGateway(creds: GatewayCredentials): VenueGateway {
   const secretKey = creds.secretKey;
@@ -248,6 +274,46 @@ export function paymongoVenueGateway(creds: GatewayCredentials): VenueGateway {
           };
         }
         throw error;
+      }
+    },
+
+    async cancelCharge(
+      providerPaymentId: string
+    ): Promise<CancelChargeResult> {
+      if (!providerPaymentId.startsWith("pi_")) {
+        return {
+          status: "failed",
+          code: "cancellation_not_supported",
+          message:
+            "This older PayMongo checkout cannot be cancelled here. Let the hold expire or complete payment.",
+          raw: { providerPaymentId },
+        };
+      }
+
+      try {
+        const intent = await cancelPaymentIntent(secretKey, providerPaymentId);
+        return cancellationResult(providerPaymentId, intent);
+      } catch (error) {
+        if (!(error instanceof PayMongoRequestError)) throw error;
+
+        // A payment may have won the race just before cancellation. Re-read
+        // the intent so a successful charge is confirmed instead of freeing
+        // inventory underneath money that already moved.
+        try {
+          const intent = await getPaymentIntent(secretKey, providerPaymentId);
+          const reconciled = cancellationResult(providerPaymentId, intent);
+          if (reconciled.status !== "failed") return reconciled;
+        } catch {
+          // Keep the original provider error below. An uncertain remote state
+          // must leave the slots held rather than risk a late paid booking.
+        }
+
+        return {
+          status: "failed",
+          code: error.code,
+          message: error.message,
+          raw: { code: error.code, status: error.status },
+        };
       }
     },
 

@@ -12,6 +12,7 @@ import { PayBookingPanel } from "@/components/bookings/PayBookingPanel";
 import { PayMongoCheckout } from "@/components/bookings/PayMongoCheckout";
 import { PaymentStatusPoller } from "@/components/bookings/PaymentStatusPoller";
 import { ManualPaymentCheckout } from "@/components/bookings/ManualPaymentCheckout";
+import { CancelBookingHoldButton } from "@/components/bookings/CancelBookingHoldButton";
 import { formatPHP } from "@/lib/currency";
 import { formatManilaDate, formatSlotRange } from "@/lib/time";
 
@@ -59,6 +60,10 @@ export default async function PayBookingPage({
     manualMethods,
   } = screen;
   const holdLive = payment.status === "PENDING" && payment.secondsLeft > 0;
+  const playerCancelled =
+    payment.status === "FAILED" &&
+    (payment.failureCode === "player_cancelled" ||
+      payment.failureCode === "player_released");
   const refundedAmount =
     payment.refundedAmount ?? payment.venueAmount + payment.processingFee;
   // Existing hosted sessions and current direct QR intents both remain bound
@@ -116,9 +121,11 @@ export default async function PayBookingPage({
                   ? "Refunded"
                   : payment.manualSubmittedAt
                     ? "Pending booking"
-                    : holdLive
-                    ? "Complete your booking"
-                    : "Hold expired"}
+                    : playerCancelled
+                      ? "Reservation cancelled"
+                      : holdLive
+                        ? "Complete your booking"
+                        : "Hold expired"}
             </h1>
             <p className="mt-1 text-sm text-gray-500">{venueName}</p>
           </div>
@@ -246,6 +253,9 @@ export default async function PayBookingPage({
                     initialStatus={payment.status}
                     initialChargeInFlight={payment.chargeInFlight}
                   />
+                  {payment.providerPaymentId?.startsWith("pi_") && (
+                    <CancelBookingHoldButton paymentId={payment.id} />
+                  )}
                 </div>
               ) : (
                 <div className="flex flex-col gap-4">
@@ -269,9 +279,16 @@ export default async function PayBookingPage({
               )
             ) : (
               <div className="flex flex-col gap-3">
-                <p className="rounded-lg bg-red-50 px-3 py-2.5 text-sm text-red-600">
-                  This hold ran out before the payment completed, so the hours
-                  went back on sale. Nothing was charged.
+                <p
+                  className={`rounded-lg px-3 py-2.5 text-sm ${
+                    playerCancelled
+                      ? "bg-slate-100 text-slate-700"
+                      : "bg-red-50 text-red-600"
+                  }`}
+                >
+                  {playerCancelled
+                    ? "You cancelled this reservation. The court slots are available for other players again."
+                    : "This hold ran out before the payment completed, so the hours went back on sale. Nothing was charged."}
                 </p>
                 <Link
                   href="/hubs"

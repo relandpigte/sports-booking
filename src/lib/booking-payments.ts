@@ -66,6 +66,7 @@ export type BookingHoldView = {
   date: string;
   paymentMode: "AUTOMATIC" | "MANUAL";
   releaseAllowed: boolean;
+  cancellationAllowed: boolean;
   courtHours: number;
   lines: Array<{
     bookingId: string;
@@ -136,7 +137,7 @@ export type BookingPaymentView = {
 // Restores the player's one live court-payment hold across hub and dashboard
 // navigation. A submitted manual receipt is no longer an unpaid checkout and
 // intentionally drops out; an automatic payment already in motion remains
-// visible, but the dock offers Continue payment rather than Release slots.
+// visible, but the dock cancels the remote QR intent before releasing slots.
 export async function getActiveBookingHoldForUser(args: {
   userId: string;
 }): Promise<BookingHoldView | null> {
@@ -209,6 +210,10 @@ export async function getActiveBookingHoldForUser(args: {
     paymentMode: payment.collectionMode,
     releaseAllowed:
       payment.chargeStartedAt == null && payment.providerPaymentId == null,
+    cancellationAllowed:
+      (payment.chargeStartedAt == null && payment.providerPaymentId == null) ||
+      (payment.collectionMode === "AUTOMATIC" &&
+        payment.providerPaymentId?.startsWith("pi_") === true),
     courtHours: lines.reduce((sum, line) => sum + line.hours, 0),
     lines,
     selections: lines.flatMap((line) =>
@@ -1451,6 +1456,153 @@ export async function pollBookingPayment(
   await recordBookingChargeResult(payment.id, result);
   if (result.status !== "succeeded") return { status: "unresolved" };
   return settleBookingPayment(payment.id);
+}
+
+export type CancelAutomaticBookingHoldOutcome =
+  | { status: "cancelled"; hubId: string }
+  | { status: "already-paid"; hubId: string }
+  | { status: "closed"; hubId: string }
+  | { status: "missing" }
+  | { status: "unavailable"; hubId: string; message: string };
+
+// Cancels the remote QR intent before releasing local inventory. That order is
+// the safety invariant: if money wins the race, the provider reports success
+// and settlement confirms the booking; slots are freed only after PayMongo has
+// made a late payment impossible.
+export async function cancelAutomaticBookingHold(args: {
+  paymentId: string;
+  userId: string;
+}): Promise<CancelAutomaticBookingHoldOutcome> {
+  const payment = await prisma.bookingPayment.findFirst({
+    where: { id: args.paymentId, userId: args.userId },
+    select: {
+      id: true,
+      hubId: true,
+      status: true,
+      collectionMode: true,
+      gatewayId: true,
+      providerPaymentId: true,
+      bookings: { select: { id: true } },
+    },
+  });
+  if (!payment) return { status: "missing" };
+  if (payment.status === "SUCCEEDED" || payment.status === "REFUNDED") {
+    return { status: "already-paid", hubId: payment.hubId };
+  }
+  if (payment.status !== "PENDING") {
+    return { status: "closed", hubId: payment.hubId };
+  }
+  if (
+    payment.collectionMode !== "AUTOMATIC" ||
+    !payment.gatewayId ||
+    !payment.providerPaymentId ||
+    !payment.providerPaymentId.startsWith("pi_") ||
+    payment.bookings.length === 0
+  ) {
+    return {
+      status: "unavailable",
+      hubId: payment.hubId,
+      message:
+        "This payment cannot be cancelled safely here. Complete it or let the hold expire.",
+    };
+  }
+
+  const creds = await loadGatewayCredentials(payment.gatewayId);
+  const cancelled = await getVenueGateway(creds).cancelCharge(
+    payment.providerPaymentId
+  );
+  if (cancelled.status === "succeeded") {
+    await recordBookingChargeResult(payment.id, {
+      status: "succeeded",
+      paymentId: cancelled.paymentId,
+      reference: cancelled.reference,
+      raw: cancelled.raw,
+    });
+    await settleBookingPayment(payment.id);
+    return { status: "already-paid", hubId: payment.hubId };
+  }
+  if (cancelled.status === "failed") {
+    return {
+      status: "unavailable",
+      hubId: payment.hubId,
+      message: cancelled.message,
+    };
+  }
+
+  const closed = await prisma.$transaction(async (tx) => {
+    const [current] = await tx.$queryRaw<
+      Array<{
+        id: string;
+        hubId: string;
+        status: string;
+        providerPaymentId: string | null;
+      }>
+    >(Prisma.sql`
+      SELECT
+        payment."id",
+        payment."hubId",
+        payment."status"::text AS "status",
+        payment."providerPaymentId"
+      FROM "BookingPayment" payment
+      WHERE payment."id" = ${payment.id}
+        AND payment."userId" = ${args.userId}
+      FOR UPDATE
+    `);
+    if (!current) return { status: "missing" as const };
+    if (current.status === "SUCCEEDED" || current.status === "REFUNDED") {
+      return { status: "already-paid" as const, hubId: current.hubId };
+    }
+    if (current.status !== "PENDING") {
+      return { status: "closed" as const, hubId: current.hubId };
+    }
+    if (current.providerPaymentId !== payment.providerPaymentId) {
+      return {
+        status: "unavailable" as const,
+        hubId: current.hubId,
+        message: "The payment changed while it was being cancelled. Try again.",
+      };
+    }
+
+    const bookings = await tx.booking.findMany({
+      where: {
+        bookingPaymentId: payment.id,
+        userId: args.userId,
+        status: "PENDING",
+      },
+      select: { id: true },
+    });
+    if (bookings.length === 0) {
+      return { status: "closed" as const, hubId: current.hubId };
+    }
+    const bookingIds = bookings.map((booking) => booking.id);
+    await tx.bookingSlot.deleteMany({
+      where: { bookingId: { in: bookingIds } },
+    });
+    await tx.booking.updateMany({
+      where: { id: { in: bookingIds }, status: "PENDING" },
+      data: { status: "EXPIRED", holdExpiresAt: null },
+    });
+    const updated = await tx.bookingPayment.updateMany({
+      where: {
+        id: payment.id,
+        status: "PENDING",
+        providerPaymentId: payment.providerPaymentId,
+      },
+      data: {
+        status: "FAILED",
+        chargeStartedAt: null,
+        failureCode: "player_cancelled",
+        failureMessage:
+          "The player cancelled the QR Ph payment and released the reserved slots.",
+      },
+    });
+    if (updated.count !== 1) {
+      throw new Error("Booking payment changed while it was being cancelled.");
+    }
+    return { status: "cancelled" as const, hubId: current.hubId };
+  });
+
+  return closed;
 }
 
 // ---------------------------------------------------------------------------

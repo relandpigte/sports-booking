@@ -3,7 +3,6 @@
 import { Prisma } from "@prisma/client";
 import type { CancelledBy } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
 import { prisma } from "@/lib/db";
 import { lockPlayerBookingHours } from "@/lib/booking-locks";
@@ -31,7 +30,6 @@ import {
   RescheduleBookingSchema,
 } from "@/lib/validation";
 import {
-  chargeBookingPayment,
   refundBookingPayment,
 } from "@/lib/booking-payments";
 import {
@@ -41,6 +39,7 @@ import {
   grossFor,
   manualBookingServiceFeeFor,
   manualGrossFor,
+  paymongoQrPhProcessingFeeFor,
 } from "@/lib/constants";
 import {
   addDays,
@@ -67,6 +66,28 @@ export type BookingFormState = {
   message?: string;
   success?: string;
   bookingId?: string;
+  hold?: {
+    paymentId: string;
+    expiresAt: string;
+    initialSeconds: number;
+    amount: number;
+    venueName: string;
+    date: string;
+    paymentMode: "AUTOMATIC" | "MANUAL";
+    courtHours: number;
+    lines: Array<{
+      bookingId: string;
+      courtId: string;
+      courtName: string;
+      startHour: number;
+      endHour: number;
+      hours: number;
+    }>;
+    selections: Array<{
+      courtId: string;
+      hour: number;
+    }>;
+  };
 };
 
 // An interactive transaction can only be aborted by throwing, so these carry
@@ -244,13 +265,27 @@ export async function createBookingAction(
     ? new Date(now.getTime() + BOOKING_HOLD_MINUTES * 60_000)
     : null;
 
-  let created: { id: string; courtName: string }[];
+  let created: Array<{
+    id: string;
+    courtId: string;
+    courtName: string;
+    startHour: number;
+    endHour: number;
+    hours: number;
+  }>;
   let paymentId: string | null = null;
   try {
     // The full multi-court cart is atomic. A collision on any court-hour rolls
     // back the payment ledger, every Booking, and every slot in the cart.
     created = await prisma.$transaction(async (tx) => {
-      const out: { id: string; courtName: string }[] = [];
+      const out: Array<{
+        id: string;
+        courtId: string;
+        courtName: string;
+        startHour: number;
+        endHour: number;
+        hours: number;
+      }> = [];
 
       for (const group of groups) {
         await tx.bookingSlot.deleteMany({
@@ -333,7 +368,14 @@ export async function createBookingAction(
               holdExpiresAt,
             })),
           });
-          out.push({ id: booking.id, courtName: group.court.name });
+          out.push({
+            id: booking.id,
+            courtId: group.court.id,
+            courtName: group.court.name,
+            startHour: run.start,
+            endHour: run.end + 1,
+            hours: runLength,
+          });
         }
       }
 
@@ -387,12 +429,33 @@ export async function createBookingAction(
     );
   }
   if (paymentId) {
-    // Prepare the one-time QR Ph checkout before showing the payment page so
-    // the player lands directly on the QR instead of facing a second Pay step.
-    if (!manualPayment) {
-      await chargeBookingPayment({ paymentId, userId: viewer.id });
-    }
-    redirect(`/dashboard/bookings/pay/${paymentId}`);
+    // Keep the player on the availability screen after the database hold is
+    // secured. The reservation dock starts automatic payment only when the
+    // player chooses Pay now; until then, Release slots can safely close the
+    // hold because no provider charge exists yet.
+    return {
+      hold: {
+        paymentId,
+        expiresAt: holdExpiresAt!.toISOString(),
+        initialSeconds: BOOKING_HOLD_MINUTES * 60,
+        amount: manualPayment
+          ? manualGrossFor(total)
+          : grossFor(total) + paymongoQrPhProcessingFeeFor(grossFor(total)),
+        venueName: hub.name,
+        date,
+        paymentMode: manualPayment ? "MANUAL" : "AUTOMATIC",
+        courtHours: selections.length,
+        lines: created.map((booking) => ({
+          bookingId: booking.id,
+          courtId: booking.courtId,
+          courtName: booking.courtName,
+          startHour: booking.startHour,
+          endHour: booking.endHour,
+          hours: booking.hours,
+        })),
+        selections,
+      },
+    };
   }
 
   return {

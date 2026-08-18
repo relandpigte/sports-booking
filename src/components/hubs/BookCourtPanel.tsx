@@ -11,6 +11,7 @@ import {
 import type { Role } from "@prisma/client";
 
 import { Button } from "@/components/ui/Button";
+import { ReservationHoldDock } from "@/components/bookings/ReservationHoldDock";
 import { usePwa } from "@/components/pwa/PwaProvider";
 import { DateStrip } from "@/components/hubs/DateStrip";
 import {
@@ -100,6 +101,7 @@ export function BookCourtPanel({
   );
   const [viewOverride, setViewOverride] =
     useState<CourtAvailabilityView | null>(null);
+  const [closedHoldId, setClosedHoldId] = useState<string | null>(null);
   const [state, formAction, pending] = useActionState(
     createBookingAction,
     initialState
@@ -166,6 +168,18 @@ export function BookCourtPanel({
       ),
     [selectedGroups]
   );
+  const activeHold =
+    state.hold && state.hold.paymentId !== closedHoldId ? state.hold : null;
+  const heldSelectedByCourt = useMemo(() => {
+    const grouped: Record<string, number[]> = {};
+    for (const selection of activeHold?.selections ?? []) {
+      grouped[selection.courtId] = [
+        ...(grouped[selection.courtId] ?? []),
+        selection.hour,
+      ];
+    }
+    return grouped;
+  }, [activeHold]);
   const selectedCount = selectedGroups.reduce(
     (sum, group) => sum + group.hours.length,
     0
@@ -221,7 +235,9 @@ export function BookCourtPanel({
   return (
     <section
       id="booking"
-      className="scroll-mt-24 border-y border-gray-200 bg-white py-14 sm:py-16"
+      className={`scroll-mt-24 border-y border-gray-200 bg-white pt-14 sm:pt-16 ${
+        activeHold ? "pb-52 sm:pb-44" : "pb-14 sm:pb-16"
+      }`}
     >
       <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
@@ -284,7 +300,12 @@ export function BookCourtPanel({
             </div>
           )}
 
-          <div className="space-y-8">
+          <div
+            className={`space-y-8 transition-opacity ${
+              activeHold ? "pointer-events-none opacity-65" : ""
+            }`}
+            aria-disabled={activeHold ? "true" : undefined}
+          >
             <div>
               <span className="mb-3 block text-xs font-bold uppercase tracking-[0.16em] text-gray-400">
                 Select date
@@ -304,7 +325,9 @@ export function BookCourtPanel({
                 <CourtAvailabilityBrowser
                   courts={courtAvailability}
                   activeCourtId={activeCourtId}
-                  selectedByCourt={selectedByCourt}
+                  selectedByCourt={
+                    activeHold ? heldSelectedByCourt : selectedByCourt
+                  }
                   view={view}
                   onViewChange={setViewOverride}
                   onSelectCourt={selectCourt}
@@ -326,7 +349,46 @@ export function BookCourtPanel({
               Booking summary
             </p>
 
-            {selectedGroups.length > 0 ? (
+            {activeHold ? (
+              <div className="mt-6 flex flex-col gap-3 text-sm">
+                <div className="rounded-xl border border-primary/20 bg-white/70 px-4 py-3">
+                  <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-primary">
+                    <span className="flex size-6 items-center justify-center rounded-lg bg-primary-soft">
+                      ✓
+                    </span>
+                    Slots reserved
+                  </p>
+                  <p className="mt-2 font-semibold text-navy">
+                    {formatManilaDateLong(activeHold.date)}
+                  </p>
+                </div>
+                {activeHold.lines.map((line) => (
+                  <div
+                    key={line.bookingId}
+                    className="rounded-xl bg-white/55 px-3 py-3"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-extrabold text-navy">
+                        {line.courtName}
+                      </p>
+                      <p className="shrink-0 text-xs font-semibold text-navy">
+                        {line.hours} {line.hours === 1 ? "hr" : "hrs"}
+                      </p>
+                    </div>
+                    <p className="mt-1.5 text-xs text-navy/70">
+                      {formatHourLabel(line.startHour)} –{" "}
+                      {formatHourLabel(line.endHour)}
+                    </p>
+                  </div>
+                ))}
+                <div className="mt-2 flex items-end justify-between gap-3 border-t border-navy/10 pt-4">
+                  <span className="font-bold text-navy">Total to pay</span>
+                  <span className="shrink-0 text-2xl font-extrabold text-navy">
+                    {formatPHP(activeHold.amount)}
+                  </span>
+                </div>
+              </div>
+            ) : selectedGroups.length > 0 ? (
               <div className="mt-6 flex flex-col gap-3 text-sm">
                 <p className="font-semibold text-navy">
                   {formatManilaDateLong(date)}
@@ -429,6 +491,24 @@ export function BookCourtPanel({
                 <p className="rounded-xl bg-white/60 px-4 py-3 text-sm text-navy/65">
                   Bookings are for player accounts.
                 </p>
+              ) : activeHold ? (
+                <div className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary-soft px-4 text-sm font-bold text-primary">
+                  <svg
+                    width="17"
+                    height="17"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <rect width="16" height="12" x="4" y="10" rx="2" />
+                    <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+                  </svg>
+                  Complete payment below
+                </div>
               ) : (
                 <Button
                   type="submit"
@@ -478,6 +558,12 @@ export function BookCourtPanel({
             </div>
           </aside>
         </form>
+        {activeHold && (
+          <ReservationHoldDock
+            hold={activeHold}
+            onClosed={() => setClosedHoldId(activeHold.paymentId)}
+          />
+        )}
       </div>
     </section>
   );

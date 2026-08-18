@@ -36,9 +36,10 @@ import {
 // The rule this whole file is built around: a BookingPayment stays PENDING for
 // as long as its hold is alive, however many QR Ph attempts fail against it.
 // PENDING means "the hours are still yours and no money has moved"; SUCCEEDED
-// means the money moved; FAILED is terminal and only ever set once the hold is
-// dead. That's what lets a player retry a failed checkout without us creating a
-// second payment row — and without the court being released underneath them.
+// means the money moved; FAILED is terminal and only set once the hold is dead
+// (either by expiry or an explicit pre-payment release). That's what lets a
+// player retry a failed checkout without us creating a second payment row —
+// and without the court being released underneath them.
 
 // ---------------------------------------------------------------------------
 // Views (Decimal isn't RSC-serializable, so it stops here.)
@@ -1554,10 +1555,11 @@ export async function expireBookingHolds(now: Date = new Date()): Promise<{
     data: { status: "EXPIRED", holdExpiresAt: null },
   });
 
-  // A payment whose hold is gone can never be settled, so it's terminal now —
-  // this is the ONLY place a BookingPayment becomes FAILED. Rows with a charge
-  // still in flight are left alone: their webhook may yet land, and settle
-  // handles that case by refunding.
+  // A payment whose hold is gone can never be settled, so it's terminal now.
+  // Explicit player release is the other FAILED path, and it is allowed only
+  // before any charge begins. Rows with a charge still in flight are left
+  // alone: their webhook may yet land, and settle handles that case by
+  // refunding.
   const payments = await prisma.bookingPayment.updateMany({
     where: {
       status: "PENDING",

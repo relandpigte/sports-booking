@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 
-import { getPublicOpenPlaySnapshot } from "@/lib/open-play";
+import { getOpenPlayLiveRevision, getPublicOpenPlaySnapshot } from "@/lib/open-play";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { securityContextFromHeaders } from "@/lib/security-context";
 
@@ -55,8 +55,11 @@ export async function GET(
       const tick = async () => {
         if (closed) return;
         try {
-          const snapshot = await getPublicOpenPlaySnapshot(publicId);
-          const next = JSON.stringify(snapshot);
+          const [snapshot, rosterRevision] = await Promise.all([
+            getPublicOpenPlaySnapshot(publicId),
+            getOpenPlayLiveRevision(publicId),
+          ]);
+          const next = JSON.stringify({ snapshot, rosterRevision });
           if (next !== version) {
             version = next;
             write(`event: snapshot\ndata: ${JSON.stringify({ publicId, updatedAt: snapshot?.updatedAt ?? null })}\n\n`);

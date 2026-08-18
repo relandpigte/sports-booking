@@ -381,6 +381,51 @@ export async function getPublicOpenPlaySnapshot(
   return session ? toSnapshot(session, { publicView: true }) : null;
 }
 
+export async function getOpenPlayLiveRevision(
+  publicId: string
+): Promise<string | null> {
+  // Pending and removed players stay out of public snapshots, but their changes
+  // must still wake the organizer's live console. This value never leaves the server.
+  const session = await prisma.openPlaySession.findFirst({
+    where: {
+      queue: {
+        OR: [
+          { publicId, kind: "QUICK" },
+          {
+            kind: "EVENT",
+            event: {
+              publicId,
+              status: { in: ["PUBLISHED", "CANCELLED"] },
+            },
+          },
+          {
+            publicId,
+            kind: "EVENT",
+            event: { status: { in: ["PUBLISHED", "CANCELLED"] } },
+          },
+        ],
+      },
+    },
+    orderBy: { runNumber: "desc" },
+    select: {
+      id: true,
+      participants: {
+        orderBy: { id: "asc" },
+        select: { id: true, status: true, updatedAt: true },
+      },
+    },
+  });
+  if (!session) return null;
+  return JSON.stringify({
+    sessionId: session.id,
+    participants: session.participants.map((participant) => ({
+      id: participant.id,
+      status: participant.status,
+      updatedAt: participant.updatedAt.toISOString(),
+    })),
+  });
+}
+
 export async function getOpenPlayEvent(publicId: string, partnerId: string) {
   return prisma.event.findFirst({
     where: { publicId, hub: { ownerId: partnerId } },

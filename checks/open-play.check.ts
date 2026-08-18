@@ -278,11 +278,16 @@ async function check() {
   publicJoin.set("publicId", quickPublicId);
   publicJoin.set("displayName", "Public Guest");
   publicJoin.set("skillLevel", "beginner");
+  const revisionBeforeJoin = await domain.getOpenPlayLiveRevision(quickPublicId);
   ok("a public guest can request Quick Queue access without an account", Boolean((await actions.joinPublicQueueAction({}, publicJoin)).success));
   const pendingGuest = await prisma.openPlayParticipant.findFirstOrThrow({ where: { sessionId: quickSession.id, source: "PUBLIC_GUEST" } });
   ok("approval mode keeps the guest pending", pendingGuest.status === "PENDING_APPROVAL");
   const hiddenSnapshot = await domain.getPublicOpenPlaySnapshot(quickPublicId);
   ok("pending guest identities are hidden from the public board", hiddenSnapshot?.participants.length === 0);
+  ok(
+    "pending guest requests advance the live revision without exposing their identity",
+    revisionBeforeJoin !== await domain.getOpenPlayLiveRevision(quickPublicId)
+  );
   const approveGuest = new FormData();
   approveGuest.set("sessionId", quickSession.id);
   approveGuest.set("participantId", pendingGuest.id);

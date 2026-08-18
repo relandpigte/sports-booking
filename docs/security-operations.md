@@ -11,7 +11,9 @@
   remain protected even when no global cutover is configured.
 - Run `POST /api/bookings/sweep` at least hourly with the sweep bearer token.
   The sweep also removes expired authentication artifacts, old throttle rows,
-  and Facebook Messenger delivery hashes after their 30-day replay window.
+  Facebook Messenger delivery hashes after their 30-day replay window, Event
+  BunalQ runs one hour after the scheduled end, and standalone BunalQ runs
+  after 12 hours without activity.
 
 ## CSP rollout
 

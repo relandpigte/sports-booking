@@ -131,7 +131,7 @@ The required environment variables are:
 | `ENCRYPTION_KEYS_PREVIOUS` | Optional old keys used during rotation. |
 | `APP_URL` | Public HTTPS origin used for redirects and webhook URLs. |
 | `BOOKING_SWEEP_SECRET` | Bearer token for the expired-hold sweep. |
-| `CRON_SECRET` | Random Bearer token automatically attached by Vercel's daily maintenance cron. |
+| `CRON_SECRET` | Random Bearer token automatically attached by Vercel's hourly maintenance cron. |
 | `PAYMONGO_QRPH_PROCESSING_RATE` | Optional VAT-inclusive decimal rate for direct QR fee gross-up; defaults to `0.015008`. |
 | `PAYMONGO_SECRET_KEY` | Optional legacy fallback for Bunal.club's service-fee PayMongo account. |
 | `BILLING_WEBHOOK_SECRET` | Optional webhook secret paired with the environment fallback. |
@@ -206,7 +206,7 @@ successful and confirms the associated booking. Five-second polling is a
 browser fallback, while `ProviderEvent` prevents webhook replay. Existing
 hosted Checkout Sessions remain readable and refundable during rollout.
 
-Vercel calls the cleanup endpoint daily at 00:10 UTC (08:10 Asia/Manila), as
+Vercel calls the cleanup endpoint hourly at 10 minutes past the hour, as
 configured in `vercel.json`. Set `CRON_SECRET` in the production Vercel project
 to a random value of at least 16 characters. For an additional external or
 manual run, use `BOOKING_SWEEP_SECRET`:
@@ -219,8 +219,9 @@ curl -X POST \
 
 Availability does not depend on the cron: expired holds stop blocking slots
 based on the current time. The sweep removes stale rows and closes their ledger
-records. Submitted manual proofs are excluded from expiry and continue counting
-against court or event capacity until a partner reviews them.
+records. BunalQ automatic run closure does depend on the hourly sweep. Submitted
+manual proofs are excluded from expiry and continue counting against court or
+event capacity until a partner reviews them.
 
 ## Verification
 

@@ -98,6 +98,7 @@ async function check() {
   stubRequestContext(partner, { stubPublicRequest: true });
   const actions = await import("@/lib/open-play-actions");
   const domain = await import("@/lib/open-play");
+  const maintenance = await import("@/lib/open-play-maintenance");
 
   const prepare = new FormData();
   prepare.set("publicId", event.publicId);
@@ -254,6 +255,38 @@ async function check() {
   removePlayer.set("participantId", runs[1].participants[1].id);
   ok("staff can soft-remove an inactive player", Boolean((await actions.removeOpenPlayParticipantAction({}, removePlayer)).success));
   ok("soft removal keeps the participant row", (await prisma.openPlayParticipant.findUniqueOrThrow({ where: { id: runs[1].participants[1].id } })).status === "REMOVED");
+  const startNextRun = new FormData();
+  startNextRun.set("sessionId", runs[1].id);
+  ok("the next Event run can start on the Event date", Boolean((await actions.startOpenPlaySessionAction({}, startNextRun)).success));
+  const eventEndsAt = manilaInstant(date, 23);
+  const eventGraceResult = await maintenance.cleanupStaleOpenPlaySessions({
+    now: new Date(eventEndsAt.getTime() + maintenance.EVENT_RUN_END_GRACE_MS / 2),
+    sessionIds: [runs[1].id],
+  });
+  ok("Event runs remain active during the cleanup grace period", eventGraceResult.eventRuns === 0);
+  const eventCleanup = await maintenance.cleanupStaleOpenPlaySessions({
+    now: new Date(eventEndsAt.getTime() + maintenance.EVENT_RUN_END_GRACE_MS + 60_000),
+    sessionIds: [runs[1].id],
+  });
+  const cleanedEventRun = await prisma.openPlaySession.findUniqueOrThrow({
+    where: { id: runs[1].id },
+    include: { participants: true },
+  });
+  ok(
+    "Event BunalQ runs auto-end after the scheduled grace period",
+    eventCleanup.eventRuns === 1 &&
+      cleanedEventRun.status === "ENDED" &&
+      cleanedEventRun.participants.every((participant) =>
+        ["CHECKED_OUT", "REMOVED"].includes(participant.status)
+      )
+  );
+  ok(
+    "Event cleanup is idempotent",
+    (await maintenance.cleanupStaleOpenPlaySessions({
+      now: new Date(eventEndsAt.getTime() + maintenance.EVENT_RUN_END_GRACE_MS + 120_000),
+      sessionIds: [runs[1].id],
+    })).eventRuns === 0
+  );
 
   const quickPublicId = `quick-${partner.id}`;
   const quickSession = await prisma.openPlaySession.create({
@@ -293,6 +326,25 @@ async function check() {
   approveGuest.set("participantId", pendingGuest.id);
   ok("staff can approve and check in a pending guest", Boolean((await actions.approvePublicQueueGuestAction({}, approveGuest)).success));
   ok("approved guests appear in the public queue", (await domain.getPublicOpenPlaySnapshot(quickPublicId))?.participants.length === 1);
+  const quickGraceResult = await maintenance.cleanupStaleOpenPlaySessions({
+    now: new Date(quickSession.startedAt!.getTime() + maintenance.QUICK_QUEUE_INACTIVITY_MS - 60_000),
+    sessionIds: [quickSession.id],
+  });
+  ok("recent standalone BunalQ runs remain active", quickGraceResult.quickQueues === 0);
+  const quickCleanup = await maintenance.cleanupStaleOpenPlaySessions({
+    now: new Date(quickSession.startedAt!.getTime() + maintenance.QUICK_QUEUE_INACTIVITY_MS + 60_000),
+    sessionIds: [quickSession.id],
+  });
+  const cleanedQuickRun = await prisma.openPlaySession.findUniqueOrThrow({
+    where: { id: quickSession.id },
+    include: { participants: true },
+  });
+  ok(
+    "inactive standalone BunalQ runs auto-end",
+    quickCleanup.quickQueues === 1 &&
+      cleanedQuickRun.status === "ENDED" &&
+      cleanedQuickRun.participants.every((participant) => participant.status === "CHECKED_OUT")
+  );
 
   const eventPublicJoin = new FormData();
   eventPublicJoin.set("publicId", queue.publicId);

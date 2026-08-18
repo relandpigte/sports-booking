@@ -4,7 +4,7 @@
   "crons": [
     {
       "path": "/api/bookings/sweep",
-      "schedule": "10 0 * * *"
+      "schedule": "10 * * * *"
     }
   ]
 }

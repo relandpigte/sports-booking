@@ -615,6 +615,10 @@ export async function toggleOpenPlayCourtAction(
       where: { sessionId_courtId: { sessionId, courtId } },
       data: { active },
     });
+    await tx.openPlaySession.update({
+      where: { id: sessionId },
+      data: { updatedAt: new Date() },
+    });
     return "updated";
   });
   if (result === "occupied") return { message: "Finish or clear this court's match before pausing it." };

@@ -6,12 +6,13 @@ import { cleanupFacebookMessengerEvents } from "@/lib/facebook-messenger";
 import { cleanupExpiredSecurityRows } from "@/lib/security-maintenance";
 import { notifyPartnersOfOverdueServiceFees } from "@/lib/service-fee-notifications";
 import { reconcileServiceFeeCheckouts } from "@/lib/service-fee-payments";
+import { cleanupStaleOpenPlaySessions } from "@/lib/open-play-maintenance";
 
 // Tidies up expired holds: deletes the slot rows nothing is holding any more,
 // flips PENDING bookings to EXPIRED, and closes out payments whose window has
 // passed.
 //
-// Vercel invokes GET daily using CRON_SECRET. Operators may also invoke POST:
+// Vercel invokes GET hourly using CRON_SECRET. Operators may also invoke POST:
 //   curl -X POST -H "Authorization: Bearer $BOOKING_SWEEP_SECRET" .../api/bookings/sweep
 //
 // Availability correctness never depends on this running — every read filters
@@ -46,12 +47,13 @@ async function runSweep(request: NextRequest) {
   // Reconcile provider payments first so a paid checkout whose webhook was
   // delayed cannot receive an incorrect overdue reminder in this same run.
   const serviceFeeCheckouts = await reconcileServiceFeeCheckouts();
-  const [result, security, messengerEvents, serviceFeeNotifications] =
+  const [result, security, messengerEvents, serviceFeeNotifications, bunalQ] =
     await Promise.all([
       expireBookingHolds(),
       cleanupExpiredSecurityRows(),
       cleanupFacebookMessengerEvents(),
       notifyPartnersOfOverdueServiceFees(),
+      cleanupStaleOpenPlaySessions(),
     ]);
   return Response.json({
     ok: true,
@@ -60,6 +62,7 @@ async function runSweep(request: NextRequest) {
     messengerEvents,
     serviceFeeNotifications,
     serviceFeeCheckouts,
+    bunalQ,
   });
 }
 

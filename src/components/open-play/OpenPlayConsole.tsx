@@ -169,16 +169,22 @@ function ModeForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
 function WalkInForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
   const [state, action, pending] = useActionState(addOpenPlayWalkInAction, {});
   return (
-    <form action={action} className="grid gap-2 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-[1fr_150px_auto] sm:items-end">
+    <form action={action} className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
       <input type="hidden" name="sessionId" value={snapshot.id} />
       <input type="hidden" name="publicId" value={snapshot.queue.publicId} />
-      <label className="text-xs font-bold text-slate-600">
-        Add player
-        <input name="displayName" maxLength={120} required placeholder="Player name" className="mt-1 block min-h-10 w-full rounded-lg border border-slate-300 px-3 text-sm font-semibold text-navy" />
-      </label>
-      <Select name="skillLevel" label="Skill" options={[...SKILL_LEVELS]} defaultValue="intermediate" />
-      <Button className="min-h-10 py-2" disabled={pending}>{pending ? "Adding…" : "Add"}</Button>
-      <div className="sm:col-span-3"><Feedback state={state} /></div>
+      <div>
+        <h2 className="text-xs font-black uppercase tracking-[0.16em] text-navy">Add player</h2>
+        <p className="mt-1 text-xs text-slate-500">Add a walk-in directly to this run.</p>
+      </div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_170px_auto] sm:items-end">
+        <label className="text-xs font-bold text-slate-600">
+          Player name
+          <input name="displayName" maxLength={120} required placeholder="Enter player name" className="mt-1.5 block min-h-10 w-full rounded-lg border border-slate-300 px-3 text-sm font-semibold text-navy" />
+        </label>
+        <Select name="skillLevel" label="Skill" options={[...SKILL_LEVELS]} defaultValue="intermediate" />
+        <Button className="min-h-10 px-5 py-2.5 sm:w-auto" disabled={pending}>{pending ? "Adding…" : "Add player"}</Button>
+      </div>
+      <Feedback state={state} />
     </form>
   );
 }
@@ -187,19 +193,25 @@ function AdmissionForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
   const [state, action, pending] = useActionState(changeQueueAdmissionModeAction, {});
   if (snapshot.queue.kind !== "QUICK") return null;
   return (
-    <form action={action} className="flex flex-wrap items-end gap-2 rounded-2xl border border-ocean/20 bg-ocean-soft p-4">
+    <form action={action} className="rounded-2xl border border-ocean/20 bg-ocean-soft p-4 sm:p-5">
       <input type="hidden" name="sessionId" value={snapshot.id} />
-      <Select
-        name="admissionMode"
-        label="Public guest entry"
-        defaultValue={snapshot.queue.admissionMode}
-        options={[
-          { value: "APPROVAL_REQUIRED", label: "Organizer approval" },
-          { value: "INSTANT", label: "Instant queue entry" },
-        ]}
-      />
-      <Button className="w-auto min-h-10 py-2" disabled={pending}>{pending ? "Saving…" : "Save"}</Button>
-      <div className="w-full"><Feedback state={state} /></div>
+      <div>
+        <h2 className="text-xs font-black uppercase tracking-[0.16em] text-navy">Guest entry</h2>
+        <p className="mt-1 text-xs text-slate-500">Choose how public requests enter the queue.</p>
+      </div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+        <Select
+          name="admissionMode"
+          label="Admission mode"
+          defaultValue={snapshot.queue.admissionMode}
+          options={[
+            { value: "APPROVAL_REQUIRED", label: "Organizer approval" },
+            { value: "INSTANT", label: "Instant queue entry" },
+          ]}
+        />
+        <Button className="min-h-10 px-5 py-2.5 sm:w-auto" disabled={pending}>{pending ? "Saving…" : "Save"}</Button>
+      </div>
+      <Feedback state={state} />
     </form>
   );
 }
@@ -462,17 +474,9 @@ function ParticipantRoster({ snapshot }: { snapshot: OpenPlaySnapshot }) {
           Select all eligible in this view
         </label>
       ) : null}
-      <div className="hidden grid-cols-[36px_minmax(180px,1.4fr)_110px_120px_72px_minmax(180px,auto)] gap-3 border-b border-slate-100 bg-slate-50 px-5 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400 xl:grid">
-        <span />
-        <span>Player</span>
-        <span>Skill</span>
-        <span>Status</span>
-        <span>Wait</span>
-        <span className="text-right">Actions</span>
-      </div>
-      <div className="divide-y divide-slate-100">
+      <div className="grid gap-3 p-3 md:grid-cols-2 xl:grid-cols-3 sm:p-4">
         {visibleParticipants.length === 0 ? (
-          <p className="px-5 py-10 text-center text-sm text-slate-500">No players in this view.</p>
+          <p className="py-10 text-center text-sm text-slate-500 md:col-span-2 xl:col-span-3">No players in this view.</p>
         ) : visibleParticipants.map((player) => {
           const groupLabel = GROUPS.find(([status]) => status === player.status)?.[1] ?? player.status;
           const isEligible = ["NOT_CHECKED_IN", "CHECKED_OUT"].includes(player.status);
@@ -484,8 +488,10 @@ function ParticipantRoster({ snapshot }: { snapshot: OpenPlaySnapshot }) {
           return (
             <article
               key={player.id}
-              className={`relative grid grid-cols-[36px_minmax(0,1fr)] gap-x-3 gap-y-3 px-4 py-3 transition sm:px-5 xl:grid-cols-[36px_minmax(180px,1.4fr)_110px_120px_72px_minmax(180px,auto)] xl:items-center ${
-                player.status === "PENDING_APPROVAL" ? "bg-amber-50/70" : "hover:bg-slate-50/70"
+              className={`relative grid grid-cols-[36px_minmax(0,1fr)] content-start gap-x-3 gap-y-3 rounded-xl border p-3 transition ${
+                player.status === "PENDING_APPROVAL"
+                  ? "border-amber-200 bg-amber-50/70"
+                  : "border-slate-200 bg-white hover:border-primary/30 hover:shadow-sm"
               }`}
             >
               <div className="flex h-9 items-center justify-center">
@@ -509,18 +515,13 @@ function ParticipantRoster({ snapshot }: { snapshot: OpenPlaySnapshot }) {
                 <p className="mt-0.5 truncate text-[11px] capitalize text-slate-500">
                   {player.source.toLowerCase().replaceAll("_", " ")}
                 </p>
-                <div className="mt-2 flex flex-wrap items-center gap-2 xl:hidden">
+                <div className="mt-2 flex flex-wrap items-center gap-2">
                   <span className="text-xs capitalize text-slate-600">{player.skillLevel}</span>
                   <span className={`rounded-full px-2 py-1 text-[10px] font-black ${STATUS_STYLES[player.status]}`}>{groupLabel}</span>
                   {player.estimatedWaitMinutes ? <span className="text-xs text-slate-500">~{player.estimatedWaitMinutes}m</span> : null}
                 </div>
               </div>
-              <p className="hidden text-xs capitalize text-slate-600 xl:block">{player.skillLevel}</p>
-              <div className="hidden xl:block">
-                <span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-black ${STATUS_STYLES[player.status]}`}>{groupLabel}</span>
-              </div>
-              <p className="hidden text-xs text-slate-500 xl:block">{player.estimatedWaitMinutes ? `~${player.estimatedWaitMinutes}m` : "—"}</p>
-              <div className="col-span-2 flex flex-wrap justify-end gap-2 xl:col-span-1 xl:flex-nowrap">
+              <div className="col-span-2 mt-auto flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-3">
                 <ParticipantPrimaryAction snapshot={snapshot} participant={player} />
                 <ParticipantMoreActions snapshot={snapshot} participant={player} />
               </div>
@@ -579,10 +580,12 @@ export function OpenPlayConsole({ snapshot, canManage }: { snapshot: OpenPlaySna
           </div>
         </div>
         <ModeForm snapshot={snapshot} />
-        <AdmissionForm snapshot={snapshot} />
         <PairForm snapshot={snapshot} />
         {pairs.size > 0 ? <div className="flex flex-wrap gap-2">{[...pairs.entries()].map(([pairId, names]) => <div key={pairId} className="flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900"><span>{names.join(" + ")}</span><ActionForm action={unpairOpenPlayParticipantsAction} values={{ sessionId: snapshot.id, pairId }} label="Unpair" tone="quiet" /></div>)}</div> : null}
-        <WalkInForm snapshot={snapshot} />
+        <div className={snapshot.queue.kind === "QUICK" ? "grid gap-4 lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.7fr)]" : ""}>
+          <AdmissionForm snapshot={snapshot} />
+          <WalkInForm snapshot={snapshot} />
+        </div>
         <div className="space-y-5">
           <div>{snapshot.status === "ACTIVE" ? <MatchControls snapshot={snapshot} /> : <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">Start the run to stage matches.</p>}</div>
           <ParticipantRoster snapshot={snapshot} />

@@ -29,7 +29,7 @@ export default async function MessagesPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div data-dashboard-width="wide" className="w-full">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary">
@@ -53,13 +53,12 @@ export default async function MessagesPage() {
         )}
       </div>
       {result.conversations.length > 0 ? (
-        <section className="overflow-hidden rounded-2xl border border-[#dfe7e2] bg-white shadow-sm shadow-navy/5 lg:grid lg:min-h-[560px] lg:grid-cols-[300px_minmax(0,1fr)]">
+        <section className="overflow-hidden rounded-[20px] border border-[#dfe7e2] bg-white shadow-sm shadow-navy/5 lg:grid lg:min-h-[640px] lg:grid-cols-[268px_minmax(0,1fr)]">
           <aside className="min-h-0 border-slate-200 lg:border-r">
-            <div className="hidden border-b border-slate-100 px-4 py-3.5 lg:block">
-              <h2 className="text-sm font-bold text-navy">Conversations</h2>
-              <p className="mt-0.5 text-[11px] text-slate-500">
-                Players and event participants
-              </p>
+            <div className="hidden min-h-[60px] items-center border-b border-[#dfe7e2] px-4 lg:flex">
+              <h2 className="text-[15px] font-bold tracking-tight text-navy">
+                Messages
+              </h2>
             </div>
             <ConversationList conversations={result.conversations} />
           </aside>

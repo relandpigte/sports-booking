@@ -138,7 +138,7 @@ export function AppShell({
       <main
         className="min-w-0 flex-1 px-4 pb-8 pt-6 sm:px-6 md:px-8 md:py-10"
       >
-        <div className={`mx-auto w-full ${maxWidth}`}>
+        <div className={`dashboard-content mx-auto w-full ${maxWidth}`}>
           {impersonation && (
             <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
               <div>

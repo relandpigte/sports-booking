@@ -263,20 +263,22 @@ export function MessagesWorkspace({
       : null;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-[#dfe7e2] bg-white shadow-sm shadow-navy/5 lg:grid lg:h-[clamp(620px,calc(100vh-5rem),760px)] lg:grid-cols-[268px_minmax(0,1fr)] xl:grid-cols-[268px_minmax(0,1fr)_248px]">
-      <aside className="hidden min-h-0 border-r border-slate-200 bg-white lg:flex lg:flex-col">
-        <div className="border-b border-slate-100 px-4 py-3.5">
-          <h1 className="text-base font-bold tracking-tight text-navy">Messages</h1>
-          <p className="mt-0.5 text-[11px] text-slate-500">
-            Booking-scoped conversations
-          </p>
+    <div
+      data-dashboard-width="wide"
+      className="overflow-hidden rounded-[20px] border border-[#dfe7e2] bg-white shadow-sm shadow-navy/5 lg:grid lg:h-[calc(100dvh-5rem)] lg:min-h-[640px] lg:grid-cols-[268px_minmax(0,1fr)] xl:grid-cols-[268px_minmax(0,1fr)_260px]"
+    >
+      <aside className="hidden min-h-0 border-r border-[#dfe7e2] bg-white lg:flex lg:flex-col">
+        <div className="flex min-h-[60px] items-center border-b border-[#dfe7e2] px-4">
+          <h1 className="text-[15px] font-bold tracking-tight text-navy">
+            Messages
+          </h1>
         </div>
         <ConversationList conversations={conversations} activeId={conversation.id} />
       </aside>
 
       <section className="flex min-h-[calc(100dvh-7.5rem)] min-w-0 flex-col bg-white lg:min-h-0">
-        <header className="border-b border-slate-100">
-          <div className="flex min-h-[60px] items-center gap-3 px-4 py-2.5 sm:px-5">
+        <header className="border-b border-[#dfe7e2]">
+          <div className="flex min-h-[60px] items-center gap-3 px-4 sm:px-6">
             {conversations.length > 1 && (
               <Link
                 href="/dashboard/messages"
@@ -286,17 +288,12 @@ export function MessagesWorkspace({
                 ←
               </Link>
             )}
-            <Avatar src={conversation.image} name={conversation.title} size={40} />
+            <Avatar src={conversation.image} name={conversation.title} size={32} />
             <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-center gap-2">
-                <h2 className="truncate font-bold text-navy">
-                  {conversation.title}
-                </h2>
-                <span className="hidden shrink-0 rounded-md bg-ocean-soft px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-ocean sm:inline-flex">
-                  {conversation.kind === "EVENT" ? "Event" : "Venue"}
-                </span>
-              </div>
-              <p className="mt-0.5 truncate text-xs text-slate-500">
+              <h2 className="truncate text-sm font-bold text-navy">
+                {conversation.title}
+              </h2>
+              <p className="mt-0.5 truncate text-[10px] text-slate-500">
                 {conversation.subtitle}
               </p>
             </div>
@@ -310,7 +307,7 @@ export function MessagesWorkspace({
                     !conversation.blockedByMe
                   )
                 }
-                className="rounded-lg px-3 py-2 text-xs font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-navy disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-slate-400 transition-colors hover:bg-slate-100 hover:text-navy disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {conversation.blockedByMe
                   ? "Unblock"
@@ -321,7 +318,7 @@ export function MessagesWorkspace({
             )}
           </div>
 
-          <div className="flex items-start gap-3 border-t border-slate-100 bg-slate-50/70 px-4 py-2.5 sm:items-center sm:px-5 xl:hidden">
+          <div className="flex items-start gap-3 border-t border-slate-100 bg-slate-50/70 px-4 py-2.5 sm:items-center sm:px-6 xl:hidden">
             <div
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-sm text-ocean ring-1 ring-slate-200/80"
               aria-hidden="true"
@@ -385,10 +382,10 @@ export function MessagesWorkspace({
         )}
 
         <div
-          className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-[#fbfdfc] px-4 py-4 sm:px-5 sm:py-5"
+          className="messages-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto bg-white px-4 py-5 sm:px-6 sm:py-6"
           aria-live="polite"
         >
-          <div className="mx-auto flex w-full max-w-[720px] flex-1 flex-col">
+          <div className="flex w-full flex-1 flex-col">
             {nextCursor && (
               <div className="mb-4 text-center">
                 <button
@@ -415,7 +412,7 @@ export function MessagesWorkspace({
                 </p>
               </div>
             )}
-            <div className="mt-auto space-y-4">
+            <div className="space-y-6">
               {messages.map((message) =>
                 message.kind === "SYSTEM" ? (
                   <SystemMessage key={message.id} message={message} />
@@ -426,6 +423,7 @@ export function MessagesWorkspace({
                     onEdit={editMessage}
                     onDelete={deleteMessage}
                     onReport={reportMessage}
+                    showSenderName={conversation.kind === "EVENT"}
                   />
                 )
               )}
@@ -436,9 +434,9 @@ export function MessagesWorkspace({
 
         <form
           onSubmit={sendMessage}
-          className="border-t border-slate-100 bg-white px-3 py-2.5 sm:px-5 sm:py-3"
+          className="border-t border-[#dfe7e2] bg-white px-3 py-3 sm:px-6 sm:py-4"
         >
-          <div className="mx-auto w-full max-w-[720px]">
+          <div className="w-full">
             {error && (
               <p className="mb-2 text-xs font-medium text-amber-700">
                 {error}
@@ -451,7 +449,7 @@ export function MessagesWorkspace({
                   : "Your account cannot send messages right now."}
               </p>
             ) : (
-              <div className="flex items-end gap-1.5 rounded-xl border border-slate-200 bg-slate-50 p-1.5 shadow-sm transition focus-within:border-primary focus-within:bg-white focus-within:ring-2 focus-within:ring-primary-soft">
+              <div className="flex items-center gap-2 rounded-xl border border-[#dfe7e2] bg-slate-50 p-1.5 shadow-sm transition focus-within:border-primary focus-within:bg-white focus-within:ring-2 focus-within:ring-primary-soft">
                 <label className="sr-only" htmlFor="message-body">
                   Message
                 </label>
@@ -468,14 +466,16 @@ export function MessagesWorkspace({
                     }
                   }}
                   placeholder="Write a message…"
-                  className="message-composer-input max-h-28 min-h-10 flex-1 resize-y border-0 bg-transparent px-2 py-2 text-[13px] text-navy placeholder:text-slate-400 focus:outline-none"
+                  className="message-composer-input max-h-28 min-h-8 flex-1 resize-y border-0 bg-transparent px-2 py-1.5 text-[13px] text-navy placeholder:text-slate-400 focus:outline-none"
                 />
                 <button
                   type="submit"
                   disabled={sending || !body.trim()}
-                  className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg bg-primary px-4 text-xs font-bold text-white shadow-sm transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
+                  aria-label={sending ? "Sending message" : "Send message"}
+                  title={sending ? "Sending…" : "Send message"}
+                  className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-white shadow-sm transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
                 >
-                  {sending ? "Sending…" : "Send"}
+                  <SendIcon />
                 </button>
               </div>
             )}
@@ -506,7 +506,7 @@ export function ConversationList({
 }) {
   return (
     <nav
-      className="min-h-0 flex-1 overflow-y-auto"
+      className="messages-scrollbar min-h-0 flex-1 overflow-y-auto"
       aria-label="Conversations"
     >
       {conversations.map((item) => (
@@ -514,7 +514,7 @@ export function ConversationList({
           key={item.id}
           href={item.href}
           aria-current={item.id === activeId ? "page" : undefined}
-          className={`relative flex min-h-[68px] gap-3 border-b border-slate-100 px-4 py-3 transition-colors ${
+          className={`relative flex h-[72px] items-center gap-3 border-b border-slate-100 px-4 transition-colors ${
             item.id === activeId ? "bg-primary-soft" : "hover:bg-slate-50"
           }`}
         >
@@ -527,7 +527,9 @@ export function ConversationList({
           <Avatar src={item.image} name={item.title} size={40} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2">
-              <p className="truncate text-sm font-bold text-navy">{item.title}</p>
+              <p className="truncate text-[13px] font-bold text-navy">
+                {item.title}
+              </p>
               {item.unreadCount > 0 ? (
                 <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold text-white">
                   {Math.min(item.unreadCount, 99)}
@@ -539,13 +541,13 @@ export function ConversationList({
               )}
             </div>
             <p
-              className={`mt-0.5 truncate text-xs font-medium ${
+              className={`truncate text-[11px] font-medium ${
                 item.id === activeId ? "text-primary" : "text-slate-500"
               }`}
             >
               {item.subtitle}
             </p>
-            <p className="mt-0.5 truncate text-[11px] text-slate-400">
+            <p className="mt-0.5 truncate text-[11px] text-slate-500">
               {item.lastMessage ?? "No messages yet"}
             </p>
           </div>
@@ -566,72 +568,92 @@ function ConversationContextRail({
 }) {
   return (
     <aside className="hidden min-h-0 flex-col border-l border-[#dfe7e2] bg-[#fcfdfc] xl:flex">
-      <div className="flex min-h-[60px] items-center border-b border-[#dfe7e2] px-4">
-        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
+      <div className="flex min-h-[60px] items-center border-b border-[#dfe7e2] px-5">
+        <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400">
           {conversation.kind === "EVENT" ? "Event context" : "Booking context"}
         </p>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        <div className="flex size-10 items-center justify-center rounded-xl bg-white text-ocean ring-1 ring-[#dfe7e2]">
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            {conversation.kind === "EVENT" ? (
-              <>
-                <path d="M6 4h12v3a6 6 0 0 1-12 0z" />
-                <path d="M9 18h6M10 14v4M14 14v4M8 21h8" />
-              </>
-            ) : (
-              <>
-                <rect x="3" y="4" width="18" height="18" rx="2" />
-                <path d="M16 2v4M8 2v4M3 10h18" />
-              </>
-            )}
-          </svg>
+      <div className="messages-scrollbar min-h-0 flex-1 space-y-8 overflow-y-auto p-5">
+        <div>
+          <div className="flex size-12 items-center justify-center rounded-xl bg-white text-ocean shadow-sm ring-1 ring-[#dfe7e2]">
+            <ContextIcon kind={conversation.kind} />
+          </div>
+
+          <h3 className="mt-4 text-sm font-bold leading-5 text-navy">
+            {conversation.context.title}
+          </h3>
+          <p className="mt-1 text-xs leading-5 text-slate-500">
+            {conversation.context.eyebrow}
+          </p>
         </div>
 
-        <h3 className="mt-3 text-sm font-bold leading-5 text-navy">
-          {conversation.context.title}
-        </h3>
-        <p className="mt-1 text-xs leading-5 text-slate-500">
-          {conversation.context.schedule}
-        </p>
-
-        <dl className="mt-5 space-y-4 border-t border-slate-100 pt-4">
-          <div>
-            <dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
-              Venue
-            </dt>
-            <dd className="mt-1 text-xs leading-5 text-slate-600">
-              {conversation.context.venue}
-            </dd>
-          </div>
-          {conversation.context.note && (
+        <dl className="space-y-4">
+          <div className="flex items-start gap-3">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="mt-0.5 shrink-0 text-slate-400"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 7v5l3 2" />
+            </svg>
             <div>
-              <dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
-                Note
-              </dt>
-              <dd className="mt-1 rounded-lg border border-slate-100 bg-white px-3 py-2 text-[11px] leading-5 text-slate-500">
-                {conversation.context.note}
+              <dt className="text-[11px] font-bold text-navy">Schedule</dt>
+              <dd className="mt-0.5 text-xs leading-5 text-slate-500">
+                {conversation.context.schedule}
               </dd>
             </div>
-          )}
+          </div>
+
+          <div className="flex items-start gap-3">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="mt-0.5 shrink-0 text-slate-400"
+              aria-hidden="true"
+            >
+              <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0z" />
+              <circle cx="12" cy="10" r="2" />
+            </svg>
+            <div>
+              <dt className="text-[11px] font-bold text-navy">Venue</dt>
+              <dd className="mt-0.5 text-xs leading-5 text-slate-500">
+                {conversation.context.venue}
+              </dd>
+            </div>
+          </div>
         </dl>
 
-        <div className="mt-5 border-t border-slate-100 pt-4">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
+        {conversation.context.note && (
+          <div className="rounded-xl border border-slate-100 bg-white p-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Note
+            </p>
+            <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+              {conversation.context.note}
+            </p>
+          </div>
+        )}
+
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
             Participants · {conversation.participants.length}
           </p>
-          <div className="mt-2.5 space-y-2">
+          <div className="mt-3 space-y-2.5">
             {conversation.participants.map((member) => (
               <div key={member.id} className="flex min-w-0 items-center gap-2">
                 <Avatar src={member.image} name={member.name} size={28} />
@@ -671,17 +693,44 @@ function ConversationContextRail({
   );
 }
 
+function ContextIcon({ kind }: { kind: ConversationDetails["kind"] }) {
+  return (
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {kind === "EVENT" ? (
+        <>
+          <path d="M6 4h12v3a6 6 0 0 1-12 0z" />
+          <path d="M9 18h6M10 14v4M14 14v4M8 21h8" />
+        </>
+      ) : (
+        <>
+          <rect x="3" y="4" width="18" height="18" rx="2" />
+          <path d="M16 2v4M8 2v4M3 10h18" />
+        </>
+      )}
+    </svg>
+  );
+}
+
 function SystemMessage({ message }: { message: MessageView }) {
   const content = (
-    <div className="mx-auto flex max-w-md flex-col items-center text-center">
-      <div className="mb-1.5 h-px w-12 bg-slate-200/70" />
-      <p className="text-[11px] font-medium leading-5 text-slate-500">
-        {message.body}
-      </p>
-      <p className="mt-1 text-[9px] font-medium uppercase tracking-[0.12em] text-slate-300">
+    <div className="mx-auto flex max-w-lg flex-col items-center py-2 text-center">
+      <div className="mb-3 h-px w-24 bg-slate-100" />
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
         {formatMessageTime(message.createdAt)}
       </p>
-      <div className="mt-1.5 h-px w-12 bg-slate-200/70" />
+      <p className="mt-1 text-[11px] leading-5 text-slate-500">
+        {message.body}
+      </p>
     </div>
   );
   return message.targetPath ? (
@@ -698,15 +747,17 @@ function UserMessage({
   onEdit,
   onDelete,
   onReport,
+  showSenderName,
 }: {
   message: MessageView;
   onEdit: (message: MessageView) => void;
   onDelete: (message: MessageView) => void;
   onReport: (message: MessageView) => void;
+  showSenderName: boolean;
 }) {
   return (
     <div
-      className={`flex items-start gap-2.5 ${
+      className={`flex items-end gap-3 ${
         message.mine ? "justify-end" : "justify-start"
       }`}
     >
@@ -714,24 +765,24 @@ function UserMessage({
         <Avatar
           src={message.sender?.image}
           name={message.sender?.name}
-          size={30}
+          size={28}
         />
       )}
       <div
-        className={`group flex max-w-[86%] flex-col sm:max-w-[72%] ${
+        className={`group flex max-w-[86%] flex-col sm:max-w-[80%] ${
           message.mine ? "items-end" : "items-start"
         }`}
       >
-        {!message.mine && (
+        {!message.mine && showSenderName && (
           <p className="mb-1 text-[11px] font-semibold text-navy">
             {message.sender?.name ?? "Deleted account"}
           </p>
         )}
         <div
-          className={`rounded-2xl border px-3.5 py-2 text-[13px] leading-5 ${
+          className={`rounded-2xl px-4 py-2.5 text-[13px] leading-[1.6] ${
             message.mine
-              ? "rounded-br-md border-primary bg-primary text-white shadow-sm shadow-primary/10"
-              : "rounded-bl-md border-slate-100 bg-slate-50/80 text-navy"
+              ? "rounded-br-sm bg-primary text-white shadow-sm shadow-primary/10"
+              : "rounded-bl-sm border border-slate-100 bg-slate-50 text-navy"
           }`}
         >
           {message.deletedAt ? (
@@ -779,5 +830,24 @@ function UserMessage({
         </div>
       </div>
     </div>
+  );
+}
+
+function SendIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m22 2-7 20-4-9-9-4Z" />
+      <path d="M22 2 11 13" />
+    </svg>
   );
 }

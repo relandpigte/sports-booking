@@ -86,6 +86,34 @@ body {
   outline: none;
 }
 
+/* Most dashboard pages use the shell's compact work surface. Dense operational
+   workspaces can opt into the wider canvas without changing every other route. */
+.dashboard-content:has([data-dashboard-width="wide"]) {
+  max-width: 1440px;
+}
+
+.messages-scrollbar {
+  scrollbar-color: #e2e8f0 transparent;
+  scrollbar-width: thin;
+}
+
+.messages-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.messages-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.messages-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.messages-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1;
+}
+
 .filter-control {
   min-height: 44px;
   width: 100%;

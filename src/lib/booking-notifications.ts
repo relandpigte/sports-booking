@@ -6,8 +6,8 @@ import {
   sendPlayerBookingConfirmedEmail,
   sendPlayerManualReceiptReceivedEmail,
 } from "@/lib/email";
+import { listOperationalRecipients } from "@/lib/operational-recipients";
 import { appUrl } from "@/lib/urls";
-import { listOperationalRecipients } from "@/lib/staffing";
 
 export async function notifyPartnerOfBooking(input: {
   to: string;

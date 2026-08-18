@@ -1341,20 +1341,23 @@ export async function cancelEventAction(
       data: { status: "CANCELLED", cancelledAt: new Date() },
     }),
     prisma.openPlaySession.updateMany({
-      where: { eventId: event.id, status: { in: ["SETUP", "ACTIVE"] } },
+      where: {
+        queue: { eventId: event.id },
+        status: { in: ["SETUP", "ACTIVE"] },
+      },
       data: { status: "ENDED", endedAt: new Date() },
     }),
     prisma.openPlayGame.updateMany({
       where: {
-        session: { eventId: event.id },
+        session: { queue: { eventId: event.id } },
         status: { in: ["STAGED", "ACTIVE"] },
       },
       data: { status: "CANCELLED", cancelledAt: new Date() },
     }),
     prisma.openPlayParticipant.updateMany({
       where: {
-        session: { eventId: event.id },
-        status: { not: "CHECKED_OUT" },
+        session: { queue: { eventId: event.id } },
+        status: { notIn: ["CHECKED_OUT", "REMOVED"] },
       },
       data: { status: "CHECKED_OUT", queuePosition: null, queuedAt: null },
     }),

@@ -7,7 +7,7 @@ export function OpenPlayLiveRefresh({ publicId }: { publicId: string }) {
   const router = useRouter();
 
   useEffect(() => {
-    const stream = new EventSource(`/api/open-play/${publicId}/stream`);
+    const stream = new EventSource(`/api/bunalq/${publicId}/stream`);
     stream.addEventListener("snapshot", () => router.refresh());
     return () => stream.close();
   }, [publicId, router]);

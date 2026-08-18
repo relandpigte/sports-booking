@@ -46,6 +46,7 @@ const partnerItems: MobileMenuItem[] = [
   { href: "/dashboard/hubs", label: "My Hubs", icon: "hub", staffModule: "hubs" },
   { href: "/dashboard/reports", label: "Reports", icon: "report", staffModule: "reports" },
   { href: "/dashboard/events", label: "Events", icon: "trophy", staffModule: "events" },
+  { href: "/dashboard/bunalq", label: "BunalQ", icon: "booking", staffModule: "openPlay" },
   { href: "/dashboard/payments", label: "Payments", icon: "payment", staffModule: "payments" },
   { href: "/dashboard/team", label: "Team", icon: "account", ownerOnly: true },
   { href: "/dashboard/account", label: "Account", icon: "account" },

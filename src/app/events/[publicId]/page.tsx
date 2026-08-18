@@ -80,12 +80,12 @@ export default async function EventDetailPage({
                   >
                     {event.hub.name}
                   </Link>
-                  {event.sport === "pickleball" ? (
+                  {event.liveQueuePublicId ? (
                     <Link
-                      href={`/events/${event.publicId}/live`}
+                      href={`/q/${event.liveQueuePublicId}`}
                       className="rounded-full bg-primary-soft px-3 py-1 text-xs font-black text-primary hover:bg-accent-soft"
                     >
-                      Live queue
+                      BunalQ live
                     </Link>
                   ) : null}
                 </div>

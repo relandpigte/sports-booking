@@ -69,6 +69,7 @@ export function stubRequestContext(
     stubAdminModule?: boolean;
     workspaceMutationTargetUserId?: string;
     onImpersonatedAction?: (input: Record<string, unknown>) => void;
+    stubPublicRequest?: boolean;
   } = {}
 ): void {
   const req = createRequire(import.meta.url);
@@ -129,4 +130,13 @@ export function stubRequestContext(
     },
     endImpersonationForLogout: async () => undefined,
   });
+  if (options.stubPublicRequest) {
+    put(path.join(root, "src/lib/rate-limit.ts"), {
+      consumeRateLimit: async () => true,
+    });
+    put(path.join(root, "src/lib/security-context.ts"), {
+      getSecurityRequestContext: async () => ({ ipHash: "check-ip" }),
+      hashSecurityToken: (value: string) => value,
+    });
+  }
 }

@@ -30,7 +30,7 @@ const moduleLabels: Record<StaffModule, string> = {
   reports: "Reports",
   messages: "Messages",
   payments: "Payments",
-  openPlay: "Open Play",
+  openPlay: "BunalQ",
 };
 
 type Member = {

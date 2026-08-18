@@ -35,7 +35,7 @@ const labels: Record<StaffModule, { name: string; description: string }> = {
     description: "Checkout mode, PayMongo, and manual payment destinations.",
   },
   openPlay: {
-    name: "Open Play",
+    name: "BunalQ",
     description: "Live attendance, court rotation, matching, and results.",
   },
 };

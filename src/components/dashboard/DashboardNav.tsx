@@ -107,8 +107,8 @@ const items: Item[] = [
     ),
   },
   {
-    href: "/dashboard/open-play",
-    label: "Open Play",
+    href: "/dashboard/bunalq",
+    label: "BunalQ",
     partnerOnly: true,
     staffModule: "openPlay",
     icon: (

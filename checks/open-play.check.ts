@@ -14,8 +14,8 @@ const PLAYER_EMAILS = Array.from(
 );
 
 async function cleanup() {
-  await prisma.openPlaySession.deleteMany({
-    where: { event: { hub: { owner: { email: PARTNER_EMAIL } } } },
+  await prisma.openPlayQueue.deleteMany({
+    where: { hub: { owner: { email: PARTNER_EMAIL } } },
   });
   await prisma.user.deleteMany({
     where: { email: { in: [PARTNER_EMAIL, ...PLAYER_EMAILS] } },
@@ -95,7 +95,7 @@ async function check() {
     select: { id: true, publicId: true },
   });
 
-  stubRequestContext(partner);
+  stubRequestContext(partner, { stubPublicRequest: true });
   const actions = await import("@/lib/open-play-actions");
   const domain = await import("@/lib/open-play");
 
@@ -103,8 +103,8 @@ async function check() {
   prepare.set("publicId", event.publicId);
   const prepared = await actions.prepareOpenPlayAction({}, prepare);
   ok("an active partner can prepare an Event queue", Boolean(prepared.success));
-  const session = await prisma.openPlaySession.findUniqueOrThrow({
-    where: { eventId: event.id },
+  const session = await prisma.openPlaySession.findFirstOrThrow({
+    where: { queue: { eventId: event.id } },
     include: { participants: { orderBy: { createdAt: "asc" } }, courts: true },
   });
   ok("confirmed registrations and organizer guests seed the roster", session.participants.length === 9);
@@ -115,15 +115,15 @@ async function check() {
   ok(
     "preparation is idempotent",
     Boolean(duplicatePrepare.success) &&
-      (await prisma.openPlaySession.count({ where: { eventId: event.id } })) === 1
+      (await prisma.openPlaySession.count({ where: { queue: { eventId: event.id } } })) === 1
   );
 
-  for (const participant of session.participants.slice(0, 8)) {
-    const form = new FormData();
-    form.set("sessionId", session.id);
-    form.set("participantId", participant.id);
-    await actions.checkInOpenPlayParticipantAction({}, form);
-  }
+  const bulkCheckIn = new FormData();
+  bulkCheckIn.set("sessionId", session.id);
+  session.participants.slice(0, 8).forEach((participant) => bulkCheckIn.append("participantId", participant.id));
+  ok("staff can bulk check in eligible players", Boolean((await actions.bulkCheckInOpenPlayParticipantsAction({}, bulkCheckIn)).success));
+  const checkedIn = await prisma.openPlayParticipant.findMany({ where: { sessionId: session.id, status: "QUEUED" } });
+  ok("bulk check-in assigns unique queue positions", new Set(checkedIn.map((player) => player.queuePosition)).size === 8);
   const start = new FormData();
   start.set("sessionId", session.id);
   ok("the queue starts on the Event's Manila date", Boolean((await actions.startOpenPlaySessionAction({}, start)).success));
@@ -205,13 +205,95 @@ async function check() {
       fixed?.find((slot) => slot.participantId === "c")?.team === fixed?.find((slot) => slot.participantId === "d")?.team
   );
 
-  let duplicateSessionRejected = false;
+  const queue = await prisma.openPlayQueue.findUniqueOrThrow({
+    where: { eventId: event.id },
+  });
+  let duplicateQueueRejected = false;
   try {
-    await prisma.openPlaySession.create({ data: { eventId: event.id, createdById: partner.id } });
+    await prisma.openPlayQueue.create({
+      data: {
+        publicId: `duplicate-${event.publicId}`,
+        hubId: hub.id,
+        eventId: event.id,
+        title: "Duplicate",
+        kind: "EVENT",
+        createdById: partner.id,
+      },
+    });
   } catch (error) {
-    duplicateSessionRejected = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+    duplicateQueueRejected = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
   }
-  ok("the database permits only one queue per Event", duplicateSessionRejected);
+  ok("the database permits only one BunalQ room per Event", duplicateQueueRejected);
+
+  const end = new FormData();
+  end.set("sessionId", session.id);
+  ok("an active run can be archived", Boolean((await actions.endOpenPlaySessionAction({}, end)).success));
+  const nextRun = new FormData();
+  nextRun.set("sessionId", session.id);
+  ok("an ended run can create a fresh run", Boolean((await actions.startNewOpenPlayRunAction({}, nextRun)).success));
+  const runs = await prisma.openPlaySession.findMany({
+    where: { queueId: queue.id },
+    orderBy: { runNumber: "asc" },
+    include: { participants: true },
+  });
+  ok("run history is preserved", runs.length === 2 && runs[0].status === "ENDED" && runs[1].runNumber === 2);
+  ok(
+    "the new run copies players with reset attendance",
+    runs[1].participants.length === session.participants.length &&
+      runs[1].participants.every((participant) => participant.status === "NOT_CHECKED_IN")
+  );
+
+  const editPlayer = new FormData();
+  editPlayer.set("sessionId", runs[1].id);
+  editPlayer.set("participantId", runs[1].participants[0].id);
+  editPlayer.set("displayName", "Edited for this run");
+  editPlayer.set("skillLevel", "advanced");
+  ok("staff can edit run-local player details", Boolean((await actions.editOpenPlayParticipantAction({}, editPlayer)).success));
+  const removePlayer = new FormData();
+  removePlayer.set("sessionId", runs[1].id);
+  removePlayer.set("participantId", runs[1].participants[1].id);
+  ok("staff can soft-remove an inactive player", Boolean((await actions.removeOpenPlayParticipantAction({}, removePlayer)).success));
+  ok("soft removal keeps the participant row", (await prisma.openPlayParticipant.findUniqueOrThrow({ where: { id: runs[1].participants[1].id } })).status === "REMOVED");
+
+  const quickPublicId = `quick-${partner.id}`;
+  const quickSession = await prisma.openPlaySession.create({
+    data: {
+      queue: {
+        create: {
+          publicId: quickPublicId,
+          hubId: hub.id,
+          title: "Public Quick Queue",
+          kind: "QUICK",
+          admissionMode: "APPROVAL_REQUIRED",
+          createdById: partner.id,
+        },
+      },
+      status: "ACTIVE",
+      startedAt: new Date(),
+      createdById: partner.id,
+      courts: { create: { courtId: hub.courts[0].id, position: 0 } },
+    },
+  });
+  const publicJoin = new FormData();
+  publicJoin.set("publicId", quickPublicId);
+  publicJoin.set("displayName", "Public Guest");
+  publicJoin.set("skillLevel", "beginner");
+  ok("a public guest can request Quick Queue access without an account", Boolean((await actions.joinPublicQueueAction({}, publicJoin)).success));
+  const pendingGuest = await prisma.openPlayParticipant.findFirstOrThrow({ where: { sessionId: quickSession.id, source: "PUBLIC_GUEST" } });
+  ok("approval mode keeps the guest pending", pendingGuest.status === "PENDING_APPROVAL");
+  const hiddenSnapshot = await domain.getPublicOpenPlaySnapshot(quickPublicId);
+  ok("pending guest identities are hidden from the public board", hiddenSnapshot?.participants.length === 0);
+  const approveGuest = new FormData();
+  approveGuest.set("sessionId", quickSession.id);
+  approveGuest.set("participantId", pendingGuest.id);
+  ok("staff can approve and check in a pending guest", Boolean((await actions.approvePublicQueueGuestAction({}, approveGuest)).success));
+  ok("approved guests appear in the public queue", (await domain.getPublicOpenPlaySnapshot(quickPublicId))?.participants.length === 1);
+
+  const eventPublicJoin = new FormData();
+  eventPublicJoin.set("publicId", queue.publicId);
+  eventPublicJoin.set("displayName", "Payment Bypass");
+  eventPublicJoin.set("skillLevel", "intermediate");
+  ok("public self-join cannot bypass Event registration", Boolean((await actions.joinPublicQueueAction({}, eventPublicJoin)).message));
 
   const eventActions = await import("@/lib/event-actions");
   const cancel = new FormData();
@@ -219,15 +301,15 @@ async function check() {
   cancel.set("reason", "Venue closed for the day.");
   cancel.set("refund", "none");
   ok("Event cancellation succeeds with a prepared queue", Boolean((await eventActions.cancelEventAction({}, cancel)).success));
-  const cancelledSession = await prisma.openPlaySession.findUniqueOrThrow({
-    where: { id: session.id },
+  const cancelledRuns = await prisma.openPlaySession.findMany({
+    where: { queueId: queue.id },
     include: { participants: true, games: true },
   });
   ok(
     "Event cancellation ends live operations without deleting history",
-    cancelledSession.status === "ENDED" &&
-      cancelledSession.participants.every((participant) => participant.status === "CHECKED_OUT") &&
-      cancelledSession.games.some((game) => game.status === "COMPLETED")
+    cancelledRuns.every((run) => run.status === "ENDED") &&
+      cancelledRuns.flatMap((run) => run.participants).every((participant) => ["CHECKED_OUT", "REMOVED"].includes(participant.status)) &&
+      cancelledRuns.flatMap((run) => run.games).some((game) => game.status === "COMPLETED")
   );
 }
 

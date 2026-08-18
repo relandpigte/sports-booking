@@ -45,6 +45,7 @@ export type PublicEventView = {
   waitlistedCount: number;
   remainingSpots: number;
   full: boolean;
+  liveQueuePublicId: string | null;
   hub: {
     id: string;
     slug: string | null;
@@ -304,6 +305,7 @@ const eventSelect = {
     },
     orderBy: { createdAt: "asc" },
   },
+  openPlayQueue: { select: { publicId: true } },
 } as const;
 
 type EventRow = Prisma.EventGetPayload<{ select: typeof eventSelect }>;
@@ -374,6 +376,7 @@ function mapPublicEvent(row: EventRow, now = new Date()): PublicEventView {
     waitlistedCount: counts.waitlisted.length,
     remainingSpots: counts.remaining,
     full: counts.full,
+    liveQueuePublicId: row.openPlayQueue?.publicId ?? null,
     hub: {
       id: row.hub.id,
       slug: row.hub.slug,

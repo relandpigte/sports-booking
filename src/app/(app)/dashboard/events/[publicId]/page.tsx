@@ -254,10 +254,10 @@ export default async function PartnerEventDetailsPage({
         </Link>
         {canUseOpenPlay && event.sport === "pickleball" && event.status !== "DRAFT" ? (
           <Link
-            href={`/dashboard/events/${event.publicId}/open-play`}
+            href={`/dashboard/events/${event.publicId}/bunalq`}
             className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white hover:bg-primary-hover"
           >
-            Open Play console
+            BunalQ console
           </Link>
         ) : null}
       </div>

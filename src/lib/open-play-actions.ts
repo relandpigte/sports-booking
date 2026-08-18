@@ -1,14 +1,19 @@
 "use server";
 
+import crypto from "node:crypto";
 import {
+  type OpenPlayAdmissionMode,
   type OpenPlayMatchingMode,
   Prisma,
 } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { DEFAULT_SKILL_LEVEL, SKILL_LEVELS } from "@/lib/constants";
 import { prisma } from "@/lib/db";
+import { consumeRateLimit } from "@/lib/rate-limit";
+import { getSecurityRequestContext } from "@/lib/security-context";
 import { manilaToday } from "@/lib/time";
 import {
   canTransitionParticipant,
@@ -34,14 +39,37 @@ const walkInSchema = z.object({
   displayName: z.string().trim().min(1).max(120),
   skillLevel: z.enum(skillValues),
 });
+const quickQueueSchema = z.object({
+  hubId: idSchema,
+  title: z.string().trim().min(2).max(120),
+  matchingMode: z.enum(OPEN_PLAY_MODES as [OpenPlayMatchingMode, ...OpenPlayMatchingMode[]]),
+  admissionMode: z.enum(["APPROVAL_REQUIRED", "INSTANT"]),
+  courtIds: z.array(idSchema).min(1).max(12),
+});
+const participantEditSchema = z.object({
+  sessionId: idSchema,
+  participantId: idSchema,
+  displayName: z.string().trim().min(1).max(120),
+  skillLevel: z.enum(skillValues),
+});
+const publicJoinSchema = z.object({
+  publicId: publicIdSchema,
+  displayName: z.string().trim().min(1).max(120),
+  skillLevel: z.enum(skillValues),
+});
 
 type Tx = Prisma.TransactionClient;
 
-function refresh(publicId: string) {
-  revalidatePath(`/dashboard/events/${publicId}`);
-  revalidatePath(`/dashboard/events/${publicId}/open-play`);
-  revalidatePath(`/events/${publicId}/live`);
-  revalidatePath("/dashboard/open-play");
+function refresh(queuePublicId: string, eventPublicId?: string | null) {
+  revalidatePath(`/dashboard/bunalq/${queuePublicId}`);
+  revalidatePath(`/q/${queuePublicId}`);
+  revalidatePath("/dashboard/bunalq");
+  if (eventPublicId) {
+    revalidatePath(`/dashboard/events/${eventPublicId}`);
+    revalidatePath(`/dashboard/events/${eventPublicId}/bunalq`);
+    revalidatePath(`/dashboard/events/${eventPublicId}/open-play`);
+    revalidatePath(`/events/${eventPublicId}/live`);
+  }
 }
 
 async function workspaceForManage(): Promise<PartnerWorkspace | null> {
@@ -53,8 +81,16 @@ async function ownedSession(
   workspace: PartnerWorkspace
 ) {
   return prisma.openPlaySession.findFirst({
-    where: { id: sessionId, event: { hub: { ownerId: workspace.partnerId } } },
-    select: { id: true, event: { select: { publicId: true } } },
+    where: { id: sessionId, queue: { hub: { ownerId: workspace.partnerId } } },
+    select: {
+      id: true,
+      queue: {
+        select: {
+          publicId: true,
+          event: { select: { publicId: true } },
+        },
+      },
+    },
   });
 }
 
@@ -65,14 +101,18 @@ async function lockSession(tx: Tx, sessionId: string) {
   return tx.openPlaySession.findUnique({
     where: { id: sessionId },
     include: {
-      event: {
-        select: {
-          id: true,
-          publicId: true,
-          date: true,
-          sport: true,
-          status: true,
-          hub: { select: { ownerId: true } },
+      queue: {
+        include: {
+          hub: { select: { id: true, ownerId: true } },
+          event: {
+            select: {
+              id: true,
+              publicId: true,
+              date: true,
+              sport: true,
+              status: true,
+            },
+          },
         },
       },
       courts: true,
@@ -199,7 +239,7 @@ export async function prepareOpenPlayAction(
   formData: FormData
 ): Promise<OpenPlayActionState> {
   const workspace = await workspaceForManage();
-  if (!workspace) return { message: "Open Play manage access is required." };
+  if (!workspace) return { message: "BunalQ manage access is required." };
   const parsed = publicIdSchema.safeParse(String(formData.get("publicId") ?? ""));
   if (!parsed.success) return { message: "Event not found." };
 
@@ -215,7 +255,17 @@ export async function prepareOpenPlayAction(
     const event = await tx.event.findUnique({
       where: { id: ownedEvent.id },
       include: {
-        openPlaySession: { select: { id: true } },
+        openPlayQueue: {
+          select: {
+            id: true,
+            publicId: true,
+            sessions: {
+              orderBy: { runNumber: "desc" },
+              take: 1,
+              select: { id: true },
+            },
+          },
+        },
         courts: { include: { court: { select: { id: true, createdAt: true } } } },
       },
     });
@@ -223,14 +273,32 @@ export async function prepareOpenPlayAction(
     if (event.status !== "PUBLISHED" || event.sport !== "pickleball") {
       return { kind: "unavailable" as const };
     }
-    let sessionId = event.openPlaySession?.id;
+    let queueId = event.openPlayQueue?.id;
+    let queuePublicId = event.openPlayQueue?.publicId;
+    let sessionId = event.openPlayQueue?.sessions[0]?.id;
+    if (!queueId) {
+      const queue = await tx.openPlayQueue.create({
+        data: {
+          publicId: crypto.randomBytes(12).toString("base64url"),
+          hubId: event.hubId,
+          eventId: event.id,
+          title: event.title,
+          kind: "EVENT",
+          createdById: workspace.actorId,
+        },
+        select: { id: true, publicId: true },
+      });
+      queueId = queue.id;
+      queuePublicId = queue.publicId;
+    }
     if (!sessionId) {
       const courts = [...event.courts].sort(
         (left, right) => left.court.createdAt.getTime() - right.court.createdAt.getTime()
       );
       const session = await tx.openPlaySession.create({
         data: {
-          eventId: event.id,
+          queueId,
+          runNumber: 1,
           createdById: workspace.actorId,
           courts: {
             create: courts.map((row, position) => ({
@@ -244,15 +312,20 @@ export async function prepareOpenPlayAction(
       sessionId = session.id;
     }
     await syncRosterRows(tx, sessionId, event.id);
-    return { kind: "ready" as const, sessionId };
+    return {
+      kind: "ready" as const,
+      sessionId,
+      queuePublicId: queuePublicId!,
+      eventPublicId: event.publicId,
+    };
   });
   if (result.kind === "missing") return { message: "Event not found." };
   if (result.kind === "unavailable") {
-    return { message: "Open Play requires a published pickleball event." };
+    return { message: "BunalQ requires a published pickleball Event." };
   }
   await audit(workspace, "OPEN_PLAY_PREPARED", result.sessionId);
-  refresh(parsed.data);
-  return { success: "Open Play is ready." };
+  refresh(result.queuePublicId, result.eventPublicId);
+  return { success: "BunalQ is ready." };
 }
 
 export async function syncOpenPlayRosterAction(
@@ -260,19 +333,20 @@ export async function syncOpenPlayRosterAction(
   formData: FormData
 ): Promise<OpenPlayActionState> {
   const workspace = await workspaceForManage();
-  if (!workspace) return { message: "Open Play manage access is required." };
+  if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const owned = await ownedSession(sessionId, workspace);
-  if (!owned) return { message: "Open Play session not found." };
+  if (!owned) return { message: "BunalQ run not found." };
   await prisma.$transaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.status === "ENDED") throw new Error("SESSION_ENDED");
-    await syncRosterRows(tx, session.id, session.event.id);
+    if (!session.queue.event) throw new Error("EVENT_REQUIRED");
+    await syncRosterRows(tx, session.id, session.queue.event.id);
   }).catch((error) => {
     if (error instanceof Error && error.message === "SESSION_ENDED") return;
     throw error;
   });
-  refresh(owned.event.publicId);
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
   return { success: "Roster refreshed." };
 }
 
@@ -281,7 +355,7 @@ export async function addOpenPlayWalkInAction(
   formData: FormData
 ): Promise<OpenPlayActionState> {
   const workspace = await workspaceForManage();
-  if (!workspace) return { message: "Open Play manage access is required." };
+  if (!workspace) return { message: "BunalQ manage access is required." };
   const parsed = walkInSchema.safeParse({
     sessionId: String(formData.get("sessionId") ?? ""),
     publicId: String(formData.get("publicId") ?? ""),
@@ -290,7 +364,7 @@ export async function addOpenPlayWalkInAction(
   });
   if (!parsed.success) return { message: "Enter a name and skill level." };
   const owned = await ownedSession(parsed.data.sessionId, workspace);
-  if (!owned) return { message: "Open Play session not found." };
+  if (!owned) return { message: "BunalQ run not found." };
   const participant = await prisma.$transaction(async (tx) => {
     const session = await lockSession(tx, parsed.data.sessionId);
     if (!session || session.status === "ENDED") return null;
@@ -308,7 +382,7 @@ export async function addOpenPlayWalkInAction(
   await audit(workspace, "OPEN_PLAY_WALK_IN_ADDED", parsed.data.sessionId, {
     participantId: participant.id,
   });
-  refresh(owned.event.publicId);
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
   return { success: `${parsed.data.displayName} was added.` };
 }
 
@@ -320,8 +394,8 @@ async function participantTransition(
 ) {
   return prisma.$transaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
-    if (!session || session.status === "ENDED" || session.event.hub.ownerId !== workspace.partnerId) {
-      return { message: "Open Play session not found or ended." };
+    if (!session || session.status === "ENDED" || session.queue.hub.ownerId !== workspace.partnerId) {
+      return { message: "BunalQ run not found or ended." };
     }
     const participant = await tx.openPlayParticipant.findFirst({
       where: { id: participantId, sessionId },
@@ -355,7 +429,10 @@ async function participantTransition(
         },
       });
     }
-    return { publicId: session.event.publicId };
+    return {
+      queuePublicId: session.queue.publicId,
+      eventPublicId: session.queue.event?.publicId ?? null,
+    };
   });
 }
 
@@ -364,14 +441,14 @@ async function transitionAction(
   operation: "CHECK_IN" | "PAUSE" | "RESUME" | "CHECK_OUT"
 ): Promise<OpenPlayActionState> {
   const workspace = await workspaceForManage();
-  if (!workspace) return { message: "Open Play manage access is required." };
+  if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const participantId = String(formData.get("participantId") ?? "");
   if (!sessionId || !participantId) return { message: "Player not found." };
   const result = await participantTransition(workspace, sessionId, participantId, operation);
   if ("message" in result) return result;
   await audit(workspace, `OPEN_PLAY_${operation}`, sessionId, { participantId });
-  refresh(result.publicId);
+  refresh(result.queuePublicId, result.eventPublicId);
   return { success: "Player updated." };
 }
 
@@ -397,15 +474,20 @@ export async function startOpenPlaySessionAction(
   formData: FormData
 ): Promise<OpenPlayActionState> {
   const workspace = await workspaceForManage();
-  if (!workspace) return { message: "Open Play manage access is required." };
+  if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const owned = await ownedSession(sessionId, workspace);
-  if (!owned) return { message: "Open Play session not found." };
+  if (!owned) return { message: "BunalQ run not found." };
   const result = await prisma.$transaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
-    if (!session || session.event.hub.ownerId !== workspace.partnerId) return "missing";
+    if (!session || session.queue.hub.ownerId !== workspace.partnerId) return "missing";
     if (session.status !== "SETUP") return "state";
-    if (session.event.status !== "PUBLISHED" || session.event.date !== manilaToday()) return "date";
+    if (
+      session.queue.kind === "EVENT" &&
+      (!session.queue.event ||
+        session.queue.event.status !== "PUBLISHED" ||
+        session.queue.event.date !== manilaToday())
+    ) return "date";
     await tx.openPlaySession.update({
       where: { id: session.id },
       data: { status: "ACTIVE", startedAt: new Date() },
@@ -415,8 +497,8 @@ export async function startOpenPlaySessionAction(
   if (result === "date") return { message: "The session can start only on the published Event date." };
   if (result !== "started") return { message: "The session cannot be started." };
   await audit(workspace, "OPEN_PLAY_STARTED", sessionId);
-  refresh(owned.event.publicId);
-  return { success: "Open Play started." };
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
+  return { success: "BunalQ run started." };
 }
 
 export async function changeOpenPlayModeAction(
@@ -424,12 +506,12 @@ export async function changeOpenPlayModeAction(
   formData: FormData
 ): Promise<OpenPlayActionState> {
   const workspace = await workspaceForManage();
-  if (!workspace) return { message: "Open Play manage access is required." };
+  if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const mode = String(formData.get("mode") ?? "") as OpenPlayMatchingMode;
   if (!OPEN_PLAY_MODES.includes(mode)) return { message: "Choose a valid matching mode." };
   const owned = await ownedSession(sessionId, workspace);
-  if (!owned) return { message: "Open Play session not found." };
+  if (!owned) return { message: "BunalQ run not found." };
   const changed = await prisma.$transaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.status === "ENDED") return false;
@@ -438,7 +520,7 @@ export async function changeOpenPlayModeAction(
   });
   if (!changed) return { message: "This session has ended." };
   await audit(workspace, "OPEN_PLAY_MODE_CHANGED", sessionId, { mode });
-  refresh(owned.event.publicId);
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
   return { success: "Matching mode updated." };
 }
 
@@ -447,7 +529,7 @@ export async function pairOpenPlayParticipantsAction(
   formData: FormData
 ): Promise<OpenPlayActionState> {
   const workspace = await workspaceForManage();
-  if (!workspace) return { message: "Open Play manage access is required." };
+  if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const firstId = String(formData.get("firstId") ?? "");
   const secondId = String(formData.get("secondId") ?? "");
@@ -455,7 +537,7 @@ export async function pairOpenPlayParticipantsAction(
     return { message: "Choose two different players." };
   }
   const owned = await ownedSession(sessionId, workspace);
-  if (!owned) return { message: "Open Play session not found." };
+  if (!owned) return { message: "BunalQ run not found." };
   const result = await prisma.$transaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.status === "ENDED") return false;
@@ -482,7 +564,7 @@ export async function pairOpenPlayParticipantsAction(
   });
   if (!result) return { message: "Those players cannot be paired right now." };
   await audit(workspace, "OPEN_PLAY_PAIR_CREATED", sessionId, { firstId, secondId });
-  refresh(owned.event.publicId);
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
   return { success: "Fixed partners saved." };
 }
 
@@ -491,11 +573,11 @@ export async function unpairOpenPlayParticipantsAction(
   formData: FormData
 ): Promise<OpenPlayActionState> {
   const workspace = await workspaceForManage();
-  if (!workspace) return { message: "Open Play manage access is required." };
+  if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const pairId = String(formData.get("pairId") ?? "");
   const owned = await ownedSession(sessionId, workspace);
-  if (!owned) return { message: "Open Play session not found." };
+  if (!owned) return { message: "BunalQ run not found." };
   await prisma.$transaction(async (tx) => {
     await lockSession(tx, sessionId);
     const pair = await tx.openPlayPair.findFirst({ where: { id: pairId, sessionId } });
@@ -503,7 +585,7 @@ export async function unpairOpenPlayParticipantsAction(
     await tx.openPlayParticipant.updateMany({ where: { sessionId, pairId }, data: { pairId: null } });
     await tx.openPlayPair.delete({ where: { id: pairId } });
   });
-  refresh(owned.event.publicId);
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
   return { success: "Pair removed." };
 }
 
@@ -512,12 +594,12 @@ export async function toggleOpenPlayCourtAction(
   formData: FormData
 ): Promise<OpenPlayActionState> {
   const workspace = await workspaceForManage();
-  if (!workspace) return { message: "Open Play manage access is required." };
+  if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const courtId = String(formData.get("courtId") ?? "");
   const active = String(formData.get("active") ?? "") === "true";
   const owned = await ownedSession(sessionId, workspace);
-  if (!owned) return { message: "Open Play session not found." };
+  if (!owned) return { message: "BunalQ run not found." };
   const result = await prisma.$transaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.status === "ENDED") return "ended";
@@ -537,7 +619,7 @@ export async function toggleOpenPlayCourtAction(
   });
   if (result === "occupied") return { message: "Finish or clear this court's match before pausing it." };
   if (result !== "updated") return { message: "Court cannot be updated." };
-  refresh(owned.event.publicId);
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
   return { success: active ? "Court resumed." : "Court paused." };
 }
 
@@ -563,11 +645,11 @@ export async function stageOpenPlayMatchAction(
   formData: FormData
 ): Promise<OpenPlayActionState> {
   const workspace = await workspaceForManage();
-  if (!workspace) return { message: "Open Play manage access is required." };
+  if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const courtId = String(formData.get("courtId") ?? "");
   const owned = await ownedSession(sessionId, workspace);
-  if (!owned) return { message: "Open Play session not found." };
+  if (!owned) return { message: "BunalQ run not found." };
   const result = await prisma.$transaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.status !== "ACTIVE") return { kind: "inactive" as const };
@@ -619,7 +701,7 @@ export async function stageOpenPlayMatchAction(
   if (result.kind === "occupied") return { message: "This court already has a match." };
   if (result.kind !== "staged") return { message: "A match cannot be staged on this court." };
   await audit(workspace, "OPEN_PLAY_MATCH_STAGED", sessionId, { gameId: result.gameId });
-  refresh(owned.event.publicId);
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
   return { success: "Up Next match staged." };
 }
 
@@ -628,11 +710,11 @@ export async function startOpenPlayMatchAction(
   formData: FormData
 ): Promise<OpenPlayActionState> {
   const workspace = await workspaceForManage();
-  if (!workspace) return { message: "Open Play manage access is required." };
+  if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const gameId = String(formData.get("gameId") ?? "");
   const owned = await ownedSession(sessionId, workspace);
-  if (!owned) return { message: "Open Play session not found." };
+  if (!owned) return { message: "BunalQ run not found." };
   const started = await prisma.$transaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.status !== "ACTIVE") return false;
@@ -649,7 +731,7 @@ export async function startOpenPlayMatchAction(
     return true;
   });
   if (!started) return { message: "This match cannot be started." };
-  refresh(owned.event.publicId);
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
   return { success: "Match started." };
 }
 
@@ -658,7 +740,7 @@ export async function editStagedOpenPlayMatchAction(
   formData: FormData
 ): Promise<OpenPlayActionState> {
   const workspace = await workspaceForManage();
-  if (!workspace) return { message: "Open Play manage access is required." };
+  if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const gameId = String(formData.get("gameId") ?? "");
   const participantIds = [1, 2, 3, 4].map((slot) =>
@@ -668,7 +750,7 @@ export async function editStagedOpenPlayMatchAction(
     return { message: "Choose four different eligible players." };
   }
   const owned = await ownedSession(sessionId, workspace);
-  if (!owned) return { message: "Open Play session not found." };
+  if (!owned) return { message: "BunalQ run not found." };
   const edited = await prisma.$transaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.status !== "ACTIVE") return false;
@@ -733,7 +815,7 @@ export async function editStagedOpenPlayMatchAction(
   });
   if (!edited) return { message: "The staged match could not be edited." };
   await audit(workspace, "OPEN_PLAY_MATCH_EDITED", sessionId, { gameId });
-  refresh(owned.event.publicId);
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
   return { success: "Up Next teams updated." };
 }
 
@@ -742,13 +824,13 @@ export async function recordOpenPlayWinnerAction(
   formData: FormData
 ): Promise<OpenPlayActionState> {
   const workspace = await workspaceForManage();
-  if (!workspace) return { message: "Open Play manage access is required." };
+  if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const gameId = String(formData.get("gameId") ?? "");
   const winningTeam = Number(formData.get("winningTeam"));
   if (winningTeam !== 1 && winningTeam !== 2) return { message: "Choose the winning team." };
   const owned = await ownedSession(sessionId, workspace);
-  if (!owned) return { message: "Open Play session not found." };
+  if (!owned) return { message: "BunalQ run not found." };
   const completed = await prisma.$transaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.status !== "ACTIVE") return false;
@@ -779,7 +861,7 @@ export async function recordOpenPlayWinnerAction(
   });
   if (!completed) return { message: "This result was already recorded or the match is unavailable." };
   await audit(workspace, "OPEN_PLAY_RESULT_RECORDED", sessionId, { gameId, winningTeam });
-  refresh(owned.event.publicId);
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
   return { success: "Winner recorded." };
 }
 
@@ -788,11 +870,11 @@ export async function undoOpenPlayResultAction(
   formData: FormData
 ): Promise<OpenPlayActionState> {
   const workspace = await workspaceForManage();
-  if (!workspace) return { message: "Open Play manage access is required." };
+  if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const gameId = String(formData.get("gameId") ?? "");
   const owned = await ownedSession(sessionId, workspace);
-  if (!owned) return { message: "Open Play session not found." };
+  if (!owned) return { message: "BunalQ run not found." };
   const undone = await prisma.$transaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.status !== "ACTIVE") return false;
@@ -850,7 +932,7 @@ export async function undoOpenPlayResultAction(
   });
   if (!undone) return { message: "This result can no longer be undone." };
   await audit(workspace, "OPEN_PLAY_RESULT_UNDONE", sessionId, { gameId });
-  refresh(owned.event.publicId);
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
   return { success: "Result undone; the match is active again." };
 }
 
@@ -859,10 +941,10 @@ export async function endOpenPlaySessionAction(
   formData: FormData
 ): Promise<OpenPlayActionState> {
   const workspace = await workspaceForManage();
-  if (!workspace) return { message: "Open Play manage access is required." };
+  if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const owned = await ownedSession(sessionId, workspace);
-  if (!owned) return { message: "Open Play session not found." };
+  if (!owned) return { message: "BunalQ run not found." };
   const ended = await prisma.$transaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.status === "ENDED") return false;
@@ -882,6 +964,437 @@ export async function endOpenPlaySessionAction(
   });
   if (!ended) return { message: "This session has already ended." };
   await audit(workspace, "OPEN_PLAY_ENDED", sessionId);
-  refresh(owned.event.publicId);
-  return { success: "Open Play ended." };
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
+  return { success: "BunalQ run ended." };
+}
+
+export async function createQuickQueueAction(
+  _previous: OpenPlayActionState,
+  formData: FormData
+): Promise<OpenPlayActionState> {
+  const workspace = await workspaceForManage();
+  if (!workspace) return { message: "BunalQ manage access is required." };
+  const parsed = quickQueueSchema.safeParse({
+    hubId: String(formData.get("hubId") ?? ""),
+    title: String(formData.get("title") ?? ""),
+    matchingMode: String(formData.get("matchingMode") ?? "BALANCED"),
+    admissionMode: String(formData.get("admissionMode") ?? "APPROVAL_REQUIRED"),
+    courtIds: [...new Set(formData.getAll("courtId").map(String))],
+  });
+  if (!parsed.success) {
+    return { message: "Choose a hub, at least one court, and a queue name." };
+  }
+  const hub = await prisma.hub.findFirst({
+    where: { id: parsed.data.hubId, ownerId: workspace.partnerId },
+    select: {
+      id: true,
+      courts: {
+        where: { id: { in: parsed.data.courtIds } },
+        orderBy: { createdAt: "asc" },
+        select: { id: true },
+      },
+    },
+  });
+  if (!hub || hub.courts.length !== parsed.data.courtIds.length) {
+    return { message: "One or more selected courts are unavailable." };
+  }
+  const publicId = crypto.randomBytes(12).toString("base64url");
+  const session = await prisma.openPlaySession.create({
+    data: {
+      queue: {
+        create: {
+          publicId,
+          hubId: hub.id,
+          title: parsed.data.title,
+          kind: "QUICK",
+          admissionMode: parsed.data.admissionMode,
+          createdById: workspace.actorId,
+        },
+      },
+      runNumber: 1,
+      status: "ACTIVE",
+      matchingMode: parsed.data.matchingMode,
+      createdById: workspace.actorId,
+      startedAt: new Date(),
+      courts: {
+        create: hub.courts.map((court, position) => ({
+          courtId: court.id,
+          position,
+        })),
+      },
+    },
+    select: { id: true },
+  });
+  await audit(workspace, "BUNALQ_QUICK_CREATED", session.id, { publicId });
+  refresh(publicId);
+  redirect(`/dashboard/bunalq/${publicId}`);
+}
+
+export async function changeQueueAdmissionModeAction(
+  _previous: OpenPlayActionState,
+  formData: FormData
+): Promise<OpenPlayActionState> {
+  const workspace = await workspaceForManage();
+  if (!workspace) return { message: "BunalQ manage access is required." };
+  const sessionId = String(formData.get("sessionId") ?? "");
+  const admissionMode = String(formData.get("admissionMode") ?? "") as OpenPlayAdmissionMode;
+  if (!["APPROVAL_REQUIRED", "INSTANT"].includes(admissionMode)) {
+    return { message: "Choose a valid guest admission mode." };
+  }
+  const owned = await ownedSession(sessionId, workspace);
+  if (!owned) return { message: "BunalQ run not found." };
+  const updated = await prisma.openPlayQueue.updateMany({
+    where: {
+      publicId: owned.queue.publicId,
+      kind: "QUICK",
+      hub: { ownerId: workspace.partnerId },
+    },
+    data: { admissionMode },
+  });
+  if (updated.count !== 1) {
+    return { message: "Guest self-join is available only for Quick Queues." };
+  }
+  await audit(workspace, "BUNALQ_ADMISSION_CHANGED", sessionId, { admissionMode });
+  refresh(owned.queue.publicId);
+  return { success: "Guest admission updated." };
+}
+
+export async function joinPublicQueueAction(
+  _previous: OpenPlayActionState,
+  formData: FormData
+): Promise<OpenPlayActionState> {
+  const parsed = publicJoinSchema.safeParse({
+    publicId: String(formData.get("publicId") ?? ""),
+    displayName: String(formData.get("displayName") ?? ""),
+    skillLevel: String(formData.get("skillLevel") ?? DEFAULT_SKILL_LEVEL),
+  });
+  if (!parsed.success) return { message: "Enter your name and skill level." };
+  const context = await getSecurityRequestContext();
+  if (!(await consumeRateLimit({
+    namespace: "bunalq-public-join",
+    subject: `${parsed.data.publicId}:${context.ipHash}`,
+    limit: 8,
+    windowSeconds: 10 * 60,
+    blockSeconds: 15 * 60,
+  }))) {
+    return { message: "Too many join attempts. Ask the organizer for help." };
+  }
+  const result = await prisma.$transaction(async (tx) => {
+    const queue = await tx.openPlayQueue.findUnique({
+      where: { publicId: parsed.data.publicId },
+      select: {
+        id: true,
+        kind: true,
+        admissionMode: true,
+        hub: { select: { ownerId: true } },
+        sessions: {
+          orderBy: { runNumber: "desc" },
+          take: 1,
+          select: { id: true, status: true },
+        },
+      },
+    });
+    const current = queue?.sessions[0];
+    if (!queue || queue.kind !== "QUICK" || !current || current.status !== "ACTIVE") {
+      return { kind: "closed" as const };
+    }
+    await lockSession(tx, current.id);
+    const rosterCount = await tx.openPlayParticipant.count({
+      where: { sessionId: current.id, status: { not: "REMOVED" } },
+    });
+    if (rosterCount >= 100) return { kind: "full" as const };
+    let queuePosition: number | null = null;
+    if (queue.admissionMode === "INSTANT") {
+      const session = await tx.openPlaySession.update({
+        where: { id: current.id },
+        data: { nextQueuePosition: { increment: 1 } },
+        select: { nextQueuePosition: true },
+      });
+      queuePosition = session.nextQueuePosition;
+    }
+    const participant = await tx.openPlayParticipant.create({
+      data: {
+        sessionId: current.id,
+        source: "PUBLIC_GUEST",
+        displayName: parsed.data.displayName,
+        skillLevel: parsed.data.skillLevel,
+        status: queue.admissionMode === "INSTANT" ? "QUEUED" : "PENDING_APPROVAL",
+        queuePosition,
+        checkedInAt: queuePosition ? new Date() : null,
+        queuedAt: queuePosition ? new Date() : null,
+      },
+      select: { id: true },
+    });
+    await tx.partnerStaffActivity.create({
+      data: {
+        partnerId: queue.hub.ownerId,
+        actorId: null,
+        action: "BUNALQ_PUBLIC_GUEST_SUBMITTED",
+        targetType: "OpenPlayParticipant",
+        targetId: participant.id,
+        metadata: { admissionMode: queue.admissionMode },
+      },
+    });
+    return { kind: "joined" as const, admissionMode: queue.admissionMode };
+  });
+  if (result.kind === "closed") return { message: "This Quick Queue is not accepting players." };
+  if (result.kind === "full") return { message: "This Quick Queue has reached its roster limit." };
+  refresh(parsed.data.publicId);
+  return result.admissionMode === "INSTANT"
+    ? { success: "You are in the queue." }
+    : { success: "Request sent. The organizer will approve your check-in." };
+}
+
+async function moderatePendingGuest(
+  formData: FormData,
+  operation: "APPROVE" | "REJECT"
+): Promise<OpenPlayActionState> {
+  const workspace = await workspaceForManage();
+  if (!workspace) return { message: "BunalQ manage access is required." };
+  const sessionId = String(formData.get("sessionId") ?? "");
+  const participantId = String(formData.get("participantId") ?? "");
+  const owned = await ownedSession(sessionId, workspace);
+  if (!owned || !participantId) return { message: "Guest request not found." };
+  const changed = await prisma.$transaction(async (tx) => {
+    const session = await lockSession(tx, sessionId);
+    if (!session || session.status !== "ACTIVE") return false;
+    const participant = await tx.openPlayParticipant.findFirst({
+      where: {
+        id: participantId,
+        sessionId,
+        source: "PUBLIC_GUEST",
+        status: "PENDING_APPROVAL",
+      },
+      select: { id: true },
+    });
+    if (!participant) return false;
+    if (operation === "REJECT") {
+      await tx.openPlayParticipant.update({
+        where: { id: participant.id },
+        data: { status: "REMOVED" },
+      });
+      return true;
+    }
+    const next = await tx.openPlaySession.update({
+      where: { id: sessionId },
+      data: { nextQueuePosition: { increment: 1 } },
+      select: { nextQueuePosition: true },
+    });
+    await tx.openPlayParticipant.update({
+      where: { id: participant.id },
+      data: {
+        status: "QUEUED",
+        queuePosition: next.nextQueuePosition,
+        checkedInAt: new Date(),
+        queuedAt: new Date(),
+      },
+    });
+    return true;
+  });
+  if (!changed) return { message: "That request is no longer pending." };
+  await audit(workspace, `BUNALQ_GUEST_${operation}`, sessionId, { participantId });
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
+  return { success: operation === "APPROVE" ? "Guest approved and checked in." : "Guest request rejected." };
+}
+
+export async function approvePublicQueueGuestAction(
+  _previous: OpenPlayActionState,
+  formData: FormData
+) { return moderatePendingGuest(formData, "APPROVE"); }
+
+export async function rejectPublicQueueGuestAction(
+  _previous: OpenPlayActionState,
+  formData: FormData
+) { return moderatePendingGuest(formData, "REJECT"); }
+
+export async function editOpenPlayParticipantAction(
+  _previous: OpenPlayActionState,
+  formData: FormData
+): Promise<OpenPlayActionState> {
+  const workspace = await workspaceForManage();
+  if (!workspace) return { message: "BunalQ manage access is required." };
+  const parsed = participantEditSchema.safeParse({
+    sessionId: String(formData.get("sessionId") ?? ""),
+    participantId: String(formData.get("participantId") ?? ""),
+    displayName: String(formData.get("displayName") ?? ""),
+    skillLevel: String(formData.get("skillLevel") ?? ""),
+  });
+  if (!parsed.success) return { message: "Enter a valid name and skill level." };
+  const owned = await ownedSession(parsed.data.sessionId, workspace);
+  if (!owned) return { message: "Player not found." };
+  const changed = await prisma.openPlayParticipant.updateMany({
+    where: {
+      id: parsed.data.participantId,
+      sessionId: parsed.data.sessionId,
+      status: { not: "REMOVED" },
+    },
+    data: {
+      displayName: parsed.data.displayName,
+      skillLevel: parsed.data.skillLevel,
+    },
+  });
+  if (changed.count !== 1) return { message: "Player not found." };
+  await audit(workspace, "BUNALQ_PLAYER_EDITED", parsed.data.sessionId, {
+    participantId: parsed.data.participantId,
+  });
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
+  return { success: "Player details updated for this run." };
+}
+
+export async function removeOpenPlayParticipantAction(
+  _previous: OpenPlayActionState,
+  formData: FormData
+): Promise<OpenPlayActionState> {
+  const workspace = await workspaceForManage();
+  if (!workspace) return { message: "BunalQ manage access is required." };
+  const sessionId = String(formData.get("sessionId") ?? "");
+  const participantId = String(formData.get("participantId") ?? "");
+  const owned = await ownedSession(sessionId, workspace);
+  if (!owned || !participantId) return { message: "Player not found." };
+  const changed = await prisma.openPlayParticipant.updateMany({
+    where: {
+      id: participantId,
+      sessionId,
+      status: { notIn: ["STAGED", "PLAYING", "REMOVED"] },
+    },
+    data: {
+      status: "REMOVED",
+      queuePosition: null,
+      queuedAt: null,
+      pairId: null,
+    },
+  });
+  if (changed.count !== 1) {
+    return { message: "Finish or edit the player's current match before removing them." };
+  }
+  await audit(workspace, "BUNALQ_PLAYER_REMOVED", sessionId, { participantId });
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
+  return { success: "Player removed from the active roster." };
+}
+
+export async function bulkCheckInOpenPlayParticipantsAction(
+  _previous: OpenPlayActionState,
+  formData: FormData
+): Promise<OpenPlayActionState> {
+  const workspace = await workspaceForManage();
+  if (!workspace) return { message: "BunalQ manage access is required." };
+  const sessionId = String(formData.get("sessionId") ?? "");
+  const participantIds = [...new Set(formData.getAll("participantId").map(String))].slice(0, 100);
+  const owned = await ownedSession(sessionId, workspace);
+  if (!owned || participantIds.length === 0) return { message: "Select players to check in." };
+  const count = await prisma.$transaction(async (tx) => {
+    const session = await lockSession(tx, sessionId);
+    if (!session || session.status === "ENDED") return 0;
+    const participants = await tx.openPlayParticipant.findMany({
+      where: {
+        sessionId,
+        id: { in: participantIds },
+        status: { in: ["NOT_CHECKED_IN", "CHECKED_OUT"] },
+      },
+      orderBy: { createdAt: "asc" },
+      select: { id: true },
+    });
+    let position = session.nextQueuePosition;
+    const now = new Date();
+    for (const participant of participants) {
+      position += 1;
+      await tx.openPlayParticipant.update({
+        where: { id: participant.id },
+        data: {
+          status: "QUEUED",
+          queuePosition: position,
+          checkedInAt: now,
+          queuedAt: now,
+        },
+      });
+    }
+    if (participants.length > 0) {
+      await tx.openPlaySession.update({
+        where: { id: sessionId },
+        data: { nextQueuePosition: position },
+      });
+    }
+    return participants.length;
+  });
+  if (count === 0) return { message: "No selected players were eligible for check-in." };
+  await audit(workspace, "BUNALQ_BULK_CHECK_IN", sessionId, { count });
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
+  return { success: `${count} player${count === 1 ? "" : "s"} checked in.` };
+}
+
+export async function startNewOpenPlayRunAction(
+  _previous: OpenPlayActionState,
+  formData: FormData
+): Promise<OpenPlayActionState> {
+  const workspace = await workspaceForManage();
+  if (!workspace) return { message: "BunalQ manage access is required." };
+  const sessionId = String(formData.get("sessionId") ?? "");
+  const owned = await ownedSession(sessionId, workspace);
+  if (!owned) return { message: "BunalQ run not found." };
+  const created = await prisma.$transaction(async (tx) => {
+    const previous = await lockSession(tx, sessionId);
+    if (!previous || previous.status !== "ENDED") return null;
+    const latest = await tx.openPlaySession.findFirst({
+      where: { queueId: previous.queueId },
+      orderBy: { runNumber: "desc" },
+      select: { id: true, runNumber: true },
+    });
+    if (!latest || latest.id !== previous.id) return null;
+    const [courts, participants] = await Promise.all([
+      tx.openPlaySessionCourt.findMany({
+        where: { sessionId },
+        orderBy: { position: "asc" },
+      }),
+      tx.openPlayParticipant.findMany({
+        where: { sessionId, status: { not: "REMOVED" } },
+        orderBy: { createdAt: "asc" },
+      }),
+    ]);
+    const quick = previous.queue.kind === "QUICK";
+    const next = await tx.openPlaySession.create({
+      data: {
+        queueId: previous.queueId,
+        runNumber: previous.runNumber + 1,
+        status: quick ? "ACTIVE" : "SETUP",
+        matchingMode: previous.matchingMode,
+        createdById: workspace.actorId,
+        startedAt: quick ? new Date() : null,
+        courts: {
+          create: courts.map((court) => ({
+            courtId: court.courtId,
+            position: court.position,
+            active: true,
+          })),
+        },
+      },
+      select: { id: true, runNumber: true },
+    });
+    if (participants.length > 0) {
+      await tx.openPlayParticipant.createMany({
+        data: participants.map((participant) => ({
+          sessionId: next.id,
+          source: participant.source,
+          userId: participant.userId,
+          eventRegistrationId: participant.eventRegistrationId,
+          eventGuestSlotId: participant.eventGuestSlotId,
+          organizerGuestId: participant.organizerGuestId,
+          displayName: participant.displayName,
+          skillLevel: participant.skillLevel,
+          status: "NOT_CHECKED_IN" as const,
+        })),
+        skipDuplicates: true,
+      });
+    }
+    if (previous.queue.event) {
+      await syncRosterRows(tx, next.id, previous.queue.event.id);
+    }
+    return next;
+  });
+  if (!created) return { message: "Only the latest ended run can start a new run." };
+  await audit(workspace, "BUNALQ_RUN_CREATED", created.id, {
+    previousSessionId: sessionId,
+    runNumber: created.runNumber,
+  });
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
+  return { success: `Run ${created.runNumber} is ready.` };
 }

@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "targets": {
+    "bunalq-console-and-public-board": {
+      "targetKind": "existing-ui",
+      "projectId": "44a8f1bf-db72-48dc-b4cb-a1cd79c93e01",
+      "baselineDraftId": "eada36c4-9545-4f09-bc1d-dab0299f29ba",
+      "activeDraftId": "eada36c4-9545-4f09-bc1d-dab0299f29ba",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "public-bunal-logo-v2-wordmark.png"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "public-bunal-logo-v2-wordmark.png",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/44a8f1bf-db72-48dc-b4cb-a1cd79c93e01/brand-assets/public-bunal-logo-v2-wordmark.png/bunal-logo-v2-wordmark.png",
+          "sourcePath": "public/bunal-logo-v2-wordmark.png"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "src/app/globals.css",
+        "src/app/(app)/dashboard/events/[publicId]/open-play/page.tsx",
+        "src/components/open-play/OpenPlayConsole.tsx",
+        "src/components/open-play/OpenPlayBoard.tsx",
+        "src/components/dashboard/AppShell.tsx",
+        "src/components/dashboard/DashboardNav.tsx",
+        "src/components/Logo.tsx",
+        "src/components/ui/Avatar.tsx",
+        "src/components/ui/Button.tsx",
+        "src/components/ui/Select.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "fcf6b4f8a2c1a03741249c2e5e944fcaec212113f2cb8269270799237c363ef1",
+        ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
+        "src/app/globals.css": "d7b8d75f4b174be72c6fc39b7e3e33c57df47702fd09f9ff90aa566cd5c937c6",
+        "src/app/(app)/dashboard/events/[publicId]/open-play/page.tsx": "0097d2879391d38df26e14e5c73ad96ec68b84e6bf4dcb2764b31f127327407b",
+        "src/components/open-play/OpenPlayConsole.tsx": "e7d8d544243cfe7d739b7603d25a68ac049c9172a480937d1ddd9151f1869f80",
+        "src/components/open-play/OpenPlayBoard.tsx": "87355eef05baaf125d18c5fc5f6d901348c2f7936c1e4fb5c45f5ca28d276841",
+        "src/components/dashboard/AppShell.tsx": "1a1ecadd5ee1c8aa3ea3711bc72336780794aa70c77f2046076b6006aa64713b",
+        "src/components/dashboard/DashboardNav.tsx": "0462a843a0857f8260302ee14168be748ab2d15c3dc964405395ab30a6c273cc",
+        "src/components/Logo.tsx": "073c062cb0d022c9f5a1f78c79af6570143f03a8d6908c3268f79cb4370d6e2d",
+        "src/components/ui/Avatar.tsx": "e3af6ae6a7249c7f4ea61cb69e044c74fc27240af9ee5e9e645e7712f78a8214",
+        "src/components/ui/Button.tsx": "d811d012bf62c684fa4dff3e20615fb17c998a862250aba27f15f14ec1f4513a",
+        "src/components/ui/Select.tsx": "c4fe4d426794402b1b8da2cea1cf06dcc79cf334b6cee8520b4e3c369954c410"
+      },
+      "components": [
+        {
+          "name": "AppShell",
+          "id": "643a7b2a-c6f6-4f77-b880-018c281bfe34",
+          "sourcePath": "src/components/dashboard/AppShell.tsx",
+          "logoAssetKey": "public-bunal-logo-v2-wordmark.png"
+        }
+      ],
+      "drafts": {
+        "eada36c4-9545-4f09-bc1d-dab0299f29ba": {
+          "title": "BunalQ Operations Workspace — Bunal.club",
+          "visualDirection": "compact two-column operations console with matching-mode cards and coordinated public board",
+          "currentVersion": 2
+        }
+      },
+      "updatedAt": "2026-08-18T00:10:00+08:00"
+    }
+  }
+}

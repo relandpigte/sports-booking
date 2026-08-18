@@ -43,8 +43,8 @@ const moduleDetails: Record<
     description: "Checkout configuration and payment status.",
   },
   openPlay: {
-    label: "Open Play",
-    href: "/dashboard/open-play",
+    label: "BunalQ",
+    href: "/dashboard/bunalq",
     description: "Live attendance, matching, court rotation, and results.",
   },
 };

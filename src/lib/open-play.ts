@@ -154,9 +154,19 @@ export async function getOpenPlayWorkspace(
 }
 
 const sessionInclude = {
-  event: {
+  queue: {
     include: {
       hub: { select: { id: true, ownerId: true, name: true, address: true } },
+      event: {
+        select: {
+          id: true,
+          publicId: true,
+          date: true,
+          startHour: true,
+          endHour: true,
+          status: true,
+        },
+      },
     },
   },
   courts: {
@@ -235,7 +245,10 @@ function standings(session: SessionRecord) {
     );
 }
 
-function toSnapshot(session: SessionRecord): OpenPlaySnapshot {
+function toSnapshot(
+  session: SessionRecord,
+  options: { publicView?: boolean } = {}
+): OpenPlaySnapshot {
   const activeCourtCount = Math.max(
     1,
     session.courts.filter((court) => court.active).length
@@ -250,22 +263,37 @@ function toSnapshot(session: SessionRecord): OpenPlaySnapshot {
       (Math.floor(index / (activeCourtCount * 4)) + 1) * duration,
     ])
   );
+  const participants = options.publicView
+    ? session.participants.filter(
+        (participant) =>
+          participant.status !== "PENDING_APPROVAL" &&
+          participant.status !== "REMOVED"
+      )
+    : session.participants;
   return {
     id: session.id,
+    runNumber: session.runNumber,
     status: session.status,
     matchingMode: session.matchingMode,
     updatedAt: session.updatedAt.toISOString(),
-    event: {
-      publicId: session.event.publicId,
-      title: session.event.title,
-      date: session.event.date,
-      startHour: session.event.startHour,
-      endHour: session.event.endHour,
-      status: session.event.status,
+    queue: {
+      publicId: session.queue.publicId,
+      title: session.queue.title,
+      kind: session.queue.kind,
+      admissionMode: session.queue.admissionMode,
       hub: {
-        name: session.event.hub.name,
-        address: session.event.hub.address,
+        name: session.queue.hub.name,
+        address: session.queue.hub.address,
       },
+      event: session.queue.event
+        ? {
+            publicId: session.queue.event.publicId,
+            date: session.queue.event.date,
+            startHour: session.queue.event.startHour,
+            endHour: session.queue.event.endHour,
+            status: session.queue.event.status,
+          }
+        : null,
     },
     courts: session.courts.map((court) => ({
       id: court.courtId,
@@ -273,7 +301,7 @@ function toSnapshot(session: SessionRecord): OpenPlaySnapshot {
       active: court.active,
       position: court.position,
     })),
-    participants: session.participants.map((participant) => ({
+    participants: participants.map((participant) => ({
       id: participant.id,
       displayName: participant.displayName,
       skillLevel: participant.skillLevel,
@@ -312,7 +340,13 @@ export async function getOperatorOpenPlaySnapshot(
   partnerId: string
 ): Promise<OpenPlaySnapshot | null> {
   const session = await prisma.openPlaySession.findFirst({
-    where: { event: { publicId, hub: { ownerId: partnerId } } },
+    where: {
+      queue: {
+        hub: { ownerId: partnerId },
+        OR: [{ publicId }, { event: { publicId } }],
+      },
+    },
+    orderBy: { runNumber: "desc" },
     include: sessionInclude,
   });
   return session ? toSnapshot(session) : null;
@@ -322,10 +356,29 @@ export async function getPublicOpenPlaySnapshot(
   publicId: string
 ): Promise<OpenPlaySnapshot | null> {
   const session = await prisma.openPlaySession.findFirst({
-    where: { event: { publicId, status: { in: ["PUBLISHED", "CANCELLED"] } } },
+    where: {
+      queue: {
+        OR: [
+          { publicId, kind: "QUICK" },
+          {
+            kind: "EVENT",
+            event: {
+              publicId,
+              status: { in: ["PUBLISHED", "CANCELLED"] },
+            },
+          },
+          {
+            publicId,
+            kind: "EVENT",
+            event: { status: { in: ["PUBLISHED", "CANCELLED"] } },
+          },
+        ],
+      },
+    },
+    orderBy: { runNumber: "desc" },
     include: sessionInclude,
   });
-  return session ? toSnapshot(session) : null;
+  return session ? toSnapshot(session, { publicView: true }) : null;
 }
 
 export async function getOpenPlayEvent(publicId: string, partnerId: string) {
@@ -344,17 +397,56 @@ export async function getOpenPlayEvent(publicId: string, partnerId: string) {
       courts: {
         include: { court: { select: { id: true, name: true } } },
       },
-      openPlaySession: { select: { id: true, status: true } },
+      openPlayQueue: {
+        select: {
+          publicId: true,
+          sessions: {
+            orderBy: { runNumber: "desc" },
+            take: 1,
+            select: { id: true, status: true, runNumber: true },
+          },
+        },
+      },
     },
   });
 }
 
-export async function listOpenPlayEvents(partnerId: string) {
+export async function listOpenPlayQueues(partnerId: string) {
+  return prisma.openPlayQueue.findMany({
+    where: { hub: { ownerId: partnerId } },
+    orderBy: { updatedAt: "desc" },
+    take: 50,
+    select: {
+      publicId: true,
+      title: true,
+      kind: true,
+      admissionMode: true,
+      hub: { select: { name: true } },
+      event: {
+        select: {
+          publicId: true,
+          date: true,
+          startHour: true,
+          endHour: true,
+          status: true,
+        },
+      },
+      sessions: {
+        orderBy: { runNumber: "desc" },
+        take: 1,
+        select: { status: true, runNumber: true },
+      },
+    },
+  });
+}
+
+export async function listBunalQEligibleEvents(partnerId: string) {
   return prisma.event.findMany({
     where: {
       hub: { ownerId: partnerId },
       sport: "pickleball",
-      status: { in: ["PUBLISHED", "CANCELLED"] },
+      status: "PUBLISHED",
+      openPlayQueue: null,
     },
     orderBy: { startsAt: "desc" },
     take: 50,
@@ -364,9 +456,37 @@ export async function listOpenPlayEvents(partnerId: string) {
       date: true,
       startHour: true,
       endHour: true,
-      status: true,
       hub: { select: { name: true } },
-      openPlaySession: { select: { status: true } },
+    },
+  });
+}
+
+export async function listBunalQHubs(partnerId: string) {
+  return prisma.hub.findMany({
+    where: { ownerId: partnerId },
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      courts: { orderBy: { createdAt: "asc" }, select: { id: true, name: true } },
+    },
+  });
+}
+
+export async function listOpenPlayRunHistory(
+  publicId: string,
+  partnerId: string
+) {
+  return prisma.openPlaySession.findMany({
+    where: { queue: { publicId, hub: { ownerId: partnerId } } },
+    orderBy: { runNumber: "desc" },
+    select: {
+      id: true,
+      runNumber: true,
+      status: true,
+      startedAt: true,
+      endedAt: true,
+      _count: { select: { participants: true, games: true } },
     },
   });
 }

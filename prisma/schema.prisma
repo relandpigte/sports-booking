@@ -65,6 +65,16 @@ enum OpenPlaySessionStatus {
   ENDED
 }
 
+enum OpenPlayQueueKind {
+  EVENT
+  QUICK
+}
+
+enum OpenPlayAdmissionMode {
+  APPROVAL_REQUIRED
+  INSTANT
+}
+
 enum OpenPlayMatchingMode {
   BALANCED
   SKILL_SEPARATED
@@ -77,15 +87,18 @@ enum OpenPlayParticipantSource {
   REGISTRATION_GUEST
   ORGANIZER_GUEST
   WALK_IN
+  PUBLIC_GUEST
 }
 
 enum OpenPlayParticipantStatus {
+  PENDING_APPROVAL
   NOT_CHECKED_IN
   QUEUED
   STAGED
   PLAYING
   PAUSED
   CHECKED_OUT
+  REMOVED
 }
 
 enum OpenPlayLastResult {
@@ -749,6 +762,7 @@ model Hub {
   courts            Court[]
   bookings          Booking[]
   events            Event[]
+  openPlayQueues    OpenPlayQueue[]
   courtBlocks       CourtBlock[]
   chatConversations ChatConversation[]
 
@@ -1029,7 +1043,7 @@ model Event {
   registrations    EventRegistration[]
   organizerGuests  EventOrganizerGuest[]
   chatConversation ChatConversation?
-  openPlaySession  OpenPlaySession?
+  openPlayQueue    OpenPlayQueue?
 
   @@index([hubId, startsAt])
   @@index([status, startsAt])
@@ -1146,11 +1160,34 @@ model EventCourt {
   @@index([courtId])
 }
 
-// Live operations for one published pickleball Event. Event and BookingSlot
-// continue to own scheduling; these rows only track attendance and play.
+// Stable BunalQ room. Event queues preserve registration/payment boundaries;
+// Quick queues are immediate venue-operated rotations with public guest entry.
+model OpenPlayQueue {
+  id            String                @id @default(cuid())
+  publicId      String                @unique
+  hubId         String
+  eventId       String?               @unique
+  title         String                @db.VarChar(120)
+  kind          OpenPlayQueueKind
+  admissionMode OpenPlayAdmissionMode @default(APPROVAL_REQUIRED)
+  createdById   String
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  hub      Hub               @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  event    Event?            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  sessions OpenPlaySession[]
+
+  @@index([hubId, updatedAt])
+  @@index([kind, updatedAt])
+}
+
+// One immutable-history run inside a BunalQ room. Event and BookingSlot own
+// scheduling; these rows only track attendance and live court rotation.
 model OpenPlaySession {
   id                String                @id @default(cuid())
-  eventId           String                @unique
+  queueId           String
+  runNumber         Int                   @default(1)
   status            OpenPlaySessionStatus @default(SETUP)
   matchingMode      OpenPlayMatchingMode  @default(BALANCED)
   nextQueuePosition Int                   @default(0)
@@ -1160,12 +1197,14 @@ model OpenPlaySession {
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
 
-  event        Event                  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  queue        OpenPlayQueue          @relation(fields: [queueId], references: [id], onDelete: Cascade)
   courts       OpenPlaySessionCourt[]
   participants OpenPlayParticipant[]
   pairs        OpenPlayPair[]
   games        OpenPlayGame[]
 
+  @@unique([queueId, runNumber])
+  @@index([queueId, status, updatedAt])
   @@index([status, updatedAt])
 }
 

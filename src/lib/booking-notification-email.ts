@@ -18,7 +18,13 @@ export type PlayerBookingConfirmedEmailContentInput = {
   bookingTitle: string;
   schedule: string;
   actionUrl: string;
+  paymentMode: "MANUAL" | "AUTOMATIC";
 };
+
+export type PlayerManualReceiptReceivedEmailContentInput = Omit<
+  PlayerBookingConfirmedEmailContentInput,
+  "paymentMode"
+>;
 
 export function partnerBookingNotificationEmailContent(
   input: PartnerBookingNotificationEmailContentInput
@@ -64,8 +70,12 @@ export function playerBookingConfirmedEmailContent(
   input: PlayerBookingConfirmedEmailContentInput
 ) {
   const subject = `Your booking is confirmed — ${input.venueName}`;
+  const confirmationCopy =
+    input.paymentMode === "MANUAL"
+      ? `${input.venueName} approved your manual payment and confirmed your booking.`
+      : `Your payment was successful and your booking at ${input.venueName} is confirmed.`;
   const paragraphs = [
-    `Hi ${input.playerName}, ${input.venueName} approved your manual payment and confirmed your booking.`,
+    `Hi ${input.playerName}, ${confirmationCopy}`,
     `${input.bookingTitle} · ${input.schedule}`,
     "Your booking now appears as confirmed in your Bunal.club schedule.",
   ];
@@ -75,7 +85,7 @@ export function playerBookingConfirmedEmailContent(
   return {
     subject,
     html: transactionalEmailHtml({
-      preheader: `${input.venueName} approved your payment and confirmed your booking.`,
+      preheader: confirmationCopy,
       eyebrow: "Booking confirmed",
       heading: "You're confirmed",
       paragraphs,
@@ -89,6 +99,41 @@ export function playerBookingConfirmedEmailContent(
       ...paragraphs,
       "",
       `View booking: ${input.actionUrl}`,
+      "",
+      note,
+    ].join("\n"),
+  };
+}
+
+export function playerManualReceiptReceivedEmailContent(
+  input: PlayerManualReceiptReceivedEmailContentInput
+) {
+  const subject = `Payment receipt received — ${input.venueName}`;
+  const paragraphs = [
+    `Hi ${input.playerName}, we received your manual payment receipt for ${input.bookingTitle}.`,
+    input.schedule,
+    `Your reserved spot remains protected while ${input.venueName} reviews the receipt. The booking is not final until the venue approves it.`,
+  ];
+  const note =
+    "You do not need to upload the receipt again. We will update your booking after the venue approves or declines the payment.";
+
+  return {
+    subject,
+    html: transactionalEmailHtml({
+      preheader: `${input.venueName} is reviewing your payment receipt.`,
+      eyebrow: "Receipt received",
+      heading: "Your reservation is protected",
+      paragraphs,
+      actionLabel: "View payment status",
+      actionUrl: input.actionUrl,
+      note,
+    }),
+    text: [
+      subject,
+      "",
+      ...paragraphs,
+      "",
+      `View payment status: ${input.actionUrl}`,
       "",
       note,
     ].join("\n"),

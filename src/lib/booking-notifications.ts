@@ -4,6 +4,7 @@ import {
   emailDeliveryConfigured,
   sendPartnerBookingNotificationEmail,
   sendPlayerBookingConfirmedEmail,
+  sendPlayerManualReceiptReceivedEmail,
 } from "@/lib/email";
 import { appUrl } from "@/lib/urls";
 import { listOperationalRecipients } from "@/lib/staffing";
@@ -75,6 +76,7 @@ export async function notifyPlayerBookingConfirmed(input: {
   schedule: string;
   actionPath: string;
   idempotencyKey: string;
+  paymentMode: "MANUAL" | "AUTOMATIC";
 }): Promise<void> {
   if (!emailDeliveryConfigured() || isReservedTestAddress(input.to)) return;
 
@@ -88,6 +90,32 @@ export async function notifyPlayerBookingConfirmed(input: {
     // a confirmed booking appear to have failed.
     console.error(
       "Player booking-confirmation email delivery failed:",
+      error instanceof Error ? error.message : "Unknown provider error"
+    );
+  }
+}
+
+export async function notifyPlayerManualReceiptReceived(input: {
+  to: string;
+  playerName: string;
+  venueName: string;
+  bookingTitle: string;
+  schedule: string;
+  actionPath: string;
+  idempotencyKey: string;
+}): Promise<void> {
+  if (!emailDeliveryConfigured() || isReservedTestAddress(input.to)) return;
+
+  try {
+    await sendPlayerManualReceiptReceivedEmail({
+      ...input,
+      actionUrl: appUrl(input.actionPath),
+    });
+  } catch (error) {
+    // The receipt is already stored and the booking remains protected. Email
+    // delivery cannot turn a successful proof submission into a failed one.
+    console.error(
+      "Player manual-receipt email delivery failed:",
       error instanceof Error ? error.message : "Unknown provider error"
     );
   }

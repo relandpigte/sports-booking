@@ -5,6 +5,7 @@ import { ok, run } from "./harness";
 import {
   sendPartnerBookingNotificationEmail,
   sendPlayerBookingConfirmedEmail,
+  sendPlayerManualReceiptReceivedEmail,
   sendServiceFeeOverdueEmail,
 } from "@/lib/email";
 
@@ -58,6 +59,15 @@ async function check() {
       actionUrl: "https://www.bunal.club/dashboard/events/open-play",
       idempotencyKey: "partner-event-booking-1",
     });
+    await sendPlayerManualReceiptReceivedEmail({
+      to: "player@example.test",
+      playerName: "Player One",
+      venueName: "Bunal Club",
+      bookingTitle: "Annex A",
+      schedule: "August 10, 2026 · 4:00 PM–6:00 PM",
+      actionUrl: "https://www.bunal.club/dashboard/bookings?q=booking-1",
+      idempotencyKey: "player-manual-receipt-received-1",
+    });
     await sendPlayerBookingConfirmedEmail({
       to: "player@example.test",
       playerName: "Player One",
@@ -66,6 +76,17 @@ async function check() {
       schedule: "August 10, 2026 · 4:00 PM–6:00 PM",
       actionUrl: "https://www.bunal.club/dashboard/bookings?q=booking-1",
       idempotencyKey: "player-manual-booking-confirmed-1",
+      paymentMode: "MANUAL",
+    });
+    await sendPlayerBookingConfirmedEmail({
+      to: "automatic@example.test",
+      playerName: "Player Two",
+      venueName: "Bunal Club",
+      bookingTitle: "Annex B",
+      schedule: "August 11, 2026 · 7:00 PM–8:00 PM",
+      actionUrl: "https://www.bunal.club/dashboard/bookings?q=booking-2",
+      idempotencyKey: "player-automatic-booking-confirmed-2",
+      paymentMode: "AUTOMATIC",
     });
     await sendServiceFeeOverdueEmail({
       to: "partner@example.test",
@@ -79,10 +100,17 @@ async function check() {
       idempotencyKey: "service-fee-overdue-partner-1-2026-08-10",
     });
 
-    const [court, event, confirmation, settlement] = requests;
+    const [
+      court,
+      event,
+      receipt,
+      manualConfirmation,
+      automaticConfirmation,
+      settlement,
+    ] = requests;
     ok(
       "booking, confirmation, and settlement emails are delivered",
-      requests.length === 4
+      requests.length === 6
     );
     ok(
       "partner court notifications link to the review workspace",
@@ -96,8 +124,27 @@ async function check() {
     );
     ok(
       "player confirmation says manual payment was approved",
-      String(confirmation?.body.html).includes("approved your manual payment") &&
-        JSON.stringify(confirmation?.body.tags).includes(
+      String(manualConfirmation?.body.html).includes(
+        "approved your manual payment"
+      ) &&
+        JSON.stringify(manualConfirmation?.body.tags).includes(
+          "player-booking-confirmed"
+        )
+    );
+    ok(
+      "receipt upload email protects the reservation without claiming confirmation",
+      String(receipt?.body.html).includes("reservation is protected") &&
+        String(receipt?.body.html).includes("not final until the venue approves") &&
+        JSON.stringify(receipt?.body.tags).includes(
+          "player-manual-receipt-received"
+        )
+    );
+    ok(
+      "automatic confirmation says the provider payment succeeded",
+      String(automaticConfirmation?.body.html).includes(
+        "payment was successful"
+      ) &&
+        JSON.stringify(automaticConfirmation?.body.tags).includes(
           "player-booking-confirmed"
         )
     );
@@ -119,9 +166,13 @@ async function check() {
     ok(
       "notification sends use stable idempotency keys",
       court?.headers.get("Idempotency-Key") === "partner-court-booking-1" &&
-        event?.headers.get("Idempotency-Key") === "partner-event-booking-1" &&
-        confirmation?.headers.get("Idempotency-Key") ===
+      event?.headers.get("Idempotency-Key") === "partner-event-booking-1" &&
+        receipt?.headers.get("Idempotency-Key") ===
+          "player-manual-receipt-received-1" &&
+        manualConfirmation?.headers.get("Idempotency-Key") ===
           "player-manual-booking-confirmed-1" &&
+        automaticConfirmation?.headers.get("Idempotency-Key") ===
+          "player-automatic-booking-confirmed-2" &&
         settlement?.headers.get("Idempotency-Key") ===
           "service-fee-overdue-partner-1-2026-08-10"
     );

@@ -12,6 +12,7 @@ import { revalidatePartnerPaymentSurfaces } from "@/lib/payment-revalidation";
 import {
   notifyPartnerTeamOfBooking,
   notifyPlayerBookingConfirmed,
+  notifyPlayerManualReceiptReceived,
 } from "@/lib/booking-notifications";
 import { formatManilaDateLong, formatSlotRange } from "@/lib/time";
 import { consumeRateLimit } from "@/lib/rate-limit";
@@ -421,7 +422,7 @@ export async function submitManualPaymentProofAction(
       hubId: result.payment.hubId,
     });
   }
-  if (result.kind === "submitted") {
+  if (result.kind === "submitted" || result.kind === "already") {
     try {
       // Notification details are intentionally loaded after commit. Keeping
       // these relation reads outside the lock prevents a slow remote database
@@ -430,7 +431,7 @@ export async function submitManualPaymentProofAction(
         where: { id: result.payment.id },
         select: {
           partner: { select: { id: true } },
-          user: { select: { name: true, playerName: true } },
+          user: { select: { email: true, name: true, playerName: true } },
           bookings: {
             take: 1,
             orderBy: { startsAt: "asc" },
@@ -489,29 +490,48 @@ export async function submitManualPaymentProofAction(
             eventPublicId: event.publicId,
           });
         }
-        await notifyPartnerTeamOfBooking({
-          partnerId: payment.partner.id,
-          module: event ? "events" : "bookings",
-          playerName:
-            payment.user.playerName ?? payment.user.name ?? "A player",
-          kind: event ? "EVENT" : "COURT",
-          venueName: event?.hub.name ?? booking?.hub.name ?? "Your venue",
-          bookingTitle: event?.title ?? booking?.court.name ?? "Manual booking",
-          schedule: event
-            ? `${formatManilaDateLong(event.date)} · ${formatSlotRange(
-                event.startHour,
-                event.endHour
+        const playerName =
+          payment.user.playerName ?? payment.user.name ?? "A player";
+        const venueName =
+          event?.hub.name ?? booking?.hub.name ?? "Your venue";
+        const bookingTitle =
+          event?.title ?? booking?.court.name ?? "Manual booking";
+        const schedule = event
+          ? `${formatManilaDateLong(event.date)} · ${formatSlotRange(
+              event.startHour,
+              event.endHour
+            )}`
+          : booking
+            ? `${formatManilaDateLong(booking.date)} · ${formatSlotRange(
+                booking.startHour,
+                booking.endHour
               )}`
-            : booking
-              ? `${formatManilaDateLong(booking.date)} · ${formatSlotRange(
-                  booking.startHour,
-                  booking.endHour
-                )}`
-              : "See the booking workspace for details",
-          status: "Manual payment proof submitted — review required",
-          actionPath: `/dashboard/bookings?q=${encodeURIComponent(result.payment.id)}`,
-          idempotencyKey: `partner-manual-proof-submitted-${result.payment.id}`,
-        });
+            : "See your Bunal.club schedule for details";
+        await Promise.all([
+          notifyPartnerTeamOfBooking({
+            partnerId: payment.partner.id,
+            module: event ? "events" : "bookings",
+            playerName,
+            kind: event ? "EVENT" : "COURT",
+            venueName,
+            bookingTitle,
+            schedule,
+            status: "Manual payment proof submitted — review required",
+            actionPath: `/dashboard/bookings?q=${encodeURIComponent(result.payment.id)}`,
+            idempotencyKey: `partner-manual-proof-submitted-${result.payment.id}`,
+          }),
+          notifyPlayerManualReceiptReceived({
+            to: payment.user.email,
+            playerName,
+            venueName,
+            bookingTitle,
+            schedule,
+            actionPath: event
+              ? `/dashboard/bookings?q=${encodeURIComponent(event.publicId)}`
+              : `/dashboard/bookings?q=${encodeURIComponent(result.payment.id)}`,
+            idempotencyKey: `player-manual-receipt-received-${result.payment.id}`,
+          }),
+        ]);
       }
     } catch (error) {
       // The proof is already committed. A notification outage must not tell
@@ -672,6 +692,7 @@ export async function reviewManualPaymentAction(
           ? `/dashboard/bookings?q=${encodeURIComponent(event.publicId)}`
           : `/dashboard/bookings?q=${encodeURIComponent(payment.id)}`,
         idempotencyKey: `player-manual-booking-confirmed-${payment.id}`,
+        paymentMode: "MANUAL",
       });
     }
   } else {

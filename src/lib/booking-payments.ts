@@ -20,7 +20,11 @@ import {
 } from "@/lib/partner-gateway";
 import { getVenueGateway, UnknownVenueGateway } from "@/lib/payments/venue";
 import type { ChargeResult } from "@/lib/payments/types";
-import { formatManilaDate, formatSlotRange } from "@/lib/time";
+import {
+  formatManilaDate,
+  formatManilaDateLong,
+  formatSlotRange,
+} from "@/lib/time";
 import { ensureServiceFeeCharge } from "@/lib/service-fees";
 import {
   getActiveManualPaymentMethods,
@@ -30,6 +34,7 @@ import {
   recordBookingSystemMessage,
   recordEventRegistrationSystemMessage,
 } from "@/lib/message-system-events";
+import { notifyPlayerBookingConfirmed } from "@/lib/booking-notifications";
 import { hubPublicPath } from "@/lib/hub-slug";
 
 // Players paying venues through each partner's own gateway.
@@ -558,12 +563,124 @@ export type SettleOutcome =
   // are marked EXPIRED and the payment is refunded before this returns.
   | { status: "lost"; refunded: boolean };
 
+async function notifyPlayerOfAutomaticPaymentConfirmation(paymentId: string) {
+  const payment = await prisma.bookingPayment.findFirst({
+    where: {
+      id: paymentId,
+      status: "SUCCEEDED",
+      collectionMode: "AUTOMATIC",
+    },
+    select: {
+      id: true,
+      user: { select: { email: true, name: true, playerName: true } },
+      bookings: {
+        where: { status: "CONFIRMED" },
+        orderBy: { startsAt: "asc" },
+        select: {
+          date: true,
+          startHour: true,
+          endHour: true,
+          court: { select: { name: true } },
+          hub: { select: { name: true } },
+        },
+      },
+      eventRegistration: {
+        select: {
+          status: true,
+          event: {
+            select: {
+              publicId: true,
+              title: true,
+              date: true,
+              startHour: true,
+              endHour: true,
+              hub: { select: { name: true } },
+            },
+          },
+        },
+      },
+      eventGuestSlots: {
+        where: { status: "CONFIRMED" },
+        take: 1,
+        select: {
+          registration: {
+            select: {
+              event: {
+                select: {
+                  publicId: true,
+                  title: true,
+                  date: true,
+                  startHour: true,
+                  endHour: true,
+                  hub: { select: { name: true } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!payment) return;
+
+  const event =
+    payment.eventRegistration?.status === "CONFIRMED"
+      ? payment.eventRegistration.event
+      : payment.eventGuestSlots[0]?.registration.event;
+  const firstBooking = payment.bookings[0];
+  if (!event && !firstBooking) return;
+
+  const bookingTitle = event
+    ? event.title
+    : payment.bookings.length === 1
+      ? firstBooking.court.name
+      : `${payment.bookings.length} court reservations`;
+  const schedule = event
+    ? `${formatManilaDateLong(event.date)} · ${formatSlotRange(
+        event.startHour,
+        event.endHour
+      )}`
+    : `${formatManilaDateLong(firstBooking.date)} · ${payment.bookings
+        .map(
+          (booking) =>
+            `${booking.court.name} ${formatSlotRange(
+              booking.startHour,
+              booking.endHour
+            )}`
+        )
+        .join("; ")}`;
+
+  await notifyPlayerBookingConfirmed({
+    to: payment.user.email,
+    playerName:
+      payment.user.playerName ?? payment.user.name ?? "Bunal.club player",
+    venueName: event?.hub.name ?? firstBooking.hub.name,
+    bookingTitle,
+    schedule,
+    actionPath: event
+      ? `/dashboard/bookings?q=${encodeURIComponent(event.publicId)}`
+      : `/dashboard/bookings?q=${encodeURIComponent(payment.id)}`,
+    idempotencyKey: `player-automatic-booking-confirmed-${payment.id}`,
+    paymentMode: "AUTOMATIC",
+  });
+}
+
+export async function settleBookingPayment(
+  paymentId: string
+): Promise<SettleOutcome> {
+  const outcome = await settleBookingPaymentState(paymentId);
+  if (outcome.status === "confirmed" || outcome.status === "already") {
+    await notifyPlayerOfAutomaticPaymentConfirmation(paymentId);
+  }
+  return outcome;
+}
+
 // Confirms every booking this payment covers, atomically.
 //
 // Idempotent and safe to call from all three legs — the charge return, the
 // webhook, and the return-leg poll — because it keys off the bookings that are
 // still PENDING rather than off anything the caller knows.
-export async function settleBookingPayment(
+async function settleBookingPaymentState(
   paymentId: string
 ): Promise<SettleOutcome> {
   const payment = await prisma.bookingPayment.findUnique({

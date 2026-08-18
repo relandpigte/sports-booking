@@ -19,8 +19,10 @@ import { newDeviceLoginEmailContent } from "@/lib/security-alert-email";
 import {
   partnerBookingNotificationEmailContent,
   playerBookingConfirmedEmailContent,
+  playerManualReceiptReceivedEmailContent,
   type PartnerBookingNotificationEmailContentInput,
   type PlayerBookingConfirmedEmailContentInput,
+  type PlayerManualReceiptReceivedEmailContentInput,
 } from "@/lib/booking-notification-email";
 import {
   serviceFeeOverdueEmailContent,
@@ -70,6 +72,12 @@ type PartnerBookingNotificationEmailInput =
 
 type PlayerBookingConfirmedEmailInput =
   PlayerBookingConfirmedEmailContentInput & {
+    to: string;
+    idempotencyKey: string;
+  };
+
+type PlayerManualReceiptReceivedEmailInput =
+  PlayerManualReceiptReceivedEmailContentInput & {
     to: string;
     idempotencyKey: string;
   };
@@ -264,6 +272,21 @@ export async function sendPlayerBookingConfirmedEmail(
     idempotencyKey: input.idempotencyKey,
     category: "player-booking-confirmed",
     description: "Player booking-confirmation email delivery",
+  });
+}
+
+export async function sendPlayerManualReceiptReceivedEmail(
+  input: PlayerManualReceiptReceivedEmailInput
+): Promise<void> {
+  const content = playerManualReceiptReceivedEmailContent(input);
+  await deliverEmail({
+    to: input.to,
+    subject: content.subject,
+    html: content.html,
+    text: content.text,
+    idempotencyKey: input.idempotencyKey,
+    category: "player-manual-receipt-received",
+    description: "Player manual-receipt email delivery",
   });
 }
 

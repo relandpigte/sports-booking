@@ -10,6 +10,7 @@ import {
   MAX_AVATAR_BYTES,
   MAX_COVER_BYTES,
   MAX_COVERS,
+  MAX_QR_BYTES,
   MAX_RECEIPT_BYTES,
 } from "@/lib/image-constants";
 
@@ -17,6 +18,7 @@ export {
   MAX_AVATAR_BYTES,
   MAX_COVER_BYTES,
   MAX_COVERS,
+  MAX_QR_BYTES,
   MAX_RECEIPT_BYTES,
 } from "@/lib/image-constants";
 
@@ -48,8 +50,8 @@ const IMAGE_LIMITS: Record<
     maxHeight: 2000,
   },
   qr: {
-    maxInputBytes: 800 * 1024,
-    maxOutputBytes: 800 * 1024,
+    maxInputBytes: MAX_QR_BYTES,
+    maxOutputBytes: MAX_QR_BYTES,
     maxWidth: 1600,
     maxHeight: 1600,
   },

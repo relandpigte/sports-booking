@@ -1,4 +1,4 @@
-import { MAX_RECEIPT_BYTES } from "@/lib/image-constants";
+import { MAX_QR_BYTES, MAX_RECEIPT_BYTES } from "@/lib/image-constants";
 
 // Client-only helper: load an image file, cover-crop it to a square, and
 // return a small data URL suitable for storing directly in the database.
@@ -76,8 +76,8 @@ const RECEIPT_UPLOAD_TARGET_BYTES = MAX_RECEIPT_BYTES - 100 * 1024;
 
 function canvasToBlob(
   canvas: HTMLCanvasElement,
-  type: "image/webp" | "image/jpeg",
-  quality: number
+  type: "image/png" | "image/webp" | "image/jpeg",
+  quality?: number
 ): Promise<Blob | null> {
   return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
 }
@@ -143,6 +143,82 @@ export async function fileToReceiptDataUrl(
     }
 
     throw new Error("Receipt could not be compressed below the upload limit.");
+  } finally {
+    bitmap.close();
+  }
+}
+
+const QR_UPLOAD_TARGET_BYTES = MAX_QR_BYTES - 50 * 1024;
+
+function drawFocusedQr(
+  bitmap: ImageBitmap,
+  size: number
+): HTMLCanvasElement {
+  const shortSide = Math.min(bitmap.width, bitmap.height);
+  const longSide = Math.max(bitmap.width, bitmap.height);
+  // A portrait or landscape payment-app poster has substantial chrome around
+  // its centered QR. Tighten those images further, but never crop an already
+  // square QR where the required quiet zone may sit close to the edges.
+  const sourceSize = Math.floor(
+    shortSide * (longSide / shortSide >= 1.2 ? 0.82 : 1)
+  );
+  const sourceX = Math.floor((bitmap.width - sourceSize) / 2);
+  const sourceY = Math.floor((bitmap.height - sourceSize) / 2);
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Canvas not supported");
+  // QR modules are hard-edged geometry. Disabling interpolation prevents a
+  // downscaled payment-app screenshot from softening their boundaries.
+  context.imageSmoothingEnabled = false;
+  context.drawImage(
+    bitmap,
+    sourceX,
+    sourceY,
+    sourceSize,
+    sourceSize,
+    0,
+    0,
+    size,
+    size
+  );
+  return canvas;
+}
+
+// Payment QR uploads need different treatment from receipts: crop away the
+// surrounding app chrome and keep the QR lossless so gallery-import scanners
+// receive a large, high-contrast code.
+export async function fileToQrDataUrl(file: File): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+
+  try {
+    let size = Math.min(1200, bitmap.width, bitmap.height);
+    while (size >= 256) {
+      const png = await canvasToBlob(drawFocusedQr(bitmap, size), "image/png");
+      if (png && png.size <= QR_UPLOAD_TARGET_BYTES) {
+        return blobToDataUrl(png);
+      }
+      size = Math.floor(size * 0.8);
+    }
+    throw new Error("QR image could not be prepared below the upload limit.");
+  } finally {
+    bitmap.close();
+  }
+}
+
+// Existing manual-payment methods may still contain a full portrait payment
+// card. Focus it at download time too, so players save a scanner-friendly PNG
+// without requiring every partner to upload the image again immediately.
+export async function focusQrImageBlob(blob: Blob): Promise<Blob> {
+  const bitmap = await createImageBitmap(blob);
+
+  try {
+    const size = Math.min(1400, bitmap.width, bitmap.height);
+    const png = await canvasToBlob(drawFocusedQr(bitmap, size), "image/png");
+    if (!png) throw new Error("QR image could not be converted to PNG.");
+    return png;
   } finally {
     bitmap.close();
   }

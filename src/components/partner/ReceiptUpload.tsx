@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 
-import { fileToReceiptDataUrl } from "@/lib/image";
+import { fileToQrDataUrl, fileToReceiptDataUrl } from "@/lib/image";
 
 export function ReceiptUpload({
   error,
@@ -18,7 +18,7 @@ export function ReceiptUpload({
   label?: string;
   initialValue?: string;
   required?: boolean;
-  variant?: "default" | "checkout";
+  variant?: "default" | "checkout" | "qr";
   onValueChange?: (value: string) => void;
 }) {
   const [value, setValue] = useState(initialValue);
@@ -32,14 +32,19 @@ export function ReceiptUpload({
     setBusy(true);
     setLocalError(undefined);
     try {
-      const nextValue = await fileToReceiptDataUrl(file);
+      const nextValue =
+        variant === "qr"
+          ? await fileToQrDataUrl(file)
+          : await fileToReceiptDataUrl(file);
       setValue(nextValue);
       onValueChange?.(nextValue);
     } catch {
       setValue("");
       onValueChange?.("");
       setLocalError(
-        "Couldn't prepare that receipt. Try a screenshot or a smaller JPG, PNG, or WebP image."
+        variant === "qr"
+          ? "Couldn't prepare that QR image. Crop closely around the code and try a clear PNG or JPG."
+          : "Couldn't prepare that receipt. Try a screenshot or a smaller JPG, PNG, or WebP image."
       );
     } finally {
       setBusy(false);

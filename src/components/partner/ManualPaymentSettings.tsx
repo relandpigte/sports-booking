@@ -162,8 +162,13 @@ function MethodFields({
           label="Payment QR code"
           initialValue={method?.qrImage ?? ""}
           required={false}
+          variant="qr"
           error={state.errors?.qrImage}
         />
+        <p className="mt-1.5 text-xs leading-5 text-slate-500">
+          Upload a clear image centered on the QR code. Full payment-app
+          screenshots are automatically cropped to improve scanning.
+        </p>
       </div>
       <label className="mt-4 flex items-center gap-2 text-sm font-medium text-slate-700">
         <input
@@ -362,8 +367,13 @@ function AddMethodModal({ onClose }: { onClose: () => void }) {
               name="qrImage"
               label="Payment QR code"
               required={false}
+              variant="qr"
               error={state.errors?.qrImage}
             />
+            <p className="mt-1.5 text-xs leading-5 text-slate-500">
+              Upload a clear image centered on the QR code. Full payment-app
+              screenshots are automatically cropped to improve scanning.
+            </p>
           </div>
           <label className="mt-4 flex items-center gap-2 text-sm font-medium text-slate-700">
             <input type="checkbox" name="active" defaultChecked />

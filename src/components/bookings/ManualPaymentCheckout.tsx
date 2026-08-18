@@ -9,6 +9,7 @@ import {
   type ManualPaymentFormState,
 } from "@/lib/manual-payment-actions";
 import { MANUAL_SERVICE_FEE_PERCENT } from "@/lib/constants";
+import { focusQrImageBlob } from "@/lib/image";
 import type { ManualPaymentMethodView } from "@/lib/manual-payments";
 
 const initialState: ManualPaymentFormState = {};
@@ -250,16 +251,13 @@ export function ManualPaymentCheckout({
                             <img
                               src={selected.qrImage}
                               alt={`${selected.label} payment QR`}
-                              className="aspect-square w-full object-contain"
+                              className="aspect-square w-full object-cover"
                             />
                           </div>
-                          <a
-                            href={selected.qrImage}
-                            download={`${selected.label}-payment-qr`}
-                            className="mt-3 flex min-h-10 items-center justify-center rounded-xl border border-navy/10 bg-white px-3 text-xs font-bold text-primary transition-colors hover:bg-primary-soft"
-                          >
-                            Download QR code
-                          </a>
+                          <QrImageDownloadButton
+                            src={selected.qrImage}
+                            label={selected.label}
+                          />
                           <QrPaymentTip method={selected} />
                         </div>
                       ) : (
@@ -403,7 +401,12 @@ function CompactManualPaymentForm({
                 <img
                   src={selected.qrImage}
                   alt={`${selected.label} payment QR`}
-                  className="mx-auto size-40 rounded-2xl border border-slate-200 bg-white object-contain p-2 sm:mx-0"
+                  className="mx-auto size-48 rounded-2xl border border-slate-200 bg-white object-cover p-2 sm:mx-0"
+                />
+                <QrImageDownloadButton
+                  src={selected.qrImage}
+                  label={selected.label}
+                  compact
                 />
                 <QrPaymentTip method={selected} compact />
               </div>
@@ -578,9 +581,102 @@ function QrPaymentTip({
         Scan with {appName}
       </p>
       <p className="mt-1.5 text-[11px] leading-4 text-navy/70">
-        Scan this QR code in the {appName} app. If downloading is unavailable,
-        take a screenshot and import it from your gallery.
+        Scan this QR code in the {appName} app. On this device, download the
+        image and import it from your gallery.
       </p>
+    </div>
+  );
+}
+
+function QrImageDownloadButton({
+  src,
+  label,
+  compact = false,
+}: {
+  src: string;
+  label: string;
+  compact?: boolean;
+}) {
+  const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
+
+  async function downloadImage() {
+    setStatus("saving");
+
+    try {
+      const response = await fetch(src);
+      if (!response.ok) throw new Error("QR image could not be loaded");
+
+      const sourceBlob = await response.blob();
+      if (!sourceBlob.type.startsWith("image/")) {
+        throw new Error("QR download was not an image");
+      }
+
+      const blob = await focusQrImageBlob(sourceBlob);
+      const safeLabel =
+        label
+          .normalize("NFKD")
+          .replace(/[^a-zA-Z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "")
+          .toLowerCase() || "manual-payment";
+      const filename = `${safeLabel}-payment-qr.png`;
+      const file = new File([blob], filename, { type: "image/png" });
+
+      if (
+        navigator.maxTouchPoints > 0 &&
+        typeof navigator.share === "function" &&
+        typeof navigator.canShare === "function" &&
+        navigator.canShare({ files: [file] })
+      ) {
+        await navigator.share({
+          files: [file],
+          title: `${label} payment QR`,
+        });
+      } else {
+        const objectUrl = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = objectUrl;
+        anchor.download = filename;
+        anchor.rel = "noopener";
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000);
+      }
+
+      setStatus("idle");
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        setStatus("idle");
+        return;
+      }
+      setStatus("error");
+    }
+  }
+
+  return (
+    <div className={compact ? "mt-2" : "mt-3"}>
+      <button
+        type="button"
+        onClick={downloadImage}
+        disabled={status === "saving"}
+        className="flex min-h-10 w-full items-center justify-center rounded-xl border border-navy/10 bg-white px-3 text-xs font-bold text-primary transition-colors hover:bg-primary-soft disabled:cursor-wait disabled:opacity-60"
+      >
+        {status === "saving" ? "Preparing image…" : "Download image"}
+      </button>
+      {status === "error" && (
+        <p className="mt-2 text-center text-[11px] leading-4 text-red-600">
+          Download failed.{" "}
+          <a
+            href={src}
+            target="_blank"
+            rel="noreferrer"
+            className="font-bold underline underline-offset-2"
+          >
+            Open the image
+          </a>{" "}
+          and save it from your browser.
+        </p>
+      )}
     </div>
   );
 }

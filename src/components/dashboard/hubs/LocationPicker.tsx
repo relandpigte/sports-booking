@@ -7,6 +7,24 @@ const KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 // Default map center when no coordinates yet (Manila, Philippines).
 const DEFAULT_CENTER = { lat: 14.5995, lng: 120.9842 };
 
+// Keep this component independent from the ambient `google` namespace. The
+// loader supplies those globals only at runtime, and some production install
+// modes do not expose @types/google.maps to the application type check even
+// though the loader itself is installed.
+type LatLngLiteral = { lat: number; lng: number };
+type LatLngPoint = { lat: () => number; lng: () => number };
+type GeocoderResult = { formatted_address: string };
+type PlaceAutocompleteControl = HTMLElement & { value: string };
+type PlaceSelectEvent = Event & {
+  placePrediction: {
+    toPlace: () => {
+      fetchFields: (options: { fields: string[] }) => Promise<unknown>;
+      location?: LatLngPoint | null;
+      formattedAddress?: string | null;
+    };
+  };
+};
+
 export function LocationPicker({
   defaultAddress = "",
   defaultLat = null,
@@ -24,7 +42,7 @@ export function LocationPicker({
   const inputRef = useRef<HTMLInputElement>(null); // no-key fallback
   const acHostRef = useRef<HTMLDivElement>(null); // hosts the autocomplete element
   const mapRef = useRef<HTMLDivElement>(null);
-  const pacRef = useRef<google.maps.places.PlaceAutocompleteElement | null>(null);
+  const pacRef = useRef<PlaceAutocompleteControl | null>(null);
 
   useEffect(() => {
     if (!KEY || !acHostRef.current || !mapRef.current) return;
@@ -66,7 +84,7 @@ export function LocationPicker({
         });
         const geocoder = new Geocoder();
 
-        const setPoint = (p: google.maps.LatLngLiteral) => {
+        const setPoint = (p: LatLngLiteral) => {
           setLat(p.lat);
           setLng(p.lng);
           marker.setPosition(p);
@@ -74,14 +92,17 @@ export function LocationPicker({
           map.setCenter(p);
         };
 
-        const reverseGeocode = (p: google.maps.LatLngLiteral) => {
-          geocoder.geocode({ location: p }, (results, status) => {
-            if (status === "OK" && results?.[0]) {
-              const formatted = results[0].formatted_address;
-              setAddress(formatted);
-              if (pacRef.current) pacRef.current.value = formatted;
+        const reverseGeocode = (p: LatLngLiteral) => {
+          geocoder.geocode(
+            { location: p },
+            (results: GeocoderResult[] | null, status: string) => {
+              if (status === "OK" && results?.[0]) {
+                const formatted = results[0].formatted_address;
+                setAddress(formatted);
+                if (pacRef.current) pacRef.current.value = formatted;
+              }
             }
-          });
+          );
         };
 
         // New Places API autocomplete (web component).
@@ -89,10 +110,11 @@ export function LocationPicker({
         pac.style.width = "100%";
         if (defaultAddress) pac.value = defaultAddress;
         acHostRef.current.appendChild(pac);
-        pacRef.current = pac;
+        pacRef.current = pac as PlaceAutocompleteControl;
 
-        pac.addEventListener("gmp-select", async (ev) => {
+        pac.addEventListener("gmp-select", async (event: unknown) => {
           try {
+            const ev = event as PlaceSelectEvent;
             const place = ev.placePrediction.toPlace();
             await place.fetchFields({ fields: ["formattedAddress", "location"] });
             const loc = place.location;
@@ -119,7 +141,8 @@ export function LocationPicker({
           setLng(p.lng);
           reverseGeocode(p);
         });
-        map.addListener("click", (e: google.maps.MapMouseEvent) => {
+        map.addListener("click", (event: unknown) => {
+          const e = event as { latLng?: LatLngPoint | null };
           if (!e.latLng) return;
           const p = { lat: e.latLng.lat(), lng: e.latLng.lng() };
           setPoint(p);

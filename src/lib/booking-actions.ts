@@ -31,6 +31,7 @@ import {
 } from "@/lib/validation";
 import {
   refundBookingPayment,
+  type BookingHoldView,
 } from "@/lib/booking-payments";
 import {
   BOOKING_HOLD_MINUTES,
@@ -54,6 +55,7 @@ import {
 import { notifyPartnerTeamOfBooking } from "@/lib/booking-notifications";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { recordBookingSystemMessage } from "@/lib/message-system-events";
+import { hubPublicPath } from "@/lib/hub-slug";
 import {
   getPartnerWorkspace,
   hasStaffAccess,
@@ -66,34 +68,22 @@ export type BookingFormState = {
   message?: string;
   success?: string;
   bookingId?: string;
-  hold?: {
-    paymentId: string;
-    expiresAt: string;
-    initialSeconds: number;
-    amount: number;
-    venueName: string;
-    date: string;
-    paymentMode: "AUTOMATIC" | "MANUAL";
-    courtHours: number;
-    lines: Array<{
-      bookingId: string;
-      courtId: string;
-      courtName: string;
-      startHour: number;
-      endHour: number;
-      hours: number;
-    }>;
-    selections: Array<{
-      courtId: string;
-      hour: number;
-    }>;
-  };
+  hold?: BookingHoldView;
+  activeHoldConflict?: boolean;
 };
 
 // An interactive transaction can only be aborted by throwing, so these carry
 // business failures back out of it.
 class StaleBooking extends Error {}
 class PlayerClash extends Error {}
+class ActiveBookingHold extends Error {
+  constructor(
+    readonly venueName: string,
+    readonly releaseAllowed: boolean
+  ) {
+    super("The player already has an active booking hold.");
+  }
+}
 
 type BookingManager = {
   actorId: string;
@@ -299,6 +289,47 @@ export async function createBookingAction(
       }
 
       if (requiresPayment) {
+        // A transaction-scoped advisory lock makes the one-unpaid-hold rule
+        // safe across hubs, browser tabs, and concurrent requests. Without it,
+        // two transactions could both observe no hold and reserve inventory at
+        // separate venues before either commits.
+        await tx.$queryRaw<Array<{ locked: boolean }>>(
+          Prisma.sql`
+            SELECT true AS "locked"
+            FROM (
+              SELECT pg_advisory_xact_lock(hashtextextended(${viewer.id}, 0))
+            ) AS "playerHoldLock"
+          `
+        );
+        const existingHold = await tx.bookingPayment.findFirst({
+          where: {
+            userId: viewer.id,
+            status: "PENDING",
+            expiresAt: { gt: now },
+            manualSubmittedAt: null,
+            bookings: {
+              some: { status: "PENDING", holdExpiresAt: { gt: now } },
+            },
+          },
+          orderBy: [{ expiresAt: "asc" }, { createdAt: "asc" }],
+          select: {
+            chargeStartedAt: true,
+            providerPaymentId: true,
+            bookings: {
+              where: { status: "PENDING", holdExpiresAt: { gt: now } },
+              take: 1,
+              select: { hub: { select: { name: true } } },
+            },
+          },
+        });
+        if (existingHold) {
+          throw new ActiveBookingHold(
+            existingHold.bookings[0]?.hub.name ?? "another venue",
+            existingHold.chargeStartedAt == null &&
+              existingHold.providerPaymentId == null
+          );
+        }
+
         const payment = await tx.bookingPayment.create({
           data: {
             partnerId: hub.ownerId,
@@ -382,6 +413,14 @@ export async function createBookingAction(
       return out;
     });
   } catch (error) {
+    if (error instanceof ActiveBookingHold) {
+      return {
+        message: error.releaseAllowed
+          ? `You already have reserved slots at ${error.venueName}. Pay or release them before starting another booking.`
+          : `You already have a payment in progress at ${error.venueName}. Complete it before starting another booking.`,
+        activeHoldConflict: true,
+      };
+    }
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
@@ -436,6 +475,8 @@ export async function createBookingAction(
     return {
       hold: {
         paymentId,
+        hubId: hub.id,
+        hubPath: hubPublicPath(hub),
         expiresAt: holdExpiresAt!.toISOString(),
         initialSeconds: BOOKING_HOLD_MINUTES * 60,
         amount: manualPayment
@@ -444,6 +485,7 @@ export async function createBookingAction(
         venueName: hub.name,
         date,
         paymentMode: manualPayment ? "MANUAL" : "AUTOMATIC",
+        releaseAllowed: true,
         courtHours: selections.length,
         lines: created.map((booking) => ({
           bookingId: booking.id,

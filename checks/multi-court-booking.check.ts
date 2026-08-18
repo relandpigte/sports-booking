@@ -92,6 +92,23 @@ async function check() {
       courts: { orderBy: { name: "asc" }, select: { id: true, name: true } },
     },
   });
+  const otherHub = await prisma.hub.create({
+    data: {
+      ownerId: partner.id,
+      name: "Other Multi-court Check Hub",
+      slug: `other-multi-court-${partner.id}`,
+      coverPhotos: [],
+      games: ["pickleball"],
+      operatingHours,
+      courts: {
+        create: { name: "Other Court", courtType: "covered", hourlyRate: 350 },
+      },
+    },
+    select: {
+      id: true,
+      courts: { select: { id: true } },
+    },
+  });
   const [courtOne, courtTwo] = hub.courts;
   const date = addDays(manilaToday(), 7);
 
@@ -124,6 +141,30 @@ async function check() {
 
   const { continueHeldBookingPaymentAction, releaseBookingHoldAction } =
     await import("@/lib/booking-payment-actions");
+  const { getActiveBookingHoldForHub, getActiveBookingHoldForUser } =
+    await import("@/lib/booking-payments");
+  const restoredHold = await getActiveBookingHoldForHub({
+    userId: player.id,
+    hubId: hub.id,
+  });
+  ok(
+    "a refresh restores the active unpaid hold",
+    restoredHold?.paymentId === created.hold!.paymentId &&
+      restoredHold.selections.length === 3
+  );
+  const otherHubForm = new FormData();
+  otherHubForm.set("date", date);
+  otherHubForm.append("courtIds", otherHub.courts[0].id);
+  otherHubForm.append("hours", "14");
+  const otherHubResult = await createBookingAction({}, otherHubForm);
+  ok(
+    "an active unpaid hold blocks a second hold at another hub",
+    otherHubResult.activeHoldConflict === true &&
+      otherHubResult.message?.includes("Multi-court Check Hub") === true &&
+      (await prisma.bookingSlot.count({
+        where: { courtId: otherHub.courts[0].id, date, hour: 14 },
+      })) === 0
+  );
   const payForm = new FormData();
   payForm.set("paymentId", created.hold!.paymentId);
   let redirected = false;
@@ -191,6 +232,11 @@ async function check() {
         where: { date, hour: 9, courtId: { in: [courtOne.id, courtTwo.id] } },
       })) === 2
   );
+  ok(
+    "a provider-backed checkout remains global but cannot be released",
+    (await getActiveBookingHoldForUser({ userId: player.id }))
+      ?.releaseAllowed === false
+  );
 
   const collision = new FormData();
   collision.set("date", date);
@@ -213,6 +259,26 @@ async function check() {
       where: { courtId: courtTwo.id, date, hour: 11 },
     })) === 0
   );
+
+  if (!payment) throw new Error("Expected the test payment to exist.");
+  const firstPaymentBookingIds = payment.bookings.map((booking) => booking.id);
+  await prisma.$transaction([
+    prisma.bookingSlot.deleteMany({
+      where: { bookingId: { in: firstPaymentBookingIds } },
+    }),
+    prisma.booking.updateMany({
+      where: { id: { in: firstPaymentBookingIds } },
+      data: { status: "EXPIRED", holdExpiresAt: null },
+    }),
+    prisma.bookingPayment.update({
+      where: { id: payment.id },
+      data: {
+        status: "FAILED",
+        failureCode: "check_closed",
+        failureMessage: "Closed by the focused check.",
+      },
+    }),
+  ]);
 
   const releaseDate = addDays(manilaToday(), 8);
   const releasable = new FormData();
@@ -243,6 +309,13 @@ async function check() {
     releasedPayment?.status === "FAILED" &&
       releasedPayment.failureCode === "player_released" &&
       releasedPayment.bookings.every((booking) => booking.status === "EXPIRED")
+  );
+  ok(
+    "a released hold stays dismissed after refresh",
+    (await getActiveBookingHoldForHub({
+      userId: player.id,
+      hubId: hub.id,
+    })) === null
   );
 }
 

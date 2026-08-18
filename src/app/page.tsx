@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 
 import { JsonLd } from "@/components/JsonLd";
 import { HomePage } from "@/components/home/HomePage";
+import { ReservationHoldDock } from "@/components/bookings/ReservationHoldDock";
 import { auth } from "@/lib/auth";
+import { getViewer } from "@/lib/dal";
+import { getActiveBookingHoldForUser } from "@/lib/booking-payments";
 import {
   SITE_DESCRIPTION,
   SITE_NAME,
@@ -64,12 +67,23 @@ const homeJsonLd = {
 };
 
 export default async function Home() {
-  const session = await auth();
+  const [session, viewer] = await Promise.all([auth(), getViewer()]);
+  const activeBookingHold =
+    viewer?.role === "PLAYER"
+      ? await getActiveBookingHoldForUser({ userId: viewer.id })
+      : null;
 
   return (
     <>
       <JsonLd data={homeJsonLd} />
       <HomePage isLoggedIn={Boolean(session?.user?.id)} />
+      {activeBookingHold && (
+        <ReservationHoldDock
+          hold={activeBookingHold}
+          hideOnOwnHub
+          withSidebar={false}
+        />
+      )}
     </>
   );
 }

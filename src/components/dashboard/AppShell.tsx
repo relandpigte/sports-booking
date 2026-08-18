@@ -6,6 +6,7 @@ import { Logo } from "@/components/Logo";
 import { Avatar } from "@/components/ui/Avatar";
 import { DashboardNav } from "@/components/dashboard/DashboardNav";
 import { MobileDashboardMenu } from "@/components/dashboard/MobileDashboardMenu";
+import { ReservationHoldDock } from "@/components/bookings/ReservationHoldDock";
 import { logoutAction } from "@/lib/actions";
 import { stopPartnerImpersonationAction } from "@/lib/impersonation-actions";
 import {
@@ -13,6 +14,7 @@ import {
   enterStaffWorkspaceAction,
 } from "@/lib/staffing-actions";
 import type { PartnerWorkspace } from "@/lib/staffing";
+import type { BookingHoldView } from "@/lib/booking-payments";
 
 export type ShellUser = {
   name: string | null;
@@ -37,6 +39,7 @@ export function AppShell({
   hasMessages = false,
   workspace,
   staffWorkspaceAvailable = false,
+  activeBookingHold = null,
 }: {
   user: ShellUser;
   children: ReactNode;
@@ -49,6 +52,7 @@ export function AppShell({
   hasMessages?: boolean;
   workspace?: PartnerWorkspace | null;
   staffWorkspaceAvailable?: boolean;
+  activeBookingHold?: BookingHoldView | null;
 }) {
   const displayName = user.playerName ?? user.name ?? "Player";
   const workspaceLabel =
@@ -197,6 +201,9 @@ export function AppShell({
           {children}
         </div>
       </main>
+      {user.role === "PLAYER" && !workspace && activeBookingHold && (
+        <ReservationHoldDock hold={activeBookingHold} hideOnOwnHub />
+      )}
     </div>
   );
 }

@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Fragment,
   useActionState,
+  useEffect,
   useMemo,
   useState,
   useSyncExternalStore,
@@ -80,6 +82,7 @@ export function BookCourtPanel({
   viewerRole,
   paymentRequired,
   paymentMode,
+  initialHold = null,
 }: {
   hubId: string;
   courts: PanelCourt[];
@@ -93,7 +96,9 @@ export function BookCourtPanel({
   // below is exactly what it was before payments existed.
   paymentRequired: boolean;
   paymentMode: "AUTOMATIC" | "MANUAL";
+  initialHold?: NonNullable<BookingFormState["hold"]> | null;
 }) {
+  const router = useRouter();
   const [activeCourtId, setActiveCourtId] = useState(courts[0]?.id ?? "");
   const [date, setDate] = useState(today);
   const [pickedByCourt, setPickedByCourt] = useState<Record<string, number[]>>(
@@ -104,9 +109,13 @@ export function BookCourtPanel({
   const [closedHoldId, setClosedHoldId] = useState<string | null>(null);
   const [state, formAction, pending] = useActionState(
     createBookingAction,
-    initialState
+    initialHold ? { hold: initialHold } : initialState
   );
   const { isOnline } = usePwa();
+
+  useEffect(() => {
+    if (state.activeHoldConflict) router.refresh();
+  }, [router, state.activeHoldConflict]);
   const mobileBookingView = useSyncExternalStore(
     subscribeToMobileBookingView,
     getMobileBookingViewSnapshot,

@@ -6,6 +6,7 @@ import { getAuthenticatedUser, getCurrentUser } from "@/lib/dal";
 import { getActivePartnerImpersonation } from "@/lib/impersonation";
 import { hasMessageAccess } from "@/lib/messages";
 import { getPartnerWorkspace } from "@/lib/staffing";
+import { getActiveBookingHoldForUser } from "@/lib/booking-payments";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
@@ -27,12 +28,16 @@ export default async function DashboardLayout({
     actor?.role === "ADMIN"
       ? await getActivePartnerImpersonation(actor.id)
       : null;
-  const [workspace, availableStaffWorkspace] = await Promise.all([
-    getPartnerWorkspace(),
-    user.role === "PLAYER"
-      ? getPartnerWorkspace({ selectedStaffOnly: false })
-      : Promise.resolve(null),
-  ]);
+  const [workspace, availableStaffWorkspace, activeBookingHold] =
+    await Promise.all([
+      getPartnerWorkspace(),
+      user.role === "PLAYER"
+        ? getPartnerWorkspace({ selectedStaffOnly: false })
+        : Promise.resolve(null),
+      user.role === "PLAYER"
+        ? getActiveBookingHoldForUser({ userId: user.id })
+        : Promise.resolve(null),
+    ]);
   const hasMessages = impersonation
     ? false
     : workspace?.kind === "STAFF"
@@ -59,6 +64,7 @@ export default async function DashboardLayout({
       hasMessages={hasMessages}
       workspace={workspace}
       staffWorkspaceAvailable={Boolean(availableStaffWorkspace)}
+      activeBookingHold={activeBookingHold}
     >
       {children}
     </AppShell>

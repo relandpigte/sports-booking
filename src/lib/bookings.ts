@@ -436,6 +436,7 @@ export const getCourtForBooking = cache(async (courtId: string) => {
         select: {
           id: true,
           name: true,
+          slug: true,
           operatingHours: true,
           // Whose gateway a payment would go to, if this venue has connected
           // one — the booking action needs it before it writes anything.
@@ -485,6 +486,7 @@ export const getCourtForBooking = cache(async (courtId: string) => {
     hub: {
       id: row.hub.id,
       name: row.hub.name,
+      slug: row.hub.slug,
       ownerId: row.hub.ownerId,
       owner: {
         email: row.hub.owner.email,

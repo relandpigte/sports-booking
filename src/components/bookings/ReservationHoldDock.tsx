@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import { usePwa } from "@/components/pwa/PwaProvider";
 import {
@@ -9,14 +9,12 @@ import {
   releaseBookingHoldAction,
   type HeldBookingActionState,
 } from "@/lib/booking-payment-actions";
-import type { BookingFormState } from "@/lib/booking-actions";
+import type { BookingHoldView } from "@/lib/booking-payments";
 import { formatPHP } from "@/lib/currency";
 import {
   formatHourLabel,
   formatManilaDateLong,
 } from "@/lib/time";
-
-type BookingHold = NonNullable<BookingFormState["hold"]>;
 
 const initialActionState: HeldBookingActionState = {};
 
@@ -29,11 +27,16 @@ function mmss(totalSeconds: number): string {
 export function ReservationHoldDock({
   hold,
   onClosed,
+  hideOnOwnHub = false,
+  withSidebar = true,
 }: {
-  hold: BookingHold;
-  onClosed: () => void;
+  hold: BookingHoldView;
+  onClosed?: () => void;
+  hideOnOwnHub?: boolean;
+  withSidebar?: boolean;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { isOnline } = usePwa();
   const [secondsLeft, setSecondsLeft] = useState(hold.initialSeconds);
   const [closed, setClosed] = useState(false);
@@ -61,7 +64,7 @@ export function ReservationHoldDock({
     if (!releaseState.released || closureHandled.current) return;
     closureHandled.current = true;
     setClosed(true);
-    onClosed();
+    onClosed?.();
     router.refresh();
   }, [onClosed, releaseState.released, router]);
 
@@ -69,7 +72,7 @@ export function ReservationHoldDock({
     if (secondsLeft !== 0 || closureHandled.current) return;
     closureHandled.current = true;
     setClosed(true);
-    onClosed();
+    onClosed?.();
     router.refresh();
   }, [onClosed, router, secondsLeft]);
 
@@ -80,7 +83,15 @@ export function ReservationHoldDock({
     return `${first.courtName} · ${formatManilaDateLong(hold.date)} · ${formatHourLabel(first.startHour)}–${formatHourLabel(first.endHour)}${extra > 0 ? ` · +${extra} more` : ""}`;
   }, [hold]);
 
-  if (closed) return null;
+  const onHeldHub =
+    pathname === hold.hubPath || pathname === `/hubs/${hold.hubId}`;
+  if (
+    closed ||
+    pathname.startsWith("/dashboard/bookings/pay/") ||
+    (hideOnOwnHub && onHeldHub)
+  ) {
+    return null;
+  }
 
   const message = releaseState.message ?? paymentState.message;
   const urgent = secondsLeft <= 60;
@@ -88,7 +99,7 @@ export function ReservationHoldDock({
   return (
     <section
       aria-label="Reserved booking"
-      className="fixed inset-x-0 bottom-0 z-[60] border-t border-accent/60 bg-navy/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-14px_35px_rgba(16,36,58,0.22)] backdrop-blur-xl md:left-[272px]"
+      className={`fixed inset-x-0 bottom-0 z-[60] border-t border-accent/60 bg-navy/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-14px_35px_rgba(16,36,58,0.22)] backdrop-blur-xl ${withSidebar ? "md:left-[272px]" : ""}`}
     >
       <div className="mx-auto w-full max-w-7xl px-4 py-3 sm:px-6 sm:py-4 lg:px-8">
         {message && (
@@ -140,17 +151,25 @@ export function ReservationHoldDock({
             </p>
           </div>
 
-          <div className="col-span-2 grid grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)] gap-2 lg:flex lg:shrink-0">
-            <form action={releaseAction}>
-              <input type="hidden" name="paymentId" value={hold.paymentId} />
-              <button
-                type="submit"
-                disabled={releasing || startingPayment || !isOnline}
-                className="min-h-11 w-full rounded-xl border border-white/20 bg-white/5 px-3 text-xs font-bold text-white transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-12 sm:px-5 sm:text-sm"
-              >
-                {releasing ? "Releasing…" : "Release slots"}
-              </button>
-            </form>
+          <div
+            className={`col-span-2 grid gap-2 lg:flex lg:shrink-0 ${
+              hold.releaseAllowed
+                ? "grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)]"
+                : "grid-cols-1"
+            }`}
+          >
+            {hold.releaseAllowed && (
+              <form action={releaseAction}>
+                <input type="hidden" name="paymentId" value={hold.paymentId} />
+                <button
+                  type="submit"
+                  disabled={releasing || startingPayment || !isOnline}
+                  className="min-h-11 w-full rounded-xl border border-white/20 bg-white/5 px-3 text-xs font-bold text-white transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-12 sm:px-5 sm:text-sm"
+                >
+                  {releasing ? "Releasing…" : "Release slots"}
+                </button>
+              </form>
+            )}
             <form action={paymentAction}>
               <input type="hidden" name="paymentId" value={hold.paymentId} />
               <button
@@ -162,7 +181,9 @@ export function ReservationHoldDock({
                   ? hold.paymentMode === "MANUAL"
                     ? "Opening payment…"
                     : "Preparing QR Ph…"
-                  : `Pay ${formatPHP(hold.amount)}`}
+                  : hold.releaseAllowed
+                    ? `Pay ${formatPHP(hold.amount)}`
+                    : "Continue payment"}
                 {!startingPayment && <ArrowIcon />}
               </button>
             </form>

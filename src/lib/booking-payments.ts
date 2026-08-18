@@ -30,6 +30,7 @@ import {
   recordBookingSystemMessage,
   recordEventRegistrationSystemMessage,
 } from "@/lib/message-system-events";
+import { hubPublicPath } from "@/lib/hub-slug";
 
 // Players paying venues through each partner's own gateway.
 //
@@ -52,6 +53,32 @@ export type BookingPaymentLine = {
   startHour: number;
   endHour: number;
   hours: number;
+};
+
+export type BookingHoldView = {
+  paymentId: string;
+  hubId: string;
+  hubPath: string;
+  expiresAt: string;
+  initialSeconds: number;
+  amount: number;
+  venueName: string;
+  date: string;
+  paymentMode: "AUTOMATIC" | "MANUAL";
+  releaseAllowed: boolean;
+  courtHours: number;
+  lines: Array<{
+    bookingId: string;
+    courtId: string;
+    courtName: string;
+    startHour: number;
+    endHour: number;
+    hours: number;
+  }>;
+  selections: Array<{
+    courtId: string;
+    hour: number;
+  }>;
 };
 
 export type BookingPaymentView = {
@@ -105,6 +132,101 @@ export type BookingPaymentView = {
     endHour: number;
   } | null;
 };
+
+// Restores the player's one live court-payment hold across hub and dashboard
+// navigation. A submitted manual receipt is no longer an unpaid checkout and
+// intentionally drops out; an automatic payment already in motion remains
+// visible, but the dock offers Continue payment rather than Release slots.
+export async function getActiveBookingHoldForUser(args: {
+  userId: string;
+}): Promise<BookingHoldView | null> {
+  const now = new Date();
+  const payment = await prisma.bookingPayment.findFirst({
+    where: {
+      userId: args.userId,
+      status: "PENDING",
+      expiresAt: { gt: now },
+      manualSubmittedAt: null,
+      bookings: {
+        some: { status: "PENDING", holdExpiresAt: { gt: now } },
+      },
+    },
+    orderBy: [{ expiresAt: "asc" }, { createdAt: "asc" }],
+    select: {
+      id: true,
+      hubId: true,
+      amount: true,
+      processingFee: true,
+      collectionMode: true,
+      expiresAt: true,
+      chargeStartedAt: true,
+      providerPaymentId: true,
+      bookings: {
+        where: { status: "PENDING", holdExpiresAt: { gt: now } },
+        orderBy: [{ startsAt: "asc" }, { courtId: "asc" }],
+        select: {
+          id: true,
+          courtId: true,
+          date: true,
+          startHour: true,
+          endHour: true,
+          hours: true,
+          court: { select: { name: true } },
+          hub: { select: { id: true, name: true, slug: true } },
+        },
+      },
+    },
+  });
+  const first = payment?.bookings[0];
+  if (!payment || !first) return null;
+
+  const subtotal = Number(payment.amount);
+  const processingFee =
+    payment.collectionMode === "AUTOMATIC"
+      ? Number(payment.processingFee) || paymongoQrPhProcessingFeeFor(subtotal)
+      : 0;
+  const lines = payment.bookings.map((booking) => ({
+    bookingId: booking.id,
+    courtId: booking.courtId,
+    courtName: booking.court.name,
+    startHour: booking.startHour,
+    endHour: booking.endHour,
+    hours: booking.hours,
+  }));
+
+  return {
+    paymentId: payment.id,
+    hubId: payment.hubId,
+    hubPath: hubPublicPath(first.hub),
+    expiresAt: payment.expiresAt.toISOString(),
+    initialSeconds: Math.max(
+      0,
+      Math.round((payment.expiresAt.getTime() - now.getTime()) / 1000)
+    ),
+    amount: subtotal + processingFee,
+    venueName: first.hub.name,
+    date: first.date,
+    paymentMode: payment.collectionMode,
+    releaseAllowed:
+      payment.chargeStartedAt == null && payment.providerPaymentId == null,
+    courtHours: lines.reduce((sum, line) => sum + line.hours, 0),
+    lines,
+    selections: lines.flatMap((line) =>
+      Array.from({ length: line.hours }, (_, index) => ({
+        courtId: line.courtId,
+        hour: line.startHour + index,
+      }))
+    ),
+  };
+}
+
+export async function getActiveBookingHoldForHub(args: {
+  userId: string;
+  hubId: string;
+}): Promise<BookingHoldView | null> {
+  const hold = await getActiveBookingHoldForUser({ userId: args.userId });
+  return hold?.hubId === args.hubId ? hold : null;
+}
 
 const paymentSelect = {
   id: true,

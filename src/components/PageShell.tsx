@@ -2,8 +2,10 @@ import type { ReactNode } from "react";
 
 import { PublicTopBar } from "@/components/hubs/PublicTopBar";
 import { AppShell } from "@/components/dashboard/AppShell";
+import { ReservationHoldDock } from "@/components/bookings/ReservationHoldDock";
 import { getAuthenticatedUser, getViewer } from "@/lib/dal";
 import { getActivePartnerImpersonation } from "@/lib/impersonation";
+import { getActiveBookingHoldForUser } from "@/lib/booking-payments";
 
 // Chrome for pages that are public but that signed-in people also use.
 //
@@ -30,10 +32,14 @@ export async function PageShell({
     getViewer(),
     getAuthenticatedUser(),
   ]);
-  const impersonation =
+  const [impersonation, activeBookingHold] = await Promise.all([
     actor?.role === "ADMIN"
-      ? await getActivePartnerImpersonation(actor.id)
-      : null;
+      ? getActivePartnerImpersonation(actor.id)
+      : Promise.resolve(null),
+    viewer?.role === "PLAYER"
+      ? getActiveBookingHoldForUser({ userId: viewer.id })
+      : Promise.resolve(null),
+  ]);
 
   // Assisted access always keeps the authenticated shell visible so the
   // actor/target banner and exit control cannot disappear on a public page.
@@ -52,6 +58,7 @@ export async function PageShell({
               }
             : null
         }
+        activeBookingHold={activeBookingHold}
       >
         {children}
       </AppShell>
@@ -66,6 +73,13 @@ export async function PageShell({
       >
         {children}
       </main>
+      {activeBookingHold && (
+        <ReservationHoldDock
+          hold={activeBookingHold}
+          hideOnOwnHub
+          withSidebar={false}
+        />
+      )}
     </div>
   );
 }

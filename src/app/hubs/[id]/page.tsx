@@ -11,6 +11,7 @@ import { getPublicHub, type Hub } from "@/lib/hubs";
 import { getViewer } from "@/lib/dal";
 import { getHubCourtOccupancies } from "@/lib/bookings";
 import { formatPHP } from "@/lib/currency";
+import { getActiveBookingHoldForHub } from "@/lib/booking-payments";
 import { hubPublicPath } from "@/lib/hub-slug";
 import { facebookPageLabel } from "@/lib/social";
 import {
@@ -163,8 +164,8 @@ export default async function PublicHubPage({
   // rather than getCurrentUser (which would redirect anonymous visitors).
   const today = manilaToday();
   const todayClosureNotices = closureNoticesForDate(hub.courts, today);
-  const [viewer, initialAvailability] = await Promise.all([
-    getViewer(),
+  const viewer = await getViewer();
+  const [initialAvailability, initialHold] = await Promise.all([
     // Populate every court for the comparison view before its live stream
     // connects, so neither list nor grid flashes an empty schedule.
     hub.courts.length > 0 && hub.bookable
@@ -173,6 +174,12 @@ export default async function PublicHubPage({
           today,
           hub.courts.map((court) => court.id)
         )
+      : null,
+    viewer?.role === "PLAYER" && hub.bookable
+      ? getActiveBookingHoldForHub({
+          userId: viewer.id,
+          hubId: hub.id,
+        })
       : null,
   ]);
 
@@ -601,6 +608,7 @@ export default async function PublicHubPage({
           viewerRole={viewer?.role ?? null}
           paymentRequired={hub.paymentRequired}
           paymentMode={hub.paymentMode}
+          initialHold={initialHold}
         />
       ) : (
         <section className="border-y border-gray-200 bg-white py-14">

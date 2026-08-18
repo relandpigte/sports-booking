@@ -127,7 +127,7 @@ function ModeForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
   const [state, action, pending] = useActionState(changeOpenPlayModeAction, {});
   const [selected, setSelected] = useState(snapshot.matchingMode);
   return (
-    <form action={action} className="rounded-2xl border border-slate-200 bg-white p-4">
+    <form action={action} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
       <input type="hidden" name="sessionId" value={snapshot.id} />
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
@@ -138,14 +138,14 @@ function ModeForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
           {pending ? "Saving…" : "Apply mode"}
         </button>
       </div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        {OPEN_PLAY_MODES.map((mode) => (
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {OPEN_PLAY_MODES.map((mode, index) => (
           <label
             key={mode}
-            className={`cursor-pointer rounded-xl border p-3 transition ${
+            className={`group cursor-pointer rounded-xl border p-3 transition ${
               selected === mode
-                ? "border-primary bg-primary-soft ring-1 ring-primary"
-                : "border-slate-200 hover:border-primary/40"
+                ? "border-primary bg-primary-soft shadow-sm ring-1 ring-primary"
+                : "border-slate-200 bg-slate-50/60 hover:border-primary/40 hover:bg-white"
             }`}
           >
             <input
@@ -156,8 +156,12 @@ function ModeForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
               onChange={() => setSelected(mode)}
               className="sr-only"
             />
-            <span className="text-sm font-black text-navy">{OPEN_PLAY_MODE_LABELS[mode]}</span>
-            <span className="mt-1 block text-xs leading-5 text-slate-500">{OPEN_PLAY_MODE_DESCRIPTIONS[mode]}</span>
+            <span className="flex items-start justify-between gap-3">
+              <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[11px] font-black ${selected === mode ? "bg-primary text-white" : "bg-white text-slate-400 ring-1 ring-slate-200"}`}>0{index + 1}</span>
+              <span className={`mt-1 h-3.5 w-3.5 shrink-0 rounded-full border-2 ${selected === mode ? "border-primary bg-primary ring-2 ring-primary/15" : "border-slate-300 bg-white"}`} />
+            </span>
+            <span className="mt-3 block text-sm font-black text-navy">{OPEN_PLAY_MODE_LABELS[mode]}</span>
+            <span className="mt-1 block text-[11px] leading-5 text-slate-500">{OPEN_PLAY_MODE_DESCRIPTIONS[mode]}</span>
           </label>
         ))}
       </div>
@@ -268,14 +272,15 @@ function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
           return latest ? <ActionForm action={undoOpenPlayResultAction} values={{ sessionId: snapshot.id, gameId: latest.id }} label="Undo latest result" tone="quiet" /> : null;
         })() : null}
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {snapshot.courts.map((court) => {
           const game = games.find((item) => item.courtId === court.id);
           return (
-            <article key={court.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-              <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-2.5">
+            <article key={court.id} className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${game?.status === "ACTIVE" ? "border-primary/40 ring-1 ring-primary/10" : "border-slate-200"}`}>
+              <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-2.5">
                 <h3 className="text-sm font-black text-navy">{court.name}</h3>
-                <span className={`text-[10px] font-black uppercase tracking-wider ${game?.status === "ACTIVE" ? "text-primary" : game ? "text-ocean" : "text-slate-500"}`}>
+                <span className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider ${game?.status === "ACTIVE" ? "text-primary" : game ? "text-ocean" : "text-slate-500"}`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${game?.status === "ACTIVE" ? "animate-pulse bg-primary" : game ? "bg-ocean" : court.active ? "bg-slate-300" : "bg-amber-400"}`} />
                   {!court.active ? "Paused" : game?.status === "ACTIVE" ? "Playing" : game ? "Staged" : "Ready"}
                 </span>
               </div>
@@ -285,13 +290,13 @@ function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
                     {[1, 2].map((team, index) => (
                       <div key={team} className="contents">
                         {index === 1 ? <span className="text-[10px] font-black text-slate-300">VS</span> : null}
-                        <div className="rounded-lg border border-slate-200 p-2 text-center">
+                        <div className={`rounded-lg border p-2 text-center ${game.status === "ACTIVE" ? "border-primary/20 bg-primary-soft/60" : "border-slate-200"}`}>
                           {game.players.filter((player) => player.team === team).map((player) => <p key={player.participantId} className="truncate text-xs font-bold text-navy">{player.displayName}</p>)}
                         </div>
                       </div>
                     ))}
                   </div>
-                ) : <p className="py-4 text-center text-xs text-slate-500">Ready for the next match.</p>}
+                ) : <p className="py-4 text-center text-xs text-slate-500">{court.active ? "Ready for the next match." : "Rotation paused for this court."}</p>}
                 <div className="mt-3 flex flex-wrap gap-2">
                   {!game ? <ActionForm action={toggleOpenPlayCourtAction} values={{ sessionId: snapshot.id, courtId: court.id, active: !court.active }} label={court.active ? "Pause court" : "Resume court"} tone="quiet" /> : null}
                   {!game && court.active && snapshot.status === "ACTIVE" ? <ActionForm action={stageOpenPlayMatchAction} values={{ sessionId: snapshot.id, courtId: court.id }} label="Stage next" /> : null}
@@ -464,19 +469,36 @@ function ParticipantRoster({ snapshot }: { snapshot: OpenPlaySnapshot }) {
           ))}
         </div>
       </div>
+      <div className="hidden grid-cols-[40px_minmax(180px,1.35fr)_110px_110px_72px_minmax(170px,auto)] items-center gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 lg:grid">
+        <div className="flex justify-center">
+          {eligible.length > 0 ? (
+            <input
+              type="checkbox"
+              checked={eligible.every((player) => selected.has(player.id))}
+              onChange={(event) => selectVisibleEligible(event.target.checked)}
+              aria-label="Select all eligible players in this view"
+            />
+          ) : null}
+        </div>
+        <span>Player &amp; source</span>
+        <span>Skill</span>
+        <span>Status</span>
+        <span>Wait</span>
+        <span className="text-right">Action</span>
+      </div>
       {eligible.length > 0 ? (
-        <label className="flex min-h-11 cursor-pointer items-center gap-2 border-b border-slate-100 bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600 sm:px-5">
+        <label className="flex min-h-11 cursor-pointer items-center gap-2 border-b border-slate-100 bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600 lg:hidden">
           <input
             type="checkbox"
             checked={eligible.every((player) => selected.has(player.id))}
             onChange={(event) => selectVisibleEligible(event.target.checked)}
           />
-          Select all eligible in this view
+          Select eligible players in this view
         </label>
       ) : null}
-      <div className="grid gap-3 p-3 md:grid-cols-2 xl:grid-cols-3 sm:p-4">
+      <div className="divide-y divide-slate-100">
         {visibleParticipants.length === 0 ? (
-          <p className="py-10 text-center text-sm text-slate-500 md:col-span-2 xl:col-span-3">No players in this view.</p>
+          <p className="px-4 py-10 text-center text-sm text-slate-500">No players in this view.</p>
         ) : visibleParticipants.map((player) => {
           const groupLabel = GROUPS.find(([status]) => status === player.status)?.[1] ?? player.status;
           const isEligible = ["NOT_CHECKED_IN", "CHECKED_OUT"].includes(player.status);
@@ -488,13 +510,15 @@ function ParticipantRoster({ snapshot }: { snapshot: OpenPlaySnapshot }) {
           return (
             <article
               key={player.id}
-              className={`relative grid grid-cols-[36px_minmax(0,1fr)] content-start gap-x-3 gap-y-3 rounded-xl border p-3 transition ${
+              className={`relative grid grid-cols-[36px_minmax(0,1fr)] gap-x-3 gap-y-2 p-4 transition lg:grid-cols-[40px_minmax(180px,1.35fr)_110px_110px_72px_minmax(170px,auto)] lg:items-center lg:gap-3 lg:px-4 lg:py-3 ${
                 player.status === "PENDING_APPROVAL"
-                  ? "border-amber-200 bg-amber-50/70"
-                  : "border-slate-200 bg-white hover:border-primary/30 hover:shadow-sm"
+                  ? "bg-amber-50/70 hover:bg-amber-50"
+                  : player.status === "REMOVED"
+                    ? "bg-slate-50/60 opacity-60"
+                    : "bg-white hover:bg-slate-50/70"
               }`}
             >
-              <div className="flex h-9 items-center justify-center">
+              <div className="flex h-9 items-center justify-center lg:h-auto">
                 {isEligible ? (
                   <input
                     type="checkbox"
@@ -512,16 +536,29 @@ function ParticipantRoster({ snapshot }: { snapshot: OpenPlaySnapshot }) {
               </div>
               <div className="min-w-0 self-center">
                 <p className="truncate text-sm font-black text-navy">{player.displayName}</p>
-                <p className="mt-0.5 truncate text-[11px] capitalize text-slate-500">
+                <p className="mt-0.5 truncate text-[10px] font-bold uppercase tracking-wide text-slate-400">
                   {player.source.toLowerCase().replaceAll("_", " ")}
                 </p>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <span className="text-xs capitalize text-slate-600">{player.skillLevel}</span>
-                  <span className={`rounded-full px-2 py-1 text-[10px] font-black ${STATUS_STYLES[player.status]}`}>{groupLabel}</span>
-                  {player.estimatedWaitMinutes ? <span className="text-xs text-slate-500">~{player.estimatedWaitMinutes}m</span> : null}
+              </div>
+              <div className="col-span-2 grid grid-cols-3 gap-2 border-t border-slate-100 pt-2 lg:col-span-1 lg:block lg:border-0 lg:pt-0">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 lg:hidden">Skill</p>
+                  <span className="text-[11px] font-bold capitalize text-slate-600">{player.skillLevel}</span>
+                </div>
+                <div className="lg:hidden">
+                  <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Status</p>
+                  <span className={`mt-0.5 inline-flex rounded-full px-2 py-0.5 text-[9px] font-black ${STATUS_STYLES[player.status]}`}>{groupLabel}</span>
+                </div>
+                <div className="lg:hidden">
+                  <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Wait</p>
+                  <span className="text-[11px] font-bold text-slate-500">{player.estimatedWaitMinutes ? `~${player.estimatedWaitMinutes}m` : "—"}</span>
                 </div>
               </div>
-              <div className="col-span-2 mt-auto flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-3">
+              <div className="hidden lg:block">
+                <span className={`inline-flex rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-wide ${STATUS_STYLES[player.status]}`}>{groupLabel}</span>
+              </div>
+              <span className="hidden text-xs font-bold text-slate-500 lg:block">{player.estimatedWaitMinutes ? `~${player.estimatedWaitMinutes}m` : "—"}</span>
+              <div className="col-span-2 flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-2 lg:col-span-1 lg:border-0 lg:pt-0">
                 <ParticipantPrimaryAction snapshot={snapshot} participant={player} />
                 <ParticipantMoreActions snapshot={snapshot} participant={player} />
               </div>
@@ -530,7 +567,7 @@ function ParticipantRoster({ snapshot }: { snapshot: OpenPlaySnapshot }) {
         })}
       </div>
       {selected.size > 0 ? (
-        <form action={bulkAction} className="sticky bottom-0 flex items-center justify-between gap-3 rounded-b-2xl bg-navy p-3 text-white sm:px-5">
+        <form action={bulkAction} className="sticky bottom-3 z-20 mx-3 mb-3 flex items-center justify-between gap-3 rounded-xl bg-navy p-3 text-white shadow-xl sm:mx-5 sm:px-4">
           <input type="hidden" name="sessionId" value={snapshot.id} />
           {[...selected].map((id) => <input key={id} type="hidden" name="participantId" value={id} />)}
           <div><p className="text-xs font-black">{selected.size} selected</p><Feedback state={bulkState} /></div>
@@ -563,16 +600,31 @@ export function OpenPlayConsole({ snapshot, canManage }: { snapshot: OpenPlaySna
   const pairs = new Map<string, string[]>();
   snapshot.participants.forEach((player) => { if (player.pairId) pairs.set(player.pairId, [...(pairs.get(player.pairId) ?? []), player.displayName]); });
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <OpenPlayLiveRefresh publicId={snapshot.queue.publicId} />
       <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {[["Pending", pending], ["Waiting", waiting], ["Playing", playing], ["Active courts", `${activeCourts}/${snapshot.courts.length}`]].map(([label, value]) => (
-          <div key={label} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5"><p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</p><p className="mt-1 text-xl font-black text-navy">{value}</p></div>
+        {[["Pending approval", pending], ["Waiting queue", waiting], ["Currently playing", playing], ["Active courts", `${activeCourts}/${snapshot.courts.length}`]].map(([label, value], index) => (
+          <div key={label} className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm sm:px-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[9px] font-black uppercase tracking-[0.13em] text-slate-400 sm:text-[10px]">{label}</p>
+              <span className={`h-2 w-2 shrink-0 rounded-full ${index === 0 && pending > 0 ? "bg-amber-400" : index === 2 && playing > 0 ? "bg-primary" : "bg-slate-200"}`} />
+            </div>
+            <p className="mt-1 text-xl font-black text-navy sm:text-2xl">{value}</p>
+          </div>
         ))}
       </section>
       {canManage ? <>
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4">
-          <div><p className="text-sm font-black text-navy">Run {snapshot.runNumber}</p><p className="text-xs text-slate-500">{snapshot.status.toLowerCase()} · {OPEN_PLAY_MODE_LABELS[snapshot.matchingMode]}</p></div>
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="flex items-center gap-3">
+            <span className={`flex h-10 w-10 items-center justify-center rounded-xl text-xs font-black ${snapshot.status === "ACTIVE" ? "bg-primary text-white" : "bg-slate-100 text-slate-500"}`}>{snapshot.runNumber}</span>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-black text-navy">Run controls</p>
+                <span className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${snapshot.status === "ACTIVE" ? "bg-primary-soft text-primary" : "bg-slate-100 text-slate-500"}`}>{snapshot.status}</span>
+              </div>
+              <p className="mt-0.5 text-xs text-slate-500">{OPEN_PLAY_MODE_LABELS[snapshot.matchingMode]} · {snapshot.queue.kind === "QUICK" ? "Quick Queue" : "Event roster"}</p>
+            </div>
+          </div>
           <div className="flex flex-wrap gap-2">
             {snapshot.status === "SETUP" ? <ActionForm action={startOpenPlaySessionAction} values={{ sessionId: snapshot.id }} label="Start run" /> : null}
             {snapshot.status !== "ENDED" ? <ActionForm action={endOpenPlaySessionAction} values={{ sessionId: snapshot.id }} label="End run" tone="danger" confirm="End this run? Staged and active matches will be cancelled." /> : null}
@@ -582,19 +634,26 @@ export function OpenPlayConsole({ snapshot, canManage }: { snapshot: OpenPlaySna
         <ModeForm snapshot={snapshot} />
         <PairForm snapshot={snapshot} />
         {pairs.size > 0 ? <div className="flex flex-wrap gap-2">{[...pairs.entries()].map(([pairId, names]) => <div key={pairId} className="flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900"><span>{names.join(" + ")}</span><ActionForm action={unpairOpenPlayParticipantsAction} values={{ sessionId: snapshot.id, pairId }} label="Unpair" tone="quiet" /></div>)}</div> : null}
-        <div className={snapshot.queue.kind === "QUICK" ? "grid gap-4 lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.7fr)]" : ""}>
-          <AdmissionForm snapshot={snapshot} />
-          <WalkInForm snapshot={snapshot} />
-        </div>
-        <div className="space-y-5">
+        <div className="space-y-6">
           <div>{snapshot.status === "ACTIVE" ? <MatchControls snapshot={snapshot} /> : <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">Start the run to stage matches.</p>}</div>
+          <div className={snapshot.queue.kind === "QUICK" ? "grid gap-4 lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.7fr)]" : ""}>
+            <AdmissionForm snapshot={snapshot} />
+            <WalkInForm snapshot={snapshot} />
+          </div>
           <ParticipantRoster snapshot={snapshot} />
         </div>
       </> : null}
-      <details className="rounded-2xl border border-slate-200 bg-white p-4">
-        <summary className="cursor-pointer text-sm font-black text-navy">Player board preview</summary>
-        <div className="mt-5"><OpenPlayBoard snapshot={snapshot} /></div>
-      </details>
+      <section className="border-t border-slate-200 pt-8 sm:pt-10">
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">Public display</p>
+            <h2 className="mt-1 text-xl font-black text-navy sm:text-2xl">Player board preview</h2>
+            <p className="mt-1 text-xs text-slate-500">This is what players see on the shared live board.</p>
+          </div>
+          <span className="rounded-full bg-primary px-3 py-1 text-[10px] font-black uppercase tracking-wider text-white">Live preview</span>
+        </div>
+        <OpenPlayBoard snapshot={snapshot} />
+      </section>
     </div>
   );
 }

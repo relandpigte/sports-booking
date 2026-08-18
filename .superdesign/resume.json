@@ -37,8 +37,8 @@
         ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
         "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
         "src/app/(app)/dashboard/events/[publicId]/open-play/page.tsx": "b8c6e5a716e7ba9d24323ba4b410bcac494f943fa8f05c11214d44d4164bcdae",
-        "src/app/(app)/dashboard/bunalq/[publicId]/page.tsx": "90140bac02a190712ff85da9f549db936dd8a131b901d0249cdc1873536e315c",
-        "src/components/open-play/OpenPlayConsole.tsx": "6282c91397dc1e3c15e7f648a86335a67220e81da7eb0ec27376e82fce0a3ed6",
+        "src/app/(app)/dashboard/bunalq/[publicId]/page.tsx": "865de91d2f430ee88a6aa56dac9b4a0eccaff3d5e5097fdec3331d1073035dcd",
+        "src/components/open-play/OpenPlayConsole.tsx": "7175eca04e1532ac24a6042bc07a4159cb7d63ba9e17b02ec2f99bdd75e5a317",
         "src/components/open-play/OpenPlayBoard.tsx": "f611e1f9ab68b23a84a718c48bfa86ccb4f99c07e2ac75bced629b48a6d5065d",
         "src/components/dashboard/AppShell.tsx": "85169c0a615efed6974f37e440902461d952eea834893f5001b03db5d13694de",
         "src/components/dashboard/DashboardNav.tsx": "1699d82a1ec51fc5978c8cbc780bfe1a5102a9f44e66542e1a0256e4959391f3",
@@ -62,7 +62,7 @@
           "currentVersion": 3
         }
       },
-      "updatedAt": "2026-08-18T11:22:16+08:00"
+      "updatedAt": "2026-08-18T16:49:57+08:00"
     },
     "booking-reservation-hold-bar": {
       "targetKind": "existing-ui",

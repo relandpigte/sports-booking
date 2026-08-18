@@ -12,7 +12,7 @@ export function CopyLiveLinkButton({ url }: { url: string }) {
         setCopied(true);
         window.setTimeout(() => setCopied(false), 2_000);
       }}
-      className="mt-3 rounded-xl bg-primary-soft px-3 py-2 text-xs font-black text-primary hover:bg-accent-soft"
+      className="min-h-10 rounded-xl bg-primary-soft px-3 py-2 text-xs font-black text-primary transition hover:bg-accent-soft"
     >
       {copied ? "Link copied" : "Copy live link"}
     </button>

@@ -13,6 +13,7 @@ import {
   createLoginGrant,
   createSecurityChallenge,
   getSecurityChallenge,
+  isLoginChallengeForUser,
   setupSecretForChallenge,
   validateManagedSession,
   verifyLoginMfaChallenge,
@@ -147,6 +148,10 @@ async function check() {
   const setupChallenge = await getSecurityChallenge(setupToken);
   const secret = await setupSecretForChallenge(setupChallenge);
   ok("MFA setup stores an encrypted authenticator secret", Boolean(secret));
+  ok(
+    "an account-settings challenge cannot bypass the signed-in login guard",
+    !isLoginChallengeForUser(setupChallenge, user.id)
+  );
   const setup = await verifyMfaSetupChallenge({
     token: setupToken,
     code: totpCode(secret!),
@@ -189,6 +194,15 @@ async function check() {
     userId: user.id,
     purpose: "LOGIN_MFA",
   });
+  const loginChallenge = await getSecurityChallenge(loginChallengeToken);
+  ok(
+    "a signed-in user may enter their own login MFA challenge",
+    isLoginChallengeForUser(loginChallenge, user.id)
+  );
+  ok(
+    "a signed-in user cannot enter another account's MFA challenge",
+    !isLoginChallengeForUser(loginChallenge, "another-user")
+  );
   const verified = await verifyLoginMfaChallenge({
     token: loginChallengeToken,
     code: totpCode(secret!),

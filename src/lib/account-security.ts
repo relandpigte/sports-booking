@@ -33,6 +33,18 @@ export type SecurityChallengePurpose =
   | "LOGIN_MFA_SETUP"
   | "ACCOUNT_MFA_SETUP";
 
+export function isLoginChallengeForUser(
+  challenge: { userId: string; purpose: string } | null,
+  userId: string
+): boolean {
+  return Boolean(
+    challenge &&
+      challenge.userId === userId &&
+      (challenge.purpose === "LOGIN_MFA" ||
+        challenge.purpose === "LOGIN_MFA_SETUP")
+  );
+}
+
 function randomToken(): string {
   return crypto.randomBytes(32).toString("base64url");
 }

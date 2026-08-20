@@ -28,14 +28,20 @@ async function cleanup() {
 
 async function check() {
   await cleanup();
-  const [player, hub] = await Promise.all([
+  const [player, hub, admin] = await Promise.all([
     prisma.user.findFirst({
       where: { role: "PLAYER" },
       select: { id: true },
     }),
     prisma.hub.findFirst({ select: { id: true } }),
+    prisma.user.findFirst({
+      where: { role: "ADMIN" },
+      select: { id: true, email: true },
+    }),
   ]);
-  if (!player || !hub) throw new Error("Seed a player and hub first.");
+  if (!player || !hub || !admin) {
+    throw new Error("Seed a player, hub, and admin first.");
+  }
 
   const partner = await prisma.user.create({
     data: {
@@ -144,7 +150,7 @@ async function check() {
       !enforcementGrace.blocked &&
       serviceFeeStanding(enforcementGrace) === "GRACE_PERIOD"
   );
-  stubRequestContext({ id: partner.id, email: EMAIL });
+  stubRequestContext({ id: admin.id, email: admin.email, role: "ADMIN" });
   const adminInitial = (
     await listAdminPartnerServiceFeeBreakdown(NOW)
   ).find((row) => row.partnerId === partner.id);
@@ -201,6 +207,23 @@ async function check() {
       (listed) => listed.id === partnerHub.id
     )
   );
+  const { waiveServiceFeeBalanceAction, reverseServiceFeeWaiverAction } =
+    await import("@/lib/service-fee-actions");
+  const blockedWaiverData = new FormData();
+  blockedWaiverData.set("partnerId", partner.id);
+  blockedWaiverData.set("amount", "10.00");
+  blockedWaiverData.set("reason", "Approved payment-system testing fees.");
+  const blockedWaiver = await waiveServiceFeeBalanceAction(
+    {},
+    blockedWaiverData
+  );
+  ok(
+    "an active settlement prevents an admin waiver",
+    blockedWaiver.message?.includes("active PayMongo settlement") === true &&
+      (await prisma.serviceFeeWaiver.count({
+        where: { partnerId: partner.id },
+      })) === 0
+  );
 
   await prisma.serviceFeeSettlement.update({
     where: { id: settlement.id },
@@ -214,6 +237,53 @@ async function check() {
     !(await listPublicHubs({ now: NOW })).some(
       (listed) => listed.id === partnerHub.id
     )
+  );
+
+  const overdueWaiverData = new FormData();
+  overdueWaiverData.set("partnerId", partner.id);
+  overdueWaiverData.set("amount", "45.00");
+  overdueWaiverData.set(
+    "reason",
+    "Waive the complete overdue balance for restriction testing."
+  );
+  await waiveServiceFeeBalanceAction({}, overdueWaiverData);
+  const waivedOverdue = await calculateServiceFeeBalance(
+    prisma,
+    partner.id,
+    NOW
+  );
+  ok(
+    "a full waiver immediately clears an overdue restriction",
+    waivedOverdue.amountDue === 0 &&
+      !waivedOverdue.blocked &&
+      (await listPublicHubs({ now: NOW })).some(
+        (listed) => listed.id === partnerHub.id
+      )
+  );
+  const overdueWaiver = await prisma.serviceFeeWaiver.findFirst({
+    where: { partnerId: partner.id, amount: 45 },
+    select: { id: true },
+  });
+  if (!overdueWaiver) throw new Error("Expected the overdue waiver fixture.");
+  const overdueReversalData = new FormData();
+  overdueReversalData.set("waiverId", overdueWaiver.id);
+  overdueReversalData.set(
+    "reason",
+    "Restore the overdue balance after restriction verification."
+  );
+  await reverseServiceFeeWaiverAction({}, overdueReversalData);
+  const restoredOverdue = await calculateServiceFeeBalance(
+    prisma,
+    partner.id,
+    NOW
+  );
+  ok(
+    "reversing an old-balance waiver restores overdue enforcement",
+    restoredOverdue.amountDue === 45 &&
+      restoredOverdue.blocked &&
+      !(await listPublicHubs({ now: NOW })).some(
+        (listed) => listed.id === partnerHub.id
+      )
   );
 
   await prisma.serviceFeeSettlement.update({
@@ -247,6 +317,100 @@ async function check() {
     (await listPublicHubs({ now: NOW })).some(
       (listed) => listed.id === partnerHub.id
     )
+  );
+
+  const partialWaiverData = new FormData();
+  partialWaiverData.set("partnerId", partner.id);
+  partialWaiverData.set("amount", "10.00");
+  partialWaiverData.set("reason", "Approved payment-system testing fees.");
+  const partialWaiver = await waiveServiceFeeBalanceAction(
+    {},
+    partialWaiverData
+  );
+  const afterPartialWaiver = await calculateServiceFeeBalance(
+    prisma,
+    partner.id,
+    NOW
+  );
+  ok(
+    "a partial waiver reduces due without pretending cash was paid",
+    partialWaiver.success?.includes("₱10.00") === true &&
+      afterPartialWaiver.amountDue === 5 &&
+      afterPartialWaiver.paid === 30 &&
+      afterPartialWaiver.waived === 10
+  );
+
+  const excessiveWaiverData = new FormData();
+  excessiveWaiverData.set("partnerId", partner.id);
+  excessiveWaiverData.set("amount", "5.01");
+  excessiveWaiverData.set("reason", "Attempt beyond the current outstanding balance.");
+  const excessiveWaiver = await waiveServiceFeeBalanceAction(
+    {},
+    excessiveWaiverData
+  );
+  ok(
+    "a waiver cannot exceed the live outstanding balance",
+    excessiveWaiver.errors?.amount?.includes("₱5.00") === true
+  );
+
+  const finalWaiverData = new FormData();
+  finalWaiverData.set("partnerId", partner.id);
+  finalWaiverData.set("amount", "5.00");
+  finalWaiverData.set("reason", "Clear the remaining approved testing balance.");
+  await waiveServiceFeeBalanceAction({}, finalWaiverData);
+  const fullyWaived = await calculateServiceFeeBalance(
+    prisma,
+    partner.id,
+    NOW
+  );
+  ok(
+    "a full waiver clears the restriction and preserves separate totals",
+    fullyWaived.amountDue === 0 &&
+      fullyWaived.waived === 15 &&
+      fullyWaived.paid === 30 &&
+      !fullyWaived.blocked &&
+      serviceFeeStanding(fullyWaived) === "CURRENT"
+  );
+
+  const firstWaiver = await prisma.serviceFeeWaiver.findFirst({
+    where: { partnerId: partner.id, amount: 10 },
+    select: { id: true },
+  });
+  if (!firstWaiver) throw new Error("Expected the partial waiver fixture.");
+  const reversalData = new FormData();
+  reversalData.set("waiverId", firstWaiver.id);
+  reversalData.set("reason", "Reverse the testing waiver after verification.");
+  const reversal = await reverseServiceFeeWaiverAction({}, reversalData);
+  const afterReversal = await calculateServiceFeeBalance(
+    prisma,
+    partner.id,
+    NOW
+  );
+  const storedReversal = await prisma.serviceFeeWaiver.findUnique({
+    where: { id: firstWaiver.id },
+    select: {
+      reversedAt: true,
+      reversalReason: true,
+      reversalBalanceBefore: true,
+      reversalBalanceAfter: true,
+    },
+  });
+  ok(
+    "an audited reversal restores the waiver amount",
+    reversal.success?.includes("reversed") === true &&
+      afterReversal.amountDue === 10 &&
+      afterReversal.waived === 5 &&
+      storedReversal?.reversedAt != null &&
+      Number(storedReversal.reversalBalanceBefore) === 0 &&
+      Number(storedReversal.reversalBalanceAfter) === 10
+  );
+  const duplicateReversal = await reverseServiceFeeWaiverAction(
+    {},
+    reversalData
+  );
+  ok(
+    "a waiver cannot be reversed twice",
+    duplicateReversal.message === "This waiver has already been reversed."
   );
 }
 

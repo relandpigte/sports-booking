@@ -408,6 +408,9 @@ export async function deleteUserAction(
               manualPaymentMethods: true,
               serviceFeeEntries: true,
               serviceFeeSettlements: true,
+              serviceFeeWaivers: true,
+              serviceFeeWaiversGranted: true,
+              serviceFeeWaiversReversed: true,
             },
           },
         },
@@ -427,7 +430,10 @@ export async function deleteUserAction(
           user._count.organizerEventGuests > 0 ||
           user._count.manualPaymentMethods > 0 ||
           user._count.serviceFeeEntries > 0 ||
-          user._count.serviceFeeSettlements > 0;
+          user._count.serviceFeeSettlements > 0 ||
+          user._count.serviceFeeWaivers > 0 ||
+          user._count.serviceFeeWaiversGranted > 0 ||
+          user._count.serviceFeeWaiversReversed > 0;
         const hasPartnerAccountHistory =
           hasPartnerOwnedHistory ||
           user._count.bookings > 0 ||
@@ -447,7 +453,10 @@ export async function deleteUserAction(
           user._count.organizerEventGuests > 0 ||
           user._count.manualPaymentMethods > 0 ||
           user._count.serviceFeeEntries > 0 ||
-          user._count.serviceFeeSettlements > 0;
+          user._count.serviceFeeSettlements > 0 ||
+          user._count.serviceFeeWaivers > 0 ||
+          user._count.serviceFeeWaiversGranted > 0 ||
+          user._count.serviceFeeWaiversReversed > 0;
         if (hasPartnerOwnedHistory) {
           return {
             message:

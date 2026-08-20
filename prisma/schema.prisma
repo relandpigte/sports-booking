@@ -201,15 +201,18 @@ model User {
   chatBlocksReceived   ChatBlock[]         @relation("ChatBlocked")
   chatReports          ChatReport[]        @relation("ChatReporter")
 
-  partnerGateway        PartnerGateway?
-  manualPaymentMethods  PartnerManualPaymentMethod[]
-  bookingPayments       BookingPayment[]             @relation("PlayerBookingPayments")
-  venuePayments         BookingPayment[]             @relation("PartnerBookingPayments")
-  eventRegistrations    EventRegistration[]
-  openPlayParticipants  OpenPlayParticipant[]
-  organizerEventGuests  EventOrganizerGuest[]        @relation("OrganizerEventGuestCreator")
-  serviceFeeEntries     ServiceFeeEntry[]            @relation("PartnerServiceFeeEntries")
-  serviceFeeSettlements ServiceFeeSettlement[]       @relation("PartnerServiceFeeSettlements")
+  partnerGateway            PartnerGateway?
+  manualPaymentMethods      PartnerManualPaymentMethod[]
+  bookingPayments           BookingPayment[]             @relation("PlayerBookingPayments")
+  venuePayments             BookingPayment[]             @relation("PartnerBookingPayments")
+  eventRegistrations        EventRegistration[]
+  openPlayParticipants      OpenPlayParticipant[]
+  organizerEventGuests      EventOrganizerGuest[]        @relation("OrganizerEventGuestCreator")
+  serviceFeeEntries         ServiceFeeEntry[]            @relation("PartnerServiceFeeEntries")
+  serviceFeeSettlements     ServiceFeeSettlement[]       @relation("PartnerServiceFeeSettlements")
+  serviceFeeWaivers         ServiceFeeWaiver[]           @relation("PartnerServiceFeeWaivers")
+  serviceFeeWaiversGranted  ServiceFeeWaiver[]           @relation("ServiceFeeWaiverGrantor")
+  serviceFeeWaiversReversed ServiceFeeWaiver[]           @relation("ServiceFeeWaiverReverser")
 
   staffMembershipsOwned   PartnerStaffMembership[] @relation("PartnerStaffOwner")
   staffMembership         PartnerStaffMembership?  @relation("PartnerStaffUser")
@@ -681,6 +684,35 @@ model ServiceFeeSettlement {
 
   @@index([partnerId, submittedAt])
   @@index([status, submittedAt])
+}
+
+// An explicit administrative credit against a partner's service-fee balance.
+// Waivers never masquerade as cash settlements and never modify the immutable
+// per-payment charge ledger. Reversal metadata is retained instead of deleting
+// the waiver so every financial decision remains attributable and reviewable.
+model ServiceFeeWaiver {
+  id            String   @id @default(cuid())
+  partnerId     String
+  amount        Decimal  @db.Decimal(10, 2)
+  reason        String   @db.Text
+  grantedById   String
+  balanceBefore Decimal  @db.Decimal(10, 2)
+  balanceAfter  Decimal  @db.Decimal(10, 2)
+  grantedAt     DateTime @default(now())
+
+  reversedAt            DateTime?
+  reversedById          String?
+  reversalReason        String?   @db.Text
+  reversalBalanceBefore Decimal?  @db.Decimal(10, 2)
+  reversalBalanceAfter  Decimal?  @db.Decimal(10, 2)
+  updatedAt             DateTime  @updatedAt
+
+  partner    User  @relation("PartnerServiceFeeWaivers", fields: [partnerId], references: [id], onDelete: Cascade)
+  grantedBy  User  @relation("ServiceFeeWaiverGrantor", fields: [grantedById], references: [id], onDelete: Restrict)
+  reversedBy User? @relation("ServiceFeeWaiverReverser", fields: [reversedById], references: [id], onDelete: Restrict)
+
+  @@index([partnerId, grantedAt])
+  @@index([reversedAt, grantedAt])
 }
 
 // Webhook replay guard — real gateways retry deliveries.

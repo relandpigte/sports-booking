@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 
 import { PartnerServiceFeeBreakdown } from "@/components/admin/PartnerServiceFeeBreakdown";
+import { ReverseServiceFeeWaiverForm } from "@/components/admin/ServiceFeeWaiverControls";
 import { Badge } from "@/components/ui/Badge";
 import { formatPHP } from "@/lib/currency";
 import { reviewServiceFeeSettlementAction } from "@/lib/service-fee-actions";
 import {
   listAdminPartnerServiceFeeBreakdown,
   listAdminServiceFeeSettlements,
+  listAdminServiceFeeWaivers,
 } from "@/lib/service-fees";
 
 export const metadata: Metadata = {
@@ -21,9 +23,10 @@ const formatDate = (date: Date) =>
   }).format(date);
 
 export default async function AdminSettlementsPage() {
-  const [{ submitted, history }, partners] = await Promise.all([
+  const [{ submitted, history }, partners, waivers] = await Promise.all([
     listAdminServiceFeeSettlements(),
     listAdminPartnerServiceFeeBreakdown(),
+    listAdminServiceFeeWaivers(),
   ]);
 
   return (
@@ -39,6 +42,58 @@ export default async function AdminSettlementsPage() {
       </div>
 
       <PartnerServiceFeeBreakdown partners={partners} />
+
+      {waivers.length > 0 && (
+        <section className="mt-8">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">
+              Waiver history
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Administrative credits are tracked separately from cash settlements. Reversals restore the partner balance without deleting history.
+            </p>
+          </div>
+          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+            {waivers.map((waiver) => (
+              <article key={waiver.id} className="rounded-2xl border border-primary/15 bg-white p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-semibold text-gray-900">{waiver.partnerName}</h3>
+                    <p className="text-xs text-gray-500">{waiver.partnerEmail}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-bold text-navy">{formatPHP(waiver.amount)}</p>
+                    <Badge tone={waiver.reversedAt ? "danger" : "primary"}>
+                      {waiver.reversedAt ? "Reversed" : "Waived"}
+                    </Badge>
+                  </div>
+                </div>
+                <dl className="mt-4 space-y-2 text-sm">
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-gray-500">Balance change</dt>
+                    <dd className="font-medium text-gray-900">{formatPHP(waiver.balanceBefore)} → {formatPHP(waiver.balanceAfter)}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-gray-500">Granted</dt>
+                    <dd className="text-right text-gray-900">{formatDate(waiver.grantedAt)} · {waiver.grantedByName}</dd>
+                  </div>
+                </dl>
+                <div className="mt-3 rounded-xl bg-primary-soft px-3 py-2.5">
+                  <p className="text-xs font-medium text-navy">{waiver.reason}</p>
+                </div>
+                {waiver.reversedAt ? (
+                  <div className="mt-3 rounded-xl bg-red-50 px-3 py-2.5 text-xs text-red-700">
+                    <p className="font-bold">Reversed {formatDate(waiver.reversedAt)}{waiver.reversedByName ? ` · ${waiver.reversedByName}` : ""}</p>
+                    {waiver.reversalReason ? <p className="mt-1">{waiver.reversalReason}</p> : null}
+                  </div>
+                ) : (
+                  <ReverseServiceFeeWaiverForm waiverId={waiver.id} amount={waiver.amount} />
+                )}
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="mt-6">
         <h2 className="text-base font-semibold text-gray-900">

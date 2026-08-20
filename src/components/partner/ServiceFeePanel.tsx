@@ -14,6 +14,7 @@ import {
 import type {
   ServiceFeeBalance,
   ServiceFeeSettlementView,
+  ServiceFeeWaiverView,
 } from "@/lib/service-fees";
 import { formatPHP } from "@/lib/currency";
 
@@ -35,12 +36,14 @@ const formatDate = (date: Date) =>
 export function ServiceFeePanel({
   balance,
   settlements,
+  waivers,
   paymongoSettlementEnabled,
   paymentInstructions,
   readOnly = false,
 }: {
   balance: ServiceFeeBalance;
   settlements: ServiceFeeSettlementView[];
+  waivers: ServiceFeeWaiverView[];
   paymongoSettlementEnabled: boolean;
   paymentInstructions: string;
   readOnly?: boolean;
@@ -90,7 +93,7 @@ export function ServiceFeePanel({
         )}
       </div>
 
-      <dl className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+      <dl className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-5">
         <div className="rounded-xl bg-gray-50 p-3">
           <dt className="text-[11px] text-gray-500">Outstanding</dt>
           <dd className="mt-1 text-lg font-bold text-gray-900">
@@ -107,6 +110,12 @@ export function ServiceFeePanel({
           <dt className="text-[11px] text-gray-500">Settled</dt>
           <dd className="mt-1 text-lg font-bold text-gray-900">
             {formatPHP(balance.paid)}
+          </dd>
+        </div>
+        <div className="rounded-xl bg-primary-soft p-3">
+          <dt className="text-[11px] text-primary">Waived</dt>
+          <dd className="mt-1 text-lg font-bold text-navy">
+            {formatPHP(balance.waived)}
           </dd>
         </div>
         <div className="rounded-xl bg-gray-50 p-3">
@@ -271,6 +280,42 @@ export function ServiceFeePanel({
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {waivers.length > 0 && (
+        <div className="mt-5 border-t border-gray-100 pt-4">
+          <h3 className="text-sm font-semibold text-gray-900">
+            Waiver history
+          </h3>
+          <p className="mt-1 text-xs leading-5 text-gray-500">
+            Administrative waivers reduce service-fee dues but are not payments received by Bunal.club.
+          </p>
+          <div className="mt-2.5 overflow-hidden rounded-xl border border-primary/10">
+            {waivers.map((waiver) => (
+              <div
+                key={waiver.id}
+                className="flex flex-wrap items-start justify-between gap-3 border-b border-primary/10 bg-primary-soft/50 px-3 py-3 text-sm last:border-b-0"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium text-gray-900">
+                    {formatPHP(waiver.amount)} waived
+                  </p>
+                  <p className="mt-0.5 text-xs text-gray-500">
+                    Granted {formatDate(waiver.grantedAt)} · {waiver.reason}
+                  </p>
+                  {waiver.reversedAt ? (
+                    <p className="mt-1 text-xs font-medium text-red-700">
+                      Reversed {formatDate(waiver.reversedAt)}{waiver.reversalReason ? ` · ${waiver.reversalReason}` : ""}
+                    </p>
+                  ) : null}
+                </div>
+                <Badge tone={waiver.reversedAt ? "danger" : "primary"}>
+                  {waiver.reversedAt ? "Reversed" : "Active waiver"}
+                </Badge>
+              </div>
+            ))}
           </div>
         </div>
       )}

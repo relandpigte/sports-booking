@@ -162,7 +162,9 @@ export default async function PaymentsPage({
             detail:
               serviceFees.balance.pending > 0
                 ? `${formatPHP(serviceFees.balance.pending)} under review`
-                : `${formatPHP(serviceFees.balance.paid)} settled`,
+                : serviceFees.balance.waived > 0
+                  ? `${formatPHP(serviceFees.balance.paid)} settled · ${formatPHP(serviceFees.balance.waived)} waived`
+                  : `${formatPHP(serviceFees.balance.paid)} settled`,
             tone: serviceFees.balance.amountDue > 0 ? "warning" : "default",
           },
           {
@@ -186,6 +188,7 @@ export default async function PaymentsPage({
           <ServiceFeePanel
             balance={serviceFees.balance}
             settlements={serviceFees.settlements}
+            waivers={serviceFees.waivers}
             paymongoSettlementEnabled={paymongoSettlementEnabled}
             paymentInstructions={
               process.env.SERVICE_FEE_PAYMENT_INSTRUCTIONS?.trim() ||

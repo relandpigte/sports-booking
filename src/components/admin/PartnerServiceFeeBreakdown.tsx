@@ -1,4 +1,5 @@
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
+import { ServiceFeeWaiverForm } from "@/components/admin/ServiceFeeWaiverControls";
 import { formatPHP } from "@/lib/currency";
 import type {
   AdminPartnerServiceFeeBreakdown,
@@ -33,8 +34,9 @@ export function PartnerServiceFeeBreakdown({
       outstanding: summary.outstanding + partner.balance.amountDue,
       pending: summary.pending + partner.balance.pending,
       overdue: summary.overdue + partner.balance.overdueAmount,
+      waived: summary.waived + partner.balance.waived,
     }),
-    { outstanding: 0, pending: 0, overdue: 0 }
+    { outstanding: 0, pending: 0, overdue: 0, waived: 0 }
   );
 
   return (
@@ -55,7 +57,7 @@ export function PartnerServiceFeeBreakdown({
         </p>
       </div>
 
-      <dl className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <dl className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
         <div className="rounded-xl border border-gray-200 p-4">
           <dt className="text-xs text-gray-500">Partners</dt>
           <dd className="mt-1 text-xl font-bold text-gray-900">
@@ -74,6 +76,12 @@ export function PartnerServiceFeeBreakdown({
             {formatPHP(totals.pending)}
           </dd>
         </div>
+        <div className="rounded-xl border border-primary/20 bg-primary-soft p-4">
+          <dt className="text-xs text-primary">Waived</dt>
+          <dd className="mt-1 text-xl font-bold text-navy">
+            {formatPHP(totals.waived)}
+          </dd>
+        </div>
         <div className="rounded-xl border border-red-200 bg-red-50 p-4">
           <dt className="text-xs text-red-600">Overdue</dt>
           <dd className="mt-1 text-xl font-bold text-red-700">
@@ -84,7 +92,7 @@ export function PartnerServiceFeeBreakdown({
 
       {partners.length ? (
         <div className="mt-4 overflow-x-auto rounded-2xl border border-gray-200">
-          <table className="min-w-[1040px] w-full text-left text-sm">
+          <table className="min-w-[1240px] w-full text-left text-sm">
             <thead className="bg-gray-50 text-xs font-medium uppercase tracking-wide text-gray-500">
               <tr>
                 <th scope="col" className="px-4 py-3">
@@ -100,6 +108,9 @@ export function PartnerServiceFeeBreakdown({
                   Settled
                 </th>
                 <th scope="col" className="px-4 py-3 text-right">
+                  Waived
+                </th>
+                <th scope="col" className="px-4 py-3 text-right">
                   Outstanding
                 </th>
                 <th scope="col" className="px-4 py-3 text-right">
@@ -113,6 +124,9 @@ export function PartnerServiceFeeBreakdown({
                 </th>
                 <th scope="col" className="px-4 py-3">
                   Last settled
+                </th>
+                <th scope="col" className="px-4 py-3 text-right">
+                  Action
                 </th>
               </tr>
             </thead>
@@ -145,6 +159,9 @@ export function PartnerServiceFeeBreakdown({
                     <td className="px-4 py-3 text-right text-gray-700">
                       {formatPHP(partner.balance.paid)}
                     </td>
+                    <td className="px-4 py-3 text-right text-primary">
+                      {formatPHP(partner.balance.waived)}
+                    </td>
                     <td className="px-4 py-3 text-right font-medium text-gray-900">
                       {formatPHP(partner.balance.amountDue)}
                     </td>
@@ -170,6 +187,13 @@ export function PartnerServiceFeeBreakdown({
                       ) : (
                         "—"
                       )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <ServiceFeeWaiverForm
+                        partnerId={partner.partnerId}
+                        partnerName={partner.partnerName}
+                        amountDue={partner.balance.amountDue}
+                      />
                     </td>
                   </tr>
                 );

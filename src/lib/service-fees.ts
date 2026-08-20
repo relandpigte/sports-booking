@@ -29,7 +29,7 @@ const money = (value: number) => Math.round(value * 100) / 100;
 
 type FeeDb = Pick<
   Prisma.TransactionClient,
-  "serviceFeeEntry" | "serviceFeeSettlement"
+  "serviceFeeEntry" | "serviceFeeSettlement" | "serviceFeeWaiver"
 >;
 
 export const SERVICE_FEE_GRACE_DAYS = 7;
@@ -81,6 +81,7 @@ export async function ensureServiceFeeCharge(
 export type ServiceFeeBalance = {
   earned: number;
   paid: number;
+  waived: number;
   pending: number;
   amountDue: number;
   overdueAmount: number;
@@ -101,6 +102,7 @@ function serviceFeeBalanceFromLedger({
   earned,
   overdueBase,
   paid,
+  waived,
   pending,
   entries,
   now,
@@ -108,25 +110,27 @@ function serviceFeeBalanceFromLedger({
   earned: number;
   overdueBase: number;
   paid: number;
+  waived: number;
   pending: number;
   entries: ServiceFeeLedgerEntry[];
   now: Date;
 }): ServiceFeeBalance {
   const earnedAmount = money(earned);
   const paidAmount = money(paid);
+  const waivedAmount = money(waived);
   const pendingAmount = money(pending);
   // Submitted proof is reported separately, but it is not money received.
   // Only an approved or automatically paid settlement reduces the balance.
-  const uncovered = money(earnedAmount - paidAmount);
+  const covered = money(paidAmount + waivedAmount);
+  const uncovered = money(earnedAmount - covered);
   // Negative legacy/manual adjustments reduce the oldest unpaid balance.
   const overdueAmount = money(
     Math.max(
       0,
-      Math.min(uncovered, money(overdueBase) - paidAmount)
+      Math.min(uncovered, money(overdueBase) - covered)
     )
   );
 
-  const covered = paidAmount;
   let running = 0;
   let oldestUncoveredAt: Date | null = null;
   for (const entry of entries) {
@@ -150,10 +154,11 @@ function serviceFeeBalanceFromLedger({
   return {
     earned: earnedAmount,
     paid: paidAmount,
+    waived: waivedAmount,
     pending: pendingAmount,
     amountDue: Math.max(0, uncovered),
     overdueAmount,
-    credit: Math.max(0, money(paidAmount - earnedAmount)),
+    credit: Math.max(0, money(covered - earnedAmount)),
     blocked,
     inEnforcementGrace: overdue && !blocked,
     oldestEntryAt: oldestUncoveredAt,
@@ -168,7 +173,7 @@ export async function calculateServiceFeeBalance(
   now: Date = new Date()
 ): Promise<ServiceFeeBalance> {
   const cutoff = serviceFeeOverdueCutoff(now);
-  const [allEntries, overdueEntries, paid, pending, oldest] =
+  const [allEntries, overdueEntries, paid, waived, pending, oldest] =
     await Promise.all([
       db.serviceFeeEntry.aggregate({
         where: { partnerId },
@@ -180,6 +185,10 @@ export async function calculateServiceFeeBalance(
       }),
       db.serviceFeeSettlement.aggregate({
         where: { partnerId, status: "PAID" },
+        _sum: { amount: true },
+      }),
+      db.serviceFeeWaiver.aggregate({
+        where: { partnerId, reversedAt: null },
         _sum: { amount: true },
       }),
       db.serviceFeeSettlement.aggregate({
@@ -197,6 +206,7 @@ export async function calculateServiceFeeBalance(
     earned: Number(allEntries._sum.amount ?? 0),
     overdueBase: Number(overdueEntries._sum.amount ?? 0),
     paid: Number(paid._sum.amount ?? 0),
+    waived: Number(waived._sum.amount ?? 0),
     pending: Number(pending._sum.amount ?? 0),
     entries: oldest,
     now,
@@ -253,6 +263,24 @@ export type ServiceFeeSettlementView = {
   reviewNote: string | null;
 };
 
+export type ServiceFeeWaiverView = {
+  id: string;
+  partnerId: string;
+  partnerName: string;
+  partnerEmail: string;
+  amount: number;
+  reason: string;
+  grantedAt: Date;
+  grantedByName: string;
+  balanceBefore: number;
+  balanceAfter: number;
+  reversedAt: Date | null;
+  reversalReason: string | null;
+  reversedByName: string | null;
+  reversalBalanceBefore: number | null;
+  reversalBalanceAfter: number | null;
+};
+
 const settlementSelect = {
   id: true,
   partnerId: true,
@@ -286,13 +314,63 @@ function mapSettlement(
   };
 }
 
+const waiverSelect = {
+  id: true,
+  partnerId: true,
+  amount: true,
+  reason: true,
+  grantedAt: true,
+  balanceBefore: true,
+  balanceAfter: true,
+  reversedAt: true,
+  reversalReason: true,
+  reversalBalanceBefore: true,
+  reversalBalanceAfter: true,
+  partner: { select: { name: true, email: true } },
+  grantedBy: { select: { name: true, email: true } },
+  reversedBy: { select: { name: true, email: true } },
+} as const;
+
+function mapWaiver(
+  row: Prisma.ServiceFeeWaiverGetPayload<{
+    select: typeof waiverSelect;
+  }>
+): ServiceFeeWaiverView {
+  return {
+    id: row.id,
+    partnerId: row.partnerId,
+    partnerName: row.partner.name ?? row.partner.email,
+    partnerEmail: row.partner.email,
+    amount: Number(row.amount),
+    reason: row.reason,
+    grantedAt: row.grantedAt,
+    grantedByName: row.grantedBy.name ?? row.grantedBy.email,
+    balanceBefore: Number(row.balanceBefore),
+    balanceAfter: Number(row.balanceAfter),
+    reversedAt: row.reversedAt,
+    reversalReason: row.reversalReason,
+    reversedByName: row.reversedBy
+      ? row.reversedBy.name ?? row.reversedBy.email
+      : null,
+    reversalBalanceBefore:
+      row.reversalBalanceBefore === null
+        ? null
+        : Number(row.reversalBalanceBefore),
+    reversalBalanceAfter:
+      row.reversalBalanceAfter === null
+        ? null
+        : Number(row.reversalBalanceAfter),
+  };
+}
+
 export async function getPartnerServiceFeeView(
   partnerId: string
 ): Promise<{
   balance: ServiceFeeBalance;
   settlements: ServiceFeeSettlementView[];
+  waivers: ServiceFeeWaiverView[];
 }> {
-  const [balance, rows] = await Promise.all([
+  const [balance, rows, waivers] = await Promise.all([
     calculateServiceFeeBalance(prisma, partnerId),
     prisma.serviceFeeSettlement.findMany({
       where: { partnerId },
@@ -300,8 +378,18 @@ export async function getPartnerServiceFeeView(
       take: 20,
       select: settlementSelect,
     }),
+    prisma.serviceFeeWaiver.findMany({
+      where: { partnerId },
+      orderBy: { grantedAt: "desc" },
+      take: 20,
+      select: waiverSelect,
+    }),
   ]);
-  return { balance, settlements: rows.map(mapSettlement) };
+  return {
+    balance,
+    settlements: rows.map(mapSettlement),
+    waivers: waivers.map(mapWaiver),
+  };
 }
 
 export async function isServiceFeeOverdue(
@@ -332,6 +420,19 @@ export async function listAdminServiceFeeSettlements(): Promise<{
   };
 }
 
+export async function listAdminServiceFeeWaivers(): Promise<
+  ServiceFeeWaiverView[]
+> {
+  const { requireAdmin } = await import("@/lib/admin");
+  await requireAdmin();
+  const rows = await prisma.serviceFeeWaiver.findMany({
+    orderBy: { grantedAt: "desc" },
+    take: 100,
+    select: waiverSelect,
+  });
+  return rows.map(mapWaiver);
+}
+
 const standingOrder: Record<ServiceFeeStanding, number> = {
   OVERDUE: 0,
   GRACE_PERIOD: 1,
@@ -348,7 +449,14 @@ export async function listAdminPartnerServiceFeeBreakdown(
   await requireAdmin();
 
   const cutoff = serviceFeeOverdueCutoff(now);
-  const [partners, entries, paidGroups, pendingGroups, paidSettlements] =
+  const [
+    partners,
+    entries,
+    paidGroups,
+    waivedGroups,
+    pendingGroups,
+    paidSettlements,
+  ] =
     await Promise.all([
       prisma.user.findMany({
         where: { role: "PARTNER" },
@@ -371,6 +479,11 @@ export async function listAdminPartnerServiceFeeBreakdown(
       prisma.serviceFeeSettlement.groupBy({
         by: ["partnerId"],
         where: { status: "PAID" },
+        _sum: { amount: true },
+      }),
+      prisma.serviceFeeWaiver.groupBy({
+        by: ["partnerId"],
+        where: { reversedAt: null },
         _sum: { amount: true },
       }),
       prisma.serviceFeeSettlement.groupBy({
@@ -402,6 +515,12 @@ export async function listAdminPartnerServiceFeeBreakdown(
 
   const paidByPartner = new Map(
     paidGroups.map((row) => [
+      row.partnerId,
+      Number(row._sum.amount ?? 0),
+    ])
+  );
+  const waivedByPartner = new Map(
+    waivedGroups.map((row) => [
       row.partnerId,
       Number(row._sum.amount ?? 0),
     ])
@@ -438,6 +557,7 @@ export async function listAdminPartnerServiceFeeBreakdown(
           0
         ),
         paid: paidByPartner.get(partner.id) ?? 0,
+        waived: waivedByPartner.get(partner.id) ?? 0,
         pending: pendingByPartner.get(partner.id) ?? 0,
         entries: partnerEntries,
         now,

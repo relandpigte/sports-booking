@@ -44,6 +44,9 @@ const userListSelect = {
       manualPaymentMethods: true,
       serviceFeeEntries: true,
       serviceFeeSettlements: true,
+      serviceFeeWaivers: true,
+      serviceFeeWaiversGranted: true,
+      serviceFeeWaiversReversed: true,
     },
   },
 } as const;
@@ -71,7 +74,10 @@ function mapAdminUser(user: AdminUserRecord): AdminUser {
     _count.organizerEventGuests > 0 ||
     _count.manualPaymentMethods > 0 ||
     _count.serviceFeeEntries > 0 ||
-    _count.serviceFeeSettlements > 0;
+    _count.serviceFeeSettlements > 0 ||
+    _count.serviceFeeWaivers > 0 ||
+    _count.serviceFeeWaiversGranted > 0 ||
+    _count.serviceFeeWaiversReversed > 0;
   const hasPartnerAccountHistory =
     hasPartnerOwnedHistory ||
     _count.bookings > 0 ||

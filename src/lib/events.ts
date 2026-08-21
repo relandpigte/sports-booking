@@ -148,6 +148,9 @@ export type OwnerEventOrganizerGuestView = {
   name: string;
   status: EventRegistrationStatus;
   createdAt: Date;
+  serviceFee: number;
+  serviceFeeCharged: number;
+  serviceFeeReversed: boolean;
 };
 
 export type OwnerEventDetailView = EventEditorView & {
@@ -1039,6 +1042,9 @@ export async function getOwnerEventDetails(
           name: true,
           status: true,
           createdAt: true,
+          serviceFeeEntries: {
+            select: { amount: true, type: true },
+          },
         },
       },
     },
@@ -1132,6 +1138,17 @@ export async function getOwnerEventDetails(
       name: guest.name,
       status: guest.status,
       createdAt: guest.createdAt,
+      serviceFee: guest.serviceFeeEntries.reduce(
+        (total, entry) => total + Number(entry.amount),
+        0
+      ),
+      serviceFeeCharged: Number(
+        guest.serviceFeeEntries.find((entry) => entry.type === "CHARGE")
+          ?.amount ?? 0
+      ),
+      serviceFeeReversed: guest.serviceFeeEntries.some(
+        (entry) => entry.type === "REFUND"
+      ),
     }));
   const confirmedCount =
     registrations.reduce(
@@ -1211,7 +1228,10 @@ export async function getOwnerEventDetails(
       ),
       platformFees: feeBearingPayments.reduce(
         (total, payment) => total + payment.platformFee,
-        0
+        organizerGuests.reduce(
+          (total, guest) => total + guest.serviceFee,
+          0
+        )
       ),
       checkoutSubtotal: successfulPayments.reduce(
         (total, payment) => total + payment.amount,

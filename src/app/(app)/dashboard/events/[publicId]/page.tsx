@@ -462,6 +462,7 @@ export default async function PartnerEventDetailsPage({
               <OrganizerGuestPanel
                 eventId={event.id}
                 remainingSpots={event.remainingSpots}
+                registrationFee={event.registrationFee}
               />
             ) : (
               <span className="text-sm font-bold text-slate-500">

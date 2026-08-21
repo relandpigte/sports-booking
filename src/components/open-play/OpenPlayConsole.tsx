@@ -10,6 +10,8 @@ import {
   addOpenPlayWalkInAction,
   approvePublicQueueGuestAction,
   bulkCheckInOpenPlayParticipantsAction,
+  bulkPauseOpenPlayParticipantsAction,
+  bulkRemoveOpenPlayParticipantsAction,
   changeOpenPlayModeAction,
   changeQueueAdmissionModeAction,
   checkInOpenPlayParticipantAction,
@@ -409,7 +411,43 @@ function ParticipantMoreActions({
 function ParticipantRoster({ snapshot }: { snapshot: OpenPlaySnapshot }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<RosterFilter>("ACTIVE");
-  const [bulkState, bulkAction, bulkPending] = useActionState(bulkCheckInOpenPlayParticipantsAction, {});
+  const [bulkNotice, setBulkNotice] = useState<OpenPlayActionState>({});
+  const clearSubmittedSelection = (formData: FormData) => {
+    const submitted = new Set(formData.getAll("participantId").map(String));
+    setSelected((current) => {
+      const next = new Set(current);
+      submitted.forEach((id) => next.delete(id));
+      return next;
+    });
+  };
+  const [, bulkCheckInAction, checkInPending] = useActionState(
+    async (previous: OpenPlayActionState, formData: FormData) => {
+      const result = await bulkCheckInOpenPlayParticipantsAction(previous, formData);
+      setBulkNotice(result);
+      if (result.success) clearSubmittedSelection(formData);
+      return result;
+    },
+    {}
+  );
+  const [, bulkPauseAction, pausePending] = useActionState(
+    async (previous: OpenPlayActionState, formData: FormData) => {
+      const result = await bulkPauseOpenPlayParticipantsAction(previous, formData);
+      setBulkNotice(result);
+      if (result.success) clearSubmittedSelection(formData);
+      return result;
+    },
+    {}
+  );
+  const [, bulkRemoveAction, removePending] = useActionState(
+    async (previous: OpenPlayActionState, formData: FormData) => {
+      const result = await bulkRemoveOpenPlayParticipantsAction(previous, formData);
+      setBulkNotice(result);
+      if (result.success) clearSubmittedSelection(formData);
+      return result;
+    },
+    {}
+  );
+  const bulkPending = checkInPending || pausePending || removePending;
   const activeCount = snapshot.participants.filter((player) => player.status !== "REMOVED").length;
   const sortedParticipants = useMemo(
     () => GROUPS.flatMap(([status]) => snapshot.participants.filter((player) => player.status === status)),
@@ -418,9 +456,27 @@ function ParticipantRoster({ snapshot }: { snapshot: OpenPlaySnapshot }) {
   const visibleParticipants = filter === "ACTIVE"
     ? sortedParticipants.filter((player) => player.status !== "REMOVED")
     : sortedParticipants.filter((player) => player.status === filter);
-  const eligible = visibleParticipants.filter((player) =>
-    ["NOT_CHECKED_IN", "CHECKED_OUT"].includes(player.status)
+  const selectable = visibleParticipants.filter((player) =>
+    ["NOT_CHECKED_IN", "CHECKED_OUT", "QUEUED", "PAUSED"].includes(player.status)
   );
+  const selectableIds = new Set(
+    snapshot.participants
+      .filter((player) =>
+        ["NOT_CHECKED_IN", "CHECKED_OUT", "QUEUED", "PAUSED"].includes(player.status)
+      )
+      .map((player) => player.id)
+  );
+  const selectedIds = [...selected].filter((id) => selectableIds.has(id));
+  const selectedPlayers = snapshot.participants.filter((player) =>
+    selectedIds.includes(player.id)
+  );
+  const checkInIds = selectedPlayers
+    .filter((player) => ["NOT_CHECKED_IN", "CHECKED_OUT"].includes(player.status))
+    .map((player) => player.id);
+  const pauseIds = selectedPlayers
+    .filter((player) => player.status === "QUEUED")
+    .map((player) => player.id);
+  const removeIds = selectedPlayers.map((player) => player.id);
   const filters: Array<{ value: RosterFilter; label: string; count: number }> = [
     { value: "ACTIVE", label: "Active", count: activeCount },
     ...GROUPS.flatMap(([status, label]) => {
@@ -435,7 +491,7 @@ function ParticipantRoster({ snapshot }: { snapshot: OpenPlaySnapshot }) {
   });
   const selectVisibleEligible = (checked: boolean) => setSelected((current) => {
     const next = new Set(current);
-    eligible.forEach((player) => {
+    selectable.forEach((player) => {
       if (checked) next.add(player.id);
       else next.delete(player.id);
     });
@@ -471,12 +527,12 @@ function ParticipantRoster({ snapshot }: { snapshot: OpenPlaySnapshot }) {
       </div>
       <div className="hidden grid-cols-[40px_minmax(180px,1.35fr)_110px_110px_72px_minmax(170px,auto)] items-center gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 lg:grid">
         <div className="flex justify-center">
-          {eligible.length > 0 ? (
+          {selectable.length > 0 ? (
             <input
               type="checkbox"
-              checked={eligible.every((player) => selected.has(player.id))}
+              checked={selectable.every((player) => selected.has(player.id))}
               onChange={(event) => selectVisibleEligible(event.target.checked)}
-              aria-label="Select all eligible players in this view"
+              aria-label="Select all actionable players in this view"
             />
           ) : null}
         </div>
@@ -486,14 +542,14 @@ function ParticipantRoster({ snapshot }: { snapshot: OpenPlaySnapshot }) {
         <span>Wait</span>
         <span className="text-right">Action</span>
       </div>
-      {eligible.length > 0 ? (
+      {selectable.length > 0 ? (
         <label className="flex min-h-11 cursor-pointer items-center gap-2 border-b border-slate-100 bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600 lg:hidden">
           <input
             type="checkbox"
-            checked={eligible.every((player) => selected.has(player.id))}
+            checked={selectable.every((player) => selected.has(player.id))}
             onChange={(event) => selectVisibleEligible(event.target.checked)}
           />
-          Select eligible players in this view
+          Select actionable players in this view
         </label>
       ) : null}
       <div className="divide-y divide-slate-100">
@@ -501,7 +557,7 @@ function ParticipantRoster({ snapshot }: { snapshot: OpenPlaySnapshot }) {
           <p className="px-4 py-10 text-center text-sm text-slate-500">No players in this view.</p>
         ) : visibleParticipants.map((player) => {
           const groupLabel = GROUPS.find(([status]) => status === player.status)?.[1] ?? player.status;
-          const isEligible = ["NOT_CHECKED_IN", "CHECKED_OUT"].includes(player.status);
+          const isEligible = ["NOT_CHECKED_IN", "CHECKED_OUT", "QUEUED", "PAUSED"].includes(player.status);
           const queueNumber = player.queuePosition
             ? snapshot.participants.filter(
                 (item) => item.status === "QUEUED" && (item.queuePosition ?? 0) <= player.queuePosition!
@@ -566,13 +622,68 @@ function ParticipantRoster({ snapshot }: { snapshot: OpenPlaySnapshot }) {
           );
         })}
       </div>
-      {selected.size > 0 ? (
-        <form action={bulkAction} className="sticky bottom-3 z-20 mx-3 mb-3 flex items-center justify-between gap-3 rounded-xl bg-navy p-3 text-white shadow-xl sm:mx-5 sm:px-4">
-          <input type="hidden" name="sessionId" value={snapshot.id} />
-          {[...selected].map((id) => <input key={id} type="hidden" name="participantId" value={id} />)}
-          <div><p className="text-xs font-black">{selected.size} selected</p><Feedback state={bulkState} /></div>
-          <button disabled={bulkPending} className="min-h-9 rounded-lg bg-primary px-3 text-xs font-black">{bulkPending ? "Checking in…" : "Bulk check in"}</button>
-        </form>
+      <p className="sr-only" aria-live="polite">
+        {bulkNotice.success ?? bulkNotice.message}
+      </p>
+      {selectedIds.length > 0 ? (
+        <div className="sticky bottom-3 z-20 mx-3 mb-3 flex flex-wrap items-center gap-3 rounded-xl bg-navy p-3 text-white shadow-xl sm:mx-5 sm:px-4">
+          <div className="min-w-32 flex-1">
+            <p className="text-xs font-black">{selectedIds.length} selected</p>
+            {bulkNotice.success || bulkNotice.message ? (
+              <p className={`mt-1 text-xs font-bold ${bulkNotice.success ? "text-emerald-300" : "text-red-300"}`}>
+                {bulkNotice.success ?? bulkNotice.message}
+              </p>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {checkInIds.length > 0 ? (
+              <form action={bulkCheckInAction}>
+                <input type="hidden" name="sessionId" value={snapshot.id} />
+                {checkInIds.map((id) => <input key={id} type="hidden" name="participantId" value={id} />)}
+                <button disabled={bulkPending} className="min-h-9 rounded-lg bg-primary px-3 text-xs font-black disabled:opacity-50">
+                  {checkInPending ? "Checking in…" : `Check in ${checkInIds.length}`}
+                </button>
+              </form>
+            ) : null}
+            {pauseIds.length > 0 ? (
+              <form action={bulkPauseAction}>
+                <input type="hidden" name="sessionId" value={snapshot.id} />
+                {pauseIds.map((id) => <input key={id} type="hidden" name="participantId" value={id} />)}
+                <button disabled={bulkPending} className="min-h-9 rounded-lg border border-white/25 bg-white/10 px-3 text-xs font-black hover:bg-white/15 disabled:opacity-50">
+                  {pausePending ? "Moving…" : `Break ${pauseIds.length}`}
+                </button>
+              </form>
+            ) : null}
+            {removeIds.length > 0 ? (
+              <form
+                action={bulkRemoveAction}
+                onSubmit={(event) => {
+                  if (!window.confirm(`Remove ${removeIds.length} selected player${removeIds.length === 1 ? "" : "s"} from this run?`)) {
+                    event.preventDefault();
+                  }
+                }}
+              >
+                <input type="hidden" name="sessionId" value={snapshot.id} />
+                {removeIds.map((id) => <input key={id} type="hidden" name="participantId" value={id} />)}
+                <button disabled={bulkPending} className="min-h-9 rounded-lg bg-red-500/15 px-3 text-xs font-black text-red-200 hover:bg-red-500/25 disabled:opacity-50">
+                  {removePending ? "Removing…" : `Remove ${removeIds.length}`}
+                </button>
+              </form>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => {
+                setSelected(new Set());
+                setBulkNotice({});
+              }}
+              disabled={bulkPending}
+              aria-label="Clear player selection"
+              className="min-h-9 rounded-lg px-3 text-xs font-black text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-50"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
       ) : null}
     </section>
   );

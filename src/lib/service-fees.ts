@@ -78,6 +78,72 @@ export async function ensureServiceFeeCharge(
   });
 }
 
+export async function ensureOrganizerGuestServiceFeeCharge(
+  tx: Prisma.TransactionClient,
+  input: {
+    eventOrganizerGuestId: string;
+    partnerId: string;
+    amount: number;
+    createdAt?: Date;
+  }
+): Promise<void> {
+  if (input.amount <= 0) return;
+
+  await tx.serviceFeeEntry.upsert({
+    where: {
+      eventOrganizerGuestId_type: {
+        eventOrganizerGuestId: input.eventOrganizerGuestId,
+        type: "CHARGE",
+      },
+    },
+    create: {
+      partnerId: input.partnerId,
+      eventOrganizerGuestId: input.eventOrganizerGuestId,
+      type: "CHARGE",
+      amount: new Prisma.Decimal(input.amount),
+      createdAt: input.createdAt,
+    },
+    update: {},
+  });
+}
+
+export async function ensureOrganizerGuestServiceFeeRefund(
+  tx: Prisma.TransactionClient,
+  input: {
+    eventOrganizerGuestId: string;
+    partnerId: string;
+    createdAt?: Date;
+  }
+): Promise<void> {
+  const charge = await tx.serviceFeeEntry.findUnique({
+    where: {
+      eventOrganizerGuestId_type: {
+        eventOrganizerGuestId: input.eventOrganizerGuestId,
+        type: "CHARGE",
+      },
+    },
+    select: { amount: true },
+  });
+  if (!charge || Number(charge.amount) <= 0) return;
+
+  await tx.serviceFeeEntry.upsert({
+    where: {
+      eventOrganizerGuestId_type: {
+        eventOrganizerGuestId: input.eventOrganizerGuestId,
+        type: "REFUND",
+      },
+    },
+    create: {
+      partnerId: input.partnerId,
+      eventOrganizerGuestId: input.eventOrganizerGuestId,
+      type: "REFUND",
+      amount: charge.amount.negated(),
+      createdAt: input.createdAt,
+    },
+    update: {},
+  });
+}
+
 export type ServiceFeeBalance = {
   earned: number;
   paid: number;

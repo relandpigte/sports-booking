@@ -6,15 +6,19 @@ import {
   addOrganizerEventGuestsAction,
   type EventFormState,
 } from "@/lib/event-actions";
+import { bookingServiceFeeFor } from "@/lib/constants";
+import { formatPHP } from "@/lib/currency";
 
 const initialState: EventFormState = {};
 
 export function OrganizerGuestPanel({
   eventId,
   remainingSpots,
+  registrationFee,
 }: {
   eventId: string;
   remainingSpots: number;
+  registrationFee: number;
 }) {
   const nextRowId = useRef(2);
   const [open, setOpen] = useState(false);
@@ -31,6 +35,8 @@ export function OrganizerGuestPanel({
     initialState
   );
   const maxGuests = Math.min(50, remainingSpots);
+  const serviceFeePerPlayer = bookingServiceFeeFor(registrationFee);
+  const serviceFeeTotal = serviceFeePerPlayer * rows.length;
 
   useEffect(() => {
     if (!open) return;
@@ -71,7 +77,7 @@ export function OrganizerGuestPanel({
           <span aria-hidden className="text-lg leading-none">
             +
           </span>
-          Add guest
+          Add player
         </button>
       </div>
       {state.success ? (
@@ -94,7 +100,7 @@ export function OrganizerGuestPanel({
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h3 id="organizer-guest-title" className="text-xl font-black text-navy">
-                  Add complimentary guests
+                  Add complimentary players
                 </h3>
                 <p className="mt-1 text-xs font-bold text-slate-500">
                   {remainingSpots} {remainingSpots === 1 ? "spot" : "spots"} remaining
@@ -120,7 +126,7 @@ export function OrganizerGuestPanel({
                       htmlFor={`organizer-guest-${row.id}`}
                       className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500"
                     >
-                      Guest {index + 1} name
+                      Player {index + 1} name
                     </label>
                     <div className="mt-1 flex gap-2">
                       <input
@@ -134,7 +140,7 @@ export function OrganizerGuestPanel({
                       />
                       <button
                         type="button"
-                        aria-label={`Remove guest ${index + 1}`}
+                        aria-label={`Remove player ${index + 1}`}
                         onClick={() => removeRow(row.id)}
                         disabled={rows.length === 1 || pending}
                         className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-red-100 text-lg text-red-500 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300"
@@ -154,17 +160,25 @@ export function OrganizerGuestPanel({
                   className="inline-flex min-h-10 items-center gap-2 text-sm font-bold text-primary hover:underline disabled:opacity-50"
                 >
                   <span aria-hidden>＋</span>
-                  Add another guest
+                  Add another player
                 </button>
               ) : null}
 
               <div className="rounded-2xl bg-primary-soft p-4">
                 <p className="text-sm font-bold text-primary">
-                  Complimentary entry
+                  Complimentary registration
                 </p>
                 <p className="mt-1 text-xs leading-5 text-primary-hover">
-                  Organizer-added guests bypass payment and consume event
-                  capacity immediately after confirmation.
+                  {serviceFeePerPlayer > 0 ? (
+                    <>
+                      The registration fee is waived. Bunal.club adds a {formatPHP(serviceFeePerPlayer)}
+                      {" "}service fee per player to the partner balance
+                      {rows.length > 1 ? ` (${formatPHP(serviceFeeTotal)} total)` : ""}.
+                      Removing the player reverses this fee.
+                    </>
+                  ) : (
+                    "This event is free, so no service fee is added. Players consume capacity immediately."
+                  )}
                 </p>
               </div>
 
@@ -189,7 +203,7 @@ export function OrganizerGuestPanel({
                 >
                   {pending
                     ? "Adding…"
-                    : `Confirm ${rows.length} ${rows.length === 1 ? "guest" : "guests"}`}
+                    : `Confirm ${rows.length} ${rows.length === 1 ? "player" : "players"}`}
                 </button>
               </div>
             </form>

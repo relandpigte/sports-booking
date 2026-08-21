@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 
 import { Avatar } from "@/components/ui/Avatar";
+import { formatPHP } from "@/lib/currency";
 import {
   cancelEventRegistrationAction,
   removeOrganizerEventGuestAction,
@@ -187,6 +188,9 @@ function OrganizerGuestRow({
             </div>
             <p className="mt-1 text-xs text-slate-500">
               No player account or payment attached
+              {guest.serviceFeeCharged > 0
+                ? ` · ${formatPHP(guest.serviceFeeCharged)} service fee ${guest.serviceFeeReversed ? "reversed" : "accrued"}`
+                : " · No service fee due"}
             </p>
           </div>
         </div>

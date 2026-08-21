@@ -77,9 +77,10 @@ export function ServiceFeePanel({
             Bunal.club service-fee settlement
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-gray-500">
-            Automatic and approved manual bookings accrue their displayed
-            service fee here. Remit the combined balance; after settlement,
-            you retain exactly your advertised court and registration rates.
+            Automatic and approved manual bookings, plus complimentary players
+            added by event staff, accrue their displayed service fee here.
+            Remit the combined balance; after settlement, you retain exactly
+            your advertised court and registration rates.
           </p>
         </div>
         {balance.blocked ? (

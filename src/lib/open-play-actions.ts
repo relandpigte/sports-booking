@@ -1326,6 +1326,89 @@ export async function bulkCheckInOpenPlayParticipantsAction(
   return { success: `${count} player${count === 1 ? "" : "s"} checked in.` };
 }
 
+export async function bulkPauseOpenPlayParticipantsAction(
+  _previous: OpenPlayActionState,
+  formData: FormData
+): Promise<OpenPlayActionState> {
+  const workspace = await workspaceForManage();
+  if (!workspace) return { message: "BunalQ manage access is required." };
+  const sessionId = String(formData.get("sessionId") ?? "");
+  const participantIds = [
+    ...new Set(formData.getAll("participantId").map(String)),
+  ].slice(0, 100);
+  const owned = await ownedSession(sessionId, workspace);
+  if (!owned || participantIds.length === 0) {
+    return { message: "Select waiting players to move to break." };
+  }
+  const count = await prisma.$transaction(async (tx) => {
+    const session = await lockSession(tx, sessionId);
+    if (!session || session.status === "ENDED") return 0;
+    const changed = await tx.openPlayParticipant.updateMany({
+      where: {
+        sessionId,
+        id: { in: participantIds },
+        status: "QUEUED",
+      },
+      data: {
+        status: "PAUSED",
+        queuePosition: null,
+        queuedAt: null,
+      },
+    });
+    return changed.count;
+  });
+  if (count === 0) {
+    return { message: "No selected players were eligible for break." };
+  }
+  await audit(workspace, "BUNALQ_BULK_PAUSE", sessionId, { count });
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
+  return {
+    success: `${count} player${count === 1 ? "" : "s"} moved to break.`,
+  };
+}
+
+export async function bulkRemoveOpenPlayParticipantsAction(
+  _previous: OpenPlayActionState,
+  formData: FormData
+): Promise<OpenPlayActionState> {
+  const workspace = await workspaceForManage();
+  if (!workspace) return { message: "BunalQ manage access is required." };
+  const sessionId = String(formData.get("sessionId") ?? "");
+  const participantIds = [
+    ...new Set(formData.getAll("participantId").map(String)),
+  ].slice(0, 100);
+  const owned = await ownedSession(sessionId, workspace);
+  if (!owned || participantIds.length === 0) {
+    return { message: "Select players to remove." };
+  }
+  const count = await prisma.$transaction(async (tx) => {
+    const session = await lockSession(tx, sessionId);
+    if (!session || session.status === "ENDED") return 0;
+    const changed = await tx.openPlayParticipant.updateMany({
+      where: {
+        sessionId,
+        id: { in: participantIds },
+        status: {
+          in: ["NOT_CHECKED_IN", "CHECKED_OUT", "QUEUED", "PAUSED"],
+        },
+      },
+      data: {
+        status: "REMOVED",
+        queuePosition: null,
+        queuedAt: null,
+        pairId: null,
+      },
+    });
+    return changed.count;
+  });
+  if (count === 0) {
+    return { message: "No selected players could be removed right now." };
+  }
+  await audit(workspace, "BUNALQ_BULK_REMOVE", sessionId, { count });
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
+  return { success: `${count} player${count === 1 ? "" : "s"} removed.` };
+}
+
 export async function startNewOpenPlayRunAction(
   _previous: OpenPlayActionState,
   formData: FormData

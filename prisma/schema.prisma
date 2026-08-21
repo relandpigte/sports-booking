@@ -633,23 +633,28 @@ model BookingPayment {
   @@index([status, expiresAt])
 }
 
-// Immutable service-fee ledger. A successful booking adds a positive charge,
-// and refunds retain that non-refundable charge. REFUND remains available only
-// for historical/manual corrections created under the former policy. The
-// unique key makes webhook retries and return-leg races harmless.
+// Immutable service-fee ledger. Successful bookings and organizer-added event
+// players add positive charges. Booking refunds retain their charge, while
+// removing an organizer-added player records an explicit negative REFUND. A
+// database check requires exactly one source, and source/type keys keep retries
+// and concurrent action races idempotent.
 model ServiceFeeEntry {
-  id               String              @id @default(cuid())
-  partnerId        String
-  bookingPaymentId String
-  type             ServiceFeeEntryType
-  amount           Decimal             @db.Decimal(10, 2)
-  createdAt        DateTime            @default(now())
+  id                    String              @id @default(cuid())
+  partnerId             String
+  bookingPaymentId      String?
+  eventOrganizerGuestId String?
+  type                  ServiceFeeEntryType
+  amount                Decimal             @db.Decimal(10, 2)
+  createdAt             DateTime            @default(now())
 
-  partner        User           @relation("PartnerServiceFeeEntries", fields: [partnerId], references: [id], onDelete: Cascade)
-  bookingPayment BookingPayment @relation(fields: [bookingPaymentId], references: [id], onDelete: Cascade)
+  partner             User                 @relation("PartnerServiceFeeEntries", fields: [partnerId], references: [id], onDelete: Cascade)
+  bookingPayment      BookingPayment?      @relation(fields: [bookingPaymentId], references: [id], onDelete: Cascade)
+  eventOrganizerGuest EventOrganizerGuest? @relation(fields: [eventOrganizerGuestId], references: [id], onDelete: Restrict)
 
   @@unique([bookingPaymentId, type])
+  @@unique([eventOrganizerGuestId, type])
   @@index([partnerId, createdAt])
+  @@index([eventOrganizerGuestId])
 }
 
 // A partner's remittance of accumulated service fees to Bunal.club. The amount
@@ -1395,7 +1400,8 @@ model EventGuestSlot {
 
 // A complimentary capacity spot created manually by the venue partner. It is
 // deliberately separate from EventRegistration and EventGuestSlot: there is
-// no player account, payment, refund, or checkout associated with this spot.
+// no player account, payment, or checkout associated with this spot. Paid
+// events accrue a partner service-fee charge that is reversed on removal.
 model EventOrganizerGuest {
   id          String                  @id @default(cuid())
   eventId     String
@@ -1410,6 +1416,7 @@ model EventOrganizerGuest {
   event                Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
   createdBy            User                  @relation("OrganizerEventGuestCreator", fields: [createdById], references: [id], onDelete: Cascade)
   openPlayParticipants OpenPlayParticipant[]
+  serviceFeeEntries    ServiceFeeEntry[]
 
   @@index([eventId, status, createdAt])
   @@index([createdById, createdAt])

@@ -24,7 +24,11 @@ import {
   refundBookingPayment,
   settleBookingPayment,
 } from "@/lib/booking-payments";
-import { isServiceFeeOverdue } from "@/lib/service-fees";
+import {
+  ensureOrganizerGuestServiceFeeCharge,
+  ensureOrganizerGuestServiceFeeRefund,
+  isServiceFeeOverdue,
+} from "@/lib/service-fees";
 import {
   formatManilaDateLong,
   formatSlotRange,
@@ -1140,6 +1144,12 @@ export async function addOrganizerEventGuestsAction(
   if (guests.names.length === 0) {
     return { message: "Add at least one guest name." };
   }
+  if (await isServiceFeeOverdue(partner.id)) {
+    return {
+      message:
+        "Players cannot be added while the partner's service-fee balance is overdue.",
+    };
+  }
 
   const now = new Date();
   const outcome = await prisma.$transaction(async (tx) => {
@@ -1156,6 +1166,7 @@ export async function addOrganizerEventGuestsAction(
         status: true,
         startsAt: true,
         capacity: true,
+        registrationFee: true,
       },
     });
     if (!event) return { kind: "missing" as const };
@@ -1170,16 +1181,32 @@ export async function addOrganizerEventGuestsAction(
       return { kind: "insufficient" as const, event, available };
     }
 
-    await tx.eventOrganizerGuest.createMany({
-      data: guests.names.map((name) => ({
-        eventId: event.id,
-        createdById: workspace.actorId,
-        name,
-        status: "CONFIRMED" as const,
-        confirmedAt: now,
-      })),
-    });
-    return { kind: "created" as const, event };
+    const serviceFeePerPlayer = bookingServiceFeeFor(
+      Number(event.registrationFee)
+    );
+    for (const name of guests.names) {
+      const guest = await tx.eventOrganizerGuest.create({
+        data: {
+          eventId: event.id,
+          createdById: workspace.actorId,
+          name,
+          status: "CONFIRMED",
+          confirmedAt: now,
+        },
+        select: { id: true },
+      });
+      await ensureOrganizerGuestServiceFeeCharge(tx, {
+        eventOrganizerGuestId: guest.id,
+        partnerId: partner.id,
+        amount: serviceFeePerPlayer,
+        createdAt: now,
+      });
+    }
+    return {
+      kind: "created" as const,
+      event,
+      serviceFee: serviceFeePerPlayer * guests.names.length,
+    };
   });
 
   if (outcome.kind === "missing") return { message: "Event not found." };
@@ -1200,17 +1227,23 @@ export async function addOrganizerEventGuestsAction(
     action: "EVENT_ORGANIZER_GUESTS_ADDED",
     targetType: "Event",
     targetId: outcome.event.id,
-    metadata: { guestCount: guests.names.length },
+    metadata: {
+      guestCount: guests.names.length,
+      serviceFee: outcome.serviceFee,
+    },
   });
   await recordPartnerActivity({
     workspace,
     action: "EVENT_ORGANIZER_GUESTS_ADDED",
     targetType: "Event",
     targetId: outcome.event.id,
-    metadata: { guestCount: guests.names.length },
+    metadata: {
+      guestCount: guests.names.length,
+      serviceFee: outcome.serviceFee,
+    },
   });
   return {
-    success: `${guests.names.length} complimentary guest${guests.names.length === 1 ? "" : "s"} added.`,
+    success: `${guests.names.length} complimentary player${guests.names.length === 1 ? "" : "s"} added.`,
   };
 }
 
@@ -1225,27 +1258,33 @@ export async function removeOrganizerEventGuestAction(
   });
   if (!parsed.success) return { message: "Guest not found." };
 
-  const guest = await prisma.eventOrganizerGuest.findFirst({
-    where: {
-      id: parsed.data.guestId,
-      event: { hub: { ownerId: partner.id } },
-    },
-    select: {
-      id: true,
-      status: true,
-      event: { select: { id: true, publicId: true, hubId: true } },
-    },
+  const guest = await prisma.$transaction(async (tx) => {
+    const row = await tx.eventOrganizerGuest.findFirst({
+      where: {
+        id: parsed.data.guestId,
+        event: { hub: { ownerId: partner.id } },
+      },
+      select: {
+        id: true,
+        status: true,
+        event: { select: { id: true, publicId: true, hubId: true } },
+      },
+    });
+    if (!row || row.status !== "CONFIRMED") return row;
+
+    const removed = await tx.eventOrganizerGuest.updateMany({
+      where: { id: row.id, status: "CONFIRMED" },
+      data: { status: "CANCELLED", cancelledAt: new Date() },
+    });
+    if (removed.count !== 1) return { ...row, status: "CANCELLED" as const };
+    await ensureOrganizerGuestServiceFeeRefund(tx, {
+      eventOrganizerGuestId: row.id,
+      partnerId: partner.id,
+    });
+    return row;
   });
   if (!guest) return { message: "Guest not found." };
   if (guest.status !== "CONFIRMED") {
-    return { message: "That complimentary guest has already been removed." };
-  }
-
-  const removed = await prisma.eventOrganizerGuest.updateMany({
-    where: { id: guest.id, status: "CONFIRMED" },
-    data: { status: "CANCELLED", cancelledAt: new Date() },
-  });
-  if (removed.count !== 1) {
     return { message: "That complimentary guest has already been removed." };
   }
 
@@ -1303,17 +1342,24 @@ export async function cancelEventAction(
   if (!event) return { message: "Event not found." };
   if (event.status === "CANCELLED") return { message: "Event already cancelled." };
 
-  await prisma.$transaction([
-    prisma.bookingSlot.deleteMany({ where: { eventId: event.id } }),
-    prisma.event.update({
+  await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw(
+      Prisma.sql`SELECT "id" FROM "Event" WHERE "id" = ${event.id} FOR UPDATE`
+    );
+    const organizerGuests = await tx.eventOrganizerGuest.findMany({
+      where: { eventId: event.id, status: "CONFIRMED" },
+      select: { id: true },
+    });
+    await tx.bookingSlot.deleteMany({ where: { eventId: event.id } });
+    await tx.event.update({
       where: { id: event.id },
       data: {
         status: "CANCELLED",
         cancelledAt: new Date(),
         cancelReason: parsed.data.reason,
       },
-    }),
-    prisma.eventRegistration.updateMany({
+    });
+    await tx.eventRegistration.updateMany({
       where: {
         eventId: event.id,
         status: { in: ["PENDING", "CONFIRMED", "WAITLISTED"] },
@@ -1324,8 +1370,8 @@ export async function cancelEventAction(
         cancelledAt: new Date(),
         cancelReason: parsed.data.reason,
       },
-    }),
-    prisma.eventGuestSlot.updateMany({
+    });
+    await tx.eventGuestSlot.updateMany({
       where: {
         registration: { eventId: event.id },
         status: { in: ["PENDING", "CONFIRMED"] },
@@ -1335,33 +1381,39 @@ export async function cancelEventAction(
         holdExpiresAt: null,
         cancelledAt: new Date(),
       },
-    }),
-    prisma.eventOrganizerGuest.updateMany({
+    });
+    await tx.eventOrganizerGuest.updateMany({
       where: { eventId: event.id, status: "CONFIRMED" },
       data: { status: "CANCELLED", cancelledAt: new Date() },
-    }),
-    prisma.openPlaySession.updateMany({
+    });
+    for (const guest of organizerGuests) {
+      await ensureOrganizerGuestServiceFeeRefund(tx, {
+        eventOrganizerGuestId: guest.id,
+        partnerId: partner.id,
+      });
+    }
+    await tx.openPlaySession.updateMany({
       where: {
         queue: { eventId: event.id },
         status: { in: ["SETUP", "ACTIVE"] },
       },
       data: { status: "ENDED", endedAt: new Date() },
-    }),
-    prisma.openPlayGame.updateMany({
+    });
+    await tx.openPlayGame.updateMany({
       where: {
         session: { queue: { eventId: event.id } },
         status: { in: ["STAGED", "ACTIVE"] },
       },
       data: { status: "CANCELLED", cancelledAt: new Date() },
-    }),
-    prisma.openPlayParticipant.updateMany({
+    });
+    await tx.openPlayParticipant.updateMany({
       where: {
         session: { queue: { eventId: event.id } },
         status: { notIn: ["CHECKED_OUT", "REMOVED"] },
       },
       data: { status: "CHECKED_OUT", queuePosition: null, queuedAt: null },
-    }),
-  ]);
+    });
+  });
 
   let failedRefunds = 0;
   if (parsed.data.refund === "full") {
@@ -1456,13 +1508,18 @@ export async function deleteCancelledEventAction(
           take: 1,
           select: { id: true },
         },
+        organizerGuests: {
+          where: { serviceFeeEntries: { some: {} } },
+          take: 1,
+          select: { id: true },
+        },
       },
     });
     if (!event) return { status: "missing" as const };
     if (event.status !== "CANCELLED") {
       return { status: "not-cancelled" as const };
     }
-    if (event.registrations.length > 0) {
+    if (event.registrations.length > 0 || event.organizerGuests.length > 0) {
       return { status: "payment-history" as const };
     }
 
@@ -1477,7 +1534,7 @@ export async function deleteCancelledEventAction(
   if (outcome.status === "payment-history") {
     return {
       message:
-        "This event has payment history and must be kept for refunds and reports.",
+        "This event has financial history and must be kept for refunds and reports.",
     };
   }
 

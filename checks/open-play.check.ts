@@ -125,6 +125,32 @@ async function check() {
   ok("staff can bulk check in eligible players", Boolean((await actions.bulkCheckInOpenPlayParticipantsAction({}, bulkCheckIn)).success));
   const checkedIn = await prisma.openPlayParticipant.findMany({ where: { sessionId: session.id, status: "QUEUED" } });
   ok("bulk check-in assigns unique queue positions", new Set(checkedIn.map((player) => player.queuePosition)).size === 8);
+  const bulkPause = new FormData();
+  bulkPause.set("sessionId", session.id);
+  checkedIn.slice(0, 2).forEach((participant) => bulkPause.append("participantId", participant.id));
+  bulkPause.append("participantId", session.participants[8].id);
+  const paused = await actions.bulkPauseOpenPlayParticipantsAction({}, bulkPause);
+  ok(
+    "staff can bulk-break only selected waiting players",
+    paused.success?.includes("2 players") === true &&
+      (await prisma.openPlayParticipant.count({
+        where: {
+          id: { in: checkedIn.slice(0, 2).map((participant) => participant.id) },
+          status: "PAUSED",
+          queuePosition: null,
+          queuedAt: null,
+        },
+      })) === 2 &&
+      (await prisma.openPlayParticipant.findUniqueOrThrow({
+        where: { id: session.participants[8].id },
+      })).status === "NOT_CHECKED_IN"
+  );
+  for (const participant of checkedIn.slice(0, 2)) {
+    const resume = new FormData();
+    resume.set("sessionId", session.id);
+    resume.set("participantId", participant.id);
+    await actions.resumeOpenPlayParticipantAction({}, resume);
+  }
   const start = new FormData();
   start.set("sessionId", session.id);
   ok("the queue starts on the Event's Manila date", Boolean((await actions.startOpenPlaySessionAction({}, start)).success));
@@ -138,6 +164,29 @@ async function check() {
     include: { players: true },
   });
   ok("staging assigns exactly four unique players", stagedGame.players.length === 4 && new Set(stagedGame.players.map((slot) => slot.participantId)).size === 4);
+
+  const removableQueued = await prisma.openPlayParticipant.findFirstOrThrow({
+    where: { sessionId: session.id, status: "QUEUED" },
+    select: { id: true },
+  });
+  const protectedBulkRemove = new FormData();
+  protectedBulkRemove.set("sessionId", session.id);
+  protectedBulkRemove.append("participantId", stagedGame.players[0].participantId);
+  protectedBulkRemove.append("participantId", removableQueued.id);
+  const protectedRemoveResult = await actions.bulkRemoveOpenPlayParticipantsAction(
+    {},
+    protectedBulkRemove
+  );
+  ok(
+    "bulk removal skips staged players and removes only eligible selections",
+    protectedRemoveResult.success?.includes("1 player removed") === true &&
+      (await prisma.openPlayParticipant.findUniqueOrThrow({
+        where: { id: stagedGame.players[0].participantId },
+      })).status === "STAGED" &&
+      (await prisma.openPlayParticipant.findUniqueOrThrow({
+        where: { id: removableQueued.id },
+      })).status === "REMOVED"
+  );
 
   const startGame = new FormData();
   startGame.set("sessionId", session.id);
@@ -244,6 +293,27 @@ async function check() {
       runs[1].participants.every((participant) => participant.status === "NOT_CHECKED_IN")
   );
 
+  const bulkRemove = new FormData();
+  bulkRemove.set("sessionId", runs[1].id);
+  runs[1].participants.slice(1, 3).forEach((participant) =>
+    bulkRemove.append("participantId", participant.id)
+  );
+  bulkRemove.append("participantId", session.participants[0].id);
+  const bulkRemoved = await actions.bulkRemoveOpenPlayParticipantsAction(
+    {},
+    bulkRemove
+  );
+  ok(
+    "bulk removal is session-scoped and soft-removes eligible players",
+    bulkRemoved.success?.includes("2 players removed") === true &&
+      (await prisma.openPlayParticipant.count({
+        where: {
+          id: { in: runs[1].participants.slice(1, 3).map((participant) => participant.id) },
+          status: "REMOVED",
+        },
+      })) === 2
+  );
+
   const editPlayer = new FormData();
   editPlayer.set("sessionId", runs[1].id);
   editPlayer.set("participantId", runs[1].participants[0].id);
@@ -252,9 +322,9 @@ async function check() {
   ok("staff can edit run-local player details", Boolean((await actions.editOpenPlayParticipantAction({}, editPlayer)).success));
   const removePlayer = new FormData();
   removePlayer.set("sessionId", runs[1].id);
-  removePlayer.set("participantId", runs[1].participants[1].id);
+  removePlayer.set("participantId", runs[1].participants[3].id);
   ok("staff can soft-remove an inactive player", Boolean((await actions.removeOpenPlayParticipantAction({}, removePlayer)).success));
-  ok("soft removal keeps the participant row", (await prisma.openPlayParticipant.findUniqueOrThrow({ where: { id: runs[1].participants[1].id } })).status === "REMOVED");
+  ok("soft removal keeps the participant row", (await prisma.openPlayParticipant.findUniqueOrThrow({ where: { id: runs[1].participants[3].id } })).status === "REMOVED");
   const startNextRun = new FormData();
   startNextRun.set("sessionId", runs[1].id);
   ok("the next Event run can start on the Event date", Boolean((await actions.startOpenPlaySessionAction({}, startNextRun)).success));

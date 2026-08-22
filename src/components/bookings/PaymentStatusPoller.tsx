@@ -9,10 +9,12 @@ export function PaymentStatusPoller({
   paymentId,
   initialStatus,
   initialChargeInFlight,
+  statusBasePath = "/api/payments",
 }: {
   paymentId: string;
   initialStatus: "PENDING" | "SUCCEEDED" | "FAILED" | "REFUNDED";
   initialChargeInFlight: boolean;
+  statusBasePath?: string;
 }) {
   const router = useRouter();
 
@@ -32,7 +34,7 @@ export function PaymentStatusPoller({
 
       running = true;
       try {
-        const response = await fetch(`/api/payments/${paymentId}/status`, {
+        const response = await fetch(`${statusBasePath}/${paymentId}/status`, {
           cache: "no-store",
           headers: { Accept: "application/json" },
         });
@@ -66,7 +68,7 @@ export function PaymentStatusPoller({
       stopped = true;
       window.clearInterval(interval);
     };
-  }, [initialChargeInFlight, initialStatus, paymentId, router]);
+  }, [initialChargeInFlight, initialStatus, paymentId, router, statusBasePath]);
 
   return null;
 }

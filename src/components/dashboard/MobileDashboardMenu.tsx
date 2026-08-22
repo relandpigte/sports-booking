@@ -32,6 +32,8 @@ const playerItems: MobileMenuItem[] = [
   { href: "/dashboard/player", label: "Home", icon: "home", exact: true },
   { href: "/hubs", label: "Courts", icon: "map" },
   { href: "/events", label: "Events", icon: "trophy" },
+  { href: "/trainers", label: "Find Trainers", icon: "account" },
+  { href: "/dashboard/trainer", label: "Trainer Tools", icon: "account" },
   { href: "/dashboard/bookings", label: "Bookings", icon: "booking" },
   { href: "/dashboard/messages", label: "Messages", icon: "message" },
   { href: "/dashboard/tournaments", label: "Tournaments", icon: "trophy" },
@@ -70,6 +72,7 @@ const draftPartnerItems: MobileMenuItem[] = [
 const adminItems: MobileMenuItem[] = [
   { href: "/dashboard/admin", label: "Home", icon: "home", exact: true },
   { href: "/dashboard/account", label: "Account Settings", icon: "account" },
+  { href: "/dashboard/admin/trainers", label: "Trainer reviews", icon: "account" },
   {
     href: "/dashboard/admin/payments",
     label: "Payment setup",

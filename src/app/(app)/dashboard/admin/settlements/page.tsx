@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 import type { Metadata } from "next";
 
 import { PartnerServiceFeeBreakdown } from "@/components/admin/PartnerServiceFeeBreakdown";
@@ -5,6 +6,9 @@ import { ReverseServiceFeeWaiverForm } from "@/components/admin/ServiceFeeWaiver
 import { Badge } from "@/components/ui/Badge";
 import { formatPHP } from "@/lib/currency";
 import { reviewServiceFeeSettlementAction } from "@/lib/service-fee-actions";
+import { reviewTrainerServiceFeeSettlementAction } from "@/lib/trainer-payment-actions";
+import { requireAdmin } from "@/lib/admin";
+import { prisma } from "@/lib/db";
 import {
   listAdminPartnerServiceFeeBreakdown,
   listAdminServiceFeeSettlements,
@@ -23,10 +27,15 @@ const formatDate = (date: Date) =>
   }).format(date);
 
 export default async function AdminSettlementsPage() {
-  const [{ submitted, history }, partners, waivers] = await Promise.all([
+  await requireAdmin();
+  const [{ submitted, history }, partners, waivers, trainerSettlements] = await Promise.all([
     listAdminServiceFeeSettlements(),
     listAdminPartnerServiceFeeBreakdown(),
     listAdminServiceFeeWaivers(),
+    prisma.trainerServiceFeeSettlement.findMany({
+      orderBy: { submittedAt: "desc" },
+      include: { trainer: { select: { email: true, name: true, playerName: true } } },
+    }),
   ]);
 
   return (
@@ -42,6 +51,18 @@ export default async function AdminSettlementsPage() {
       </div>
 
       <PartnerServiceFeeBreakdown partners={partners} />
+
+      <section className="mt-8">
+        <h2 className="text-base font-semibold text-gray-900">Trainer settlements</h2>
+        <p className="mt-1 text-sm text-gray-500">Review remittances for the 3% added to trainer sessions.</p>
+        <div className="mt-3 space-y-3">
+          {trainerSettlements.map((settlement) => (
+            <article key={settlement.id} className="grid gap-4 rounded-2xl border border-gray-200 bg-white p-4 lg:grid-cols-[1fr_220px]">
+              <div><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold text-gray-900">{settlement.trainer.playerName ?? settlement.trainer.name ?? settlement.trainer.email}</h3><p className="text-xs text-gray-500">{settlement.trainer.email}</p></div><div className="text-right"><p className="font-bold text-navy">{formatPHP(Number(settlement.amount))}</p><Badge tone={settlement.status === "PAID" ? "success" : settlement.status === "REJECTED" ? "danger" : "warn"}>{settlement.status.replaceAll("_", " ")}</Badge></div></div><p className="mt-3 text-sm text-slate-600">Reference: <span className="font-mono">{settlement.paymentReference ?? "—"}</span> · {formatDate(settlement.submittedAt)}</p>{settlement.status === "SUBMITTED" && <form action={reviewTrainerServiceFeeSettlementAction} className="mt-3 flex flex-wrap gap-2"><input type="hidden" name="settlementId" value={settlement.id} /><input name="note" placeholder="Review note (optional)" className="min-h-10 min-w-48 flex-1 rounded-lg border border-gray-200 px-3 text-sm" /><button name="decision" value="PAID" className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white">Mark paid</button><button name="decision" value="REJECTED" className="rounded-lg bg-red-50 px-4 py-2 text-sm font-bold text-red-700">Reject</button></form>}</div>{settlement.receiptImage && <a href={settlement.receiptImage} target="_blank" rel="noreferrer" className="overflow-hidden rounded-xl border bg-slate-50">{ }<img src={settlement.receiptImage} alt="Trainer settlement receipt" className="max-h-56 w-full object-contain" /></a>}</article>
+          ))}
+          {trainerSettlements.length === 0 && <p className="rounded-xl border border-dashed p-6 text-center text-sm text-slate-500">No trainer settlements yet.</p>}
+        </div>
+      </section>
 
       {waivers.length > 0 && (
         <section className="mt-8">
@@ -186,7 +207,7 @@ export default async function AdminSettlementsPage() {
                     className="overflow-hidden rounded-xl border border-gray-200 bg-gray-50"
                     title="Open receipt"
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    { }
                     <img
                       src={settlement.receiptImage}
                       alt={`Receipt from ${settlement.partnerName}`}

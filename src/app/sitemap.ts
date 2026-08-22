@@ -4,13 +4,15 @@ import { listPublicHubs } from "@/lib/hubs";
 import { hubPublicPath } from "@/lib/hub-slug";
 import { listPublicEventSitemapEntries } from "@/lib/events";
 import { absoluteUrl, isPublicHttpUrl } from "@/lib/site";
+import { listPublicTrainers } from "@/lib/trainers";
 
 export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [hubsResult, eventsResult] = await Promise.allSettled([
+  const [hubsResult, eventsResult, trainersResult] = await Promise.allSettled([
     listPublicHubs(),
     listPublicEventSitemapEntries(),
+    listPublicTrainers(),
   ]);
 
   // Keep the static sitemap available to crawlers when a database-backed
@@ -25,9 +27,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       eventsResult.reason
     );
   }
+  if (trainersResult.status === "rejected") {
+    console.error("Unable to add public trainers to the sitemap.", trainersResult.reason);
+  }
 
   const hubs = hubsResult.status === "fulfilled" ? hubsResult.value : [];
   const events = eventsResult.status === "fulfilled" ? eventsResult.value : [];
+  const trainers = trainersResult.status === "fulfilled" ? trainersResult.value : [];
 
   return [
     {
@@ -50,6 +56,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "daily",
       priority: 0.9,
     },
+    {
+      url: absoluteUrl("/trainers"),
+      changeFrequency: "daily",
+      priority: 0.9,
+    },
+    ...trainers.flatMap((trainer) => trainer.user.username ? [{
+      url: absoluteUrl(`/players/${trainer.user.username}`),
+      changeFrequency: "weekly" as const,
+      priority: 0.7,
+    }] : []),
     ...events.map((event) => ({
       url: absoluteUrl(`/events/${event.publicId}`),
       lastModified: event.updatedAt,

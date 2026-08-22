@@ -32,6 +32,10 @@ import {
   staffInvitationEmailContent,
   type StaffInvitationEmailContentInput,
 } from "@/lib/staff-invitation-email";
+import {
+  trainerLifecycleEmailContent,
+  type TrainerLifecycleEmailInput,
+} from "@/lib/trainer-email";
 
 type PasswordResetEmailInput = {
   to: string;
@@ -88,6 +92,11 @@ type ServiceFeeOverdueEmailInput = ServiceFeeOverdueEmailContentInput & {
 };
 
 type StaffInvitationEmailInput = StaffInvitationEmailContentInput & {
+  to: string;
+  idempotencyKey: string;
+};
+
+type TrainerEmailInput = TrainerLifecycleEmailInput & {
   to: string;
   idempotencyKey: string;
 };
@@ -196,6 +205,21 @@ export async function sendStaffInvitationEmail(
     idempotencyKey: input.idempotencyKey,
     category: "partner-staff-invitation",
     description: "Partner staff-invitation email delivery",
+  });
+}
+
+export async function sendTrainerLifecycleEmail(
+  input: TrainerEmailInput
+): Promise<void> {
+  const content = trainerLifecycleEmailContent(input);
+  await deliverEmail({
+    to: input.to,
+    subject: content.subject,
+    html: content.html,
+    text: content.text,
+    idempotencyKey: input.idempotencyKey,
+    category: "trainer-session",
+    description: "Trainer-session email delivery",
   });
 }
 

@@ -258,7 +258,7 @@ export function MessagesWorkspace({
   }
 
   const otherPrivateMember =
-    conversation.kind === "HUB_PLAYER"
+    conversation.kind === "HUB_PLAYER" || conversation.kind === "TRAINER_SESSION"
       ? conversation.participants.find((member) => member.id !== viewerId)
       : null;
 
@@ -482,7 +482,9 @@ export function MessagesWorkspace({
             <p className="mt-1.5 text-center text-[10px] text-slate-400">
               {conversation.kind === "EVENT"
                 ? "Visible only to confirmed participants in this event."
-                : "Visible only to you and this venue."}
+                : conversation.kind === "TRAINER_SESSION"
+                  ? "Visible only to the player and trainer."
+                  : "Visible only to you and this venue."}
             </p>
           </div>
         </form>

@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function PrivacyPage() {
   return (
     <PageShell maxWidth="max-w-none" padded={false} alwaysPublic>
-      <LegalLayout title="Privacy Policy" updated="August 12, 2026">
+      <LegalLayout title="Privacy Policy" updated="August 21, 2026">
         <p>
           This Privacy Policy explains how Bunal.club (&quot;we&quot;,
           &quot;us&quot;) collects, uses, and protects your personal
@@ -46,11 +46,20 @@ export default function PrivacyPage() {
             </li>
             <li>
               <span className="font-medium text-gray-800">Activity</span> —
-              the bookings you make and the events you register for.
+              the bookings you make, events you register for, and trainer
+              sessions you request or provide.
+            </li>
+            <li>
+              <span className="font-medium text-gray-800">Trainer data</span> —
+              public username, bio, sports, specialties, experience,
+              certifications, general service area, hourly rate, weekly
+              availability, required Facebook Page, and private meeting
+              instructions. Exact instructions are disclosed to the
+              paying player only after payment confirmation.
             </li>
             <li>
               <span className="font-medium text-gray-800">Messages</span> —
-              messages you send in booking-scoped venue and event
+            messages you send in booking-scoped venue, event, and trainer
               conversations, read state, blocks, and reports submitted for
               moderation.
             </li>
@@ -99,8 +108,11 @@ export default function PrivacyPage() {
             PayMongo and proceeds go directly into the venue&apos;s connected
             account. For manual checkout, Bunal.club stores the receipt image,
             optional transaction reference, and a snapshot of the venue&apos;s
-            displayed payment instructions so the venue can review the
-            booking. Bunal.club never holds player funds in transit.
+            displayed payment instructions so the venue or trainer can review
+            the booking. Trainer-session payments similarly go to the
+            trainer&apos;s selected PayMongo or manual destination, and the 3%
+            service fee is tracked for remittance. Bunal.club never holds
+            player funds in transit.
           </p>
         </LegalSection>
 
@@ -150,6 +162,11 @@ export default function PrivacyPage() {
             <li>
               <span className="font-medium text-gray-800">Venues</span> — the
               details needed to fulfill a specific booking or registration.
+            </li>
+            <li>
+              <span className="font-medium text-gray-800">Trainers</span> —
+              the player identity, session request, notes, and payment evidence
+              needed to review and fulfill a trainer session.
             </li>
             <li>
               <span className="font-medium text-gray-800">Google Maps</span>{" "}

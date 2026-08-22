@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function TermsPage() {
   return (
     <PageShell maxWidth="max-w-none" padded={false} alwaysPublic>
-      <LegalLayout title="Terms & Conditions" updated="August 12, 2026">
+      <LegalLayout title="Terms & Conditions" updated="August 21, 2026">
         <p>
           Welcome to Bunal.club. These Terms &amp; Conditions
           (&quot;Terms&quot;) govern your access to and use of the
@@ -77,6 +77,24 @@ export default function TermsPage() {
           </p>
         </LegalSection>
 
+        <LegalSection heading="5A. Trainers and trainer sessions">
+          <p>
+            Trainers are independent users, not employees or agents of
+            Bunal.club. Trainer profiles require administrative review,
+            including a public Facebook Page, but approval is not a guarantee
+            of credentials, fitness, safety, or results. Players remain
+            responsible for deciding whether a trainer and meeting arrangement
+            are suitable. A trainer has 12 hours to accept a request; after
+            acceptance, the player has one hour to pay. Checkout adds a 3%
+            Bunal.club service fee. A player cancelling at least 24 hours before
+            the session receives the trainer subtotal while the service fee is
+            retained; later player cancellations are non-refundable. A trainer
+            cancellation returns the full collected amount, including the
+            service fee. Trainers may reschedule a confirmed session for the
+            same duration and must provide a reason.
+          </p>
+        </LegalSection>
+
         <LegalSection heading="6. Acceptable use">
           <p>
             You agree not to misuse the Service, including by attempting to
@@ -91,8 +109,9 @@ export default function TermsPage() {
 
         <LegalSection heading="6A. Booking-scoped Messages">
           <p>
-            Confirmed bookings and event registrations may provide temporary
-            access to a venue conversation or event discussion. Use Messages
+            Confirmed bookings, event registrations, and paid trainer sessions
+            may provide temporary access to a venue, event, or trainer
+            conversation. Use Messages
             only for respectful coordination related to that booking or
             event. Messages do not modify, cancel, reschedule, or refund an
             official booking; those changes must use the relevant booking or

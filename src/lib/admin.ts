@@ -33,6 +33,8 @@ const userListSelect = {
   loginCount: true,
   createdAt: true,
   partnerGateway: { select: { id: true } },
+  trainerProfile: { select: { status: true } },
+  trainerGateway: { select: { id: true } },
   _count: {
     select: {
       hubs: true,
@@ -47,6 +49,12 @@ const userListSelect = {
       serviceFeeWaivers: true,
       serviceFeeWaiversGranted: true,
       serviceFeeWaiversReversed: true,
+      trainerManualMethods: true,
+      trainerSessionsBooked: true,
+      trainerPaymentsMade: true,
+      trainerPaymentsReceived: true,
+      trainerFeeEntries: true,
+      trainerFeeSettlements: true,
     },
   },
 } as const;
@@ -55,17 +63,24 @@ type AdminUserRecord = Prisma.UserGetPayload<{
   select: typeof userListSelect;
 }>;
 
-export type AdminUser = Omit<AdminUserRecord, "partnerGateway" | "_count"> & {
+export type AdminUser = Omit<AdminUserRecord, "partnerGateway" | "trainerProfile" | "trainerGateway" | "_count"> & {
   deleteBlockedReason: string | null;
 };
 
 function mapAdminUser(user: AdminUserRecord): AdminUser {
-  const { partnerGateway, _count, ...safeUser } = user;
+  const { partnerGateway, trainerProfile, trainerGateway, _count, ...safeUser } = user;
   if (user.partnerStatus === "ACTIVE") {
     return {
       ...safeUser,
       deleteBlockedReason: "Deactivate this partner before deleting the account.",
     };
+  }
+  if (trainerProfile?.status === "ACTIVE") {
+    return { ...safeUser, deleteBlockedReason: "Deactivate this trainer profile before deleting the account." };
+  }
+  const hasTrainerHistory = trainerGateway !== null || _count.trainerManualMethods > 0 || _count.trainerSessionsBooked > 0 || _count.trainerPaymentsMade > 0 || _count.trainerPaymentsReceived > 0 || _count.trainerFeeEntries > 0 || _count.trainerFeeSettlements > 0;
+  if (hasTrainerHistory) {
+    return { ...safeUser, deleteBlockedReason: "This account has trainer session, payment, or settlement history and cannot be permanently deleted." };
   }
   const hasPartnerOwnedHistory =
     partnerGateway !== null ||

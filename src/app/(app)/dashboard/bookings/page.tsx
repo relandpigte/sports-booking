@@ -18,6 +18,7 @@ import { PartnerBookingListRow } from "@/components/bookings/PartnerBookingListR
 import { PartnerBookingsView } from "@/components/bookings/PartnerBookingsView";
 import { PlayerBookingsView } from "@/components/bookings/PlayerBookingsView";
 import { PlayerEventRegistrationCard } from "@/components/bookings/PlayerEventRegistrationCard";
+import { PlayerTrainerSessionCard } from "@/components/trainers/PlayerTrainerSessionCard";
 import {
   isValidDateString,
   manilaNowHour,
@@ -29,6 +30,7 @@ import {
   type PlayerEventRegistrationView,
 } from "@/lib/events";
 import { getPartnerWorkspace, hasStaffAccess } from "@/lib/staffing";
+import { prisma } from "@/lib/db";
 
 export const metadata: Metadata = {
   title: "Bookings — Bunal.club",
@@ -55,7 +57,7 @@ const partnerBookingSorts: PartnerBookingSort[] = [
 ];
 
 type PlayerBookingSection = "upcoming" | "history";
-type PlayerBookingType = "all" | "courts" | "events";
+type PlayerBookingType = "all" | "courts" | "events" | "trainers";
 type PlayerBookingStatus =
   | "PENDING"
   | "CONFIRMED"
@@ -73,7 +75,7 @@ type PlayerBookingFilters = {
   to?: string;
 };
 
-const playerBookingTypes: PlayerBookingType[] = ["all", "courts", "events"];
+const playerBookingTypes: PlayerBookingType[] = ["all", "courts", "events", "trainers"];
 const playerBookingStatuses: PlayerBookingStatus[] = [
   "PENDING",
   "CONFIRMED",
@@ -367,9 +369,23 @@ export default async function BookingsPage({
     );
   }
 
-  const [courtBookings, eventRegistrations] = await Promise.all([
+  const [courtBookings, eventRegistrations, trainerSessions] = await Promise.all([
     listMyBookings(),
     listMyEventRegistrations(),
+    prisma.trainerSession.findMany({
+      where: { playerId: user.id },
+      orderBy: [{ startsAt: "asc" }, { createdAt: "desc" }],
+      include: {
+        trainer: {
+          select: {
+            area: true,
+            locationDetails: true,
+            user: { select: { username: true, name: true, playerName: true } },
+          },
+        },
+        payment: { select: { id: true, status: true } },
+      },
+    }),
   ]);
 
   const section: PlayerBookingSection =
@@ -398,16 +414,25 @@ export default async function BookingsPage({
       ? eventRegistrations.upcoming
       : eventRegistrations.past;
   const filteredCourtBookings =
-    filters.type === "events"
+    filters.type === "events" || filters.type === "trainers"
       ? []
       : filterPlayerCourtBookings(selectedCourtBookings, filters);
   const filteredEventRegistrations =
-    filters.type === "courts"
+    filters.type === "courts" || filters.type === "trainers"
       ? []
       : filterPlayerEventRegistrations(selectedEventRegistrations, filters);
+  const filteredTrainerSessions = trainerSessions.filter((session) => {
+    const inSection = section === "upcoming"
+      ? session.startsAt >= new Date() && !["COMPLETED", "CANCELLED", "DECLINED", "EXPIRED", "REFUNDED"].includes(session.status)
+      : session.startsAt < new Date() || ["COMPLETED", "CANCELLED", "DECLINED", "EXPIRED", "REFUNDED"].includes(session.status);
+    const statusMatches = !filters.status || session.status === filters.status;
+    return filters.type !== "courts" && filters.type !== "events" && inSection && statusMatches && matchesPlayerDate(session.date, filters.from, filters.to) && matchesPlayerQuery([session.id, session.trainer.user.name, session.trainer.user.playerName, session.trainer.area], filters.query ?? "");
+  });
+  const trainerUpcomingCount = trainerSessions.filter((session) => session.startsAt >= new Date() && !["COMPLETED", "CANCELLED", "DECLINED", "EXPIRED", "REFUNDED"].includes(session.status)).length;
+  const trainerHistoryCount = trainerSessions.length - trainerUpcomingCount;
   const upcomingCount =
-    courtBookings.upcoming.length + eventRegistrations.upcoming.length;
-  const historyCount = courtBookings.past.length + eventRegistrations.past.length;
+    courtBookings.upcoming.length + eventRegistrations.upcoming.length + trainerUpcomingCount;
+  const historyCount = courtBookings.past.length + eventRegistrations.past.length + trainerHistoryCount;
 
   return (
     <PlayerBookingsView
@@ -416,6 +441,7 @@ export default async function BookingsPage({
       historyCount={historyCount}
       courtCount={filteredCourtBookings.length}
       eventCount={filteredEventRegistrations.length}
+      trainerCount={filteredTrainerSessions.length}
       filters={{
         query,
         type: filters.type,
@@ -439,6 +465,9 @@ export default async function BookingsPage({
           key={registration.id}
           registration={registration}
         />
+      ))}
+      trainerSessions={filteredTrainerSessions.map((session) => (
+        <PlayerTrainerSessionCard key={session.id} session={session} />
       ))}
     />
   );

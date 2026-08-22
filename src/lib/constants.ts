@@ -90,6 +90,11 @@ export const MAX_BOOKING_COURT_HOURS = 240;
 // How far ahead players can book.
 export const BOOKING_WINDOW_DAYS = 30;
 
+export const TRAINER_REQUEST_HOLD_HOURS = 12;
+export const TRAINER_PAYMENT_HOLD_MINUTES = 60;
+export const TRAINER_MIN_LEAD_HOURS = 24;
+export const TRAINER_BOOKING_WINDOW_DAYS = 30;
+
 // Exhaustive on purpose: adding a BookingStatus value breaks the build until
 // every renderer has been updated.
 export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {

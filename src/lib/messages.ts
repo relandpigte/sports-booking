@@ -203,6 +203,7 @@ const conversationSelect = {
   kind: true,
   hubId: true,
   eventId: true,
+  trainerSessionId: true,
   playerId: true,
   createdAt: true,
   lastMessageAt: true,
@@ -249,6 +250,26 @@ const conversationSelect = {
               partnerStatus: true,
             },
           },
+        },
+      },
+    },
+  },
+  trainerSession: {
+    select: {
+      id: true,
+      date: true,
+      startHour: true,
+      endHour: true,
+      endsAt: true,
+      status: true,
+      confirmedAt: true,
+      playerId: true,
+      player: { select: { id: true, name: true, playerName: true, image: true } },
+      trainer: {
+        select: {
+          area: true,
+          userId: true,
+          user: { select: { id: true, name: true, playerName: true, image: true } },
         },
       },
     },
@@ -331,6 +352,23 @@ async function accessConversation(
     };
   }
 
+  if (conversation.kind === "TRAINER_SESSION") {
+    const session = conversation.trainerSession;
+    if (!session || !["CONFIRMED", "COMPLETED"].includes(session.status) || session.endsAt <= activeAfter) {
+      return null;
+    }
+    if (viewer.role !== "PLAYER" || (viewer.id !== session.playerId && viewer.id !== session.trainer.userId)) {
+      return null;
+    }
+    return {
+      conversationId,
+      visibleFrom: session.confirmedAt ?? conversation.createdAt,
+      conversation,
+      bookingContext: null,
+      qualifyingBookingCount: 1,
+    };
+  }
+
   if (!conversation.eventId || !conversation.event) return null;
   if (
     conversation.event.status !== "PUBLISHED" ||
@@ -394,6 +432,14 @@ async function listConversationAccesses(
                     registrations: {
                       some: { userId: viewer.id, status: "CONFIRMED" },
                     },
+                  },
+                },
+                {
+                  kind: "TRAINER_SESSION",
+                  trainerSession: {
+                    OR: [{ playerId: viewer.id }, { trainer: { userId: viewer.id } }],
+                    status: { in: ["CONFIRMED", "COMPLETED"] },
+                    endsAt: { gt: activeAfter },
                   },
                 },
               ],
@@ -587,6 +633,22 @@ async function listConversationAccesses(
           qualifyingBookingCount: 0,
         });
       }
+      continue;
+    }
+    if (
+      conversation.kind === "TRAINER_SESSION" &&
+      conversation.trainerSession &&
+      ["CONFIRMED", "COMPLETED"].includes(conversation.trainerSession.status) &&
+      conversation.trainerSession.endsAt > activeAfter &&
+      (conversation.trainerSession.playerId === viewer.id || conversation.trainerSession.trainer.userId === viewer.id)
+    ) {
+      accesses.push({
+        conversationId: conversation.id,
+        visibleFrom: conversation.trainerSession.confirmedAt ?? conversation.createdAt,
+        conversation,
+        bookingContext: null,
+        qualifyingBookingCount: 1,
+      });
     }
   }
   return accesses;
@@ -610,6 +672,16 @@ function conversationPresentation(
       title: conversation.event.title,
       subtitle: `${conversation.event.hub.name} · Event discussion`,
       image: conversation.event.hub.logo,
+      href: `/dashboard/messages/conversations/${conversation.id}`,
+    };
+  }
+  if (conversation.kind === "TRAINER_SESSION" && conversation.trainerSession) {
+    const session = conversation.trainerSession;
+    const other = viewer.id === session.playerId ? session.trainer.user : session.player;
+    return {
+      title: displayName(other),
+      subtitle: `${session.trainer.area ?? "Trainer session"} · Training`,
+      image: other.image,
       href: `/dashboard/messages/conversations/${conversation.id}`,
     };
   }
@@ -786,6 +858,16 @@ async function conversationDetailsForViewer(
           href: `/events/${conversation.event.publicId}`,
           hrefLabel: "View event",
         }
+      : conversation.kind === "TRAINER_SESSION" && conversation.trainerSession
+        ? {
+            eyebrow: "Trainer session",
+            title: displayName(conversation.trainerSession.trainer.user),
+            schedule: `${formatManilaDateLong(conversation.trainerSession.date)}, ${formatSlotRange(conversation.trainerSession.startHour, conversation.trainerSession.endHour)}`,
+            venue: conversation.trainerSession.trainer.area ?? "Trainer-arranged location",
+            note: "Only the player and trainer can access this paid-session conversation.",
+            href: "/dashboard/bookings?type=trainers",
+            hrefLabel: "View session",
+          }
       : access.bookingContext && conversation.hub
         ? {
             eyebrow: "Court booking",
@@ -833,6 +915,23 @@ async function conversationDetailsForViewer(
         blockedByMe: myBlockedIds.includes(conversation.player.id),
       }
     );
+  } else if (conversation.kind === "TRAINER_SESSION" && conversation.trainerSession) {
+    participants.push(
+      {
+        id: conversation.trainerSession.trainer.user.id,
+        name: displayName(conversation.trainerSession.trainer.user),
+        image: conversation.trainerSession.trainer.user.image,
+        role: "PLAYER",
+        blockedByMe: myBlockedIds.includes(conversation.trainerSession.trainer.user.id),
+      },
+      {
+        id: conversation.trainerSession.player.id,
+        name: displayName(conversation.trainerSession.player),
+        image: conversation.trainerSession.player.image,
+        role: "PLAYER",
+        blockedByMe: myBlockedIds.includes(conversation.trainerSession.player.id),
+      }
+    );
   } else if (conversation.event) {
     const registrations = await prisma.eventRegistration.findMany({
       where: { eventId: conversation.event.id, status: "CONFIRMED" },
@@ -863,7 +962,11 @@ async function conversationDetailsForViewer(
       ? viewer.role === "PLAYER"
         ? conversation.hub?.ownerId
         : conversation.playerId
-      : null;
+      : conversation.kind === "TRAINER_SESSION" && conversation.trainerSession
+        ? viewer.id === conversation.trainerSession.playerId
+          ? conversation.trainerSession.trainer.userId
+          : conversation.trainerSession.playerId
+        : null;
   const privateBlock = otherId
     ? await prisma.chatBlock.findFirst({
           where: {
@@ -1005,16 +1108,20 @@ async function privateConversationBlocked(
   access: ConversationAccess,
   _viewerId: string
 ): Promise<boolean> {
-  if (access.conversation.kind !== "HUB_PLAYER") return false;
-  const partnerId = access.conversation.hub?.ownerId;
-  const playerId = access.conversation.playerId;
-  if (!partnerId || !playerId) return true;
+  const privateIds = access.conversation.kind === "HUB_PLAYER"
+    ? [access.conversation.hub?.ownerId, access.conversation.playerId]
+    : access.conversation.kind === "TRAINER_SESSION" && access.conversation.trainerSession
+      ? [access.conversation.trainerSession.trainer.userId, access.conversation.trainerSession.playerId]
+      : null;
+  if (!privateIds) return false;
+  const [firstId, secondId] = privateIds;
+  if (!firstId || !secondId) return true;
   return Boolean(
     await prisma.chatBlock.findFirst({
       where: {
         OR: [
-          { blockerId: partnerId, blockedId: playerId },
-          { blockerId: playerId, blockedId: partnerId },
+          { blockerId: firstId, blockedId: secondId },
+          { blockerId: secondId, blockedId: firstId },
         ],
       },
       select: { blockerId: true },

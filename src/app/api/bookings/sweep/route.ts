@@ -7,6 +7,7 @@ import { cleanupExpiredSecurityRows } from "@/lib/security-maintenance";
 import { notifyPartnersOfOverdueServiceFees } from "@/lib/service-fee-notifications";
 import { reconcileServiceFeeCheckouts } from "@/lib/service-fee-payments";
 import { cleanupStaleOpenPlaySessions } from "@/lib/open-play-maintenance";
+import { sendTrainerSessionReminders, sweepTrainerSessions } from "@/lib/trainers";
 
 // Tidies up expired holds: deletes the slot rows nothing is holding any more,
 // flips PENDING bookings to EXPIRED, and closes out payments whose window has
@@ -47,13 +48,15 @@ async function runSweep(request: NextRequest) {
   // Reconcile provider payments first so a paid checkout whose webhook was
   // delayed cannot receive an incorrect overdue reminder in this same run.
   const serviceFeeCheckouts = await reconcileServiceFeeCheckouts();
-  const [result, security, messengerEvents, serviceFeeNotifications, bunalQ] =
+  const [result, security, messengerEvents, serviceFeeNotifications, bunalQ, trainerSessions, trainerReminders] =
     await Promise.all([
       expireBookingHolds(),
       cleanupExpiredSecurityRows(),
       cleanupFacebookMessengerEvents(),
       notifyPartnersOfOverdueServiceFees(),
       cleanupStaleOpenPlaySessions(),
+      sweepTrainerSessions(),
+      sendTrainerSessionReminders(),
     ]);
   return Response.json({
     ok: true,
@@ -63,6 +66,8 @@ async function runSweep(request: NextRequest) {
     serviceFeeNotifications,
     serviceFeeCheckouts,
     bunalQ,
+    trainerSessions,
+    trainerReminders,
   });
 }
 

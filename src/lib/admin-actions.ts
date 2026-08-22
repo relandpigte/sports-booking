@@ -397,6 +397,8 @@ export async function deleteUserAction(
           role: true,
           partnerStatus: true,
           partnerGateway: { select: { id: true } },
+          trainerProfile: { select: { status: true } },
+          trainerGateway: { select: { id: true } },
           _count: {
             select: {
               hubs: true,
@@ -411,11 +413,25 @@ export async function deleteUserAction(
               serviceFeeWaivers: true,
               serviceFeeWaiversGranted: true,
               serviceFeeWaiversReversed: true,
+              trainerManualMethods: true,
+              trainerSessionsBooked: true,
+              trainerPaymentsMade: true,
+              trainerPaymentsReceived: true,
+              trainerFeeEntries: true,
+              trainerFeeSettlements: true,
             },
           },
         },
       });
       if (!user) return { message: "User not found." };
+
+      if (user.trainerProfile?.status === "ACTIVE") {
+        return { message: "Deactivate this trainer profile before deleting the account." };
+      }
+      const hasTrainerHistory = user.trainerGateway !== null || user._count.trainerManualMethods > 0 || user._count.trainerSessionsBooked > 0 || user._count.trainerPaymentsMade > 0 || user._count.trainerPaymentsReceived > 0 || user._count.trainerFeeEntries > 0 || user._count.trainerFeeSettlements > 0;
+      if (hasTrainerHistory) {
+        return { message: "This account has trainer session, payment, or settlement history and cannot be permanently deleted." };
+      }
 
       if (user.role === "PARTNER") {
         if (user.partnerStatus === "ACTIVE") {

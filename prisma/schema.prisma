@@ -21,6 +21,7 @@ enum Role {
 enum ChatConversationKind {
   EVENT
   HUB_PLAYER
+  TRAINER_SESSION
 }
 
 enum ChatMessageKind {
@@ -51,6 +52,30 @@ enum PartnerStatus {
 enum PartnerPaymentMode {
   AUTOMATIC
   MANUAL
+}
+
+enum TrainerStatus {
+  DRAFT
+  PENDING
+  ACTIVE
+  DEACTIVATED
+}
+
+enum TrainerAvailabilityExceptionType {
+  AVAILABLE
+  UNAVAILABLE
+}
+
+enum TrainerSessionStatus {
+  REQUESTED
+  AWAITING_PAYMENT
+  PAYMENT_REVIEW
+  CONFIRMED
+  DECLINED
+  EXPIRED
+  CANCELLED
+  COMPLETED
+  REFUNDED
 }
 
 enum StaffAccessLevel {
@@ -135,6 +160,7 @@ model User {
   id                      String             @id @default(cuid())
   name                    String?
   playerName              String?
+  username                String?            @unique
   email                   String             @unique
   emailVerified           DateTime?
   phone                   String?
@@ -201,6 +227,15 @@ model User {
   chatBlocksReceived   ChatBlock[]         @relation("ChatBlocked")
   chatReports          ChatReport[]        @relation("ChatReporter")
 
+  trainerProfile          TrainerProfile?
+  trainerGateway          TrainerGateway?
+  trainerManualMethods    TrainerManualPaymentMethod[]
+  trainerSessionsBooked   TrainerSession[]              @relation("TrainerSessionPlayer")
+  trainerPaymentsMade     TrainerPayment[]              @relation("TrainerPaymentPlayer")
+  trainerPaymentsReceived TrainerPayment[]              @relation("TrainerPaymentTrainer")
+  trainerFeeEntries       TrainerServiceFeeEntry[]      @relation("TrainerServiceFeeOwner")
+  trainerFeeSettlements   TrainerServiceFeeSettlement[] @relation("TrainerServiceFeeSettlementOwner")
+
   partnerGateway            PartnerGateway?
   manualPaymentMethods      PartnerManualPaymentMethod[]
   bookingPayments           BookingPayment[]             @relation("PlayerBookingPayments")
@@ -221,6 +256,282 @@ model User {
   staffInvitationsSent    PartnerStaffInvitation[] @relation("PartnerStaffInvitationInviter")
   staffActivityOwned      PartnerStaffActivity[]   @relation("PartnerStaffActivityOwner")
   staffActivityPerformed  PartnerStaffActivity[]   @relation("PartnerStaffActivityActor")
+}
+
+// A trainer is a capability attached to a PLAYER account. The account keeps
+// every player ability while this profile supplies the independently reviewed
+// public identity, availability, rate, and payout settings.
+model TrainerProfile {
+  id                   String             @id @default(cuid())
+  userId               String             @unique
+  status               TrainerStatus      @default(DRAFT)
+  bio                  String?            @db.Text
+  sports               String[]
+  specialties          String[]
+  experience           String?            @db.Text
+  certifications       String?            @db.Text
+  area                 String?
+  locationDetails      String?            @db.Text
+  hourlyRate           Decimal?           @db.Decimal(10, 2)
+  facebookPage         String?
+  paymentMode          PartnerPaymentMode @default(AUTOMATIC)
+  submittedAt          DateTime?
+  activatedAt          DateTime?
+  activatedById        String?
+  deactivatedAt        DateTime?
+  deactivationReason   String?            @db.Text
+  facebookReviewedAt   DateTime?
+  facebookReviewedById String?
+  serviceFeeReminderAt DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  user        User                           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weeklyRules TrainerAvailabilityRule[]
+  exceptions  TrainerAvailabilityException[]
+  sessions    TrainerSession[]
+  slots       TrainerSessionSlot[]
+
+  @@index([status, updatedAt])
+  @@index([area])
+}
+
+model TrainerAvailabilityRule {
+  id               String   @id @default(cuid())
+  trainerProfileId String
+  dayOfWeek        Int
+  startHour        Int
+  endHour          Int
+  createdAt        DateTime @default(now())
+
+  trainer TrainerProfile @relation(fields: [trainerProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([trainerProfileId, dayOfWeek, startHour, endHour])
+  @@index([trainerProfileId, dayOfWeek])
+}
+
+model TrainerAvailabilityException {
+  id               String                           @id @default(cuid())
+  trainerProfileId String
+  date             String
+  startHour        Int
+  endHour          Int
+  type             TrainerAvailabilityExceptionType
+  note             String?                          @db.VarChar(200)
+  createdAt        DateTime                         @default(now())
+
+  trainer TrainerProfile @relation(fields: [trainerProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([trainerProfileId, date, startHour, endHour, type])
+  @@index([trainerProfileId, date])
+}
+
+model TrainerSession {
+  id               String               @id @default(cuid())
+  publicId         String               @unique
+  trainerProfileId String
+  playerId         String
+  date             String
+  startHour        Int
+  endHour          Int
+  hours            Int
+  startsAt         DateTime
+  endsAt           DateTime
+  status           TrainerSessionStatus @default(REQUESTED)
+  notes            String?              @db.Text
+  hourlyRate       Decimal              @db.Decimal(10, 2)
+  trainerAmount    Decimal              @db.Decimal(10, 2)
+  platformFee      Decimal              @db.Decimal(10, 2)
+  processingFee    Decimal              @default(0) @db.Decimal(10, 2)
+  totalAmount      Decimal              @db.Decimal(10, 2)
+  requestExpiresAt DateTime
+  paymentExpiresAt DateTime?
+  acceptedAt       DateTime?
+  declinedAt       DateTime?
+  declineReason    String?              @db.Text
+  confirmedAt      DateTime?
+  cancelledAt      DateTime?
+  cancelledBy      CancelledBy?
+  cancelReason     String?              @db.Text
+  refundedAt       DateTime?
+  completedAt      DateTime?
+  reminderSentAt   DateTime?
+  prevDate         String?
+  prevStartHour    Int?
+  prevEndHour      Int?
+  rescheduledAt    DateTime?
+  rescheduledById  String?
+  rescheduleReason String?              @db.Text
+  rescheduleCount  Int                  @default(0)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  trainer      TrainerProfile       @relation(fields: [trainerProfileId], references: [id], onDelete: Cascade)
+  player       User                 @relation("TrainerSessionPlayer", fields: [playerId], references: [id], onDelete: Cascade)
+  slots        TrainerSessionSlot[]
+  payment      TrainerPayment?
+  conversation ChatConversation?
+
+  @@index([trainerProfileId, status, startsAt])
+  @@index([playerId, status, startsAt])
+  @@index([status, requestExpiresAt])
+  @@index([status, paymentExpiresAt])
+  @@index([status, startsAt])
+}
+
+model TrainerSessionSlot {
+  id               String @id @default(cuid())
+  trainerProfileId String
+  trainerSessionId String
+  date             String
+  hour             Int
+
+  trainer TrainerProfile @relation(fields: [trainerProfileId], references: [id], onDelete: Cascade)
+  session TrainerSession @relation(fields: [trainerSessionId], references: [id], onDelete: Cascade)
+
+  @@unique([trainerProfileId, date, hour])
+  @@index([trainerSessionId])
+}
+
+model TrainerGateway {
+  id               String    @id @default(cuid())
+  userId           String    @unique
+  provider         String    @default("paymongo")
+  publicKey        String
+  secretKeyEnc     String    @db.Text
+  webhookSecretEnc String    @db.Text
+  secretKeyHint    String
+  webhookToken     String    @unique
+  webhookVersion   Int       @default(1)
+  accountLabel     String?
+  connectedAt      DateTime  @default(now())
+  disconnectedAt   DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments TrainerPayment[]
+}
+
+model TrainerManualPaymentMethod {
+  id                String               @id @default(cuid())
+  trainerId         String
+  network           ManualPaymentNetwork
+  label             String
+  accountName       String?
+  accountIdentifier String?
+  instructions      String?              @db.Text
+  qrImage           String?              @db.Text
+  active            Boolean              @default(true)
+  sortOrder         Int                  @default(0)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  trainer  User             @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  payments TrainerPayment[]
+
+  @@index([trainerId, active, sortOrder])
+}
+
+model TrainerPayment {
+  id                    String                @id @default(cuid())
+  trainerSessionId      String                @unique
+  trainerId             String
+  playerId              String
+  gatewayId             String?
+  manualPaymentMethodId String?
+  amount                Decimal               @db.Decimal(10, 2)
+  trainerAmount         Decimal               @db.Decimal(10, 2)
+  platformFee           Decimal               @db.Decimal(10, 2)
+  processingFee         Decimal               @default(0) @db.Decimal(10, 2)
+  currency              String                @default("PHP")
+  method                PaymentMethodType
+  collectionMode        PaymentCollectionMode @default(AUTOMATIC)
+  status                PaymentStatus         @default(PENDING)
+  expiresAt             DateTime
+  chargeStartedAt       DateTime?
+  attempt               Int                   @default(0)
+  provider              String
+  providerPaymentId     String?
+  providerClientKey     String?
+  redirectUrl           String?               @db.Text
+  qrImageUrl            String?               @db.Text
+  providerRef           String?
+  failureCode           String?
+  failureMessage        String?               @db.Text
+  raw                   Json?
+  manualMethodLabel     String?
+  manualAccountName     String?
+  manualAccountDetails  String?               @db.Text
+  manualInstructions    String?               @db.Text
+  manualQrImage         String?               @db.Text
+  manualReceiptImage    String?               @db.Text
+  manualPaymentRef      String?
+  manualSubmittedAt     DateTime?
+  manualReviewedAt      DateTime?
+  manualReviewedById    String?
+  manualReviewNote      String?               @db.Text
+  paidAt                DateTime?
+  refundedAt            DateTime?
+  refundedAmount        Decimal?              @db.Decimal(10, 2)
+  refundRef             String?
+  refundReason          String?               @db.Text
+  refundedById          String?
+  refundRequestedAt     DateTime?
+  refundRequestedById   String?
+  refundStartedAt       DateTime?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  session             TrainerSession              @relation(fields: [trainerSessionId], references: [id], onDelete: Cascade)
+  trainer             User                        @relation("TrainerPaymentTrainer", fields: [trainerId], references: [id], onDelete: Cascade)
+  player              User                        @relation("TrainerPaymentPlayer", fields: [playerId], references: [id], onDelete: Cascade)
+  gateway             TrainerGateway?             @relation(fields: [gatewayId], references: [id])
+  manualPaymentMethod TrainerManualPaymentMethod? @relation(fields: [manualPaymentMethodId], references: [id], onDelete: SetNull)
+  serviceFeeEntries   TrainerServiceFeeEntry[]
+
+  @@index([trainerId, createdAt])
+  @@index([playerId, createdAt])
+  @@index([providerPaymentId])
+  @@index([status, expiresAt])
+}
+
+model TrainerServiceFeeEntry {
+  id               String              @id @default(cuid())
+  trainerId        String
+  trainerPaymentId String
+  type             ServiceFeeEntryType
+  amount           Decimal             @db.Decimal(10, 2)
+  createdAt        DateTime            @default(now())
+
+  trainer User           @relation("TrainerServiceFeeOwner", fields: [trainerId], references: [id], onDelete: Cascade)
+  payment TrainerPayment @relation(fields: [trainerPaymentId], references: [id], onDelete: Cascade)
+
+  @@unique([trainerPaymentId, type])
+  @@index([trainerId, createdAt])
+}
+
+model TrainerServiceFeeSettlement {
+  id               String                     @id @default(cuid())
+  trainerId        String
+  periodStart      DateTime
+  periodEnd        DateTime
+  amount           Decimal                    @db.Decimal(10, 2)
+  currency         String                     @default("PHP")
+  status           ServiceFeeSettlementStatus @default(SUBMITTED)
+  paymentReference String?
+  receiptImage     String?                    @db.Text
+  submittedAt      DateTime                   @default(now())
+  reviewedAt       DateTime?
+  reviewedById     String?
+  reviewNote       String?                    @db.Text
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  trainer User @relation("TrainerServiceFeeSettlementOwner", fields: [trainerId], references: [id], onDelete: Cascade)
+
+  @@index([trainerId, submittedAt])
+  @@index([status, submittedAt])
 }
 
 // A player identity may work for one partner team. Permissions are explicit
@@ -1087,25 +1398,27 @@ model Event {
   @@index([hubId, status, endsAt])
 }
 
-// Messages has two deliberately narrow room types. EVENT is one shared room
-// for confirmed registrants; HUB_PLAYER is one reusable venue/player thread.
-// Membership is always derived from Bookings/EventRegistrations at request
-// time, never copied into a second table that could drift.
+// Messages has deliberately narrow room types. EVENT is one shared room for
+// confirmed registrants, HUB_PLAYER is one reusable venue/player thread, and
+// TRAINER_SESSION is one paid-session thread. Membership is always derived
+// from the authoritative booking record at request time.
 model ChatConversation {
-  id            String               @id @default(cuid())
-  kind          ChatConversationKind
-  hubId         String?
-  eventId       String?              @unique
-  playerId      String?
-  lastMessageAt DateTime?
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
+  id               String               @id @default(cuid())
+  kind             ChatConversationKind
+  hubId            String?
+  eventId          String?              @unique
+  trainerSessionId String?              @unique
+  playerId         String?
+  lastMessageAt    DateTime?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
 
-  hub        Hub?            @relation(fields: [hubId], references: [id], onDelete: Cascade)
-  event      Event?          @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  player     User?           @relation("ChatHubPlayer", fields: [playerId], references: [id], onDelete: SetNull)
-  messages   ChatMessage[]
-  readStates ChatReadState[]
+  hub            Hub?            @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  event          Event?          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  trainerSession TrainerSession? @relation(fields: [trainerSessionId], references: [id], onDelete: Cascade)
+  player         User?           @relation("ChatHubPlayer", fields: [playerId], references: [id], onDelete: SetNull)
+  messages       ChatMessage[]
+  readStates     ChatReadState[]
 
   @@unique([hubId, playerId])
   @@index([kind, lastMessageAt])

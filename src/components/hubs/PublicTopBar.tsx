@@ -25,6 +25,12 @@ export function PublicTopBar({ signedIn = false }: { signedIn?: boolean }) {
             Events
           </Link>
           <Link
+            href="/trainers"
+            className="hidden rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-navy sm:block"
+          >
+            Trainers
+          </Link>
+          <Link
             href="/leaderboard"
             className="hidden rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-navy md:block"
           >

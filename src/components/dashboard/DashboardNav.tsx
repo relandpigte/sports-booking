@@ -82,6 +82,27 @@ const items: Item[] = [
     ),
   },
   {
+    href: "/trainers",
+    label: "Find Trainers",
+    playerOnly: true,
+    icon: (
+      <svg {...iconProps}>
+        <circle cx="12" cy="7" r="4" />
+        <path d="M5 21a7 7 0 0 1 14 0M18 5l2-2M4 3l2 2" />
+      </svg>
+    ),
+  },
+  {
+    href: "/dashboard/trainer",
+    label: "Trainer Tools",
+    playerOnly: true,
+    icon: (
+      <svg {...iconProps}>
+        <path d="M4 7h16M7 4v6M17 4v6M5 12h14v8H5z" />
+      </svg>
+    ),
+  },
+  {
     href: "/dashboard/messages",
     label: "Messages",
     partnerOnly: true,
@@ -277,6 +298,17 @@ export function DashboardNav({
             <path d="M9 21v-6h6v6" />
           </svg>
           <span>Venue application</span>
+        </Link>
+      )}
+
+      {role === "ADMIN" && (
+        <Link
+          href="/dashboard/admin/trainers"
+          aria-current={pathname.startsWith("/dashboard/admin/trainers") ? "page" : undefined}
+          className={linkClass(pathname.startsWith("/dashboard/admin/trainers"))}
+        >
+          <svg {...iconProps}><circle cx="12" cy="7" r="4" /><path d="M5 21a7 7 0 0 1 14 0M17 14l2 2 3-4" /></svg>
+          <span>Trainer reviews</span>
         </Link>
       )}
 

@@ -6,7 +6,7 @@ import { useState, type ReactNode } from "react";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 
 type PlayerBookingSection = "upcoming" | "history";
-type BookingType = "all" | "courts" | "events";
+type BookingType = "all" | "courts" | "events" | "trainers";
 
 type PlayerBookingFilterValues = {
   query: string;
@@ -22,8 +22,10 @@ export function PlayerBookingsView({
   historyCount,
   courtCount,
   eventCount,
+  trainerCount,
   courtBookings,
   eventRegistrations,
+  trainerSessions,
   filters,
   upcomingHref,
   historyHref,
@@ -34,15 +36,17 @@ export function PlayerBookingsView({
   historyCount: number;
   courtCount: number;
   eventCount: number;
+  trainerCount: number;
   courtBookings: ReactNode;
   eventRegistrations: ReactNode;
+  trainerSessions: ReactNode;
   filters: PlayerBookingFilterValues;
   upcomingHref: string;
   historyHref: string;
   clearHref: string;
 }) {
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const resultCount = courtCount + eventCount;
+  const resultCount = courtCount + eventCount + trainerCount;
   const activeAdvancedFilters = [
     filters.type !== "all" ? bookingTypeLabel(filters.type) : null,
     filters.status ? statusLabel(filters.status) : null,
@@ -69,6 +73,12 @@ export function PlayerBookingsView({
               className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-white hover:bg-primary-hover"
             >
               Explore events
+            </Link>
+            <Link
+              href="/trainers"
+              className="rounded-lg border border-primary/20 bg-primary-soft px-3 py-2 text-xs font-semibold text-primary hover:bg-accent-soft"
+            >
+              Find a trainer
             </Link>
           </div>
         }
@@ -173,6 +183,7 @@ export function PlayerBookingsView({
             options={[
               { value: "courts", label: "Courts" },
               { value: "events", label: "Events" },
+              { value: "trainers", label: "Trainers" },
             ]}
           />
           <Select
@@ -257,15 +268,20 @@ export function PlayerBookingsView({
         {resultCount > 0 ? (
           <div className="mt-3 space-y-5">
             {courtCount > 0 && (
-              <BookingGroup title={eventCount > 0 ? "Court bookings" : undefined}>
+              <BookingGroup title={eventCount + trainerCount > 0 ? "Court bookings" : undefined}>
                 {courtBookings}
               </BookingGroup>
             )}
             {eventCount > 0 && (
               <BookingGroup
-                title={courtCount > 0 ? "Event registrations" : undefined}
+                  title={courtCount + trainerCount > 0 ? "Event registrations" : undefined}
               >
                 {eventRegistrations}
+              </BookingGroup>
+            )}
+            {trainerCount > 0 && (
+              <BookingGroup title={courtCount + eventCount > 0 ? "Trainer sessions" : undefined}>
+                {trainerSessions}
               </BookingGroup>
             )}
           </div>
@@ -365,6 +381,7 @@ function FilterIcon() {
 function bookingTypeLabel(value: BookingType) {
   if (value === "courts") return "Courts";
   if (value === "events") return "Events";
+  if (value === "trainers") return "Trainers";
   return "All booking types";
 }
 

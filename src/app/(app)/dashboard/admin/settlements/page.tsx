@@ -1,12 +1,16 @@
 /* eslint-disable @next/next/no-img-element */
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { PartnerServiceFeeBreakdown } from "@/components/admin/PartnerServiceFeeBreakdown";
 import { ReverseServiceFeeWaiverForm } from "@/components/admin/ServiceFeeWaiverControls";
+import {
+  TrainerServiceFeeSettlements,
+  type AdminTrainerServiceFeeSettlementView,
+} from "@/components/admin/TrainerServiceFeeSettlements";
 import { Badge } from "@/components/ui/Badge";
 import { formatPHP } from "@/lib/currency";
 import { reviewServiceFeeSettlementAction } from "@/lib/service-fee-actions";
-import { reviewTrainerServiceFeeSettlementAction } from "@/lib/trainer-payment-actions";
 import { requireAdmin } from "@/lib/admin";
 import { prisma } from "@/lib/db";
 import {
@@ -26,43 +30,148 @@ const formatDate = (date: Date) =>
     timeZone: "Asia/Manila",
   }).format(date);
 
-export default async function AdminSettlementsPage() {
-  await requireAdmin();
-  const [{ submitted, history }, partners, waivers, trainerSettlements] = await Promise.all([
-    listAdminServiceFeeSettlements(),
-    listAdminPartnerServiceFeeBreakdown(),
-    listAdminServiceFeeWaivers(),
-    prisma.trainerServiceFeeSettlement.findMany({
-      orderBy: { submittedAt: "desc" },
-      include: { trainer: { select: { email: true, name: true, playerName: true } } },
-    }),
-  ]);
+type SettlementView = "partners" | "trainers";
+
+function SettlementHeader({
+  view,
+  partnerPendingCount,
+  trainerPendingCount,
+}: {
+  view: SettlementView;
+  partnerPendingCount: number;
+  trainerPendingCount: number;
+}) {
+  const tabs = [
+    {
+      id: "partners" as const,
+      label: "Venue partners",
+      href: "/dashboard/admin/settlements",
+      pendingCount: partnerPendingCount,
+    },
+    {
+      id: "trainers" as const,
+      label: "Trainers",
+      href: "/dashboard/admin/settlements?view=trainers",
+      pendingCount: trainerPendingCount,
+    },
+  ];
 
   return (
-    <div>
+    <>
       <div>
         <h1 className="text-2xl font-bold text-gray-900">
           Service-fee settlements
         </h1>
         <p className="mt-1 text-sm text-gray-500">
-          Verify partner remittances before crediting their automatic and
-          manual checkout service-fee balance.
+          Review service-fee remittances from venue partners and approved
+          trainers.
         </p>
       </div>
 
-      <PartnerServiceFeeBreakdown partners={partners} />
+      <nav
+        aria-label="Settlement account type"
+        className="mt-6 flex gap-6 border-b border-gray-200"
+      >
+        {tabs.map((tab) => {
+          const active = view === tab.id;
+          return (
+            <Link
+              key={tab.id}
+              href={tab.href}
+              aria-current={active ? "page" : undefined}
+              className={`flex items-center gap-2 border-b-2 px-1 pb-3 text-sm font-semibold transition-colors ${
+                active
+                  ? "border-primary text-primary"
+                  : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-900"
+              }`}
+            >
+              {tab.label}
+              <span
+                className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-xs ${
+                  tab.pendingCount > 0
+                    ? "bg-amber-50 text-amber-700"
+                    : "bg-gray-100 text-gray-500"
+                }`}
+              >
+                {tab.pendingCount}
+              </span>
+            </Link>
+          );
+        })}
+      </nav>
+    </>
+  );
+}
 
-      <section className="mt-8">
-        <h2 className="text-base font-semibold text-gray-900">Trainer settlements</h2>
-        <p className="mt-1 text-sm text-gray-500">Review remittances for the 3% added to trainer sessions.</p>
-        <div className="mt-3 space-y-3">
-          {trainerSettlements.map((settlement) => (
-            <article key={settlement.id} className="grid gap-4 rounded-2xl border border-gray-200 bg-white p-4 lg:grid-cols-[1fr_220px]">
-              <div><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold text-gray-900">{settlement.trainer.playerName ?? settlement.trainer.name ?? settlement.trainer.email}</h3><p className="text-xs text-gray-500">{settlement.trainer.email}</p></div><div className="text-right"><p className="font-bold text-navy">{formatPHP(Number(settlement.amount))}</p><Badge tone={settlement.status === "PAID" ? "success" : settlement.status === "REJECTED" ? "danger" : "warn"}>{settlement.status.replaceAll("_", " ")}</Badge></div></div><p className="mt-3 text-sm text-slate-600">Reference: <span className="font-mono">{settlement.paymentReference ?? "—"}</span> · {formatDate(settlement.submittedAt)}</p>{settlement.status === "SUBMITTED" && <form action={reviewTrainerServiceFeeSettlementAction} className="mt-3 flex flex-wrap gap-2"><input type="hidden" name="settlementId" value={settlement.id} /><input name="note" placeholder="Review note (optional)" className="min-h-10 min-w-48 flex-1 rounded-lg border border-gray-200 px-3 text-sm" /><button name="decision" value="PAID" className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white">Mark paid</button><button name="decision" value="REJECTED" className="rounded-lg bg-red-50 px-4 py-2 text-sm font-bold text-red-700">Reject</button></form>}</div>{settlement.receiptImage && <a href={settlement.receiptImage} target="_blank" rel="noreferrer" className="overflow-hidden rounded-xl border bg-slate-50">{ }<img src={settlement.receiptImage} alt="Trainer settlement receipt" className="max-h-56 w-full object-contain" /></a>}</article>
-          ))}
-          {trainerSettlements.length === 0 && <p className="rounded-xl border border-dashed p-6 text-center text-sm text-slate-500">No trainer settlements yet.</p>}
-        </div>
-      </section>
+export default async function AdminSettlementsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    [key: string]: string | string[] | undefined;
+  }>;
+}) {
+  await requireAdmin();
+  const query = await searchParams;
+  const requestedView = Array.isArray(query.view) ? query.view[0] : query.view;
+  const view: SettlementView =
+    requestedView === "trainers" ? "trainers" : "partners";
+
+  if (view === "trainers") {
+    const [trainerSettlements, partnerPendingCount] = await Promise.all([
+      prisma.trainerServiceFeeSettlement.findMany({
+        orderBy: { submittedAt: "desc" },
+        take: 100,
+        include: {
+          trainer: {
+            select: { email: true, name: true, playerName: true },
+          },
+        },
+      }),
+      prisma.serviceFeeSettlement.count({ where: { status: "SUBMITTED" } }),
+    ]);
+    const settlements: AdminTrainerServiceFeeSettlementView[] =
+      trainerSettlements.map(({ trainer, amount, ...settlement }) => ({
+        ...settlement,
+        amount: Number(amount),
+        trainerName:
+          trainer.playerName ?? trainer.name ?? trainer.email ?? "Trainer",
+        trainerEmail: trainer.email,
+      }));
+    const trainerPendingCount = settlements.filter(
+      (settlement) => settlement.status === "SUBMITTED"
+    ).length;
+
+    return (
+      <div>
+        <SettlementHeader
+          view={view}
+          partnerPendingCount={partnerPendingCount}
+          trainerPendingCount={trainerPendingCount}
+        />
+        <TrainerServiceFeeSettlements settlements={settlements} />
+      </div>
+    );
+  }
+
+  const [{ submitted, history }, partners, waivers, trainerPendingCount] =
+    await Promise.all([
+      listAdminServiceFeeSettlements(),
+      listAdminPartnerServiceFeeBreakdown(),
+      listAdminServiceFeeWaivers(),
+      prisma.trainerServiceFeeSettlement.count({
+        where: { status: "SUBMITTED" },
+      }),
+    ]);
+
+  return (
+    <div>
+      <SettlementHeader
+        view={view}
+        partnerPendingCount={submitted.length}
+        trainerPendingCount={trainerPendingCount}
+      />
+
+      <PartnerServiceFeeBreakdown partners={partners} />
 
       {waivers.length > 0 && (
         <section className="mt-8">

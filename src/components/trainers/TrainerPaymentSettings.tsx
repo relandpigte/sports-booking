@@ -19,6 +19,7 @@ import {
   deleteTrainerManualMethodAction,
   saveTrainerManualMethodAction,
   saveTrainerPaymentModeAction,
+  startTrainerServiceFeeCheckoutAction,
   submitTrainerServiceFeeSettlementAction,
   type TrainerPaymentState,
 } from "@/lib/trainer-payment-actions";
@@ -67,6 +68,7 @@ type TrainerServiceFeeView = {
     id: string;
     amount: number;
     status: string;
+    provider: string | null;
     submittedAt: string;
   }>;
 };
@@ -94,12 +96,14 @@ export function TrainerPaymentSettings({
   gateway,
   methods,
   serviceFees,
+  paymongoSettlementEnabled,
   settlementInstructions,
 }: {
   mode: PaymentMode;
   gateway: TrainerGatewayView;
   methods: TrainerManualMethodView[];
   serviceFees: TrainerServiceFeeView;
+  paymongoSettlementEnabled: boolean;
   settlementInstructions: string;
 }) {
   const connected = Boolean(gateway && !gateway.disconnectedAt);
@@ -119,8 +123,8 @@ export function TrainerPaymentSettings({
 
   return (
     <PaymentWorkspace
-      initialTab="checkout"
-      settlementFirst
+      initialTab={checkoutReady ? "settlement" : "checkout"}
+      settlementFirst={checkoutReady}
       summary={[
         {
           label: "Checkout mode",
@@ -178,6 +182,7 @@ export function TrainerPaymentSettings({
       settlement={
         <TrainerSettlementPanel
           serviceFees={serviceFees}
+          paymongoSettlementEnabled={paymongoSettlementEnabled}
           settlementInstructions={settlementInstructions}
         />
       }
@@ -968,15 +973,32 @@ function ModeActivation({
 
 function TrainerSettlementPanel({
   serviceFees,
+  paymongoSettlementEnabled,
   settlementInstructions,
 }: {
   serviceFees: TrainerServiceFeeView;
+  paymongoSettlementEnabled: boolean;
   settlementInstructions: string;
 }) {
   const [state, action, settling] = useActionState(
     submitTrainerServiceFeeSettlementAction,
     initial
   );
+  const [checkoutState, checkoutAction, startingCheckout] = useActionState(
+    startTrainerServiceFeeCheckoutAction,
+    initial
+  );
+  const awaitingCheckout = serviceFees.settlements.find(
+    (settlement) =>
+      settlement.status === "AWAITING_PAYMENT" &&
+      settlement.provider === "paymongo"
+  );
+
+  useEffect(() => {
+    if (checkoutState.redirectUrl) {
+      window.location.href = checkoutState.redirectUrl;
+    }
+  }, [checkoutState.redirectUrl]);
 
   return (
     <section className="rounded-2xl border border-[#dfe7e2] bg-white p-4 shadow-sm shadow-navy/5 sm:p-5">
@@ -1035,26 +1057,68 @@ function TrainerSettlementPanel({
       )}
 
       {serviceFees.due > 0 && serviceFees.pending === 0 && (
-        <form action={action} className="mt-5 rounded-xl bg-slate-50 p-4">
-          <p className="mb-4 text-xs leading-5 text-slate-600">
-            {settlementInstructions}
-          </p>
-          <Input
-            label="Transfer reference"
-            name="paymentReference"
-            required
-            error={state.errors?.paymentReference}
-          />
-          <div className="mt-3">
-            <ReceiptUpload error={state.errors?.receiptImage} />
-          </div>
-          <Button disabled={settling} className="mt-3 sm:w-auto">
-            {settling
-              ? "Submitting…"
-              : `Submit ${formatPHP(serviceFees.due)} settlement`}
-          </Button>
-          <Result state={state} />
-        </form>
+        <div className="mt-5 flex flex-col gap-4">
+          {paymongoSettlementEnabled && (
+            <form
+              action={checkoutAction}
+              className="rounded-xl border border-primary/20 bg-primary-soft p-4"
+            >
+              <h3 className="text-sm font-semibold text-navy">
+                Pay {formatPHP(serviceFees.due)} with QR Ph
+              </h3>
+              <p className="mt-1 text-xs leading-5 text-slate-600">
+                Send the service fee to Bunal.club owner&apos;s PayMongo account
+                through a secure, exact-amount QR Ph checkout. Confirmation is
+                automatic.
+              </p>
+              <Button
+                type="submit"
+                disabled={startingCheckout}
+                className="mt-3 sm:w-auto sm:px-6"
+              >
+                {startingCheckout
+                  ? "Opening QR Ph…"
+                  : awaitingCheckout
+                    ? "Continue QR Ph payment"
+                    : "Pay with QR Ph"}
+              </Button>
+              <Result state={checkoutState} />
+            </form>
+          )}
+
+          {!awaitingCheckout && (
+            <form
+              action={action}
+              className="rounded-xl border border-slate-100 bg-slate-50 p-4"
+            >
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold text-navy">
+                  {paymongoSettlementEnabled
+                    ? "Or submit a manual transfer"
+                    : `Submit settlement for ${formatPHP(serviceFees.due)}`}
+                </h3>
+                <p className="mt-1 text-xs leading-5 text-slate-600">
+                  {settlementInstructions}
+                </p>
+              </div>
+              <Input
+                label="Transfer reference"
+                name="paymentReference"
+                required
+                error={state.errors?.paymentReference}
+              />
+              <div className="mt-3">
+                <ReceiptUpload error={state.errors?.receiptImage} />
+              </div>
+              <Button disabled={settling} className="mt-3 sm:w-auto">
+                {settling
+                  ? "Submitting…"
+                  : `Submit ${formatPHP(serviceFees.due)} settlement`}
+              </Button>
+              <Result state={state} />
+            </form>
+          )}
+        </div>
       )}
 
       {serviceFees.settlements.length > 0 && (

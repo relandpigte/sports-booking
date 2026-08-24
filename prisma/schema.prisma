@@ -521,12 +521,21 @@ model TrainerServiceFeeSettlement {
   status           ServiceFeeSettlementStatus @default(SUBMITTED)
   paymentReference String?
   receiptImage     String?                    @db.Text
-  submittedAt      DateTime                   @default(now())
-  reviewedAt       DateTime?
-  reviewedById     String?
-  reviewNote       String?                    @db.Text
-  createdAt        DateTime                   @default(now())
-  updatedAt        DateTime                   @updatedAt
+
+  // Present for platform PayMongo QR Ph settlements. Manual proof
+  // submissions leave these null and continue through admin review.
+  provider          String?
+  providerPaymentId String? @unique
+  providerRef       String?
+  redirectUrl       String? @db.Text
+  raw               Json?
+
+  submittedAt  DateTime  @default(now())
+  reviewedAt   DateTime?
+  reviewedById String?
+  reviewNote   String?   @db.Text
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   trainer User @relation("TrainerServiceFeeSettlementOwner", fields: [trainerId], references: [id], onDelete: Cascade)
 

@@ -93,8 +93,8 @@ export function PlatformGatewayPanel({
             PayMongo collection account
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-gray-500">
-            Partner service-fee settlements paid through QR Ph are deposited
-            directly into this PayMongo account.
+            Partner and trainer service-fee settlements paid through QR Ph are
+            deposited directly into this PayMongo account.
           </p>
         </div>
         {connected ? (

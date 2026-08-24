@@ -1,4 +1,4 @@
-// Partner-to-admin service-fee settlement through PayMongo.
+// Partner/trainer-to-admin service-fee settlement through PayMongo.
 //
 //   npm run check:settlement-paymongo
 //
@@ -19,6 +19,7 @@ import { signPaymongoBody } from "@/lib/payments/paymongo-core";
 
 const prisma = new PrismaClient();
 const EMAIL = "check-service-fee-paymongo@example.test";
+const TRAINER_EMAIL = "check-trainer-service-fee-paymongo@example.test";
 const WEBHOOK = "whsk_service_fee_check";
 const eventIds: string[] = [];
 
@@ -31,7 +32,9 @@ async function cleanup() {
       },
     });
   }
-  await prisma.user.deleteMany({ where: { email: EMAIL } });
+  await prisma.user.deleteMany({
+    where: { email: { in: [EMAIL, TRAINER_EMAIL] } },
+  });
 }
 
 async function check() {
@@ -312,6 +315,204 @@ async function check() {
           select: { status: true },
         })
       )?.status === "REJECTED"
+  );
+
+  const trainer = await prisma.user.create({
+    data: {
+      role: "PLAYER",
+      name: "Trainer QR Settlement Check",
+      playerName: "Trainer QR Settlement Check",
+      email: TRAINER_EMAIL,
+      passwordHash: "x",
+    },
+    select: { id: true, name: true },
+  });
+  const trainerProfile = await prisma.trainerProfile.create({
+    data: {
+      userId: trainer.id,
+      status: "ACTIVE",
+      sports: ["pickleball"],
+      specialties: ["Fundamentals"],
+      hourlyRate: 400,
+    },
+    select: { id: true },
+  });
+  const trainerSession = await prisma.trainerSession.create({
+    data: {
+      publicId: `check-trainer-qr-${Date.now()}`,
+      trainerProfileId: trainerProfile.id,
+      playerId: player.id,
+      date: "2099-12-01",
+      startHour: 9,
+      endHour: 10,
+      hours: 1,
+      startsAt: new Date("2099-12-01T01:00:00.000Z"),
+      endsAt: new Date("2099-12-01T02:00:00.000Z"),
+      status: "CONFIRMED",
+      hourlyRate: 400,
+      trainerAmount: 400,
+      platformFee: 12,
+      totalAmount: 412,
+      requestExpiresAt: new Date("2099-11-30T01:00:00.000Z"),
+      payment: {
+        create: {
+          trainerId: trainer.id,
+          playerId: player.id,
+          amount: 412,
+          trainerAmount: 400,
+          platformFee: 12,
+          method: "QRPH",
+          status: "SUCCEEDED",
+          expiresAt: new Date("2099-11-30T01:00:00.000Z"),
+          provider: "paymongo",
+          paidAt: new Date(),
+        },
+      },
+    },
+    select: { payment: { select: { id: true } } },
+  });
+  await prisma.trainerServiceFeeEntry.create({
+    data: {
+      trainerId: trainer.id,
+      trainerPaymentId: trainerSession.payment!.id,
+      type: "CHARGE",
+      amount: 12,
+    },
+  });
+
+  const {
+    pollLatestTrainerServiceFeeCheckout,
+    startTrainerServiceFeeCheckout,
+  } = await import("@/lib/trainer-service-fee-payments");
+  const { calculateTrainerServiceFeeBalance } =
+    await import("@/lib/trainer-service-fees");
+  const trainerCheckout = await startTrainerServiceFeeCheckout({
+    trainerId: trainer.id,
+    trainerName: trainer.name!,
+  });
+  ok(
+    "a trainer balance opens the owner's QR Ph checkout",
+    trainerCheckout.status === "redirect"
+  );
+  const trainerRequest = mock.requests
+    .filter((request) => request.url.endsWith("/v2/checkout_sessions"))
+    .at(-1)!;
+  const trainerAttributes = (
+    trainerRequest.body as { data: { attributes: Record<string, unknown> } }
+  ).data.attributes;
+  ok(
+    "trainer settlement returns to the trainer payment workspace",
+    String(trainerAttributes.success_url).includes(
+      "/dashboard/trainer/payments?settlement="
+    )
+  );
+  ok(
+    "trainer settlement identifies the trainer account in PayMongo metadata",
+    (trainerAttributes.metadata as Record<string, string>).accountType ===
+      "trainer"
+  );
+  const trainerSettlement =
+    await prisma.trainerServiceFeeSettlement.findFirstOrThrow({
+      where: { trainerId: trainer.id, status: "AWAITING_PAYMENT" },
+      orderBy: { createdAt: "desc" },
+    });
+  ok(
+    "trainer QR settlement has an isolated idempotency key",
+    trainerRequest.idempotencyKey ===
+      `trainer-service-fee:${trainerSettlement.id}`
+  );
+  payMockSession(mock, trainerSettlement.providerPaymentId!);
+  ok(
+    "the trainer return leg confirms the owner's QR Ph payment",
+    (await pollLatestTrainerServiceFeeCheckout(trainer.id)).status === "paid"
+  );
+  ok(
+    "the trainer QR payment clears the trainer service-fee balance",
+    (
+      await calculateTrainerServiceFeeBalance(prisma, trainer.id)
+    ).amountDue === 0
+  );
+
+  const webhookTrainerSession = await prisma.trainerSession.create({
+    data: {
+      publicId: `check-trainer-qr-webhook-${Date.now()}`,
+      trainerProfileId: trainerProfile.id,
+      playerId: player.id,
+      date: "2099-12-02",
+      startHour: 10,
+      endHour: 11,
+      hours: 1,
+      startsAt: new Date("2099-12-02T02:00:00.000Z"),
+      endsAt: new Date("2099-12-02T03:00:00.000Z"),
+      status: "CONFIRMED",
+      hourlyRate: 266.67,
+      trainerAmount: 266.67,
+      platformFee: 8,
+      totalAmount: 274.67,
+      requestExpiresAt: new Date("2099-12-01T02:00:00.000Z"),
+      payment: {
+        create: {
+          trainerId: trainer.id,
+          playerId: player.id,
+          amount: 274.67,
+          trainerAmount: 266.67,
+          platformFee: 8,
+          method: "QRPH",
+          status: "SUCCEEDED",
+          expiresAt: new Date("2099-12-01T02:00:00.000Z"),
+          provider: "paymongo",
+          paidAt: new Date(),
+        },
+      },
+    },
+    select: { payment: { select: { id: true } } },
+  });
+  await prisma.trainerServiceFeeEntry.create({
+    data: {
+      trainerId: trainer.id,
+      trainerPaymentId: webhookTrainerSession.payment!.id,
+      type: "CHARGE",
+      amount: 8,
+    },
+  });
+  await startTrainerServiceFeeCheckout({
+    trainerId: trainer.id,
+    trainerName: trainer.name!,
+  });
+  const webhookTrainerSettlement =
+    await prisma.trainerServiceFeeSettlement.findFirstOrThrow({
+      where: { trainerId: trainer.id, status: "AWAITING_PAYMENT" },
+      orderBy: { createdAt: "desc" },
+    });
+  const webhookTrainerPaymentId = payMockSession(
+    mock,
+    webhookTrainerSettlement.providerPaymentId!
+  );
+  const trainerWebhookBody = mockPaidEvent(
+    webhookTrainerSettlement.providerPaymentId!,
+    webhookTrainerPaymentId,
+    800
+  );
+  const trainerWebhookEvent = (await verifyPlatformPaymongoWebhook(
+    trainerWebhookBody,
+    new Headers({
+      "paymongo-signature": signPaymongoBody(
+        WEBHOOK,
+        trainerWebhookBody,
+        Math.floor(Date.now() / 1000)
+      ),
+    })
+  ))!;
+  eventIds.push(trainerWebhookEvent.eventId);
+  ok(
+    "the shared owner webhook settles trainer QR Ph remittances",
+    (await handleServiceFeeProviderEvent(trainerWebhookEvent)).applied &&
+      (
+        await prisma.trainerServiceFeeSettlement.findUnique({
+          where: { id: webhookTrainerSettlement.id },
+          select: { status: true },
+        })
+      )?.status === "PAID"
   );
 }
 

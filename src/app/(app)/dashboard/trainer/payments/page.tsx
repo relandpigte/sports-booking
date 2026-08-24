@@ -7,24 +7,54 @@ import { TrainerWorkspaceHeader } from "@/components/trainers/TrainerWorkspaceHe
 import { Badge } from "@/components/ui/Badge";
 import { getCurrentUser } from "@/lib/dal";
 import { prisma } from "@/lib/db";
+import { platformPaymongoConfigured } from "@/lib/payments/paymongo-platform";
 import { calculateTrainerServiceFeeBalance } from "@/lib/trainer-service-fees";
+import {
+  pollLatestTrainerServiceFeeCheckout,
+  pollTrainerServiceFeeCheckout,
+} from "@/lib/trainer-service-fee-payments";
 import { getTrainerProfileForUser } from "@/lib/trainers";
 
 export const metadata: Metadata = { title: "Trainer Payments — Bunal.club" };
 
-export default async function TrainerPaymentsPage() {
+export default async function TrainerPaymentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    settlement?: string | string[];
+  }>;
+}) {
   const user = await getCurrentUser();
   if (!user || user.role !== "PLAYER") redirect("/dashboard");
   const profile = await getTrainerProfileForUser(user.id);
   if (!profile) redirect("/dashboard/trainer");
-  const [balance, settlements] = await Promise.all([
+  const query = await searchParams;
+  const settlementId = Array.isArray(query.settlement)
+    ? query.settlement[0]
+    : query.settlement;
+  if (settlementId) {
+    await pollTrainerServiceFeeCheckout({
+      settlementId,
+      trainerId: user.id,
+    });
+  } else {
+    await pollLatestTrainerServiceFeeCheckout(user.id);
+  }
+  const [balance, settlements, paymongoSettlementEnabled] = await Promise.all([
     calculateTrainerServiceFeeBalance(prisma, user.id),
     prisma.trainerServiceFeeSettlement.findMany({
       where: { trainerId: user.id },
       orderBy: { submittedAt: "desc" },
       take: 12,
-      select: { id: true, amount: true, status: true, submittedAt: true },
+      select: {
+        id: true,
+        amount: true,
+        status: true,
+        provider: true,
+        submittedAt: true,
+      },
     }),
+    platformPaymongoConfigured(),
   ]);
   const gateway = profile.user.trainerGateway
     ? { accountLabel: profile.user.trainerGateway.accountLabel, disconnectedAt: profile.user.trainerGateway.disconnectedAt }
@@ -85,6 +115,7 @@ export default async function TrainerPaymentsPage() {
         mode={profile.paymentMode}
         gateway={gateway}
         methods={methods}
+        paymongoSettlementEnabled={paymongoSettlementEnabled}
         settlementInstructions={
           process.env.SERVICE_FEE_PAYMENT_INSTRUCTIONS?.trim() ||
           "Transfer the amount using the payment details provided by the admin, then enter the reference and upload the receipt."

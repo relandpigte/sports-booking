@@ -18,36 +18,60 @@ import {
 
 export const platformPaymongoConfigured = platformGatewayConfigured;
 
-export async function createServiceFeeCheckout(input: {
+type PlatformServiceFeeCheckoutInput = {
   settlementId: string;
-  partnerId: string;
-  partnerName: string;
+  accountId: string;
+  accountName: string;
+  accountType: "partner" | "trainer";
   amount: number;
-}): Promise<{
+};
+
+async function createPlatformServiceFeeCheckout(
+  input: PlatformServiceFeeCheckoutInput
+): Promise<{
   providerPaymentId: string;
   redirectUrl: string;
   raw: unknown;
 }> {
   const { secretKey } = await loadPlatformGatewayCredentials();
+  const returnPath =
+    input.accountType === "trainer"
+      ? "/dashboard/trainer/payments"
+      : "/dashboard/payments";
+  const accountMetadata: Record<string, string> =
+    input.accountType === "trainer"
+      ? {
+          trainerId: input.accountId,
+          trainerName: input.accountName.slice(0, 120),
+        }
+      : {
+          partnerId: input.accountId,
+          partnerName: input.accountName.slice(0, 120),
+        };
   const session = await createCheckoutSession(secretKey, {
     amountPesos: input.amount,
     description: "Bunal.club service-fee settlement",
     referenceNumber: input.settlementId,
     returnUrl: appUrl(
-      `/dashboard/payments?settlement=${encodeURIComponent(input.settlementId)}`
+      `${returnPath}?settlement=${encodeURIComponent(input.settlementId)}`
     ),
     metadata: {
       settlementId: input.settlementId,
-      partnerId: input.partnerId,
-      partnerName: input.partnerName.slice(0, 120),
+      accountType: input.accountType,
+      accountId: input.accountId,
+      accountName: input.accountName.slice(0, 120),
+      ...accountMetadata,
     },
     // QR Ph is the single online payment rail across player payments and
-    // partner service-fee settlements.
+    // partner and trainer service-fee settlements.
     paymentMethodTypes: ["qrph"],
     // The admin receives the complete service-fee balance. PayMongo shows its
-    // processing fee separately to the paying partner.
+    // processing fee separately to the paying account.
     passOnFees: true,
-    idempotencyKey: `service-fee:${input.settlementId}`,
+    idempotencyKey:
+      input.accountType === "partner"
+        ? `service-fee:${input.settlementId}`
+        : `trainer-service-fee:${input.settlementId}`,
   });
 
   if (!session.attributes.checkout_url) {
@@ -63,6 +87,36 @@ export async function createServiceFeeCheckout(input: {
     redirectUrl: session.attributes.checkout_url,
     raw: session.attributes,
   };
+}
+
+export function createServiceFeeCheckout(input: {
+  settlementId: string;
+  partnerId: string;
+  partnerName: string;
+  amount: number;
+}) {
+  return createPlatformServiceFeeCheckout({
+    settlementId: input.settlementId,
+    accountId: input.partnerId,
+    accountName: input.partnerName,
+    accountType: "partner",
+    amount: input.amount,
+  });
+}
+
+export function createTrainerServiceFeeCheckout(input: {
+  settlementId: string;
+  trainerId: string;
+  trainerName: string;
+  amount: number;
+}) {
+  return createPlatformServiceFeeCheckout({
+    settlementId: input.settlementId,
+    accountId: input.trainerId,
+    accountName: input.trainerName,
+    accountType: "trainer",
+    amount: input.amount,
+  });
 }
 
 export async function getServiceFeeCheckout(providerPaymentId: string) {

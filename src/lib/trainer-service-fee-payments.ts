@@ -4,31 +4,26 @@ import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
 import {
-  createServiceFeeCheckout,
+  createTrainerServiceFeeCheckout,
   getServiceFeeCheckout,
 } from "@/lib/payments/paymongo-platform";
-import { PayMongoRequestError, paidPayment, toPesos } from "@/lib/payments/paymongo-core";
-import type { ProviderWebhookEvent } from "@/lib/payments/types";
-import { calculateServiceFeeBalance } from "@/lib/service-fees";
 import {
-  markTrainerServiceFeeSettlementPaid,
-  reconcileTrainerServiceFeeCheckouts,
-  rejectTrainerServiceFeeSettlement,
-} from "@/lib/trainer-service-fee-payments";
+  PayMongoRequestError,
+  paidPayment,
+  toPesos,
+} from "@/lib/payments/paymongo-core";
+import type { ProviderWebhookEvent } from "@/lib/payments/types";
+import type { ServiceFeeCheckoutResult } from "@/lib/service-fee-payments";
+import { calculateTrainerServiceFeeBalance } from "@/lib/trainer-service-fees";
 
-export type ServiceFeeCheckoutResult =
-  | { status: "redirect"; url: string }
-  | { status: "paid" }
-  | { status: "none" }
-  | { status: "pending" }
-  | { status: "under-review" }
-  | { status: "failed"; message: string };
+export const TRAINER_SETTLEMENT_TIMEOUT_MINUTES = 30;
 
-export const UNINITIALIZED_SETTLEMENT_TIMEOUT_MINUTES = 30;
+class NoTrainerServiceFeeBalanceError extends Error {}
+class TrainerSettlementUnderReviewError extends Error {}
 
-export async function startServiceFeeCheckout(args: {
-  partnerId: string;
-  partnerName: string;
+export async function startTrainerServiceFeeCheckout(args: {
+  trainerId: string;
+  trainerName: string;
 }): Promise<ServiceFeeCheckoutResult> {
   let settlement: {
     id: string;
@@ -40,14 +35,14 @@ export async function startServiceFeeCheckout(args: {
   try {
     settlement = await prisma.$transaction(
       async (tx) => {
-        const submitted = await tx.serviceFeeSettlement.count({
-          where: { partnerId: args.partnerId, status: "SUBMITTED" },
+        const submitted = await tx.trainerServiceFeeSettlement.count({
+          where: { trainerId: args.trainerId, status: "SUBMITTED" },
         });
-        if (submitted > 0) throw new SettlementUnderReviewError();
+        if (submitted > 0) throw new TrainerSettlementUnderReviewError();
 
-        const existing = await tx.serviceFeeSettlement.findFirst({
+        const existing = await tx.trainerServiceFeeSettlement.findFirst({
           where: {
-            partnerId: args.partnerId,
+            trainerId: args.trainerId,
             status: "AWAITING_PAYMENT",
             provider: "paymongo",
           },
@@ -61,14 +56,17 @@ export async function startServiceFeeCheckout(args: {
         });
         if (existing) return existing;
 
-        const balance = await calculateServiceFeeBalance(tx, args.partnerId);
+        const balance = await calculateTrainerServiceFeeBalance(
+          tx,
+          args.trainerId
+        );
         if (balance.amountDue < 0.01) {
-          throw new NoServiceFeeBalanceError();
+          throw new NoTrainerServiceFeeBalanceError();
         }
 
-        return tx.serviceFeeSettlement.create({
+        return tx.trainerServiceFeeSettlement.create({
           data: {
-            partnerId: args.partnerId,
+            trainerId: args.trainerId,
             periodStart: balance.oldestEntryAt ?? new Date(),
             periodEnd: new Date(),
             amount: new Prisma.Decimal(balance.amountDue),
@@ -86,8 +84,10 @@ export async function startServiceFeeCheckout(args: {
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
   } catch (error) {
-    if (error instanceof NoServiceFeeBalanceError) return { status: "none" };
-    if (error instanceof SettlementUnderReviewError) {
+    if (error instanceof NoTrainerServiceFeeBalanceError) {
+      return { status: "none" };
+    }
+    if (error instanceof TrainerSettlementUnderReviewError) {
       return { status: "under-review" };
     }
     if (
@@ -108,13 +108,13 @@ export async function startServiceFeeCheckout(args: {
   if (settlement.providerPaymentId) return { status: "pending" };
 
   try {
-    const checkout = await createServiceFeeCheckout({
+    const checkout = await createTrainerServiceFeeCheckout({
       settlementId: settlement.id,
-      partnerId: args.partnerId,
-      partnerName: args.partnerName,
+      trainerId: args.trainerId,
+      trainerName: args.trainerName,
       amount: Number(settlement.amount),
     });
-    await prisma.serviceFeeSettlement.update({
+    await prisma.trainerServiceFeeSettlement.update({
       where: { id: settlement.id },
       data: {
         providerPaymentId: checkout.providerPaymentId,
@@ -125,10 +125,8 @@ export async function startServiceFeeCheckout(args: {
     return { status: "redirect", url: checkout.redirectUrl };
   } catch (error) {
     if (error instanceof PayMongoRequestError) {
-      // Validation failures will not recover with the same checkout. Network
-      // failures keep the row retryable with the same PayMongo idempotency key.
       if (error.status > 0) {
-        await prisma.serviceFeeSettlement.updateMany({
+        await prisma.trainerServiceFeeSettlement.updateMany({
           where: { id: settlement.id, status: "AWAITING_PAYMENT" },
           data: {
             status: "REJECTED",
@@ -142,17 +140,14 @@ export async function startServiceFeeCheckout(args: {
   }
 }
 
-class NoServiceFeeBalanceError extends Error {}
-class SettlementUnderReviewError extends Error {}
-
-async function markServiceFeeSettlementPaid(args: {
+export async function markTrainerServiceFeeSettlementPaid(args: {
   providerPaymentId: string;
   reference: string | null;
   raw: unknown;
   amountCentavos?: number;
 }): Promise<{ applied: boolean; reason?: string }> {
   return prisma.$transaction(async (tx) => {
-    const settlement = await tx.serviceFeeSettlement.findUnique({
+    const settlement = await tx.trainerServiceFeeSettlement.findUnique({
       where: { providerPaymentId: args.providerPaymentId },
       select: { id: true, status: true, amount: true },
     });
@@ -170,7 +165,7 @@ async function markServiceFeeSettlementPaid(args: {
       return { applied: false, reason: "underpaid" };
     }
 
-    await tx.serviceFeeSettlement.update({
+    await tx.trainerServiceFeeSettlement.update({
       where: { id: settlement.id },
       data: {
         status: "PAID",
@@ -185,14 +180,31 @@ async function markServiceFeeSettlementPaid(args: {
   });
 }
 
-export async function pollServiceFeeCheckout(args: {
+export async function rejectTrainerServiceFeeSettlement(
+  event: ProviderWebhookEvent
+): Promise<number> {
+  const updated = await prisma.trainerServiceFeeSettlement.updateMany({
+    where: {
+      providerPaymentId: event.providerPaymentId,
+      status: "AWAITING_PAYMENT",
+    },
+    data: {
+      status: "REJECTED",
+      reviewNote: event.failureMessage ?? "The PayMongo payment failed.",
+      raw: event.raw as Prisma.InputJsonValue,
+    },
+  });
+  return updated.count;
+}
+
+export async function pollTrainerServiceFeeCheckout(args: {
   settlementId: string;
-  partnerId: string;
+  trainerId: string;
 }): Promise<ServiceFeeCheckoutResult> {
-  const settlement = await prisma.serviceFeeSettlement.findFirst({
+  const settlement = await prisma.trainerServiceFeeSettlement.findFirst({
     where: {
       id: args.settlementId,
-      partnerId: args.partnerId,
+      trainerId: args.trainerId,
       provider: "paymongo",
     },
     select: {
@@ -217,7 +229,7 @@ export async function pollServiceFeeCheckout(args: {
     const session = await getServiceFeeCheckout(settlement.providerPaymentId);
     const paid = paidPayment(session);
     if (paid?.id) {
-      await markServiceFeeSettlementPaid({
+      await markTrainerServiceFeeSettlementPaid({
         providerPaymentId: settlement.providerPaymentId,
         reference: paid.id,
         amountCentavos: paid.attributes?.amount,
@@ -226,7 +238,7 @@ export async function pollServiceFeeCheckout(args: {
       return { status: "paid" };
     }
     if (session.status === "expired") {
-      await prisma.serviceFeeSettlement.updateMany({
+      await prisma.trainerServiceFeeSettlement.updateMany({
         where: {
           providerPaymentId: settlement.providerPaymentId,
           status: "AWAITING_PAYMENT",
@@ -246,19 +258,17 @@ export async function pollServiceFeeCheckout(args: {
       ? { status: "redirect", url: settlement.redirectUrl }
       : { status: "pending" };
   } catch (error) {
-    if (error instanceof PayMongoRequestError) {
-      return { status: "pending" };
-    }
+    if (error instanceof PayMongoRequestError) return { status: "pending" };
     throw error;
   }
 }
 
-export async function pollLatestServiceFeeCheckout(
-  partnerId: string
+export async function pollLatestTrainerServiceFeeCheckout(
+  trainerId: string
 ): Promise<ServiceFeeCheckoutResult> {
-  const latest = await prisma.serviceFeeSettlement.findFirst({
+  const latest = await prisma.trainerServiceFeeSettlement.findFirst({
     where: {
-      partnerId,
+      trainerId,
       status: "AWAITING_PAYMENT",
       provider: "paymongo",
       providerPaymentId: { not: null },
@@ -267,45 +277,29 @@ export async function pollLatestServiceFeeCheckout(
     select: { id: true },
   });
   if (!latest) return { status: "none" };
-  return pollServiceFeeCheckout({
+  return pollTrainerServiceFeeCheckout({
     settlementId: latest.id,
-    partnerId,
+    trainerId,
   });
 }
 
-export type ServiceFeeCheckoutSweepResult = {
-  paid: number;
-  rejected: number;
-  pending: number;
-  failed: number;
-};
-
-// Reconcile abandoned settlement checkouts independently of a partner
-// reopening the Payments page. Rows created before a provider session exists
-// remain retryable briefly, then stop blocking manual settlement and platform
-// gateway maintenance. Provider-backed rows use PayMongo as the authority.
-export async function reconcileServiceFeeCheckouts(
+export async function reconcileTrainerServiceFeeCheckouts(
   now: Date = new Date()
-): Promise<ServiceFeeCheckoutSweepResult> {
-  const result: ServiceFeeCheckoutSweepResult = {
-    paid: 0,
-    rejected: 0,
-    pending: 0,
-    failed: 0,
-  };
-  const rows = await prisma.serviceFeeSettlement.findMany({
+): Promise<{ paid: number; rejected: number; pending: number; failed: number }> {
+  const result = { paid: 0, rejected: 0, pending: 0, failed: 0 };
+  const rows = await prisma.trainerServiceFeeSettlement.findMany({
     where: { provider: "paymongo", status: "AWAITING_PAYMENT" },
     orderBy: { createdAt: "asc" },
     take: 100,
     select: {
       id: true,
-      partnerId: true,
+      trainerId: true,
       providerPaymentId: true,
       createdAt: true,
     },
   });
   const uninitializedCutoff = new Date(
-    now.getTime() - UNINITIALIZED_SETTLEMENT_TIMEOUT_MINUTES * 60_000
+    now.getTime() - TRAINER_SETTLEMENT_TIMEOUT_MINUTES * 60_000
   );
 
   for (const row of rows) {
@@ -314,7 +308,7 @@ export async function reconcileServiceFeeCheckouts(
         result.pending++;
         continue;
       }
-      const rejected = await prisma.serviceFeeSettlement.updateMany({
+      const rejected = await prisma.trainerServiceFeeSettlement.updateMany({
         where: { id: row.id, status: "AWAITING_PAYMENT" },
         data: {
           status: "REJECTED",
@@ -327,9 +321,9 @@ export async function reconcileServiceFeeCheckouts(
     }
 
     try {
-      const outcome = await pollServiceFeeCheckout({
+      const outcome = await pollTrainerServiceFeeCheckout({
         settlementId: row.id,
-        partnerId: row.partnerId,
+        trainerId: row.trainerId,
       });
       if (outcome.status === "paid") result.paid++;
       else if (outcome.status === "failed") result.rejected++;
@@ -337,80 +331,11 @@ export async function reconcileServiceFeeCheckouts(
     } catch (error) {
       result.failed++;
       console.error(
-        "Service-fee checkout reconciliation failed:",
+        "Trainer service-fee checkout reconciliation failed:",
         error instanceof Error ? error.message : "Unknown provider error"
       );
     }
   }
 
-  const trainerResult = await reconcileTrainerServiceFeeCheckouts(now);
-  result.paid += trainerResult.paid;
-  result.rejected += trainerResult.rejected;
-  result.pending += trainerResult.pending;
-  result.failed += trainerResult.failed;
-
   return result;
-}
-
-export async function handleServiceFeeProviderEvent(
-  event: ProviderWebhookEvent
-): Promise<{ applied: boolean; reason?: string }> {
-  const provider = "platform:paymongo";
-  try {
-    await prisma.providerEvent.create({
-      data: {
-        provider,
-        eventId: event.eventId,
-        type: event.type,
-        payload: event.raw as Prisma.InputJsonValue,
-      },
-    });
-  } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    ) {
-      return { applied: false, reason: "duplicate" };
-    }
-    throw error;
-  }
-
-  if (event.type === "payment.succeeded") {
-    const partnerResult = await markServiceFeeSettlementPaid({
-      providerPaymentId: event.providerPaymentId,
-      reference: event.reference,
-      amountCentavos: event.amountCentavos,
-      raw: event.raw,
-    });
-    if (partnerResult.reason !== "unknown settlement") return partnerResult;
-    return markTrainerServiceFeeSettlementPaid({
-      providerPaymentId: event.providerPaymentId,
-      reference: event.reference,
-      amountCentavos: event.amountCentavos,
-      raw: event.raw,
-    });
-  }
-
-  if (event.type === "payment.failed") {
-    const partnerUpdated = await prisma.serviceFeeSettlement.updateMany({
-      where: {
-        providerPaymentId: event.providerPaymentId,
-        status: "AWAITING_PAYMENT",
-      },
-      data: {
-        status: "REJECTED",
-        reviewNote:
-          event.failureMessage ?? "The PayMongo payment failed.",
-        raw: event.raw as Prisma.InputJsonValue,
-      },
-    });
-    const trainerUpdated = await rejectTrainerServiceFeeSettlement(event);
-    const applied = partnerUpdated.count + trainerUpdated === 1;
-    return {
-      applied,
-      reason: applied ? undefined : "unknown settlement",
-    };
-  }
-
-  return { applied: false, reason: "ignored event" };
 }

@@ -60,6 +60,17 @@ const publicJoinSchema = z.object({
 
 type Tx = Prisma.TransactionClient;
 
+const BUNALQ_TRANSACTION_OPTIONS = {
+  maxWait: 5_000,
+  timeout: 15_000,
+} as const;
+
+function bunalQTransaction<T>(
+  operation: (tx: Tx) => Promise<T>
+): Promise<T> {
+  return prisma.$transaction(operation, BUNALQ_TRANSACTION_OPTIONS);
+}
+
 function refresh(queuePublicId: string, eventPublicId?: string | null) {
   revalidatePath(`/dashboard/bunalq/${queuePublicId}`);
   revalidatePath(`/q/${queuePublicId}`);
@@ -243,17 +254,21 @@ export async function prepareOpenPlayAction(
   const parsed = publicIdSchema.safeParse(String(formData.get("publicId") ?? ""));
   if (!parsed.success) return { message: "Event not found." };
 
-  const result = await prisma.$transaction(async (tx) => {
-    const ownedEvent = await tx.event.findFirst({
-      where: { publicId: parsed.data, hub: { ownerId: workspace.partnerId } },
-      select: { id: true },
-    });
-    if (!ownedEvent) return { kind: "missing" as const };
+  const ownedEvent = await prisma.event.findFirst({
+    where: { publicId: parsed.data, hub: { ownerId: workspace.partnerId } },
+    select: { id: true },
+  });
+  if (!ownedEvent) return { message: "Event not found." };
+
+  const result = await bunalQTransaction(async (tx) => {
     await tx.$queryRaw(
       Prisma.sql`SELECT "id" FROM "Event" WHERE "id" = ${ownedEvent.id} FOR UPDATE`
     );
-    const event = await tx.event.findUnique({
-      where: { id: ownedEvent.id },
+    const event = await tx.event.findFirst({
+      where: {
+        id: ownedEvent.id,
+        hub: { ownerId: workspace.partnerId },
+      },
       include: {
         openPlayQueue: {
           select: {
@@ -318,10 +333,24 @@ export async function prepareOpenPlayAction(
       queuePublicId: queuePublicId!,
       eventPublicId: event.publicId,
     };
+  }).catch((error: unknown) => {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2028"
+    ) {
+      return { kind: "timeout" as const };
+    }
+    throw error;
   });
   if (result.kind === "missing") return { message: "Event not found." };
   if (result.kind === "unavailable") {
     return { message: "BunalQ requires a published pickleball Event." };
+  }
+  if (result.kind === "timeout") {
+    return {
+      message:
+        "BunalQ preparation took too long. No changes were saved; please try again.",
+    };
   }
   await audit(workspace, "OPEN_PLAY_PREPARED", result.sessionId);
   refresh(result.queuePublicId, result.eventPublicId);
@@ -337,7 +366,7 @@ export async function syncOpenPlayRosterAction(
   const sessionId = String(formData.get("sessionId") ?? "");
   const owned = await ownedSession(sessionId, workspace);
   if (!owned) return { message: "BunalQ run not found." };
-  await prisma.$transaction(async (tx) => {
+  await bunalQTransaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.status === "ENDED") throw new Error("SESSION_ENDED");
     if (!session.queue.event) throw new Error("EVENT_REQUIRED");
@@ -365,7 +394,7 @@ export async function addOpenPlayWalkInAction(
   if (!parsed.success) return { message: "Enter a name and skill level." };
   const owned = await ownedSession(parsed.data.sessionId, workspace);
   if (!owned) return { message: "BunalQ run not found." };
-  const participant = await prisma.$transaction(async (tx) => {
+  const participant = await bunalQTransaction(async (tx) => {
     const session = await lockSession(tx, parsed.data.sessionId);
     if (!session || session.status === "ENDED") return null;
     return tx.openPlayParticipant.create({
@@ -392,7 +421,7 @@ async function participantTransition(
   participantId: string,
   operation: "CHECK_IN" | "PAUSE" | "RESUME" | "CHECK_OUT"
 ) {
-  return prisma.$transaction(async (tx) => {
+  return bunalQTransaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.status === "ENDED" || session.queue.hub.ownerId !== workspace.partnerId) {
       return { message: "BunalQ run not found or ended." };
@@ -478,7 +507,7 @@ export async function startOpenPlaySessionAction(
   const sessionId = String(formData.get("sessionId") ?? "");
   const owned = await ownedSession(sessionId, workspace);
   if (!owned) return { message: "BunalQ run not found." };
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await bunalQTransaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.queue.hub.ownerId !== workspace.partnerId) return "missing";
     if (session.status !== "SETUP") return "state";
@@ -512,7 +541,7 @@ export async function changeOpenPlayModeAction(
   if (!OPEN_PLAY_MODES.includes(mode)) return { message: "Choose a valid matching mode." };
   const owned = await ownedSession(sessionId, workspace);
   if (!owned) return { message: "BunalQ run not found." };
-  const changed = await prisma.$transaction(async (tx) => {
+  const changed = await bunalQTransaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.status === "ENDED") return false;
     await tx.openPlaySession.update({ where: { id: session.id }, data: { matchingMode: mode } });
@@ -538,7 +567,7 @@ export async function pairOpenPlayParticipantsAction(
   }
   const owned = await ownedSession(sessionId, workspace);
   if (!owned) return { message: "BunalQ run not found." };
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await bunalQTransaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.status === "ENDED") return false;
     const participants = await tx.openPlayParticipant.findMany({
@@ -578,7 +607,7 @@ export async function unpairOpenPlayParticipantsAction(
   const pairId = String(formData.get("pairId") ?? "");
   const owned = await ownedSession(sessionId, workspace);
   if (!owned) return { message: "BunalQ run not found." };
-  await prisma.$transaction(async (tx) => {
+  await bunalQTransaction(async (tx) => {
     await lockSession(tx, sessionId);
     const pair = await tx.openPlayPair.findFirst({ where: { id: pairId, sessionId } });
     if (!pair) return;
@@ -600,7 +629,7 @@ export async function toggleOpenPlayCourtAction(
   const active = String(formData.get("active") ?? "") === "true";
   const owned = await ownedSession(sessionId, workspace);
   if (!owned) return { message: "BunalQ run not found." };
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await bunalQTransaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.status === "ENDED") return "ended";
     const court = session.courts.find((item) => item.courtId === courtId);
@@ -654,7 +683,7 @@ export async function stageOpenPlayMatchAction(
   const courtId = String(formData.get("courtId") ?? "");
   const owned = await ownedSession(sessionId, workspace);
   if (!owned) return { message: "BunalQ run not found." };
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await bunalQTransaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.status !== "ACTIVE") return { kind: "inactive" as const };
     const court = session.courts.find((item) => item.courtId === courtId && item.active);
@@ -719,7 +748,7 @@ export async function startOpenPlayMatchAction(
   const gameId = String(formData.get("gameId") ?? "");
   const owned = await ownedSession(sessionId, workspace);
   if (!owned) return { message: "BunalQ run not found." };
-  const started = await prisma.$transaction(async (tx) => {
+  const started = await bunalQTransaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.status !== "ACTIVE") return false;
     const game = await tx.openPlayGame.findFirst({
@@ -755,7 +784,7 @@ export async function editStagedOpenPlayMatchAction(
   }
   const owned = await ownedSession(sessionId, workspace);
   if (!owned) return { message: "BunalQ run not found." };
-  const edited = await prisma.$transaction(async (tx) => {
+  const edited = await bunalQTransaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.status !== "ACTIVE") return false;
     const game = await tx.openPlayGame.findFirst({
@@ -835,7 +864,7 @@ export async function recordOpenPlayWinnerAction(
   if (winningTeam !== 1 && winningTeam !== 2) return { message: "Choose the winning team." };
   const owned = await ownedSession(sessionId, workspace);
   if (!owned) return { message: "BunalQ run not found." };
-  const completed = await prisma.$transaction(async (tx) => {
+  const completed = await bunalQTransaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.status !== "ACTIVE") return false;
     const game = await tx.openPlayGame.findFirst({
@@ -879,7 +908,7 @@ export async function undoOpenPlayResultAction(
   const gameId = String(formData.get("gameId") ?? "");
   const owned = await ownedSession(sessionId, workspace);
   if (!owned) return { message: "BunalQ run not found." };
-  const undone = await prisma.$transaction(async (tx) => {
+  const undone = await bunalQTransaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.status !== "ACTIVE") return false;
     const game = await tx.openPlayGame.findFirst({
@@ -949,7 +978,7 @@ export async function endOpenPlaySessionAction(
   const sessionId = String(formData.get("sessionId") ?? "");
   const owned = await ownedSession(sessionId, workspace);
   if (!owned) return { message: "BunalQ run not found." };
-  const ended = await prisma.$transaction(async (tx) => {
+  const ended = await bunalQTransaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.status === "ENDED") return false;
     await tx.openPlayGame.updateMany({
@@ -1083,7 +1112,7 @@ export async function joinPublicQueueAction(
   }))) {
     return { message: "Too many join attempts. Ask the organizer for help." };
   }
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await bunalQTransaction(async (tx) => {
     const queue = await tx.openPlayQueue.findUnique({
       where: { publicId: parsed.data.publicId },
       select: {
@@ -1159,7 +1188,7 @@ async function moderatePendingGuest(
   const participantId = String(formData.get("participantId") ?? "");
   const owned = await ownedSession(sessionId, workspace);
   if (!owned || !participantId) return { message: "Guest request not found." };
-  const changed = await prisma.$transaction(async (tx) => {
+  const changed = await bunalQTransaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.status !== "ACTIVE") return false;
     const participant = await tx.openPlayParticipant.findFirst({
@@ -1286,7 +1315,7 @@ export async function bulkCheckInOpenPlayParticipantsAction(
   const participantIds = [...new Set(formData.getAll("participantId").map(String))].slice(0, 100);
   const owned = await ownedSession(sessionId, workspace);
   if (!owned || participantIds.length === 0) return { message: "Select players to check in." };
-  const count = await prisma.$transaction(async (tx) => {
+  const count = await bunalQTransaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.status === "ENDED") return 0;
     const participants = await tx.openPlayParticipant.findMany({
@@ -1300,19 +1329,26 @@ export async function bulkCheckInOpenPlayParticipantsAction(
     });
     let position = session.nextQueuePosition;
     const now = new Date();
-    for (const participant of participants) {
-      position += 1;
-      await tx.openPlayParticipant.update({
-        where: { id: participant.id },
-        data: {
-          status: "QUEUED",
-          queuePosition: position,
-          checkedInAt: now,
-          queuedAt: now,
-        },
-      });
-    }
     if (participants.length > 0) {
+      const queuedPlayers = participants.map((participant, index) =>
+        Prisma.sql`(${participant.id}, ${position + index + 1})`
+      );
+      position += participants.length;
+      await tx.$executeRaw(
+        Prisma.sql`
+          UPDATE "OpenPlayParticipant" AS participant
+          SET
+            "status" = 'QUEUED',
+            "queuePosition" = selected."queuePosition",
+            "checkedInAt" = ${now},
+            "queuedAt" = ${now},
+            "updatedAt" = ${now}
+          FROM (VALUES ${Prisma.join(queuedPlayers)})
+            AS selected("id", "queuePosition")
+          WHERE participant."id" = selected."id"
+            AND participant."sessionId" = ${sessionId}
+        `
+      );
       await tx.openPlaySession.update({
         where: { id: sessionId },
         data: { nextQueuePosition: position },
@@ -1340,7 +1376,7 @@ export async function bulkPauseOpenPlayParticipantsAction(
   if (!owned || participantIds.length === 0) {
     return { message: "Select waiting players to move to break." };
   }
-  const count = await prisma.$transaction(async (tx) => {
+  const count = await bunalQTransaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.status === "ENDED") return 0;
     const changed = await tx.openPlayParticipant.updateMany({
@@ -1381,7 +1417,7 @@ export async function bulkRemoveOpenPlayParticipantsAction(
   if (!owned || participantIds.length === 0) {
     return { message: "Select players to remove." };
   }
-  const count = await prisma.$transaction(async (tx) => {
+  const count = await bunalQTransaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.status === "ENDED") return 0;
     const changed = await tx.openPlayParticipant.updateMany({
@@ -1418,7 +1454,7 @@ export async function startNewOpenPlayRunAction(
   const sessionId = String(formData.get("sessionId") ?? "");
   const owned = await ownedSession(sessionId, workspace);
   if (!owned) return { message: "BunalQ run not found." };
-  const created = await prisma.$transaction(async (tx) => {
+  const created = await bunalQTransaction(async (tx) => {
     const previous = await lockSession(tx, sessionId);
     if (!previous || previous.status !== "ENDED") return null;
     const latest = await tx.openPlaySession.findFirst({

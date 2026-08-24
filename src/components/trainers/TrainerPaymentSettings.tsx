@@ -11,6 +11,7 @@ import {
 
 import { PaymentWorkspace } from "@/components/partner/PaymentWorkspace";
 import { ReceiptUpload } from "@/components/partner/ReceiptUpload";
+import { ServiceFeeManualDestinations } from "@/components/payments/ServiceFeeManualDestinations";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { formatPHP } from "@/lib/currency";
@@ -1063,6 +1064,9 @@ function TrainerSettlementPanel({
               action={checkoutAction}
               className="rounded-xl border border-primary/20 bg-primary-soft p-4"
             >
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary">
+                1 · Recommended
+              </p>
               <h3 className="text-sm font-semibold text-navy">
                 Pay {formatPHP(serviceFees.due)} with QR Ph
               </h3>
@@ -1086,37 +1090,55 @@ function TrainerSettlementPanel({
             </form>
           )}
 
+          {awaitingCheckout && (
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
+              A QR Ph checkout is already active. Continue it above, or let it
+              expire before using a manual transfer option.
+            </p>
+          )}
+
           {!awaitingCheckout && (
-            <form
-              action={action}
-              className="rounded-xl border border-slate-100 bg-slate-50 p-4"
-            >
-              <div className="mb-4">
-                <h3 className="text-sm font-semibold text-navy">
-                  {paymongoSettlementEnabled
-                    ? "Or submit a manual transfer"
-                    : `Submit settlement for ${formatPHP(serviceFees.due)}`}
-                </h3>
-                <p className="mt-1 text-xs leading-5 text-slate-600">
-                  {settlementInstructions}
-                </p>
-              </div>
-              <Input
-                label="Transfer reference"
-                name="paymentReference"
-                required
-                error={state.errors?.paymentReference}
+            <>
+              <ServiceFeeManualDestinations
+                amount={formatPHP(serviceFees.due)}
+                qrPhAvailable={paymongoSettlementEnabled}
               />
-              <div className="mt-3">
-                <ReceiptUpload error={state.errors?.receiptImage} />
-              </div>
-              <Button disabled={settling} className="mt-3 sm:w-auto">
-                {settling
-                  ? "Submitting…"
-                  : `Submit ${formatPHP(serviceFees.due)} settlement`}
-              </Button>
-              <Result state={state} />
-            </form>
+              <form
+                action={action}
+                className="border-t border-slate-100 pt-5"
+              >
+                <div className="mb-4">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                    {paymongoSettlementEnabled
+                      ? "3 · Submit for review"
+                      : "2 · Submit for review"}
+                  </p>
+                  <h3 className="mt-1 text-base font-semibold text-navy">
+                    Share your transfer details
+                  </h3>
+                  <p className="mt-1 text-xs leading-5 text-slate-600">
+                    {settlementInstructions} Your manual payment remains
+                    pending until the Bunal.club owner reviews it.
+                  </p>
+                </div>
+                <Input
+                  label="Transaction reference"
+                  name="paymentReference"
+                  placeholder="Bank or GCash transaction reference"
+                  required
+                  error={state.errors?.paymentReference}
+                />
+                <div className="mt-3">
+                  <ReceiptUpload error={state.errors?.receiptImage} />
+                </div>
+                <Button disabled={settling} className="mt-3 sm:w-auto">
+                  {settling
+                    ? "Submitting…"
+                    : `Submit ${formatPHP(serviceFees.due)} settlement`}
+                </Button>
+                <Result state={state} />
+              </form>
+            </>
           )}
         </div>
       )}

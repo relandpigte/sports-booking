@@ -869,7 +869,9 @@
       "sourceTarget": "/dashboard/trainer",
       "sourceDraftId": "7a0e7f50-eec4-4d0b-82f0-6dd5d292e93a",
       "referenceIds": [
-        "public-bunal-logo-v2-wordmark.png"
+        "public-bunal-logo-v2-wordmark.png",
+        "8a5cf4eb-38fd-4546-a1c3-fc540757b8a8",
+        "aac22878-3044-4b16-b3ec-0a4082b971fa"
       ],
       "brandAssets": {
         "logo": {
@@ -892,9 +894,9 @@
         "src/components/ui/Textarea.tsx",
         "src/components/ui/Badge.tsx",
         "src/app/(app)/dashboard/trainer/schedule/page.tsx",
-        "src/components/trainers/TrainerScheduleForm.tsx",
+        "src/components/partner/ServiceFeePanel.tsx",
         "src/app/(app)/dashboard/trainer/sessions/page.tsx",
-        "src/components/trainers/TrainerSessionActions.tsx",
+        "src/components/payments/ServiceFeeManualDestinations.tsx",
         "src/app/(app)/dashboard/trainer/payments/page.tsx",
         "src/components/trainers/TrainerPaymentSettings.tsx:92:1105",
         "src/components/partner/PaymentWorkspace.tsx",
@@ -914,11 +916,11 @@
         "src/components/ui/Textarea.tsx": "e7e2d6783e60bc4bc3bcf2a65a653fdc0a077123db9f1f749df9e11583cdefad",
         "src/components/ui/Badge.tsx": "aaa6074f7e159cb71056bb61ae95cafc3345f353db12af8d399d55e31dc20c88",
         "src/app/(app)/dashboard/trainer/schedule/page.tsx": "299aaa75c2e88e83b191dfecc3f8c55fb748d072d048ec921993a58b4e11a975",
-        "src/components/trainers/TrainerScheduleForm.tsx": "9cb74974c94e40f61ccc856783d712fabf68eb484e3a8e155c7427cecd03e81a",
+        "src/components/partner/ServiceFeePanel.tsx": "b97c8c97258f5fe26a3eeaffc6f476963a71e1d2e5d8e0ea4ea28066a4be852e",
         "src/app/(app)/dashboard/trainer/sessions/page.tsx": "27aeb88e4f64968033677e485b45847148866cb281873e7e09779cf31b594680",
-        "src/components/trainers/TrainerSessionActions.tsx": "7f0867616bd2463029ee19e6cb139e04d87c3379f25cff2dbcbfa01f6dc062de",
+        "src/components/payments/ServiceFeeManualDestinations.tsx": "e4189ae60bc4ba7f38df6d9fc092b805ed134d2e9b58ccdf74c1a56fba254a8b",
         "src/app/(app)/dashboard/trainer/payments/page.tsx": "52b96dd417d51f716e833b9695c49da310a7a330a11429486b28ef399f062d16",
-        "src/components/trainers/TrainerPaymentSettings.tsx": "a3c6d8ea1d9966ddbf5c2c6d46af131f8013db96054d7b72a26714397285a40a",
+        "src/components/trainers/TrainerPaymentSettings.tsx": "5b99fc518577c05d23a423e8a6e1d28a8a58629d7c63d972d0b74d9f8dee28e6",
         "src/components/partner/PaymentWorkspace.tsx": "f018c4bd404b17fb5e9064bf706dd5b49a99cd49ceede04f244acb1da2738e9c",
         "src/components/partner/ReceiptUpload.tsx": "e4a02736d0d84f10a1097af7298c11f79756bc0b9cd5f0779c8720549bbd271a"
       },
@@ -933,12 +935,12 @@
       "drafts": {
         "f411efff-1fbc-425e-91f5-d41fe28f7f0a": {
           "title": "Trainer Payments — Payment Operations",
-          "visualDirection": "factual payment operations with compact readiness summary, separate checkout configuration, and service-fee settlement workspaces",
+          "visualDirection": "factual payment operations with QR Ph as the recommended service-fee settlement path and polished GCash or BDO owner-transfer fallbacks",
           "parentDraftId": "7a0e7f50-eec4-4d0b-82f0-6dd5d292e93a",
-          "currentVersion": 1
+          "currentVersion": 2
         }
       },
-      "updatedAt": "2026-08-24T18:05:08+08:00"
+      "updatedAt": "2026-08-24T19:14:00+08:00"
     }
   }
 }

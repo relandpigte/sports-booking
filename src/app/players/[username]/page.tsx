@@ -5,10 +5,20 @@ import { notFound } from "next/navigation";
 import { PageShell } from "@/components/PageShell";
 import { TrainerRequestForm } from "@/components/trainers/TrainerRequestForm";
 import { Avatar } from "@/components/ui/Avatar";
-import { GAME_LABELS, TRAINER_BOOKING_WINDOW_DAYS } from "@/lib/constants";
+import {
+  GAME_LABELS,
+  TRAINER_BOOKING_WINDOW_DAYS,
+  TRAINER_MIN_LEAD_HOURS,
+} from "@/lib/constants";
 import { getViewer } from "@/lib/dal";
 import { getPublicPlayer, getPublicTrainer } from "@/lib/trainers";
-import { addDays, formatHourLabel, manilaToday } from "@/lib/time";
+import {
+  addDays,
+  firstBookableHourAfter,
+  formatHourLabel,
+  manilaDateOf,
+  manilaToday,
+} from "@/lib/time";
 
 const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -27,6 +37,7 @@ export default async function PublicPlayerPage({ params }: { params: Promise<{ u
   ]);
   if (!player) notFound();
   const name = player.playerName ?? player.name ?? username;
+  const earliestBookingAt = firstBookableHourAfter(TRAINER_MIN_LEAD_HOURS);
 
   return (
     <PageShell maxWidth="max-w-6xl" backgroundClass="bg-[#f7faf8]">
@@ -175,7 +186,8 @@ export default async function PublicPlayerPage({ params }: { params: Promise<{ u
                 <TrainerRequestForm
                   trainerProfileId={trainer.id}
                   hourlyRate={Number(trainer.hourlyRate)}
-                  minDate={manilaToday()}
+                  earliestBookingAt={earliestBookingAt.toISOString()}
+                  minDate={manilaDateOf(earliestBookingAt)}
                   maxDate={addDays(manilaToday(), TRAINER_BOOKING_WINDOW_DAYS)}
                 />
               ) : viewer ? (

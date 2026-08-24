@@ -14,10 +14,44 @@ const initialState: TrainerActionState = {};
 const starts = Array.from({ length: 24 }, (_, hour) => ({ value: String(hour), label: formatHourLabel(hour) }));
 const ends = Array.from({ length: 24 }, (_, index) => ({ value: String(index + 1), label: formatHourLabel(index + 1) }));
 
-export function TrainerRequestForm({ trainerProfileId, hourlyRate, minDate, maxDate }: { trainerProfileId: string; hourlyRate: number; minDate: string; maxDate: string }) {
+export function TrainerRequestForm({
+  trainerProfileId,
+  hourlyRate,
+  earliestBookingAt,
+  minDate,
+  maxDate,
+}: {
+  trainerProfileId: string;
+  hourlyRate: number;
+  earliestBookingAt: string;
+  minDate: string;
+  maxDate: string;
+}) {
   const [state, action, pending] = useActionState(requestTrainerSessionAction, initialState);
+  const [selectedDate, setSelectedDate] = useState("");
   const [startHour, setStartHour] = useState("9");
   const [endHour, setEndHour] = useState("10");
+  const earliestBookingDate = new Date(earliestBookingAt);
+  const earliestStartHour = Number(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Manila",
+      hour: "2-digit",
+      hourCycle: "h23",
+    }).format(earliestBookingDate)
+  );
+  const earliestBookingLabel = new Intl.DateTimeFormat("en-PH", {
+    timeZone: "Asia/Manila",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(earliestBookingDate);
+  const availableStarts = starts.filter(
+    (option) =>
+      selectedDate !== minDate || Number(option.value) >= earliestStartHour
+  );
   const hours = Math.max(1, Number(endHour) - Number(startHour));
   const trainerAmount = Math.round(hourlyRate * hours * 100) / 100;
   const bunalFee = bookingServiceFeeFor(trainerAmount);
@@ -27,8 +61,16 @@ export function TrainerRequestForm({ trainerProfileId, hourlyRate, minDate, maxD
       <input type="hidden" name="trainerProfileId" value={trainerProfileId} />
       <h2 className="text-lg font-extrabold tracking-tight text-navy">Request a session</h2>
       <p className="mt-1 text-sm leading-5 text-slate-500">
-        Request at least 24 hours ahead. You pay only after the trainer accepts.
+        Requests need at least 24 hours&apos; notice. You pay only after the trainer accepts.
       </p>
+      <div className="mt-3 rounded-xl border border-primary/15 bg-primary-soft px-3 py-2.5">
+        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-primary">
+          Earliest bookable session
+        </p>
+        <p className="mt-0.5 text-sm font-semibold text-navy">
+          {earliestBookingLabel} · Manila time
+        </p>
+      </div>
       {(state.message || state.success) && (
         <p className={`mt-3 rounded-xl p-3 text-sm ${state.success ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
           {state.success ?? state.message}
@@ -39,11 +81,22 @@ export function TrainerRequestForm({ trainerProfileId, hourlyRate, minDate, maxD
           label="Date"
           name="date"
           type="date"
+          value={selectedDate}
           min={minDate}
           max={maxDate}
           required
           error={state.errors?.date}
           className="min-h-11"
+          onChange={(event) => {
+            const nextDate = event.target.value;
+            setSelectedDate(nextDate);
+            if (nextDate === minDate && Number(startHour) < earliestStartHour) {
+              setStartHour(String(earliestStartHour));
+              if (Number(endHour) <= earliestStartHour) {
+                setEndHour(String(Math.min(24, earliestStartHour + 1)));
+              }
+            }
+          }}
         />
       </div>
       <div className="mt-3 grid grid-cols-2 gap-3">
@@ -59,7 +112,7 @@ export function TrainerRequestForm({ trainerProfileId, hourlyRate, minDate, maxD
               setEndHour(String(Math.min(24, Number(nextStart) + 1)));
             }
           }}
-          options={starts}
+          options={availableStarts}
         />
         <Select
           label="End"

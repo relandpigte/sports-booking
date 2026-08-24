@@ -89,6 +89,17 @@ export function addDaysTo(instant: Date, n: number): Date {
   return new Date(instant.getTime() + n * 24 * MS_PER_HOUR);
 }
 
+// Returns the first full-hour slot safely beyond a lead-time boundary. Trainer
+// sessions use whole-hour slots, so rounding forward keeps the displayed
+// earliest option aligned with the server-side notice requirement.
+export function firstBookableHourAfter(
+  leadHours: number,
+  now: Date = new Date()
+): Date {
+  const boundary = now.getTime() + leadHours * MS_PER_HOUR;
+  return new Date((Math.floor(boundary / MS_PER_HOUR) + 1) * MS_PER_HOUR);
+}
+
 // Adds calendar months, CLAMPING to the end of the target month:
 // Jan 31 + 1 month is Feb 28, not Mar 3. setUTCMonth overflows silently, which
 // is the whole reason this helper exists.

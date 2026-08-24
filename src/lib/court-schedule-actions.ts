@@ -14,6 +14,7 @@ import {
 } from "@/lib/time";
 import { recordImpersonatedAction } from "@/lib/impersonation";
 import { recordPartnerActivity, requirePartnerWorkspace } from "@/lib/staffing";
+import { recordCourtScheduleRevisions } from "@/lib/court-schedule-history";
 
 const ScheduleRuleSchema = z.object({
   courtId: z.string().min(1),
@@ -194,6 +195,7 @@ export async function updateCourtScheduleAction(
     if (rules.length > 0) {
       await tx.courtSlotRule.createMany({ data: rules });
     }
+    await recordCourtScheduleRevisions(tx, courtIds);
   });
 
   await recordImpersonatedAction({

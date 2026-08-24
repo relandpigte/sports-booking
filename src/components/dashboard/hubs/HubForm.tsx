@@ -118,7 +118,10 @@ export function HubForm({ hub }: { hub?: Hub }) {
 
       <OperatingHoursEditor defaultValue={hub?.operatingHours ?? null} />
 
-      <CourtsEditor defaultValue={hub?.courts ?? []} />
+      <CourtsEditor
+        defaultValue={hub?.courts ?? []}
+        defaultSports={hub?.games ?? ["pickleball"]}
+      />
 
       <div className="flex items-center gap-3">
         <Button type="submit" disabled={pending} className="flex-1">

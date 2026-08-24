@@ -941,6 +941,144 @@
         }
       },
       "updatedAt": "2026-08-24T19:14:00+08:00"
+    },
+    "/dashboard/reports": {
+      "targetKind": "existing-ui",
+      "projectId": "df2fe063-c6da-4978-8695-40c03895ddc6",
+      "baselineDraftId": "ac9ba65e-77af-4819-b1d4-2efce23ebe23",
+      "activeDraftId": "ac9ba65e-77af-4819-b1d4-2efce23ebe23",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "public-bunal-logo-v2-wordmark.png"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "public-bunal-logo-v2-wordmark.png",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/e4c8e4e6-58c1-4931-a0f3-9eae8122ee8e/brand-assets/public-bunal-logo-v2-wordmark.png/bunal-logo-v2-wordmark.png",
+          "sourcePath": "public/bunal-logo-v2-wordmark.png"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "src/app/globals.css",
+        "src/app/(app)/layout.tsx",
+        "src/app/(app)/dashboard/reports/page.tsx",
+        "src/components/reports/RevenueReport.tsx",
+        "src/components/reports/RevenueChart.tsx",
+        "src/components/reports/PeriodPicker.tsx",
+        "src/components/reports/ChartHover.tsx",
+        "src/components/dashboard/AppShell.tsx",
+        "src/components/dashboard/DashboardNav.tsx",
+        "src/components/dashboard/MobileDashboardMenu.tsx",
+        "src/components/dashboard/DashboardIcon.tsx",
+        "src/components/dashboard/DashboardPageHeader.tsx",
+        "src/components/Logo.tsx",
+        "src/components/ui/Avatar.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "156db42847e69056614b4cdfb37e050665e984a55229ab8dfcf3f305ea04b009",
+        ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
+        "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
+        "src/app/(app)/layout.tsx": "0096b1d5fcfb256cb7c09954a82f8ceae2f9fef8fae30668585ca1a6d01f0675",
+        "src/app/(app)/dashboard/reports/page.tsx": "df8685c1e90427f4439ef18782c4475bc7f07be7f8491914d9a7e383a405a689",
+        "src/components/reports/RevenueReport.tsx": "e409dd74579bfb9f08f5b68a5a4491fa728e55f1d4b961732622311777dd6b59",
+        "src/components/reports/RevenueChart.tsx": "532d4ba4470881c4934747b96e0af891b4518674297a7932a0b7bf46315f4d67",
+        "src/components/reports/PeriodPicker.tsx": "4aba846eb09de401e7f313d5eebfcfb0160bc1eadaef88541ac770473f362a19",
+        "src/components/reports/ChartHover.tsx": "1c0d68c3dd66ed041d179a57130def4c7675e30979eec8e9c95e55ac94e1393a",
+        "src/components/dashboard/AppShell.tsx": "27727e859d480e6fccfa55d3b240e6d7f0ae0456fc52ace6c6cb3006fb78ac2c",
+        "src/components/dashboard/DashboardNav.tsx": "8ddbbd07fb323c9ee60e5685f007d6ceb999cb68f5076cf1fe28c5f07f987a73",
+        "src/components/dashboard/MobileDashboardMenu.tsx": "d8c22e73c4c2f7d2882c51c6e3d0e4eb19668de62f63be1d2605aa784a5790af",
+        "src/components/dashboard/DashboardIcon.tsx": "75c39b27fb813cbe5b179f6adb69863211d7ed24c52ecaec9b17f1dfb79eb49d",
+        "src/components/dashboard/DashboardPageHeader.tsx": "fe77a8b2c4f147e439506287277024d83a7e55c6382067a2196a873d198c7e4e",
+        "src/components/Logo.tsx": "073c062cb0d022c9f5a1f78c79af6570143f03a8d6908c3268f79cb4370d6e2d",
+        "src/components/ui/Avatar.tsx": "e3af6ae6a7249c7f4ea61cb69e044c74fc27240af9ee5e9e645e7712f78a8214"
+      },
+      "components": [
+        {
+          "name": "AppShell",
+          "id": "51496e41-e380-408f-b0d8-0fd066d3f389",
+          "sourcePath": "src/components/dashboard/AppShell.tsx",
+          "logoAssetKey": "public-bunal-logo-v2-wordmark.png"
+        }
+      ],
+      "drafts": {
+        "ac9ba65e-77af-4819-b1d4-2efce23ebe23": {
+          "title": "Analytics & Business Intelligence — Partner",
+          "visualDirection": "cohesive partner business-performance workspace",
+          "currentVersion": 2
+        }
+      },
+      "updatedAt": "2026-08-24T15:37:15Z"
+    },
+    "/dashboard/admin/reports": {
+      "targetKind": "existing-ui",
+      "projectId": "df2fe063-c6da-4978-8695-40c03895ddc6",
+      "baselineDraftId": "6c193593-1ec9-4a62-bf9a-225b00d88984",
+      "activeDraftId": "6c193593-1ec9-4a62-bf9a-225b00d88984",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "public-bunal-logo-v2-wordmark.png"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "public-bunal-logo-v2-wordmark.png",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/e4c8e4e6-58c1-4931-a0f3-9eae8122ee8e/brand-assets/public-bunal-logo-v2-wordmark.png/bunal-logo-v2-wordmark.png",
+          "sourcePath": "public/bunal-logo-v2-wordmark.png"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "src/app/globals.css",
+        "src/app/(app)/layout.tsx",
+        "src/app/(app)/dashboard/admin/reports/page.tsx",
+        "src/components/reports/RevenueReport.tsx",
+        "src/components/reports/RevenueChart.tsx",
+        "src/components/reports/PeriodPicker.tsx",
+        "src/components/reports/ChartHover.tsx",
+        "src/components/dashboard/AppShell.tsx",
+        "src/components/dashboard/DashboardNav.tsx",
+        "src/components/dashboard/MobileDashboardMenu.tsx",
+        "src/components/dashboard/DashboardIcon.tsx",
+        "src/components/dashboard/DashboardPageHeader.tsx",
+        "src/components/Logo.tsx",
+        "src/components/ui/Avatar.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "156db42847e69056614b4cdfb37e050665e984a55229ab8dfcf3f305ea04b009",
+        ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
+        "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
+        "src/app/(app)/layout.tsx": "0096b1d5fcfb256cb7c09954a82f8ceae2f9fef8fae30668585ca1a6d01f0675",
+        "src/app/(app)/dashboard/admin/reports/page.tsx": "7c8596de3bb4e2de174c3bbabc4cc28aa6a595c2ba32bd7c78ae1da6e042b16a",
+        "src/components/reports/RevenueReport.tsx": "e409dd74579bfb9f08f5b68a5a4491fa728e55f1d4b961732622311777dd6b59",
+        "src/components/reports/RevenueChart.tsx": "532d4ba4470881c4934747b96e0af891b4518674297a7932a0b7bf46315f4d67",
+        "src/components/reports/PeriodPicker.tsx": "4aba846eb09de401e7f313d5eebfcfb0160bc1eadaef88541ac770473f362a19",
+        "src/components/reports/ChartHover.tsx": "1c0d68c3dd66ed041d179a57130def4c7675e30979eec8e9c95e55ac94e1393a",
+        "src/components/dashboard/AppShell.tsx": "27727e859d480e6fccfa55d3b240e6d7f0ae0456fc52ace6c6cb3006fb78ac2c",
+        "src/components/dashboard/DashboardNav.tsx": "8ddbbd07fb323c9ee60e5685f007d6ceb999cb68f5076cf1fe28c5f07f987a73",
+        "src/components/dashboard/MobileDashboardMenu.tsx": "d8c22e73c4c2f7d2882c51c6e3d0e4eb19668de62f63be1d2605aa784a5790af",
+        "src/components/dashboard/DashboardIcon.tsx": "75c39b27fb813cbe5b179f6adb69863211d7ed24c52ecaec9b17f1dfb79eb49d",
+        "src/components/dashboard/DashboardPageHeader.tsx": "fe77a8b2c4f147e439506287277024d83a7e55c6382067a2196a873d198c7e4e",
+        "src/components/Logo.tsx": "073c062cb0d022c9f5a1f78c79af6570143f03a8d6908c3268f79cb4370d6e2d",
+        "src/components/ui/Avatar.tsx": "e3af6ae6a7249c7f4ea61cb69e044c74fc27240af9ee5e9e645e7712f78a8214"
+      },
+      "components": [
+        {
+          "name": "AppShell",
+          "id": "51496e41-e380-408f-b0d8-0fd066d3f389",
+          "sourcePath": "src/components/dashboard/AppShell.tsx",
+          "logoAssetKey": "public-bunal-logo-v2-wordmark.png"
+        }
+      ],
+      "drafts": {
+        "6c193593-1ec9-4a62-bf9a-225b00d88984": {
+          "title": "Analytics & Business Intelligence — Owner",
+          "visualDirection": "cohesive owner platform-intelligence workspace",
+          "currentVersion": 2
+        }
+      },
+      "updatedAt": "2026-08-24T15:37:15Z"
     }
   }
 }

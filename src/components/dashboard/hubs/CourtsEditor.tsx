@@ -1,23 +1,31 @@
 "use client";
 
 import { useState } from "react";
-import { COURT_TYPES } from "@/lib/constants";
+import { COURT_TYPES, GAMES } from "@/lib/constants";
 import type { Court } from "@/lib/hubs";
 
 type Row = {
   key: string;
   id: string;
   name: string;
+  sport: string;
   courtType: string;
   rate: string;
 };
 
-export function CourtsEditor({ defaultValue = [] }: { defaultValue?: Court[] }) {
+export function CourtsEditor({
+  defaultValue = [],
+  defaultSports = ["pickleball"],
+}: {
+  defaultValue?: Court[];
+  defaultSports?: string[];
+}) {
   const [rows, setRows] = useState<Row[]>(() =>
     defaultValue.map((c) => ({
       key: c.id,
       id: c.id,
       name: c.name,
+      sport: c.sport ?? (defaultSports.length === 1 ? defaultSports[0] : ""),
       courtType: c.courtType,
       rate: c.hourlyRate != null ? String(c.hourlyRate) : "",
     }))
@@ -26,7 +34,14 @@ export function CourtsEditor({ defaultValue = [] }: { defaultValue?: Court[] }) 
   function add() {
     setRows((r) => [
       ...r,
-      { key: crypto.randomUUID(), id: "", name: "", courtType: "covered", rate: "" },
+      {
+        key: crypto.randomUUID(),
+        id: "",
+        name: "",
+        sport: defaultSports[0] ?? "",
+        courtType: "covered",
+        rate: "",
+      },
     ]);
   }
   function remove(key: string) {
@@ -62,6 +77,21 @@ export function CourtsEditor({ defaultValue = [] }: { defaultValue?: Court[] }) 
               placeholder={`Court ${i + 1} name`}
               className="min-w-[8rem] flex-1 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm text-gray-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
+            <select
+              name="courtSports"
+              value={row.sport}
+              required
+              onChange={(e) => patch(row.key, { sport: e.target.value })}
+              aria-label={`${row.name || `Court ${i + 1}`} sport`}
+              className="rounded-md border border-gray-300 px-2 py-1.5 text-sm text-gray-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="">Choose sport</option>
+              {GAMES.map((game) => (
+                <option key={game.value} value={game.value}>
+                  {game.label}
+                </option>
+              ))}
+            </select>
             <select
               name="courtTypes"
               value={row.courtType}

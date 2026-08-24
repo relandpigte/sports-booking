@@ -314,3 +314,46 @@ Bunal.club.
 - Omit unrated members from the top-player view. Use compact honest states when
   a format has no rated members, the API is unavailable, or the integration is
   not configured.
+
+## Analytics and business intelligence
+
+- `/dashboard/reports` is the venue partner's business-performance workspace;
+  `/dashboard/admin/reports` is the Bunal.club owner's platform-intelligence
+  workspace. Both use historical records, Manila-local dates, shareable URL
+  filters, responsive charts, accessible tables, and CSV export.
+- Partners see only their own hubs. Owners see the whole platform and can filter
+  by partner, hub, revenue source, payment mode, and reporting period.
+- Partner KPIs prioritize venue net revenue, confirmed transactions, court
+  utilization, new customers, 30-day retention, and event financial performance.
+  Owner KPIs prioritize platform GMV, Bunal.club service fees, venue/trainer
+  shares, transactions, customer growth, and 30-day retention.
+- Revenue sources are court bookings, event registrations, and, for owners,
+  trainer sessions. Preserve gross, refunds, venue or trainer share, processing
+  fees, and Bunal.club service fees as distinct ledger values; never infer money
+  from booking status when a payment ledger exists.
+- Court utilization is confirmed court-hours divided by sellable court-hours.
+  Past periods before capacity history exists are explicitly labelled
+  “Estimated utilization” and use the current operating schedule. Future
+  schedule revisions preserve effective dates so later historical utilization
+  is exact. Do not present estimated capacity as audited fact.
+- Peak-hour analysis uses confirmed court bookings and shows the busiest
+  Manila-local weekday/hour combinations without inventing demand or footfall.
+- “Customer growth” means customers making their first confirmed purchase in
+  the selected business scope. Retention is the share of those customers who
+  make another confirmed purchase within 30 days; keep cohort labels explicit.
+- Event financial performance shows registrations, event revenue, Bunal.club
+  service fees, and venue net revenue. Do not call revenue-minus-service-fee
+  true profit because event expenses are not stored.
+- Court sport attribution is based on the court's explicit sport. Existing
+  single-sport hubs may be backfilled automatically; courts at multi-sport hubs
+  remain “Unspecified” until the partner selects a sport.
+- Global controls should support date range, hub, court, sport, revenue source,
+  payment mode, comparison with the preceding equal-length period, and CSV
+  export. Hide or narrow filters that do not apply to a role or source.
+- Dashboard homepages receive only a compact analytics preview: three or four
+  high-signal KPIs, a previous-period cue, and one clear link to full reports.
+  Keep the detailed analysis on the report routes.
+- Use compact professional cards, restrained green/ocean data colors, direct
+  chart labels, visible units, semantic tables, honest empty states, and no
+  decorative chart junk. Never invent forecasts, membership counts, expenses,
+  customer demographics, or unsupported attribution.

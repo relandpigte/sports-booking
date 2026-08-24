@@ -1132,18 +1132,42 @@ model Court {
   id         String   @id @default(cuid())
   hubId      String
   name       String
+  // Nullable only for legacy courts at multi-sport hubs. New and edited
+  // courts must select one of their hub's sports.
+  sport      String?
   courtType  String   @default("covered") // "covered" | "open"
   hourlyRate Decimal? @db.Decimal(10, 2)
   createdAt  DateTime @default(now())
 
-  hub            Hub                    @relation(fields: [hubId], references: [id], onDelete: Cascade)
-  bookings       Booking[]
-  scheduleRules  CourtSlotRule[]
-  eventCourts    EventCourt[]
-  openPlayCourts OpenPlaySessionCourt[]
-  openPlayGames  OpenPlayGame[]
+  hub               Hub                     @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  bookings          Booking[]
+  scheduleRules     CourtSlotRule[]
+  eventCourts       EventCourt[]
+  openPlayCourts    OpenPlaySessionCourt[]
+  openPlayGames     OpenPlayGame[]
+  scheduleRevisions CourtScheduleRevision[]
 
   @@index([hubId])
+  @@index([hubId, sport])
+}
+
+// Immutable, effective-dated snapshots of the availability denominator used
+// by utilization reporting. The launch snapshot begins on migration day; a
+// report before that date deliberately falls back to today's schedule and is
+// labelled Estimated utilization.
+model CourtScheduleRevision {
+  id             String   @id @default(cuid())
+  courtId        String
+  effectiveFrom  String
+  effectiveTo    String?
+  operatingHours Json?
+  slotRules      Json
+  createdAt      DateTime @default(now())
+
+  court Court @relation(fields: [courtId], references: [id], onDelete: Cascade)
+
+  @@unique([courtId, effectiveFrom])
+  @@index([courtId, effectiveFrom, effectiveTo])
 }
 
 enum CourtBlockType {

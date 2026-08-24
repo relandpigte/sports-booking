@@ -19,10 +19,12 @@ import {
 } from "@/lib/constants";
 import { recordImpersonatedAction } from "@/lib/impersonation";
 import { recordPartnerActivity, requirePartnerWorkspace } from "@/lib/staffing";
+import { recordCourtScheduleRevisions } from "@/lib/court-schedule-history";
 
 type CourtInput = {
   id: string;
   name: string;
+  sport: string;
   courtType: string;
   hourlyRate: number | null;
 };
@@ -30,6 +32,7 @@ type CourtInput = {
 function parseCourts(formData: FormData): CourtInput[] {
   const ids = formData.getAll("courtIds").map((v) => String(v));
   const names = formData.getAll("courtNames").map((v) => String(v));
+  const sports = formData.getAll("courtSports").map((v) => String(v));
   const types = formData.getAll("courtTypes").map((v) => String(v));
   const rates = formData.getAll("courtRates").map((v) => String(v));
   const allowedType = new Set<string>(COURT_TYPE_VALUES);
@@ -44,7 +47,13 @@ function parseCourts(formData: FormData): CourtInput[] {
       Number.isFinite(rateNum) && rateNum >= 0
         ? Math.round(rateNum * 100) / 100
         : null;
-    out.push({ id: ids[i] ?? "", name, courtType, hourlyRate });
+    out.push({
+      id: ids[i] ?? "",
+      name,
+      sport: sports[i] ?? "",
+      courtType,
+      hourlyRate,
+    });
   }
   return out;
 }
@@ -137,14 +146,39 @@ async function parseHubForm(
     return { ok: false, state: { errors: { coverPhotos: covers.error }, values } };
   }
 
+  const games = parseGames(formData);
+  const courts = parseCourts(formData);
+  const invalidCourt = courts.find(
+    (court) => !GAME_VALUES.includes(court.sport as (typeof GAME_VALUES)[number])
+  );
+  if (invalidCourt) {
+    return {
+      ok: false,
+      state: {
+        message: `Choose a sport for “${invalidCourt.name}”.`,
+        values,
+      },
+    };
+  }
+  const outsideHub = courts.find((court) => !games.includes(court.sport));
+  if (outsideHub) {
+    return {
+      ok: false,
+      state: {
+        message: `Add ${outsideHub.sport} to the hub's sports or choose another sport for “${outsideHub.name}”.`,
+        values,
+      },
+    };
+  }
+
   return {
     ok: true,
     hub: {
       data: parsed.data,
       logo: logo.value,
       coverPhotos: covers.values,
-      games: parseGames(formData),
-      courts: parseCourts(formData),
+      games,
+      courts,
       latitude: parseCoord(String(formData.get("latitude") ?? ""), -90, 90),
       longitude: parseCoord(String(formData.get("longitude") ?? ""), -180, 180),
       operatingHours: parseOperatingHours(formData),
@@ -192,13 +226,20 @@ export async function createHubAction(
         courts: {
           create: courts.map((c) => ({
             name: c.name,
+            sport: c.sport,
             courtType: c.courtType,
             hourlyRate: c.hourlyRate,
           })),
         },
       },
-      select: { id: true },
+      select: { id: true, courts: { select: { id: true } } },
     });
+    await prisma.$transaction((tx) =>
+      recordCourtScheduleRevisions(
+        tx,
+        hub.courts.map((court) => court.id)
+      )
+    );
     await recordImpersonatedAction({
       action: "HUB_CREATED",
       targetType: "Hub",
@@ -329,7 +370,12 @@ export async function updateHubAction(
       ops.push(
         prisma.court.update({
           where: { id: c.id },
-          data: { name: c.name, courtType: c.courtType, hourlyRate: c.hourlyRate },
+          data: {
+            name: c.name,
+            sport: c.sport,
+            courtType: c.courtType,
+            hourlyRate: c.hourlyRate,
+          },
         })
       );
     } else {
@@ -338,6 +384,7 @@ export async function updateHubAction(
           data: {
             hubId: id,
             name: c.name,
+            sport: c.sport,
             courtType: c.courtType,
             hourlyRate: c.hourlyRate,
           },
@@ -346,6 +393,17 @@ export async function updateHubAction(
     }
   }
   if (ops.length) await prisma.$transaction(ops);
+
+  const currentCourtIds = await prisma.court.findMany({
+    where: { hubId: id },
+    select: { id: true },
+  });
+  await prisma.$transaction((tx) =>
+    recordCourtScheduleRevisions(
+      tx,
+      currentCourtIds.map((court) => court.id)
+    )
+  );
 
   await recordImpersonatedAction({
     action: "HUB_UPDATED",

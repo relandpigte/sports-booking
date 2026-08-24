@@ -28,6 +28,7 @@ export type DirectoryHubView = {
   courts: {
     id: string;
     name: string;
+    sport: string | null;
     courtType: string;
     hourlyRate: number | null;
     scheduleRules: CourtScheduleRule[];

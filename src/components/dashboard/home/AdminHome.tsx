@@ -6,17 +6,21 @@ import {
   type DashboardIconName,
 } from "@/components/dashboard/DashboardIcon";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { AnalyticsHomeSummary } from "@/components/dashboard/home/AnalyticsHomeSummary";
+import type { AnalyticsKpis } from "@/lib/business-analytics";
 
 export function AdminHome({
   name,
   counts,
   pendingPartners,
   pendingSettlements,
+  analytics,
 }: {
   name: string | null;
   counts: Record<Role, number>;
   pendingPartners: number;
   pendingSettlements: number;
+  analytics: AnalyticsKpis;
 }) {
   const total = counts.ADMIN + counts.PLAYER + counts.PARTNER;
 
@@ -70,6 +74,8 @@ export function AdminHome({
           </span>
         }
       />
+
+      <AnalyticsHomeSummary audience="owner" kpis={analytics} />
 
       <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {cards.map((c) => (

@@ -12,6 +12,10 @@ import {
 } from "@/lib/manual-payments";
 import { getCurrentPartnerImpersonation } from "@/lib/impersonation";
 import { getPartnerWorkspace } from "@/lib/staffing";
+import {
+  defaultAnalyticsFilters,
+  getBusinessAnalytics,
+} from "@/lib/business-analytics";
 
 export const metadata: Metadata = {
   title: "Partner Home — Bunal.club",
@@ -29,9 +33,15 @@ export default async function PartnerDashboardPage() {
   const impersonation = await getCurrentPartnerImpersonation();
   const canOperate =
     user.partnerStatus === "ACTIVE" || impersonation?.partner.id === user.id;
-  const [paymentSetup, hubCount] = await Promise.all([
+  const [paymentSetup, hubCount, analytics] = await Promise.all([
     canOperate ? getPartnerPaymentSetup(user.id) : Promise.resolve(null),
     prisma.hub.count({ where: { ownerId: user.id } }),
+    canOperate
+      ? getBusinessAnalytics({
+          audience: "partner",
+          filters: defaultAnalyticsFilters({ partnerId: user.id }),
+        })
+      : Promise.resolve(null),
   ]);
 
   return (
@@ -43,6 +53,7 @@ export default async function PartnerDashboardPage() {
       }
       hasHub={hubCount > 0}
       canOperate={canOperate}
+      analytics={analytics?.kpis ?? null}
     />
   );
 }

@@ -19,6 +19,7 @@ import { facebookPageUrl } from "@/lib/social";
 export type Court = {
   id: string;
   name: string;
+  sport: string | null;
   courtType: string;
   hourlyRate: number | null;
   scheduleRules: CourtScheduleRule[];
@@ -27,6 +28,7 @@ export type Court = {
 type CourtRow = {
   id: string;
   name: string;
+  sport: string | null;
   courtType: string;
   hourlyRate: Prisma.Decimal | null;
   scheduleRules: {
@@ -42,6 +44,7 @@ function mapCourt(c: CourtRow): Court {
   return {
     id: c.id,
     name: c.name,
+    sport: c.sport,
     courtType: c.courtType,
     hourlyRate: c.hourlyRate ? c.hourlyRate.toNumber() : null,
     scheduleRules: c.scheduleRules.map((rule) => ({
@@ -96,6 +99,7 @@ const hubSelect = {
     select: {
       id: true,
       name: true,
+      sport: true,
       courtType: true,
       hourlyRate: true,
       scheduleRules: {

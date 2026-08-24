@@ -8,6 +8,8 @@ import {
 } from "@/components/dashboard/DashboardIcon";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { InstallAppCard } from "@/components/pwa/InstallAppCard";
+import { AnalyticsHomeSummary } from "@/components/dashboard/home/AnalyticsHomeSummary";
+import type { AnalyticsKpis } from "@/lib/business-analytics";
 
 type PartnerHomeUser = {
   name: string | null;
@@ -20,12 +22,14 @@ export function PartnerHome({
   isPaymentReady,
   hasHub,
   canOperate,
+  analytics,
 }: {
   user: PartnerHomeUser;
   partnerStatus: PartnerStatus | null;
   isPaymentReady: boolean;
   hasHub: boolean;
   canOperate?: boolean;
+  analytics?: AnalyticsKpis | null;
 }) {
   const active = partnerStatus === "ACTIVE";
   const draft = partnerStatus === "DRAFT";
@@ -103,6 +107,10 @@ export function PartnerHome({
       />
 
       <InstallAppCard />
+
+      {operational && analytics ? (
+        <AnalyticsHomeSummary audience="partner" kpis={analytics} />
+      ) : null}
 
       {draft && (
         <section className="mt-8 rounded-2xl border border-primary/20 bg-white p-6 shadow-sm shadow-navy/5">

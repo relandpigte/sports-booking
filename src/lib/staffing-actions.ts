@@ -9,6 +9,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { getAuthenticatedUser } from "@/lib/dal";
+import { dashboardHomeFor } from "@/lib/dashboard";
 import { prisma } from "@/lib/db";
 import {
   emailDeliveryConfigured,
@@ -442,8 +443,10 @@ export async function enterStaffWorkspaceAction() {
 }
 
 export async function enterPersonalWorkspaceAction() {
+  const actor = await getAuthenticatedUser();
+  if (!actor) redirect("/login");
   (await cookies()).delete(STAFF_WORKSPACE_COOKIE);
-  redirect("/dashboard/player");
+  redirect(dashboardHomeFor(actor.role));
 }
 
 export async function getStaffInvitationView(token: string) {

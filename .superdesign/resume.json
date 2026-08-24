@@ -437,13 +437,13 @@
       "fingerprints": {
         ".superdesign/design-system.md": "fcf6b4f8a2c1a03741249c2e5e944fcaec212113f2cb8269270799237c363ef1",
         "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
-        "src/app/players/[username]/page.tsx": "6596e2155f53fdc0a9cf2645f2d6b7513a8ea9a771f31a74b6142afc6f380a7f",
+        "src/app/players/[username]/page.tsx": "af91df127aadba33ebfa526ef053b46e93a1ea23fbe2a48ac317c8fbc48d8051",
         "src/components/PageShell.tsx": "4e5187c7dc6c73947b63ef01df6103aeddcb0e725c450e1827495b00b73f9e2b",
         "src/components/dashboard/AppShell.tsx": "27727e859d480e6fccfa55d3b240e6d7f0ae0456fc52ace6c6cb3006fb78ac2c",
         "src/components/dashboard/DashboardNav.tsx": "8ddbbd07fb323c9ee60e5685f007d6ceb999cb68f5076cf1fe28c5f07f987a73",
         "src/components/Logo.tsx": "073c062cb0d022c9f5a1f78c79af6570143f03a8d6908c3268f79cb4370d6e2d",
         "src/components/ui/Avatar.tsx": "e3af6ae6a7249c7f4ea61cb69e044c74fc27240af9ee5e9e645e7712f78a8214",
-        "src/components/trainers/TrainerRequestForm.tsx": "963c131fc4b9ca943ab2c9f399a218cf106e176b6cd8d508c38b3e1e253c4326",
+        "src/components/trainers/TrainerRequestForm.tsx": "f09c77fa887efd43dcda7c092e2679dc87a0c30429607f6e0cc9d5574de96484",
         "src/components/ui/Button.tsx": "d811d012bf62c684fa4dff3e20615fb17c998a862250aba27f15f14ec1f4513a",
         "src/components/ui/Input.tsx": "f67f19236edec1912c0efab5ee5d704104edad2fd052b4088a8f7afc1b7d6830",
         "src/components/ui/Select.tsx": "c4fe4d426794402b1b8da2cea1cf06dcc79cf334b6cee8520b4e3c369954c410",
@@ -464,7 +464,7 @@
           "currentVersion": 2
         }
       },
-      "updatedAt": "2026-08-24T16:40:00+08:00"
+      "updatedAt": "2026-08-24T16:50:15+08:00"
     }
   }
 }

@@ -21,18 +21,37 @@ export function TrainerRequestForm({ trainerProfileId, hourlyRate, minDate, maxD
   const hours = Math.max(1, Number(endHour) - Number(startHour));
   const trainerAmount = Math.round(hourlyRate * hours * 100) / 100;
   const bunalFee = bookingServiceFeeFor(trainerAmount);
+
   return (
-    <form action={action} className="rounded-2xl border border-[#dfe7e2] bg-white p-5 shadow-sm">
+    <form action={action} className="rounded-2xl border border-[#dfe7e2] bg-white p-5">
       <input type="hidden" name="trainerProfileId" value={trainerProfileId} />
-      <h2 className="text-lg font-black text-navy">Request a session</h2>
-      <p className="mt-1 text-sm text-slate-500">Request at least 24 hours ahead. You pay only after the trainer accepts.</p>
-      {(state.message || state.success) && <p className={`mt-3 rounded-xl p-3 text-sm ${state.success ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{state.success ?? state.message}</p>}
-      <div className="mt-4 grid gap-4 sm:grid-cols-3">
-        <Input label="Date" name="date" type="date" min={minDate} max={maxDate} required error={state.errors?.date} />
+      <h2 className="text-lg font-extrabold tracking-tight text-navy">Request a session</h2>
+      <p className="mt-1 text-sm leading-5 text-slate-500">
+        Request at least 24 hours ahead. You pay only after the trainer accepts.
+      </p>
+      {(state.message || state.success) && (
+        <p className={`mt-3 rounded-xl p-3 text-sm ${state.success ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+          {state.success ?? state.message}
+        </p>
+      )}
+      <div className="mt-4">
+        <Input
+          label="Date"
+          name="date"
+          type="date"
+          min={minDate}
+          max={maxDate}
+          required
+          error={state.errors?.date}
+          className="min-h-11"
+        />
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-3">
         <Select
           label="Start"
           name="startHour"
           value={startHour}
+          className="min-h-11"
           onChange={(event) => {
             const nextStart = event.target.value;
             setStartHour(nextStart);
@@ -42,11 +61,42 @@ export function TrainerRequestForm({ trainerProfileId, hourlyRate, minDate, maxD
           }}
           options={starts}
         />
-        <Select label="End" name="endHour" value={endHour} onChange={(event) => setEndHour(event.target.value)} options={ends.filter((option) => Number(option.value) > Number(startHour))} />
+        <Select
+          label="End"
+          name="endHour"
+          value={endHour}
+          className="min-h-11"
+          onChange={(event) => setEndHour(event.target.value)}
+          options={ends.filter((option) => Number(option.value) > Number(startHour))}
+        />
       </div>
-      <div className="mt-4"><Textarea label="Session notes" name="notes" rows={4} required error={state.errors?.notes} placeholder="Tell the trainer your goals, level, and how many people will attend." /></div>
-      <dl className="mt-4 space-y-1 rounded-xl bg-slate-50 p-3 text-sm"><div className="flex justify-between"><dt>Trainer · {hours} {hours === 1 ? "hour" : "hours"}</dt><dd>₱{trainerAmount.toFixed(2)}</dd></div><div className="flex justify-between"><dt>Bunal fee (3%)</dt><dd>₱{bunalFee.toFixed(2)}</dd></div><div className="flex justify-between border-t border-slate-200 pt-2 font-black text-navy"><dt>Total before payment processing</dt><dd>₱{(trainerAmount + bunalFee).toFixed(2)}</dd></div></dl>
-      <Button type="submit" disabled={pending} className="mt-4">{pending ? "Sending request…" : "Request available time"}</Button>
+      <div className="mt-3">
+        <Textarea
+          label="Session notes"
+          name="notes"
+          rows={3}
+          required
+          error={state.errors?.notes}
+          placeholder="Tell the trainer your goals, level, and how many people will attend."
+        />
+      </div>
+      <dl className="mt-4 rounded-xl bg-[#f7faf8] p-3 text-sm">
+        <div className="flex justify-between gap-4 py-1">
+          <dt>Trainer · {hours} {hours === 1 ? "hour" : "hours"}</dt>
+          <dd className="font-semibold">₱{trainerAmount.toFixed(2)}</dd>
+        </div>
+        <div className="flex justify-between gap-4 py-1">
+          <dt>Bunal fee (3%)</dt>
+          <dd className="font-semibold">₱{bunalFee.toFixed(2)}</dd>
+        </div>
+        <div className="mt-2 flex justify-between gap-4 border-t border-[#dfe7e2] pt-3 font-extrabold text-navy">
+          <dt>Total before payment processing</dt>
+          <dd className="shrink-0">₱{(trainerAmount + bunalFee).toFixed(2)}</dd>
+        </div>
+      </dl>
+      <Button type="submit" disabled={pending} className="mt-4 min-h-11 rounded-xl font-bold">
+        {pending ? "Sending request…" : "Request available time"}
+      </Button>
     </form>
   );
 }

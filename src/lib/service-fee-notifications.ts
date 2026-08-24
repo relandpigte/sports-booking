@@ -13,7 +13,8 @@ import { calculateTrainerServiceFeeBalance } from "@/lib/trainer-service-fees";
 import { addDaysTo, manilaDateOf } from "@/lib/time";
 import { appUrl } from "@/lib/urls";
 
-export const SERVICE_FEE_OVERDUE_REMINDER_DAYS = 7;
+export const PARTNER_SERVICE_FEE_OVERDUE_REMINDER_DAYS = 1;
+export const TRAINER_SERVICE_FEE_OVERDUE_REMINDER_DAYS = 7;
 
 export type ServiceFeeNotificationSweepResult = {
   sent: number;
@@ -45,12 +46,22 @@ export async function notifyPartnersOfOverdueServiceFees(
       serviceFeeReminderAt: true,
     },
   });
-  const reminderCutoff = addDaysTo(now, -SERVICE_FEE_OVERDUE_REMINDER_DAYS);
-  const reminderPeriod = manilaDateOf(serviceFeeWeekStart(now));
+  const reminderCutoff = addDaysTo(
+    now,
+    -PARTNER_SERVICE_FEE_OVERDUE_REMINDER_DAYS
+  );
+  const reminderPeriod = manilaDateOf(now);
 
   for (const partner of partners) {
     const balance = await calculateServiceFeeBalance(prisma, partner.id, now);
-    if (balance.overdueAmount < 0.01 || balance.pending >= 0.01) {
+    const dueSoon = Boolean(
+      balance.amountDue >= 0.01 &&
+        balance.nextDueAt &&
+        now.getTime() < balance.nextDueAt.getTime() &&
+        now.getTime() >= addDaysTo(balance.nextDueAt, -1).getTime()
+    );
+    const overdue = balance.overdueAmount >= 0.01;
+    if ((!dueSoon && !overdue) || balance.pending >= 0.01) {
       result.skipped++;
       continue;
     }
@@ -82,13 +93,14 @@ export async function notifyPartnersOfOverdueServiceFees(
       await sendServiceFeeOverdueEmail({
         to: partner.email,
         partnerName: partner.name ?? "Partner",
+        reminderKind: dueSoon ? "DUE_SOON" : "OVERDUE",
         overdueAmount: balance.overdueAmount,
         amountDue: balance.amountDue,
         dueAt: balance.nextDueAt,
         enforcementAt: balance.enforcementAt,
         blocked: balance.blocked,
         actionUrl: appUrl("/dashboard/payments"),
-        idempotencyKey: `service-fee-overdue:${partner.id}:${reminderPeriod}`,
+        idempotencyKey: `service-fee-reminder:${dueSoon ? "due-soon" : "overdue"}:${partner.id}:${reminderPeriod}`,
       });
       result.sent++;
     } catch (error) {
@@ -136,7 +148,10 @@ export async function notifyTrainersOfOverdueServiceFees(
       },
     },
   });
-  const reminderCutoff = addDaysTo(now, -SERVICE_FEE_OVERDUE_REMINDER_DAYS);
+  const reminderCutoff = addDaysTo(
+    now,
+    -TRAINER_SERVICE_FEE_OVERDUE_REMINDER_DAYS
+  );
   const reminderPeriod = manilaDateOf(serviceFeeWeekStart(now));
 
   for (const profile of profiles) {

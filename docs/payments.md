@@ -189,10 +189,12 @@ leave the public directory. Manual settlement proof is displayed as under
 review but does not reduce the balance or bypass an existing restriction until
 an admin approves it. Only one manual proof may be under review at a time, and
 receipt submissions are rate-limited. The authenticated maintenance sweep
-emails an active partner when a balance becomes overdue, repeats the reminder
-at most once every seven days, and reconciles expired or abandoned PayMongo
-settlement sessions. Concurrent sweeps claim the reminder atomically, and a
-failed email releases the claim so the next sweep can retry safely.
+emails an active partner during the 24 hours before a balance is due, again
+when it becomes overdue, and at most once every 24 hours afterward until it is
+paid or settlement proof is submitted. The same sweep reconciles expired or
+abandoned PayMongo settlement sessions. Concurrent sweeps claim each reminder
+atomically, and a failed email releases the claim so the next sweep can retry
+safely.
 
 ## Booking settlement
 

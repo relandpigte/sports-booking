@@ -102,44 +102,64 @@ async function check() {
     const sweep = (date: Date) =>
       notifyPartnersOfOverdueServiceFees(date, { partnerIds: [partner.id] });
 
-    const grace = await sweep(new Date("2026-07-21T04:00:00Z"));
-    const first = await sweep(NOW);
-    const duplicate = await sweep(NOW);
-    const tooSoon = await sweep(addDaysTo(NOW, 6));
-    const weekly = await sweep(addDaysTo(NOW, 8));
+    const beforeWindow = await sweep(new Date("2026-07-18T04:00:00Z"));
+    const dueTomorrow = await sweep(new Date("2026-07-19T04:00:00Z"));
+    const dueDay = await sweep(new Date("2026-07-20T04:00:00Z"));
+    const dueDayDuplicate = await sweep(new Date("2026-07-20T04:00:00Z"));
+    const tooSoon = await sweep(new Date("2026-07-21T03:00:00Z"));
+    const daily = await sweep(new Date("2026-07-21T04:00:00Z"));
+    const blocked = await sweep(NOW);
+    const blockedDuplicate = await sweep(NOW);
+    const blockedDaily = await sweep(addDaysTo(NOW, 1));
 
     ok(
-      "the first overdue sweep warns during the enforcement grace",
-      grace.sent === 1 &&
-        String(requests[0]?.body.html).includes("three-day enforcement grace")
+      "partners are not emailed before the one-day reminder window",
+      beforeWindow.sent === 0 && requests.length === 5
     );
-    ok("an unresolved balance is reminded after enforcement", first.sent === 1);
     ok(
-      "repeat and early sweeps cannot resend the reminder",
-      duplicate.sent === 0 && tooSoon.sent === 0 && requests.length === 3
+      "partners receive a clear reminder one day before settlement is due",
+      dueTomorrow.sent === 1 &&
+        String(requests[0]?.body.subject).includes("due tomorrow") &&
+        String(requests[0]?.body.html).includes("three-day grace period")
     );
-    ok("an unresolved balance receives a weekly reminder", weekly.sent === 1);
     ok(
-      "the reminder contains the overdue amount and settlement action",
-      String(requests[1]?.body.html).includes("₱30.00") &&
-        String(requests[1]?.body.html).includes("/dashboard/payments") &&
-        JSON.stringify(requests[1]?.body.tags).includes(
+      "the due-day sweep sends the first overdue reminder",
+      dueDay.sent === 1 &&
+        String(requests[1]?.body.html).includes("three-day enforcement grace")
+    );
+    ok(
+      "same-day and sub-24-hour sweeps cannot duplicate a reminder",
+      dueDayDuplicate.sent === 0 && tooSoon.sent === 0
+    );
+    ok(
+      "an unresolved balance receives one reminder every day",
+      daily.sent === 1 &&
+        blocked.sent === 1 &&
+        blockedDuplicate.sent === 0 &&
+        blockedDaily.sent === 1 &&
+        requests.length === 5
+    );
+    ok(
+      "the overdue reminder contains the amount and settlement action",
+      String(requests[3]?.body.html).includes("₱30.00") &&
+        String(requests[3]?.body.html).includes("/dashboard/payments") &&
+        JSON.stringify(requests[3]?.body.tags).includes(
           "partner-service-fee-overdue"
         )
     );
     ok(
       "partner-provided names are escaped in reminder HTML",
-      String(requests[1]?.body.html).includes("Settlement &lt;Owner&gt;") &&
-        !String(requests[1]?.body.html).includes("Settlement <Owner>")
+      String(requests[3]?.body.html).includes("Settlement &lt;Owner&gt;") &&
+        !String(requests[3]?.body.html).includes("Settlement <Owner>")
     );
     ok(
-      "weekly reminders use different stable idempotency periods",
-      requests[1]?.headers.get("Idempotency-Key") !==
-        requests[2]?.headers.get("Idempotency-Key")
+      "daily reminders use different stable idempotency dates",
+      requests[3]?.headers.get("Idempotency-Key") !==
+        requests[4]?.headers.get("Idempotency-Key")
     );
 
     failNext = true;
-    const failedAt = addDaysTo(NOW, 16);
+    const failedAt = addDaysTo(NOW, 2);
     const failed = await sweep(failedAt);
     const afterFailure = await prisma.user.findUnique({
       where: { id: partner.id },
@@ -150,11 +170,11 @@ async function check() {
       "a provider failure releases the notification claim",
       failed.failed === 1 &&
         afterFailure?.serviceFeeReminderAt?.getTime() ===
-          addDaysTo(NOW, 8).getTime()
+          addDaysTo(NOW, 1).getTime()
     );
     ok(
       "the next sweep retries a failed notification",
-      retried.sent === 1 && requests.length === 5
+      retried.sent === 1 && requests.length === 7
     );
 
     await prisma.serviceFeeSettlement.create({
@@ -167,10 +187,10 @@ async function check() {
         receiptImage: "data:image/png;base64,YQ==",
       },
     });
-    const covered = await sweep(addDaysTo(NOW, 24));
+    const covered = await sweep(addDaysTo(NOW, 3));
     ok(
       "submitted settlement proof stops overdue reminders",
-      covered.sent === 0 && requests.length === 5
+      covered.sent === 0 && requests.length === 7
     );
 
     const trainer = await prisma.user.create({
@@ -255,20 +275,20 @@ async function check() {
     ok(
       "trainer reminders explain the grace-period discovery deadline",
       trainerGrace.sent === 1 &&
-        String(requests[5]?.body.html).includes(
+        String(requests[7]?.body.html).includes(
           "trainer profile remains available"
         )
     );
     ok(
       "overdue trainers receive the trainer payment action and pause copy",
       trainerBlocked.sent === 1 &&
-        String(requests[6]?.body.html).includes(
+        String(requests[8]?.body.html).includes(
           "public trainer visibility are paused"
         ) &&
-        String(requests[6]?.body.html).includes(
+        String(requests[8]?.body.html).includes(
           "/dashboard/trainer/payments"
         ) &&
-        JSON.stringify(requests[6]?.body.tags).includes(
+        JSON.stringify(requests[8]?.body.tags).includes(
           "trainer-service-fee-overdue"
         )
     );

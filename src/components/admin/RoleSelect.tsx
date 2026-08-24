@@ -26,7 +26,7 @@ export function RoleSelect({
         disabled={disabled}
         onChange={() => formRef.current?.requestSubmit()}
         aria-label="Change role"
-        className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-900 transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+        className="min-h-9 rounded-lg border border-gray-300 bg-white px-2.5 text-xs font-semibold text-gray-900 transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {ROLE_OPTIONS.map((o) => (
           <option key={o.value} value={o.value}>

@@ -1,6 +1,11 @@
 import "server-only";
 
-import type { Prisma, Role } from "@prisma/client";
+import type {
+  PartnerStatus,
+  Prisma,
+  Role,
+  TrainerStatus,
+} from "@prisma/client";
 import { redirect } from "next/navigation";
 
 import { prisma } from "@/lib/db";
@@ -64,23 +69,28 @@ type AdminUserRecord = Prisma.UserGetPayload<{
 }>;
 
 export type AdminUser = Omit<AdminUserRecord, "partnerGateway" | "trainerProfile" | "trainerGateway" | "_count"> & {
+  trainerStatus: TrainerStatus | null;
   deleteBlockedReason: string | null;
 };
 
 function mapAdminUser(user: AdminUserRecord): AdminUser {
   const { partnerGateway, trainerProfile, trainerGateway, _count, ...safeUser } = user;
+  const baseUser = {
+    ...safeUser,
+    trainerStatus: trainerProfile?.status ?? null,
+  };
   if (user.partnerStatus === "ACTIVE") {
     return {
-      ...safeUser,
+      ...baseUser,
       deleteBlockedReason: "Deactivate this partner before deleting the account.",
     };
   }
   if (trainerProfile?.status === "ACTIVE") {
-    return { ...safeUser, deleteBlockedReason: "Deactivate this trainer profile before deleting the account." };
+    return { ...baseUser, deleteBlockedReason: "Deactivate this trainer profile before deleting the account." };
   }
   const hasTrainerHistory = trainerGateway !== null || _count.trainerManualMethods > 0 || _count.trainerSessionsBooked > 0 || _count.trainerPaymentsMade > 0 || _count.trainerPaymentsReceived > 0 || _count.trainerFeeEntries > 0 || _count.trainerFeeSettlements > 0;
   if (hasTrainerHistory) {
-    return { ...safeUser, deleteBlockedReason: "This account has trainer session, payment, or settlement history and cannot be permanently deleted." };
+    return { ...baseUser, deleteBlockedReason: "This account has trainer session, payment, or settlement history and cannot be permanently deleted." };
   }
   const hasPartnerOwnedHistory =
     partnerGateway !== null ||
@@ -99,7 +109,7 @@ function mapAdminUser(user: AdminUserRecord): AdminUser {
     _count.bookingPayments > 0 ||
     _count.eventRegistrations > 0;
   return {
-    ...safeUser,
+    ...baseUser,
     deleteBlockedReason:
       hasPartnerOwnedHistory ||
       (user.role === "PARTNER" && hasPartnerAccountHistory)
@@ -121,12 +131,20 @@ export type AdminUsersPage = {
 export async function listUsers(opts: {
   query?: string;
   role?: Role;
+  trainerOnly?: boolean;
+  trainerStatus?: TrainerStatus;
+  partnerStatus?: PartnerStatus;
   page: number;
 }): Promise<AdminUsersPage> {
   await requireAdmin();
-  const { query, role } = opts;
-  const where = {
+  const { query, role, trainerOnly, trainerStatus, partnerStatus } = opts;
+  const where: Prisma.UserWhereInput = {
     ...(role ? { role } : {}),
+    ...(trainerOnly ? { trainerProfile: { isNot: null } } : {}),
+    ...(trainerStatus
+      ? { trainerProfile: { is: { status: trainerStatus } } }
+      : {}),
+    ...(partnerStatus ? { partnerStatus } : {}),
     ...(query
       ? {
           OR: [
@@ -167,6 +185,11 @@ export async function userCounts(): Promise<Record<Role, number>> {
     counts[row.role] = row._count._all;
   }
   return counts;
+}
+
+export async function trainerUserCount(): Promise<number> {
+  await requireAdmin();
+  return prisma.trainerProfile.count();
 }
 
 export async function pendingPartnerCount(): Promise<number> {

@@ -376,13 +376,13 @@
         ".superdesign/design-system.md": "fcf6b4f8a2c1a03741249c2e5e944fcaec212113f2cb8269270799237c363ef1",
         ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
         "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
-        "src/app/(app)/dashboard/admin/settlements/page.tsx": "5db613e65e712c5bb8c5b791aabef9c2ae4325dad3c77f37e31f422550da745d",
-        "src/components/admin/TrainerServiceFeeSettlements.tsx": "d6ea961b90169488afcf099eba431d60372c536c8224336360dcbc75758dd786",
+        "src/app/(app)/dashboard/admin/settlements/page.tsx": "13e2c6faefa947b71db3e992629e449f256a5eea741a5f255d19ae2c95a88784",
+        "src/components/admin/TrainerServiceFeeSettlements.tsx": "f859c789eab11b98a1a9fa31f0b1154fcce95d5a71088a109560d6122fe023b4",
         "src/components/admin/PartnerServiceFeeBreakdown.tsx": "33ab3c126bf8f87ad3e2806c0b92c9eb57d53080bcfd675dcd57dcdffa53bcfc",
         "src/components/admin/ServiceFeeWaiverControls.tsx": "76bc666e5f2fea237adedfbbfa23d6d3e6f1ae6e3b7ef5f69666dba56ac33ae9",
         "src/app/(app)/layout.tsx": "0096b1d5fcfb256cb7c09954a82f8ceae2f9fef8fae30668585ca1a6d01f0675",
         "src/components/dashboard/AppShell.tsx": "27727e859d480e6fccfa55d3b240e6d7f0ae0456fc52ace6c6cb3006fb78ac2c",
-        "src/components/dashboard/DashboardNav.tsx": "b90b799c030e4564135ac690bbc913e01b45e2c5f567ab5878cde070aeee8d37",
+        "src/components/dashboard/DashboardNav.tsx": "8ddbbd07fb323c9ee60e5685f007d6ceb999cb68f5076cf1fe28c5f07f987a73",
         "src/components/ui/Badge.tsx": "aaa6074f7e159cb71056bb61ae95cafc3345f353db12af8d399d55e31dc20c88"
       },
       "components": [
@@ -395,12 +395,101 @@
       ],
       "drafts": {
         "f209cd09-e131-4422-b04f-358fb68e903d": {
-          "title": "Admin Settlements — Partner and Trainer Views",
-          "visualDirection": "separate venue-partner and trainer settlement tabs with trainer fee balances, source transaction history, remittance review, and audit history",
-          "currentVersion": 3
+          "title": "Admin Trainer Settlements — Refined Finance Operations",
+          "visualDirection": "compact trainer settlement operations with a unified metric strip, dense balance table, visible pending review, and collapsed transaction and remittance audit disclosures",
+          "currentVersion": 4
+        },
+        "23e35598-0dea-43a1-81f4-128e4d3655d1": {
+          "title": "Admin Venue Partner Settlements — Compact Finance Operations",
+          "visualDirection": "companion partner settlement state with dense balances, visible pending review, list-based waiver history, and collapsed waiver and review audit disclosures",
+          "parentDraftId": "f209cd09-e131-4422-b04f-358fb68e903d",
+          "currentVersion": 1
         }
       },
-      "updatedAt": "2026-08-24T15:13:00+08:00"
+      "updatedAt": "2026-08-24T17:09:45+08:00"
+    },
+    "/users": {
+      "targetKind": "existing-ui",
+      "projectId": "df2fe063-c6da-4978-8695-40c03895ddc6",
+      "baselineDraftId": "d625bf4d-5848-49bc-9a01-4b9cf4c14757",
+      "activeDraftId": "ffa4e317-9e8f-402f-af98-5cbb2b1a5404",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "public-bunal-logo-v2-wordmark.png"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "public-bunal-logo-v2-wordmark.png",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/e4c8e4e6-58c1-4931-a0f3-9eae8122ee8e/brand-assets/public-bunal-logo-v2-wordmark.png/bunal-logo-v2-wordmark.png",
+          "sourcePath": "public/bunal-logo-v2-wordmark.png"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "src/app/globals.css",
+        "src/app/(app)/users/page.tsx",
+        "src/components/admin/AdminUsersTable.tsx",
+        "src/components/dashboard/DashboardPageHeader.tsx",
+        "src/components/admin/RoleSelect.tsx",
+        "src/components/admin/PartnerActivationButton.tsx",
+        "src/components/admin/DeleteUserButton.tsx",
+        "src/lib/admin.ts",
+        "src/app/(app)/layout.tsx",
+        "src/components/dashboard/AppShell.tsx",
+        "src/components/dashboard/DashboardNav.tsx",
+        "src/components/dashboard/MobileDashboardMenu.tsx",
+        "src/components/Logo.tsx",
+        "src/components/ui/Avatar.tsx",
+        "src/components/ui/Badge.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "fcf6b4f8a2c1a03741249c2e5e944fcaec212113f2cb8269270799237c363ef1",
+        ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
+        "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
+        "src/app/(app)/users/page.tsx": "3820b9f548b247907be8b8692d37ae35eabdaa3a79ea2ed2e5135bb01fe23652",
+        "src/components/admin/AdminUsersTable.tsx": "8b7ac8ae500c083257574641e0765b0915259d8d1c2332dba65f8be087046c99",
+        "src/components/dashboard/DashboardPageHeader.tsx": "fe77a8b2c4f147e439506287277024d83a7e55c6382067a2196a873d198c7e4e",
+        "src/components/admin/RoleSelect.tsx": "642ccb64545133d2bb9e7fb59be2d122a0560337584023a4c201f683c387986a",
+        "src/components/admin/PartnerActivationButton.tsx": "17d2beabb371de33c950130fc5321f76741b1af78b419f6daf5274ce12b96a97",
+        "src/components/admin/DeleteUserButton.tsx": "3e4e5e94b1c5821ab9563a710ffc36536ec07864e0a3e0eef953c884e6bcacb4",
+        "src/lib/admin.ts": "ce4d677ee37c36e051658f49fe1244bb049ef573924f3dd05e8105293d7198eb",
+        "src/app/(app)/layout.tsx": "0096b1d5fcfb256cb7c09954a82f8ceae2f9fef8fae30668585ca1a6d01f0675",
+        "src/components/dashboard/AppShell.tsx": "27727e859d480e6fccfa55d3b240e6d7f0ae0456fc52ace6c6cb3006fb78ac2c",
+        "src/components/dashboard/DashboardNav.tsx": "8ddbbd07fb323c9ee60e5685f007d6ceb999cb68f5076cf1fe28c5f07f987a73",
+        "src/components/dashboard/MobileDashboardMenu.tsx": "d8c22e73c4c2f7d2882c51c6e3d0e4eb19668de62f63be1d2605aa784a5790af",
+        "src/components/Logo.tsx": "073c062cb0d022c9f5a1f78c79af6570143f03a8d6908c3268f79cb4370d6e2d",
+        "src/components/ui/Avatar.tsx": "e3af6ae6a7249c7f4ea61cb69e044c74fc27240af9ee5e9e645e7712f78a8214",
+        "src/components/ui/Badge.tsx": "aaa6074f7e159cb71056bb61ae95cafc3345f353db12af8d399d55e31dc20c88"
+      },
+      "components": [
+        {
+          "name": "AppShell",
+          "id": "51496e41-e380-408f-b0d8-0fd066d3f389",
+          "sourcePath": "src/components/dashboard/AppShell.tsx",
+          "logoAssetKey": "public-bunal-logo-v2-wordmark.png"
+        }
+      ],
+      "drafts": {
+        "d625bf4d-5848-49bc-9a01-4b9cf4c14757": {
+          "title": "Bunal.club User Management Dashboard",
+          "visualDirection": "pixel-faithful baseline of the current owner Manage Users page",
+          "currentVersion": 1
+        },
+        "ffa4e317-9e8f-402f-af98-5cbb2b1a5404": {
+          "title": "Profile-forward Manage Users Directory",
+          "visualDirection": "roomier profile-led user directory with first-class trainer capability and status, richer filtering, and stacked responsive user cards",
+          "parentDraftId": "d625bf4d-5848-49bc-9a01-4b9cf4c14757",
+          "currentVersion": 1
+        },
+        "f1f2eb11-07c9-4111-95a1-eb2d818021f4": {
+          "title": "Compact Owner User Operations — Bunal.club",
+          "visualDirection": "dense professional admin table with trainer subset filter, combined identity and activity columns, explicit trainer status, and mobile user cards",
+          "parentDraftId": "d625bf4d-5848-49bc-9a01-4b9cf4c14757",
+          "currentVersion": 1
+        }
+      },
+      "updatedAt": "2026-08-24T17:00:34+08:00"
     },
     "/players/[username]": {
       "targetKind": "existing-ui",

@@ -32,6 +32,18 @@ async function check() {
       role: "PLAYER" as const,
     })),
   });
+  const trainerUser = await prisma.user.findUniqueOrThrow({
+    where: { email: `${EMAIL_PREFIX}1@example.test` },
+    select: { id: true },
+  });
+  await prisma.trainerProfile.create({
+    data: {
+      userId: trainerUser.id,
+      status: "PENDING",
+      sports: ["pickleball"],
+      specialties: ["beginner coaching"],
+    },
+  });
 
   stubRequestContext(admin, { stubAdminModule: false });
   const { ADMIN_USERS_PAGE_SIZE, listUsers } = await import("@/lib/admin");
@@ -58,6 +70,18 @@ async function check() {
   ok(
     "role filters are applied before pagination",
     players.total === 23 && players.items.every((user) => user.role === "PLAYER")
+  );
+  const trainers = await listUsers({
+    query: EMAIL_PREFIX,
+    trainerOnly: true,
+    trainerStatus: "PENDING",
+    page: 1,
+  });
+  ok(
+    "trainer capability and status filters are exposed in user management",
+    trainers.total === 1 &&
+      trainers.items[0]?.trainerStatus === "PENDING" &&
+      trainers.items[0]?.role === "PLAYER"
   );
   const searched = await listUsers({ query: "Pagination Admin", page: 1 });
   ok(

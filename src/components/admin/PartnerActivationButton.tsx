@@ -23,7 +23,7 @@ export function PartnerActivationButton({
             ? "The partner must submit the application for review first"
             : undefined
         }
-        className={`rounded-md px-2 py-1 text-xs font-semibold ${
+        className={`min-h-9 rounded-lg px-3 text-xs font-semibold ${
           disabled
             ? "cursor-not-allowed bg-gray-100 text-gray-400"
             : active

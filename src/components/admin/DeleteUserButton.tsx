@@ -39,7 +39,7 @@ export function DeleteUserButton({
         type="submit"
         disabled={pending || Boolean(blockedReason)}
         title={blockedReason ?? undefined}
-        className="rounded-md px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent"
+        className="min-h-9 rounded-lg px-3 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent"
       >
         {pending ? "Deleting…" : "Delete"}
       </button>

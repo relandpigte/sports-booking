@@ -4,7 +4,10 @@ import type { NextRequest } from "next/server";
 import { expireBookingHolds } from "@/lib/booking-payments";
 import { cleanupFacebookMessengerEvents } from "@/lib/facebook-messenger";
 import { cleanupExpiredSecurityRows } from "@/lib/security-maintenance";
-import { notifyPartnersOfOverdueServiceFees } from "@/lib/service-fee-notifications";
+import {
+  notifyPartnersOfOverdueServiceFees,
+  notifyTrainersOfOverdueServiceFees,
+} from "@/lib/service-fee-notifications";
 import { reconcileServiceFeeCheckouts } from "@/lib/service-fee-payments";
 import { cleanupStaleOpenPlaySessions } from "@/lib/open-play-maintenance";
 import { sendTrainerSessionReminders, sweepTrainerSessions } from "@/lib/trainers";
@@ -48,12 +51,13 @@ async function runSweep(request: NextRequest) {
   // Reconcile provider payments first so a paid checkout whose webhook was
   // delayed cannot receive an incorrect overdue reminder in this same run.
   const serviceFeeCheckouts = await reconcileServiceFeeCheckouts();
-  const [result, security, messengerEvents, serviceFeeNotifications, bunalQ, trainerSessions, trainerReminders] =
+  const [result, security, messengerEvents, serviceFeeNotifications, trainerServiceFeeNotifications, bunalQ, trainerSessions, trainerReminders] =
     await Promise.all([
       expireBookingHolds(),
       cleanupExpiredSecurityRows(),
       cleanupFacebookMessengerEvents(),
       notifyPartnersOfOverdueServiceFees(),
+      notifyTrainersOfOverdueServiceFees(),
       cleanupStaleOpenPlaySessions(),
       sweepTrainerSessions(),
       sendTrainerSessionReminders(),
@@ -64,6 +68,7 @@ async function runSweep(request: NextRequest) {
     security,
     messengerEvents,
     serviceFeeNotifications,
+    trainerServiceFeeNotifications,
     serviceFeeCheckouts,
     bunalQ,
     trainerSessions,

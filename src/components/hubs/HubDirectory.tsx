@@ -125,6 +125,7 @@ export function HubDirectory({
       : [...hubs];
 
     return filtered.sort((a, b) => {
+      if (a.verified !== b.verified) return a.verified ? -1 : 1;
       if (sort === "price") return startingRate(a) - startingRate(b);
       if (sort === "newest") {
         return Date.parse(b.createdAt) - Date.parse(a.createdAt);

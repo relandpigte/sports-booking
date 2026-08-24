@@ -159,12 +159,12 @@ export type ServiceFeeBalance = {
   enforcementAt: Date | null;
 };
 
-type ServiceFeeLedgerEntry = {
+export type ServiceFeeLedgerEntry = {
   amount: Prisma.Decimal | number;
   createdAt: Date;
 };
 
-function serviceFeeBalanceFromLedger({
+export function serviceFeeBalanceFromLedger({
   earned,
   overdueBase,
   paid,

@@ -30,7 +30,7 @@ type MobileMenuItem = {
 
 const playerItems: MobileMenuItem[] = [
   { href: "/dashboard/player", label: "Home", icon: "home", exact: true },
-  { href: "/hubs", label: "Courts", icon: "map" },
+  { href: "/hubs", label: "Find Courts", icon: "map" },
   { href: "/events", label: "Events", icon: "trophy" },
   { href: "/trainers", label: "Find Trainers", icon: "account" },
   { href: "/dashboard/trainer", label: "Trainer Tools", icon: "account" },

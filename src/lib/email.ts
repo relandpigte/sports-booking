@@ -324,7 +324,10 @@ export async function sendServiceFeeOverdueEmail(
     html: content.html,
     text: content.text,
     idempotencyKey: input.idempotencyKey,
-    category: "partner-service-fee-overdue",
+    category:
+      input.accountType === "TRAINER"
+        ? "trainer-service-fee-overdue"
+        : "partner-service-fee-overdue",
     description: "Service-fee overdue email delivery",
   });
 }

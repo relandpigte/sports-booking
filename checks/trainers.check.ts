@@ -4,7 +4,7 @@
 import { PrismaClient } from "@prisma/client";
 
 import { ok, run, stubRequestContext } from "./harness";
-import { manilaInstant } from "@/lib/time";
+import { addDaysTo, manilaInstant } from "@/lib/time";
 
 const prisma = new PrismaClient();
 const EMAIL_PREFIX = "check-trainers-";
@@ -16,9 +16,10 @@ async function cleanup() {
 
 async function check() {
   await cleanup();
-  const [trainerUser, player] = await Promise.all([
+  const [trainerUser, player, admin] = await Promise.all([
     prisma.user.create({ data: { role: "PLAYER", email: `${EMAIL_PREFIX}coach@example.com`, name: "Coach Check", playerName: "Coach Check", username: "coach-check", phone: "+639171234567", image: "https://example.com/coach.jpg" }, select: { id: true, email: true, role: true } }),
     prisma.user.create({ data: { role: "PLAYER", email: `${EMAIL_PREFIX}player@example.com`, name: "Player Check", playerName: "Player Check" }, select: { id: true, email: true, role: true } }),
+    prisma.user.create({ data: { role: "ADMIN", email: `${EMAIL_PREFIX}admin@example.com`, name: "Admin Check" }, select: { id: true, email: true, role: true } }),
   ]);
   const method = await prisma.trainerManualPaymentMethod.create({ data: { trainerId: trainerUser.id, network: "GCASH", label: "Coach GCash", accountIdentifier: "09171234567" } });
   const profile = await prisma.trainerProfile.create({
@@ -230,6 +231,57 @@ async function check() {
       (await prisma.trainerManualPaymentMethod.findUnique({
         where: { id: secondMethod!.id },
       })) !== null
+  );
+
+  const trainerFeeEntry = await prisma.trainerServiceFeeEntry.findFirstOrThrow({
+    where: { trainerId: trainerUser.id, type: "CHARGE" },
+  });
+  stubRequestContext(admin);
+  const trainerFees = await import("@/lib/trainer-service-fees");
+  const [adminBalances, adminTransactions] = await Promise.all([
+    trainerFees.listAdminTrainerServiceFeeBreakdown(),
+    trainerFees.listAdminTrainerServiceFeeTransactions(),
+  ]);
+  ok(
+    "admin trainer settlements include fee balances before remittance",
+    adminBalances.some(
+      (item) =>
+        item.trainerId === trainerUser.id && item.balance.amountDue === 15
+    )
+  );
+  ok(
+    "admin trainer settlements expose the confirmed payment transaction",
+    adminTransactions.some(
+      (item) =>
+        item.trainerId === trainerUser.id &&
+        item.id === trainerFeeEntry.id &&
+        item.amount === 15
+    )
+  );
+  await prisma.trainerServiceFeeEntry.update({
+    where: { id: trainerFeeEntry.id },
+    data: { createdAt: addDaysTo(new Date(), -30) },
+  });
+  ok(
+    "an unpaid trainer fee pauses public discovery after the deadline and grace",
+    (await trainerFees.isTrainerServiceFeeOverdue(trainerUser.id)) &&
+      (await trainers.getPublicTrainer("coach-check")) === null
+  );
+  await prisma.trainerServiceFeeSettlement.create({
+    data: {
+      trainerId: trainerUser.id,
+      periodStart: trainerFeeEntry.createdAt,
+      periodEnd: new Date(),
+      amount: trainerFeeEntry.amount,
+      status: "PAID",
+      paymentReference: "CHECK-TRAINER-SETTLED",
+      reviewedAt: new Date(),
+    },
+  });
+  ok(
+    "an approved trainer settlement automatically restores public discovery",
+    !(await trainerFees.isTrainerServiceFeeOverdue(trainerUser.id)) &&
+      (await trainers.getPublicTrainer("coach-check"))?.id === profile.id
   );
 
   await prisma.user.update({ where: { id: trainerUser.id }, data: { privateProfile: true } });

@@ -18,6 +18,10 @@ import {
   listAdminServiceFeeSettlements,
   listAdminServiceFeeWaivers,
 } from "@/lib/service-fees";
+import {
+  listAdminTrainerServiceFeeBreakdown,
+  listAdminTrainerServiceFeeTransactions,
+} from "@/lib/trainer-service-fees";
 
 export const metadata: Metadata = {
   title: "Service Fee Settlements — Bunal.club",
@@ -34,25 +38,25 @@ type SettlementView = "partners" | "trainers";
 
 function SettlementHeader({
   view,
-  partnerPendingCount,
-  trainerPendingCount,
+  partnerCount,
+  trainerCount,
 }: {
   view: SettlementView;
-  partnerPendingCount: number;
-  trainerPendingCount: number;
+  partnerCount: number;
+  trainerCount: number;
 }) {
   const tabs = [
     {
       id: "partners" as const,
       label: "Venue partners",
       href: "/dashboard/admin/settlements",
-      pendingCount: partnerPendingCount,
+      count: partnerCount,
     },
     {
       id: "trainers" as const,
       label: "Trainers",
       href: "/dashboard/admin/settlements?view=trainers",
-      pendingCount: trainerPendingCount,
+      count: trainerCount,
     },
   ];
 
@@ -88,12 +92,12 @@ function SettlementHeader({
               {tab.label}
               <span
                 className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-xs ${
-                  tab.pendingCount > 0
-                    ? "bg-amber-50 text-amber-700"
+                  active
+                    ? "bg-primary-soft text-primary"
                     : "bg-gray-100 text-gray-500"
                 }`}
               >
-                {tab.pendingCount}
+                {tab.count}
               </span>
             </Link>
           );
@@ -117,7 +121,13 @@ export default async function AdminSettlementsPage({
     requestedView === "trainers" ? "trainers" : "partners";
 
   if (view === "trainers") {
-    const [trainerSettlements, partnerPendingCount] = await Promise.all([
+    const [
+      trainerSettlements,
+      trainerBalances,
+      trainerTransactions,
+      partnerCount,
+      trainerCount,
+    ] = await Promise.all([
       prisma.trainerServiceFeeSettlement.findMany({
         orderBy: { submittedAt: "desc" },
         take: 100,
@@ -127,7 +137,10 @@ export default async function AdminSettlementsPage({
           },
         },
       }),
-      prisma.serviceFeeSettlement.count({ where: { status: "SUBMITTED" } }),
+      listAdminTrainerServiceFeeBreakdown(),
+      listAdminTrainerServiceFeeTransactions(),
+      prisma.user.count({ where: { role: "PARTNER" } }),
+      prisma.trainerProfile.count({ where: { status: "ACTIVE" } }),
     ]);
     const settlements: AdminTrainerServiceFeeSettlementView[] =
       trainerSettlements.map(({ trainer, amount, ...settlement }) => ({
@@ -137,38 +150,36 @@ export default async function AdminSettlementsPage({
           trainer.playerName ?? trainer.name ?? trainer.email ?? "Trainer",
         trainerEmail: trainer.email,
       }));
-    const trainerPendingCount = settlements.filter(
-      (settlement) => settlement.status === "SUBMITTED"
-    ).length;
-
     return (
       <div>
         <SettlementHeader
           view={view}
-          partnerPendingCount={partnerPendingCount}
-          trainerPendingCount={trainerPendingCount}
+          partnerCount={partnerCount}
+          trainerCount={trainerCount}
         />
-        <TrainerServiceFeeSettlements settlements={settlements} />
+        <TrainerServiceFeeSettlements
+          balances={trainerBalances}
+          transactions={trainerTransactions}
+          settlements={settlements}
+        />
       </div>
     );
   }
 
-  const [{ submitted, history }, partners, waivers, trainerPendingCount] =
+  const [{ submitted, history }, partners, waivers, trainerCount] =
     await Promise.all([
       listAdminServiceFeeSettlements(),
       listAdminPartnerServiceFeeBreakdown(),
       listAdminServiceFeeWaivers(),
-      prisma.trainerServiceFeeSettlement.count({
-        where: { status: "SUBMITTED" },
-      }),
+      prisma.trainerProfile.count({ where: { status: "ACTIVE" } }),
     ]);
 
   return (
     <div>
       <SettlementHeader
         view={view}
-        partnerPendingCount={submitted.length}
-        trainerPendingCount={trainerPendingCount}
+        partnerCount={partners.length}
+        trainerCount={trainerCount}
       />
 
       <PartnerServiceFeeBreakdown partners={partners} />

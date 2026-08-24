@@ -9,6 +9,7 @@ import { addDaysTo } from "@/lib/time";
 
 const prisma = new PrismaClient();
 const EMAIL = "check-overdue-settlement@example.test";
+const TRAINER_EMAIL = "check-overdue-trainer@example.test";
 const NOW = new Date("2026-07-30T04:00:00Z");
 
 type CapturedRequest = {
@@ -18,7 +19,9 @@ type CapturedRequest = {
 };
 
 async function cleanup() {
-  await prisma.user.deleteMany({ where: { email: EMAIL } });
+  await prisma.user.deleteMany({
+    where: { email: { in: [EMAIL, TRAINER_EMAIL] } },
+  });
 }
 
 async function check() {
@@ -168,6 +171,106 @@ async function check() {
     ok(
       "submitted settlement proof stops overdue reminders",
       covered.sent === 0 && requests.length === 5
+    );
+
+    const trainer = await prisma.user.create({
+      data: {
+        role: "PLAYER",
+        name: "Trainer <Coach>",
+        playerName: "Trainer <Coach>",
+        email: TRAINER_EMAIL,
+        trainerProfile: {
+          create: {
+            status: "ACTIVE",
+            sports: ["pickleball"],
+            specialties: [],
+            activatedAt: new Date("2026-07-01T04:00:00Z"),
+          },
+        },
+      },
+      select: { id: true },
+    });
+    const session = await prisma.trainerSession.create({
+      data: {
+        publicId: "check-overdue-trainer-session",
+        trainerProfileId: (
+          await prisma.trainerProfile.findUniqueOrThrow({
+            where: { userId: trainer.id },
+            select: { id: true },
+          })
+        ).id,
+        playerId: player.id,
+        date: "2026-07-10",
+        startHour: 9,
+        endHour: 10,
+        hours: 1,
+        startsAt: new Date("2026-07-10T01:00:00Z"),
+        endsAt: new Date("2026-07-10T02:00:00Z"),
+        status: "CONFIRMED",
+        hourlyRate: 1000,
+        trainerAmount: 1000,
+        platformFee: 30,
+        totalAmount: 1030,
+        requestExpiresAt: new Date("2026-07-10T00:00:00Z"),
+        confirmedAt: new Date("2026-07-10T04:00:00Z"),
+      },
+      select: { id: true },
+    });
+    const trainerPayment = await prisma.trainerPayment.create({
+      data: {
+        trainerSessionId: session.id,
+        trainerId: trainer.id,
+        playerId: player.id,
+        amount: 1030,
+        trainerAmount: 1000,
+        platformFee: 30,
+        method: "GCASH",
+        status: "SUCCEEDED",
+        expiresAt: new Date("2026-07-10T04:15:00Z"),
+        provider: "manual",
+        paidAt: new Date("2026-07-10T04:00:00Z"),
+      },
+      select: { id: true },
+    });
+    await prisma.trainerServiceFeeEntry.create({
+      data: {
+        trainerId: trainer.id,
+        trainerPaymentId: trainerPayment.id,
+        type: "CHARGE",
+        amount: 30,
+        createdAt: new Date("2026-07-10T04:00:00Z"),
+      },
+    });
+
+    const { notifyTrainersOfOverdueServiceFees } = await import(
+      "@/lib/service-fee-notifications"
+    );
+    const trainerGrace = await notifyTrainersOfOverdueServiceFees(
+      new Date("2026-07-21T04:00:00Z"),
+      { trainerIds: [trainer.id] }
+    );
+    const trainerBlocked = await notifyTrainersOfOverdueServiceFees(NOW, {
+      trainerIds: [trainer.id],
+    });
+    ok(
+      "trainer reminders explain the grace-period discovery deadline",
+      trainerGrace.sent === 1 &&
+        String(requests[5]?.body.html).includes(
+          "trainer profile remains available"
+        )
+    );
+    ok(
+      "overdue trainers receive the trainer payment action and pause copy",
+      trainerBlocked.sent === 1 &&
+        String(requests[6]?.body.html).includes(
+          "public trainer visibility are paused"
+        ) &&
+        String(requests[6]?.body.html).includes(
+          "/dashboard/trainer/payments"
+        ) &&
+        JSON.stringify(requests[6]?.body.tags).includes(
+          "trainer-service-fee-overdue"
+        )
     );
   } finally {
     globalThis.fetch = originalFetch;

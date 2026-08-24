@@ -6,6 +6,7 @@ import { TrainerPaymentSettings } from "@/components/trainers/TrainerPaymentSett
 import { TrainerTabs } from "@/components/trainers/TrainerTabs";
 import { getCurrentUser } from "@/lib/dal";
 import { prisma } from "@/lib/db";
+import { calculateTrainerServiceFeeBalance } from "@/lib/trainer-service-fees";
 import { getTrainerProfileForUser } from "@/lib/trainers";
 
 export const metadata: Metadata = { title: "Trainer Payments — Bunal.club" };
@@ -15,10 +16,8 @@ export default async function TrainerPaymentsPage() {
   if (!user || user.role !== "PLAYER") redirect("/dashboard");
   const profile = await getTrainerProfileForUser(user.id);
   if (!profile) redirect("/dashboard/trainer");
-  const [entries, paid, pending, settlements] = await Promise.all([
-    prisma.trainerServiceFeeEntry.aggregate({ where: { trainerId: user.id }, _sum: { amount: true } }),
-    prisma.trainerServiceFeeSettlement.aggregate({ where: { trainerId: user.id, status: "PAID" }, _sum: { amount: true } }),
-    prisma.trainerServiceFeeSettlement.aggregate({ where: { trainerId: user.id, status: "SUBMITTED" }, _sum: { amount: true } }),
+  const [balance, settlements] = await Promise.all([
+    calculateTrainerServiceFeeBalance(prisma, user.id),
     prisma.trainerServiceFeeSettlement.findMany({
       where: { trainerId: user.id },
       orderBy: { submittedAt: "desc" },
@@ -26,10 +25,6 @@ export default async function TrainerPaymentsPage() {
       select: { id: true, amount: true, status: true, submittedAt: true },
     }),
   ]);
-  const accrued = Number(entries._sum.amount ?? 0);
-  const paidAmount = Number(paid._sum.amount ?? 0);
-  const pendingAmount = Number(pending._sum.amount ?? 0);
-  const due = Math.max(0, Math.round((accrued - paidAmount) * 100) / 100);
   const gateway = profile.user.trainerGateway
     ? { accountLabel: profile.user.trainerGateway.accountLabel, disconnectedAt: profile.user.trainerGateway.disconnectedAt }
     : null;
@@ -67,10 +62,15 @@ export default async function TrainerPaymentsPage() {
         methods={methods}
         settlementInstructions={process.env.SERVICE_FEE_PAYMENT_INSTRUCTIONS?.trim() || "Transfer the amount using the payment details provided by the admin, then enter the reference and upload the receipt."}
         serviceFees={{
-          accrued,
-          paid: paidAmount,
-          pending: pendingAmount,
-          due,
+          accrued: balance.earned,
+          paid: balance.paid,
+          pending: balance.pending,
+          due: balance.amountDue,
+          overdue: balance.overdueAmount,
+          blocked: balance.blocked,
+          inEnforcementGrace: balance.inEnforcementGrace,
+          dueAt: balance.nextDueAt?.toISOString() ?? null,
+          enforcementAt: balance.enforcementAt?.toISOString() ?? null,
           settlements: settlements.map((item) => ({ ...item, amount: Number(item.amount), submittedAt: item.submittedAt.toISOString() })),
         }}
       />

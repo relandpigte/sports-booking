@@ -58,6 +58,11 @@ type TrainerServiceFeeView = {
   pending: number;
   paid: number;
   due: number;
+  overdue: number;
+  blocked: boolean;
+  inEnforcementGrace: boolean;
+  dueAt: string | null;
+  enforcementAt: string | null;
   settlements: Array<{
     id: string;
     amount: number;
@@ -102,11 +107,15 @@ export function TrainerPaymentSettings({
   const checkoutReady =
     mode === "AUTOMATIC" ? connected : activeManualMethods > 0;
   const settlementStatus =
-    serviceFees.pending > 0
-      ? { value: "Under review", tone: "warning" as const }
-      : serviceFees.due > 0
-        ? { value: "Payment due", tone: "warning" as const }
-        : { value: "Current", tone: "success" as const };
+    serviceFees.blocked
+      ? { value: "Requests paused", tone: "warning" as const }
+      : serviceFees.inEnforcementGrace
+        ? { value: "3-day grace", tone: "warning" as const }
+        : serviceFees.pending > 0
+          ? { value: "Under review", tone: "warning" as const }
+          : serviceFees.due > 0
+            ? { value: "Payment due", tone: "warning" as const }
+            : { value: "Current", tone: "success" as const };
 
   return (
     <PaymentWorkspace
@@ -147,11 +156,15 @@ export function TrainerPaymentSettings({
           label: "Settlement status",
           value: settlementStatus.value,
           detail:
-            serviceFees.pending > 0
-              ? "Payment proof awaiting review"
-              : serviceFees.due > 0
-                ? "Submit settlement payment"
-                : "No payment under review",
+            serviceFees.blocked
+              ? "Settle the overdue balance to resume requests"
+              : serviceFees.inEnforcementGrace && serviceFees.enforcementAt
+                ? `Requests pause ${formatSettlementDate(serviceFees.enforcementAt)}`
+                : serviceFees.pending > 0
+                  ? "Payment proof awaiting review"
+                  : serviceFees.due > 0
+                    ? "Submit settlement payment"
+                    : "No payment under review",
           tone: settlementStatus.tone,
         },
       ]}
@@ -994,6 +1007,33 @@ function TrainerSettlementPanel({
         <SettlementMetric label="Settled" value={serviceFees.paid} />
       </dl>
 
+      {serviceFees.due > 0 && serviceFees.dueAt && (
+        <div
+          className={`mt-5 rounded-xl border p-4 text-sm ${
+            serviceFees.blocked
+              ? "border-red-200 bg-red-50 text-red-700"
+              : serviceFees.inEnforcementGrace
+                ? "border-amber-200 bg-amber-50 text-amber-800"
+                : "border-slate-200 bg-slate-50 text-slate-600"
+          }`}
+        >
+          <p className="font-bold">
+            {serviceFees.blocked
+              ? "New trainer-session requests are paused"
+              : serviceFees.inEnforcementGrace
+                ? "Your balance is in the 3-day grace period"
+                : `Payment is due ${formatSettlementDate(serviceFees.dueAt)}`}
+          </p>
+          <p className="mt-1 leading-5">
+            {serviceFees.blocked
+              ? "Your public trainer listing and new requests resume automatically after the settlement is approved."
+              : serviceFees.inEnforcementGrace && serviceFees.enforcementAt
+                ? `Settle by ${formatSettlementDate(serviceFees.enforcementAt)} to keep your public listing and new requests active.`
+                : "You can continue accepting requests until the deadline and the following three-day grace period end."}
+          </p>
+        </div>
+      )}
+
       {serviceFees.due > 0 && serviceFees.pending === 0 && (
         <form action={action} className="mt-5 rounded-xl bg-slate-50 p-4">
           <p className="mb-4 text-xs leading-5 text-slate-600">
@@ -1055,4 +1095,11 @@ function SettlementMetric({ label, value }: { label: string; value: number }) {
       <dd className="mt-1 font-black text-navy">{formatPHP(value)}</dd>
     </div>
   );
+}
+
+function formatSettlementDate(value: string): string {
+  return new Intl.DateTimeFormat("en-PH", {
+    dateStyle: "medium",
+    timeZone: "Asia/Manila",
+  }).format(new Date(value));
 }

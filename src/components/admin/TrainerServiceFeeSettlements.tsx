@@ -3,7 +3,13 @@ import type { ServiceFeeSettlementStatus } from "@prisma/client";
 
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { formatPHP } from "@/lib/currency";
+import type { ServiceFeeStanding } from "@/lib/service-fees";
+import type {
+  AdminTrainerServiceFeeBreakdown,
+  AdminTrainerServiceFeeTransaction,
+} from "@/lib/trainer-service-fees";
 import { reviewTrainerServiceFeeSettlementAction } from "@/lib/trainer-payment-actions";
+import { formatSlotRange } from "@/lib/time";
 
 export type AdminTrainerServiceFeeSettlementView = {
   id: string;
@@ -42,9 +48,25 @@ const statusMeta: Record<
   REJECTED: { label: "Rejected", tone: "danger" },
 };
 
+const standingMeta: Record<
+  ServiceFeeStanding,
+  { label: string; tone: BadgeTone }
+> = {
+  OVERDUE: { label: "Overdue", tone: "danger" },
+  GRACE_PERIOD: { label: "3-day grace", tone: "warn" },
+  UNDER_REVIEW: { label: "Under review", tone: "warn" },
+  DUE_SOON: { label: "Due soon", tone: "warn" },
+  CURRENT: { label: "Current", tone: "success" },
+  NO_BALANCE: { label: "No balance", tone: "neutral" },
+};
+
 export function TrainerServiceFeeSettlements({
+  balances,
+  transactions,
   settlements,
 }: {
+  balances: AdminTrainerServiceFeeBreakdown[];
+  transactions: AdminTrainerServiceFeeTransaction[];
   settlements: AdminTrainerServiceFeeSettlementView[];
 }) {
   const submitted = settlements.filter(
@@ -55,9 +77,17 @@ export function TrainerServiceFeeSettlements({
       settlement.status !== "SUBMITTED" &&
       settlement.status !== "AWAITING_PAYMENT"
   );
-  const trainerCount = new Set(
-    settlements.map((settlement) => settlement.trainerId)
-  ).size;
+  const trainerCount = balances.filter(
+    (trainer) => trainer.trainerStatus === "ACTIVE"
+  ).length;
+  const accrued = balances.reduce(
+    (total, trainer) => total + trainer.balance.earned,
+    0
+  );
+  const outstanding = balances.reduce(
+    (total, trainer) => total + trainer.balance.amountDue,
+    0
+  );
   const underReview = submitted.reduce(
     (total, settlement) => total + settlement.amount,
     0
@@ -65,9 +95,6 @@ export function TrainerServiceFeeSettlements({
   const paid = settlements
     .filter((settlement) => settlement.status === "PAID")
     .reduce((total, settlement) => total + settlement.amount, 0);
-  const rejectedCount = settlements.filter(
-    (settlement) => settlement.status === "REJECTED"
-  ).length;
 
   return (
     <>
@@ -78,8 +105,9 @@ export function TrainerServiceFeeSettlements({
               Trainer settlement status
             </h2>
             <p className="mt-1 max-w-3xl text-sm text-gray-500">
-              Review remittances for Bunal.club&apos;s 3% service fee on paid
-              trainer sessions.
+              Every confirmed trainer payment appears here when its 3% fee is
+              charged. Due balances follow the same weekly deadline and
+              three-day enforcement grace used for venue partners.
             </p>
           </div>
           <p className="text-xs text-gray-400">
@@ -87,11 +115,23 @@ export function TrainerServiceFeeSettlements({
           </p>
         </div>
 
-        <dl className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <dl className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
           <div className="rounded-xl border border-gray-200 bg-white p-4">
             <dt className="text-xs text-gray-500">Trainers</dt>
             <dd className="mt-1 text-xl font-bold text-gray-900">
               {trainerCount}
+            </dd>
+          </div>
+          <div className="rounded-xl border border-gray-200 bg-white p-4">
+            <dt className="text-xs text-gray-500">Accrued</dt>
+            <dd className="mt-1 text-xl font-bold text-gray-900">
+              {formatPHP(accrued)}
+            </dd>
+          </div>
+          <div className="rounded-xl border border-gray-200 bg-white p-4">
+            <dt className="text-xs text-gray-500">Outstanding</dt>
+            <dd className="mt-1 text-xl font-bold text-gray-900">
+              {formatPHP(outstanding)}
             </dd>
           </div>
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
@@ -110,13 +150,151 @@ export function TrainerServiceFeeSettlements({
               {formatPHP(paid)}
             </dd>
           </div>
-          <div className="rounded-xl border border-gray-200 bg-white p-4">
-            <dt className="text-xs text-gray-500">Rejected</dt>
-            <dd className="mt-1 text-xl font-bold text-gray-900">
-              {rejectedCount}
-            </dd>
-          </div>
         </dl>
+      </section>
+
+      <section className="mt-8">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">
+            Trainer fee balances
+          </h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Trainers remain discoverable through their due date and three-day
+            grace period. New session requests pause after enforcement starts.
+          </p>
+        </div>
+        {balances.length ? (
+          <div className="mt-3 overflow-x-auto rounded-2xl border border-gray-200 bg-white">
+            <table className="w-full min-w-[1120px] text-left text-sm">
+              <thead className="bg-gray-50 text-xs font-medium uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th scope="col" className="px-4 py-3">Trainer</th>
+                  <th scope="col" className="px-4 py-3">Status</th>
+                  <th scope="col" className="px-4 py-3 text-right">Transactions</th>
+                  <th scope="col" className="px-4 py-3 text-right">Accrued</th>
+                  <th scope="col" className="px-4 py-3 text-right">Settled</th>
+                  <th scope="col" className="px-4 py-3 text-right">Outstanding</th>
+                  <th scope="col" className="px-4 py-3 text-right">Under review</th>
+                  <th scope="col" className="px-4 py-3 text-right">Overdue</th>
+                  <th scope="col" className="px-4 py-3">Next deadline</th>
+                  <th scope="col" className="px-4 py-3">Last settled</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {balances.map((trainer) => {
+                  const meta = standingMeta[trainer.standing];
+                  return (
+                    <tr key={trainer.trainerId} className="align-top">
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-gray-900">{trainer.trainerName}</p>
+                        <p className="mt-0.5 text-xs text-gray-500">{trainer.trainerEmail}</p>
+                        {trainer.trainerStatus !== "ACTIVE" && (
+                          <Badge tone="neutral" className="mt-1.5">
+                            {trainer.trainerStatus.toLowerCase()}
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="px-4 py-3"><Badge tone={meta.tone}>{meta.label}</Badge></td>
+                      <td className="px-4 py-3 text-right text-gray-700">{trainer.transactionCount}</td>
+                      <td className="px-4 py-3 text-right font-medium text-gray-900">{formatPHP(trainer.balance.earned)}</td>
+                      <td className="px-4 py-3 text-right text-gray-700">{formatPHP(trainer.balance.paid)}</td>
+                      <td className="px-4 py-3 text-right font-medium text-gray-900">{formatPHP(trainer.balance.amountDue)}</td>
+                      <td className="px-4 py-3 text-right text-amber-700">{formatPHP(trainer.balance.pending)}</td>
+                      <td className="px-4 py-3 text-right font-medium text-red-600">{formatPHP(trainer.balance.overdueAmount)}</td>
+                      <td className="px-4 py-3 text-gray-700">
+                        {trainer.balance.nextDueAt ? formatDate(trainer.balance.nextDueAt) : "—"}
+                        {trainer.balance.enforcementAt && trainer.balance.amountDue > 0 ? (
+                          <p className="mt-0.5 text-xs text-gray-500">
+                            Pause {formatDate(trainer.balance.enforcementAt)}
+                          </p>
+                        ) : null}
+                      </td>
+                      <td className="px-4 py-3 text-gray-700">
+                        {trainer.lastPaidAt ? (
+                          <>
+                            <p>{formatDate(trainer.lastPaidAt)}</p>
+                            <p className="mt-0.5 text-xs text-gray-500">{formatPHP(trainer.lastPaidAmount)}</p>
+                          </>
+                        ) : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="mt-3 rounded-2xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">
+            No approved trainers or trainer fee activity yet.
+          </p>
+        )}
+      </section>
+
+      <section className="mt-8">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">
+            Recent trainer fee transactions
+          </h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Charge and refund entries created from confirmed trainer-session payments.
+          </p>
+        </div>
+        {transactions.length ? (
+          <div className="mt-3 overflow-x-auto rounded-2xl border border-gray-200 bg-white">
+            <table className="w-full min-w-[980px] text-left text-sm">
+              <thead className="bg-gray-50 text-xs font-medium uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th scope="col" className="px-4 py-3">Trainer</th>
+                  <th scope="col" className="px-4 py-3">Player</th>
+                  <th scope="col" className="px-4 py-3">Session</th>
+                  <th scope="col" className="px-4 py-3 text-right">Player payment</th>
+                  <th scope="col" className="px-4 py-3">Entry</th>
+                  <th scope="col" className="px-4 py-3 text-right">Fee</th>
+                  <th scope="col" className="px-4 py-3">Payment reference</th>
+                  <th scope="col" className="px-4 py-3">Recorded</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {transactions.map((transaction) => (
+                  <tr key={transaction.id} className="align-top">
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-gray-900">{transaction.trainerName}</p>
+                      <p className="mt-0.5 text-xs text-gray-500">{transaction.trainerEmail}</p>
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">{transaction.playerName}</td>
+                    <td className="px-4 py-3 text-gray-700">
+                      <p>{transaction.sessionDate}</p>
+                      <p className="mt-0.5 text-xs text-gray-500">
+                        {formatSlotRange(transaction.startHour, transaction.endHour)} · {transaction.sessionPublicId}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <p className="font-semibold text-gray-900">{formatPHP(transaction.paymentAmount)}</p>
+                      <p className="mt-0.5 text-xs text-gray-500">
+                        Trainer {formatPHP(transaction.trainerAmount)} · {transaction.collectionMode.toLowerCase()}
+                      </p>
+                      <p className="mt-0.5 text-xs text-gray-500">
+                        {transaction.paymentStatus.toLowerCase()}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge tone={transaction.type === "REFUND" ? "neutral" : "primary"}>{transaction.type}</Badge>
+                    </td>
+                    <td className={`px-4 py-3 text-right font-semibold ${transaction.amount < 0 ? "text-red-600" : "text-gray-900"}`}>
+                      {formatPHP(transaction.amount)}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-600">{transaction.paymentReference ?? "—"}</td>
+                    <td className="px-4 py-3 text-gray-700">{formatDateTime(transaction.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="mt-3 rounded-2xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">
+            No trainer fee transactions yet.
+          </p>
+        )}
       </section>
 
       <section className="mt-8">

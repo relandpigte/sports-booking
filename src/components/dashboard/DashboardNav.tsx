@@ -45,6 +45,17 @@ const items: Item[] = [
     ),
   },
   {
+    href: "/hubs",
+    label: "Find Courts",
+    playerOnly: true,
+    icon: (
+      <svg {...iconProps}>
+        <path d="M3 21h18M5 21V8l7-4 7 4v13" />
+        <path d="M9 21v-6h6v6" />
+      </svg>
+    ),
+  },
+  {
     href: "/dashboard/hubs",
     label: "My Hubs",
     partnerOnly: true,

@@ -365,7 +365,7 @@
         ".superdesign/design-system.md": "fcf6b4f8a2c1a03741249c2e5e944fcaec212113f2cb8269270799237c363ef1",
         ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
         "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
-        "src/app/(app)/dashboard/admin/settlements/page.tsx": "50b81f1f03d1831086c6c67f4a746d375a8483a2806b7917cb9e360e1d9f735c",
+        "src/app/(app)/dashboard/admin/settlements/page.tsx": "5db613e65e712c5bb8c5b791aabef9c2ae4325dad3c77f37e31f422550da745d",
         "src/components/admin/TrainerServiceFeeSettlements.tsx": "d6ea961b90169488afcf099eba431d60372c536c8224336360dcbc75758dd786",
         "src/components/admin/PartnerServiceFeeBreakdown.tsx": "33ab3c126bf8f87ad3e2806c0b92c9eb57d53080bcfd675dcd57dcdffa53bcfc",
         "src/components/admin/ServiceFeeWaiverControls.tsx": "76bc666e5f2fea237adedfbbfa23d6d3e6f1ae6e3b7ef5f69666dba56ac33ae9",
@@ -385,11 +385,11 @@
       "drafts": {
         "f209cd09-e131-4422-b04f-358fb68e903d": {
           "title": "Admin Settlements — Partner and Trainer Views",
-          "visualDirection": "separate venue-partner and trainer settlement tabs with a trainer-specific review queue, totals, receipt review, and audit history",
-          "currentVersion": 2
+          "visualDirection": "separate venue-partner and trainer settlement tabs with trainer fee balances, source transaction history, remittance review, and audit history",
+          "currentVersion": 3
         }
       },
-      "updatedAt": "2026-08-22T11:47:00+08:00"
+      "updatedAt": "2026-08-24T15:13:00+08:00"
     }
   }
 }

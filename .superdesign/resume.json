@@ -1,6 +1,81 @@
 {
   "schemaVersion": 1,
   "targets": {
+    "/dashboard/admin/trainers": {
+      "targetKind": "existing-ui",
+      "projectId": "df2fe063-c6da-4978-8695-40c03895ddc6",
+      "baselineDraftId": "db37678d-6c6b-4b06-9d35-1d217ed3c421",
+      "activeDraftId": "036cb7da-811e-4595-a035-b9e7403ae694",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "public-bunal-logo-v2-wordmark.png"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "public-bunal-logo-v2-wordmark.png",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/e4c8e4e6-58c1-4931-a0f3-9eae8122ee8e/brand-assets/public-bunal-logo-v2-wordmark.png/bunal-logo-v2-wordmark.png",
+          "sourcePath": "public/bunal-logo-v2-wordmark.png"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "src/app/globals.css",
+        "src/app/(app)/layout.tsx",
+        "src/app/(app)/dashboard/admin/trainers/page.tsx",
+        "src/components/dashboard/AppShell.tsx",
+        "src/components/dashboard/DashboardNav.tsx",
+        "src/components/dashboard/MobileDashboardMenu.tsx",
+        "src/components/dashboard/DashboardIcon.tsx",
+        "src/components/dashboard/DashboardPageHeader.tsx",
+        "src/components/Logo.tsx",
+        "src/components/ui/Avatar.tsx",
+        "src/components/ui/Badge.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "fcf6b4f8a2c1a03741249c2e5e944fcaec212113f2cb8269270799237c363ef1",
+        ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
+        "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
+        "src/app/(app)/layout.tsx": "0096b1d5fcfb256cb7c09954a82f8ceae2f9fef8fae30668585ca1a6d01f0675",
+        "src/app/(app)/dashboard/admin/trainers/page.tsx": "834ca40fa4dd7551d310ae311ee4aea023bc35d71fad1b28d63ce079742eaca4",
+        "src/components/dashboard/AppShell.tsx": "27727e859d480e6fccfa55d3b240e6d7f0ae0456fc52ace6c6cb3006fb78ac2c",
+        "src/components/dashboard/DashboardNav.tsx": "8ddbbd07fb323c9ee60e5685f007d6ceb999cb68f5076cf1fe28c5f07f987a73",
+        "src/components/dashboard/MobileDashboardMenu.tsx": "d8c22e73c4c2f7d2882c51c6e3d0e4eb19668de62f63be1d2605aa784a5790af",
+        "src/components/dashboard/DashboardIcon.tsx": "75c39b27fb813cbe5b179f6adb69863211d7ed24c52ecaec9b17f1dfb79eb49d",
+        "src/components/dashboard/DashboardPageHeader.tsx": "fe77a8b2c4f147e439506287277024d83a7e55c6382067a2196a873d198c7e4e",
+        "src/components/Logo.tsx": "073c062cb0d022c9f5a1f78c79af6570143f03a8d6908c3268f79cb4370d6e2d",
+        "src/components/ui/Avatar.tsx": "e3af6ae6a7249c7f4ea61cb69e044c74fc27240af9ee5e9e645e7712f78a8214",
+        "src/components/ui/Badge.tsx": "aaa6074f7e159cb71056bb61ae95cafc3345f353db12af8d399d55e31dc20c88"
+      },
+      "components": [
+        {
+          "name": "AppShell",
+          "id": "51496e41-e380-408f-b0d8-0fd066d3f389",
+          "sourcePath": "src/components/dashboard/AppShell.tsx",
+          "logoAssetKey": "public-bunal-logo-v2-wordmark.png"
+        }
+      ],
+      "drafts": {
+        "db37678d-6c6b-4b06-9d35-1d217ed3c421": {
+          "title": "Current Admin Trainer Reviews",
+          "visualDirection": "faithful current UI baseline",
+          "currentVersion": 1
+        },
+        "e2121b6f-6ca4-48a8-951b-6b6403cb7b9c": {
+          "title": "Compact Trainer Review Workspace",
+          "visualDirection": "compact master-detail review workspace",
+          "parentDraftId": "db37678d-6c6b-4b06-9d35-1d217ed3c421",
+          "currentVersion": 1
+        },
+        "036cb7da-811e-4595-a035-b9e7403ae694": {
+          "title": "Compact Trainer Review Queue",
+          "visualDirection": "compact expandable review queue",
+          "parentDraftId": "db37678d-6c6b-4b06-9d35-1d217ed3c421",
+          "currentVersion": 1
+        }
+      },
+      "updatedAt": "2026-08-24T09:55:34Z"
+    },
     "bunalq-console-and-public-board": {
       "targetKind": "existing-ui",
       "projectId": "44a8f1bf-db72-48dc-b4cb-a1cd79c93e01",
@@ -556,6 +631,314 @@
         }
       },
       "updatedAt": "2026-08-24T16:50:15+08:00"
+    },
+    "/dashboard/trainer": {
+      "targetKind": "existing-ui",
+      "projectId": "df2fe063-c6da-4978-8695-40c03895ddc6",
+      "baselineDraftId": "7a0e7f50-eec4-4d0b-82f0-6dd5d292e93a",
+      "activeDraftId": "7a0e7f50-eec4-4d0b-82f0-6dd5d292e93a",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "public-bunal-logo-v2-wordmark.png"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "public-bunal-logo-v2-wordmark.png",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/e4c8e4e6-58c1-4931-a0f3-9eae8122ee8e/brand-assets/public-bunal-logo-v2-wordmark.png/bunal-logo-v2-wordmark.png",
+          "sourcePath": "public/bunal-logo-v2-wordmark.png"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "src/app/globals.css",
+        "src/app/(app)/dashboard/trainer/page.tsx",
+        "src/components/trainers/TrainerProfileForm.tsx",
+        "src/components/trainers/TrainerTabs.tsx",
+        "src/components/dashboard/DashboardPageHeader.tsx",
+        "src/components/dashboard/AppShell.tsx",
+        "src/components/dashboard/DashboardNav.tsx",
+        "src/components/dashboard/MobileDashboardMenu.tsx",
+        "src/components/Logo.tsx",
+        "src/components/ui/Avatar.tsx",
+        "src/components/ui/Badge.tsx",
+        "src/components/ui/Button.tsx",
+        "src/components/ui/Input.tsx",
+        "src/components/ui/Textarea.tsx",
+        "src/lib/constants.ts"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "a350a72af5dd2b0d752b1d112e1bd487edf733a05904843e9912563f7eb6972a",
+        ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
+        "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
+        "src/app/(app)/dashboard/trainer/page.tsx": "31096fd5482c68a49cfd702eeaedcd66bafb23b06ffb6780f36d0421651b2b13",
+        "src/components/trainers/TrainerProfileForm.tsx": "adb1aad8c1864f910bd0942f2a8dfdb1af0907a3e6541c70c5150b7042d937b1",
+        "src/components/trainers/TrainerTabs.tsx": "80e6d81d5997804bcfb2f3a8be86a3733bbba7fa14922326fc09ca19c74ae669",
+        "src/components/dashboard/DashboardPageHeader.tsx": "fe77a8b2c4f147e439506287277024d83a7e55c6382067a2196a873d198c7e4e",
+        "src/components/dashboard/AppShell.tsx": "27727e859d480e6fccfa55d3b240e6d7f0ae0456fc52ace6c6cb3006fb78ac2c",
+        "src/components/dashboard/DashboardNav.tsx": "8ddbbd07fb323c9ee60e5685f007d6ceb999cb68f5076cf1fe28c5f07f987a73",
+        "src/components/dashboard/MobileDashboardMenu.tsx": "d8c22e73c4c2f7d2882c51c6e3d0e4eb19668de62f63be1d2605aa784a5790af",
+        "src/components/Logo.tsx": "073c062cb0d022c9f5a1f78c79af6570143f03a8d6908c3268f79cb4370d6e2d",
+        "src/components/ui/Avatar.tsx": "e3af6ae6a7249c7f4ea61cb69e044c74fc27240af9ee5e9e645e7712f78a8214",
+        "src/components/ui/Badge.tsx": "aaa6074f7e159cb71056bb61ae95cafc3345f353db12af8d399d55e31dc20c88",
+        "src/components/ui/Button.tsx": "d811d012bf62c684fa4dff3e20615fb17c998a862250aba27f15f14ec1f4513a",
+        "src/components/ui/Input.tsx": "f67f19236edec1912c0efab5ee5d704104edad2fd052b4088a8f7afc1b7d6830",
+        "src/components/ui/Textarea.tsx": "e7e2d6783e60bc4bc3bcf2a65a653fdc0a077123db9f1f749df9e11583cdefad",
+        "src/lib/constants.ts": "6737257ef6916fb4a5a479e7b63fc50ae42243b07a66fa4bc7cc0faddfd4238a"
+      },
+      "components": [
+        {
+          "name": "AppShell",
+          "id": "51496e41-e380-408f-b0d8-0fd066d3f389",
+          "sourcePath": "src/components/dashboard/AppShell.tsx",
+          "logoAssetKey": "public-bunal-logo-v2-wordmark.png"
+        }
+      ],
+      "drafts": {
+        "7a0e7f50-eec4-4d0b-82f0-6dd5d292e93a": {
+          "title": "Trainer Command Center — Bunal.club",
+          "visualDirection": "focused trainer operating workspace with a next-action header, segmented profile form, explicit public/private cues, and sticky readiness plus admin-review rail",
+          "currentVersion": 2
+        }
+      },
+      "updatedAt": "2026-08-24T17:53:18+08:00"
+    },
+    "/dashboard/trainer/schedule": {
+      "targetKind": "new-ui",
+      "projectId": "df2fe063-c6da-4978-8695-40c03895ddc6",
+      "activeDraftId": "799c704c-03bf-4125-8bf3-c8bfab29e6ec",
+      "designSystemPath": ".superdesign/design-system.md",
+      "sourceTarget": "/dashboard/trainer",
+      "sourceDraftId": "7a0e7f50-eec4-4d0b-82f0-6dd5d292e93a",
+      "referenceIds": [
+        "public-bunal-logo-v2-wordmark.png"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "public-bunal-logo-v2-wordmark.png",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/e4c8e4e6-58c1-4931-a0f3-9eae8122ee8e/brand-assets/public-bunal-logo-v2-wordmark.png/bunal-logo-v2-wordmark.png",
+          "sourcePath": "public/bunal-logo-v2-wordmark.png"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "src/app/globals.css",
+        "src/components/trainers/TrainerTabs.tsx",
+        "src/components/dashboard/DashboardPageHeader.tsx",
+        "src/components/dashboard/AppShell.tsx",
+        "src/components/Logo.tsx",
+        "src/components/ui/Button.tsx",
+        "src/components/ui/Input.tsx",
+        "src/components/ui/Select.tsx",
+        "src/components/ui/Textarea.tsx",
+        "src/components/ui/Badge.tsx",
+        "src/app/(app)/dashboard/trainer/schedule/page.tsx",
+        "src/components/trainers/TrainerScheduleForm.tsx",
+        "src/app/(app)/dashboard/trainer/sessions/page.tsx",
+        "src/components/trainers/TrainerSessionActions.tsx",
+        "src/app/(app)/dashboard/trainer/payments/page.tsx",
+        "src/components/trainers/TrainerPaymentSettings.tsx:92:1105",
+        "src/components/partner/PaymentWorkspace.tsx",
+        "src/components/partner/ReceiptUpload.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "a350a72af5dd2b0d752b1d112e1bd487edf733a05904843e9912563f7eb6972a",
+        ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
+        "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
+        "src/components/trainers/TrainerTabs.tsx": "80e6d81d5997804bcfb2f3a8be86a3733bbba7fa14922326fc09ca19c74ae669",
+        "src/components/dashboard/DashboardPageHeader.tsx": "fe77a8b2c4f147e439506287277024d83a7e55c6382067a2196a873d198c7e4e",
+        "src/components/dashboard/AppShell.tsx": "27727e859d480e6fccfa55d3b240e6d7f0ae0456fc52ace6c6cb3006fb78ac2c",
+        "src/components/Logo.tsx": "073c062cb0d022c9f5a1f78c79af6570143f03a8d6908c3268f79cb4370d6e2d",
+        "src/components/ui/Button.tsx": "d811d012bf62c684fa4dff3e20615fb17c998a862250aba27f15f14ec1f4513a",
+        "src/components/ui/Input.tsx": "f67f19236edec1912c0efab5ee5d704104edad2fd052b4088a8f7afc1b7d6830",
+        "src/components/ui/Select.tsx": "c4fe4d426794402b1b8da2cea1cf06dcc79cf334b6cee8520b4e3c369954c410",
+        "src/components/ui/Textarea.tsx": "e7e2d6783e60bc4bc3bcf2a65a653fdc0a077123db9f1f749df9e11583cdefad",
+        "src/components/ui/Badge.tsx": "aaa6074f7e159cb71056bb61ae95cafc3345f353db12af8d399d55e31dc20c88",
+        "src/app/(app)/dashboard/trainer/schedule/page.tsx": "299aaa75c2e88e83b191dfecc3f8c55fb748d072d048ec921993a58b4e11a975",
+        "src/components/trainers/TrainerScheduleForm.tsx": "9cb74974c94e40f61ccc856783d712fabf68eb484e3a8e155c7427cecd03e81a",
+        "src/app/(app)/dashboard/trainer/sessions/page.tsx": "27aeb88e4f64968033677e485b45847148866cb281873e7e09779cf31b594680",
+        "src/components/trainers/TrainerSessionActions.tsx": "7f0867616bd2463029ee19e6cb139e04d87c3379f25cff2dbcbfa01f6dc062de",
+        "src/app/(app)/dashboard/trainer/payments/page.tsx": "52b96dd417d51f716e833b9695c49da310a7a330a11429486b28ef399f062d16",
+        "src/components/trainers/TrainerPaymentSettings.tsx": "a3c6d8ea1d9966ddbf5c2c6d46af131f8013db96054d7b72a26714397285a40a",
+        "src/components/partner/PaymentWorkspace.tsx": "f018c4bd404b17fb5e9064bf706dd5b49a99cd49ceede04f244acb1da2738e9c",
+        "src/components/partner/ReceiptUpload.tsx": "e4a02736d0d84f10a1097af7298c11f79756bc0b9cd5f0779c8720549bbd271a"
+      },
+      "components": [
+        {
+          "name": "AppShell",
+          "id": "51496e41-e380-408f-b0d8-0fd066d3f389",
+          "sourcePath": "src/components/dashboard/AppShell.tsx",
+          "logoAssetKey": "public-bunal-logo-v2-wordmark.png"
+        }
+      ],
+      "drafts": {
+        "799c704c-03bf-4125-8bf3-c8bfab29e6ec": {
+          "title": "Trainer Schedule — Availability Planner",
+          "visualDirection": "command-center availability workspace with scannable seven-day hours, focused date exception composer, and saved exception states",
+          "parentDraftId": "7a0e7f50-eec4-4d0b-82f0-6dd5d292e93a",
+          "currentVersion": 1
+        }
+      },
+      "updatedAt": "2026-08-24T18:05:08+08:00"
+    },
+    "/dashboard/trainer/sessions": {
+      "targetKind": "new-ui",
+      "projectId": "df2fe063-c6da-4978-8695-40c03895ddc6",
+      "activeDraftId": "a17bcd9c-ec2a-4cf3-b30b-5549a0127a3d",
+      "designSystemPath": ".superdesign/design-system.md",
+      "sourceTarget": "/dashboard/trainer",
+      "sourceDraftId": "7a0e7f50-eec4-4d0b-82f0-6dd5d292e93a",
+      "referenceIds": [
+        "public-bunal-logo-v2-wordmark.png"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "public-bunal-logo-v2-wordmark.png",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/e4c8e4e6-58c1-4931-a0f3-9eae8122ee8e/brand-assets/public-bunal-logo-v2-wordmark.png/bunal-logo-v2-wordmark.png",
+          "sourcePath": "public/bunal-logo-v2-wordmark.png"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "src/app/globals.css",
+        "src/components/trainers/TrainerTabs.tsx",
+        "src/components/dashboard/DashboardPageHeader.tsx",
+        "src/components/dashboard/AppShell.tsx",
+        "src/components/Logo.tsx",
+        "src/components/ui/Button.tsx",
+        "src/components/ui/Input.tsx",
+        "src/components/ui/Select.tsx",
+        "src/components/ui/Textarea.tsx",
+        "src/components/ui/Badge.tsx",
+        "src/app/(app)/dashboard/trainer/schedule/page.tsx",
+        "src/components/trainers/TrainerScheduleForm.tsx",
+        "src/app/(app)/dashboard/trainer/sessions/page.tsx",
+        "src/components/trainers/TrainerSessionActions.tsx",
+        "src/app/(app)/dashboard/trainer/payments/page.tsx",
+        "src/components/trainers/TrainerPaymentSettings.tsx:92:1105",
+        "src/components/partner/PaymentWorkspace.tsx",
+        "src/components/partner/ReceiptUpload.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "a350a72af5dd2b0d752b1d112e1bd487edf733a05904843e9912563f7eb6972a",
+        ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
+        "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
+        "src/components/trainers/TrainerTabs.tsx": "80e6d81d5997804bcfb2f3a8be86a3733bbba7fa14922326fc09ca19c74ae669",
+        "src/components/dashboard/DashboardPageHeader.tsx": "fe77a8b2c4f147e439506287277024d83a7e55c6382067a2196a873d198c7e4e",
+        "src/components/dashboard/AppShell.tsx": "27727e859d480e6fccfa55d3b240e6d7f0ae0456fc52ace6c6cb3006fb78ac2c",
+        "src/components/Logo.tsx": "073c062cb0d022c9f5a1f78c79af6570143f03a8d6908c3268f79cb4370d6e2d",
+        "src/components/ui/Button.tsx": "d811d012bf62c684fa4dff3e20615fb17c998a862250aba27f15f14ec1f4513a",
+        "src/components/ui/Input.tsx": "f67f19236edec1912c0efab5ee5d704104edad2fd052b4088a8f7afc1b7d6830",
+        "src/components/ui/Select.tsx": "c4fe4d426794402b1b8da2cea1cf06dcc79cf334b6cee8520b4e3c369954c410",
+        "src/components/ui/Textarea.tsx": "e7e2d6783e60bc4bc3bcf2a65a653fdc0a077123db9f1f749df9e11583cdefad",
+        "src/components/ui/Badge.tsx": "aaa6074f7e159cb71056bb61ae95cafc3345f353db12af8d399d55e31dc20c88",
+        "src/app/(app)/dashboard/trainer/schedule/page.tsx": "299aaa75c2e88e83b191dfecc3f8c55fb748d072d048ec921993a58b4e11a975",
+        "src/components/trainers/TrainerScheduleForm.tsx": "9cb74974c94e40f61ccc856783d712fabf68eb484e3a8e155c7427cecd03e81a",
+        "src/app/(app)/dashboard/trainer/sessions/page.tsx": "27aeb88e4f64968033677e485b45847148866cb281873e7e09779cf31b594680",
+        "src/components/trainers/TrainerSessionActions.tsx": "7f0867616bd2463029ee19e6cb139e04d87c3379f25cff2dbcbfa01f6dc062de",
+        "src/app/(app)/dashboard/trainer/payments/page.tsx": "52b96dd417d51f716e833b9695c49da310a7a330a11429486b28ef399f062d16",
+        "src/components/trainers/TrainerPaymentSettings.tsx": "a3c6d8ea1d9966ddbf5c2c6d46af131f8013db96054d7b72a26714397285a40a",
+        "src/components/partner/PaymentWorkspace.tsx": "f018c4bd404b17fb5e9064bf706dd5b49a99cd49ceede04f244acb1da2738e9c",
+        "src/components/partner/ReceiptUpload.tsx": "e4a02736d0d84f10a1097af7298c11f79756bc0b9cd5f0779c8720549bbd271a"
+      },
+      "components": [
+        {
+          "name": "AppShell",
+          "id": "51496e41-e380-408f-b0d8-0fd066d3f389",
+          "sourcePath": "src/components/dashboard/AppShell.tsx",
+          "logoAssetKey": "public-bunal-logo-v2-wordmark.png"
+        }
+      ],
+      "drafts": {
+        "a17bcd9c-ec2a-4cf3-b30b-5549a0127a3d": {
+          "title": "Trainer Sessions — Operational Inbox",
+          "visualDirection": "compact status-led session cards with factual scheduling and payment context plus clearly separated contextual actions",
+          "parentDraftId": "7a0e7f50-eec4-4d0b-82f0-6dd5d292e93a",
+          "currentVersion": 1
+        }
+      },
+      "updatedAt": "2026-08-24T18:05:08+08:00"
+    },
+    "/dashboard/trainer/payments": {
+      "targetKind": "new-ui",
+      "projectId": "df2fe063-c6da-4978-8695-40c03895ddc6",
+      "activeDraftId": "f411efff-1fbc-425e-91f5-d41fe28f7f0a",
+      "designSystemPath": ".superdesign/design-system.md",
+      "sourceTarget": "/dashboard/trainer",
+      "sourceDraftId": "7a0e7f50-eec4-4d0b-82f0-6dd5d292e93a",
+      "referenceIds": [
+        "public-bunal-logo-v2-wordmark.png"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "public-bunal-logo-v2-wordmark.png",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/e4c8e4e6-58c1-4931-a0f3-9eae8122ee8e/brand-assets/public-bunal-logo-v2-wordmark.png/bunal-logo-v2-wordmark.png",
+          "sourcePath": "public/bunal-logo-v2-wordmark.png"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "src/app/globals.css",
+        "src/components/trainers/TrainerTabs.tsx",
+        "src/components/dashboard/DashboardPageHeader.tsx",
+        "src/components/dashboard/AppShell.tsx",
+        "src/components/Logo.tsx",
+        "src/components/ui/Button.tsx",
+        "src/components/ui/Input.tsx",
+        "src/components/ui/Select.tsx",
+        "src/components/ui/Textarea.tsx",
+        "src/components/ui/Badge.tsx",
+        "src/app/(app)/dashboard/trainer/schedule/page.tsx",
+        "src/components/trainers/TrainerScheduleForm.tsx",
+        "src/app/(app)/dashboard/trainer/sessions/page.tsx",
+        "src/components/trainers/TrainerSessionActions.tsx",
+        "src/app/(app)/dashboard/trainer/payments/page.tsx",
+        "src/components/trainers/TrainerPaymentSettings.tsx:92:1105",
+        "src/components/partner/PaymentWorkspace.tsx",
+        "src/components/partner/ReceiptUpload.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "a350a72af5dd2b0d752b1d112e1bd487edf733a05904843e9912563f7eb6972a",
+        ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
+        "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
+        "src/components/trainers/TrainerTabs.tsx": "80e6d81d5997804bcfb2f3a8be86a3733bbba7fa14922326fc09ca19c74ae669",
+        "src/components/dashboard/DashboardPageHeader.tsx": "fe77a8b2c4f147e439506287277024d83a7e55c6382067a2196a873d198c7e4e",
+        "src/components/dashboard/AppShell.tsx": "27727e859d480e6fccfa55d3b240e6d7f0ae0456fc52ace6c6cb3006fb78ac2c",
+        "src/components/Logo.tsx": "073c062cb0d022c9f5a1f78c79af6570143f03a8d6908c3268f79cb4370d6e2d",
+        "src/components/ui/Button.tsx": "d811d012bf62c684fa4dff3e20615fb17c998a862250aba27f15f14ec1f4513a",
+        "src/components/ui/Input.tsx": "f67f19236edec1912c0efab5ee5d704104edad2fd052b4088a8f7afc1b7d6830",
+        "src/components/ui/Select.tsx": "c4fe4d426794402b1b8da2cea1cf06dcc79cf334b6cee8520b4e3c369954c410",
+        "src/components/ui/Textarea.tsx": "e7e2d6783e60bc4bc3bcf2a65a653fdc0a077123db9f1f749df9e11583cdefad",
+        "src/components/ui/Badge.tsx": "aaa6074f7e159cb71056bb61ae95cafc3345f353db12af8d399d55e31dc20c88",
+        "src/app/(app)/dashboard/trainer/schedule/page.tsx": "299aaa75c2e88e83b191dfecc3f8c55fb748d072d048ec921993a58b4e11a975",
+        "src/components/trainers/TrainerScheduleForm.tsx": "9cb74974c94e40f61ccc856783d712fabf68eb484e3a8e155c7427cecd03e81a",
+        "src/app/(app)/dashboard/trainer/sessions/page.tsx": "27aeb88e4f64968033677e485b45847148866cb281873e7e09779cf31b594680",
+        "src/components/trainers/TrainerSessionActions.tsx": "7f0867616bd2463029ee19e6cb139e04d87c3379f25cff2dbcbfa01f6dc062de",
+        "src/app/(app)/dashboard/trainer/payments/page.tsx": "52b96dd417d51f716e833b9695c49da310a7a330a11429486b28ef399f062d16",
+        "src/components/trainers/TrainerPaymentSettings.tsx": "a3c6d8ea1d9966ddbf5c2c6d46af131f8013db96054d7b72a26714397285a40a",
+        "src/components/partner/PaymentWorkspace.tsx": "f018c4bd404b17fb5e9064bf706dd5b49a99cd49ceede04f244acb1da2738e9c",
+        "src/components/partner/ReceiptUpload.tsx": "e4a02736d0d84f10a1097af7298c11f79756bc0b9cd5f0779c8720549bbd271a"
+      },
+      "components": [
+        {
+          "name": "AppShell",
+          "id": "51496e41-e380-408f-b0d8-0fd066d3f389",
+          "sourcePath": "src/components/dashboard/AppShell.tsx",
+          "logoAssetKey": "public-bunal-logo-v2-wordmark.png"
+        }
+      ],
+      "drafts": {
+        "f411efff-1fbc-425e-91f5-d41fe28f7f0a": {
+          "title": "Trainer Payments — Payment Operations",
+          "visualDirection": "factual payment operations with compact readiness summary, separate checkout configuration, and service-fee settlement workspaces",
+          "parentDraftId": "7a0e7f50-eec4-4d0b-82f0-6dd5d292e93a",
+          "currentVersion": 1
+        }
+      },
+      "updatedAt": "2026-08-24T18:05:08+08:00"
     }
   }
 }

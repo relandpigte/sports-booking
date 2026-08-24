@@ -205,6 +205,38 @@ page composition consistent.
   Resend and Cancel actions. Activity entries should identify the action,
   actor, target type when available, and Manila-local date.
 
+## Trainer tools workspace
+
+- `/dashboard/trainer`, `/dashboard/trainer/schedule`,
+  `/dashboard/trainer/sessions`, and `/dashboard/trainer/payments` form one
+  connected trainer workspace for player accounts with trainer capability.
+- Preserve the authenticated player shell and all existing authorization,
+  application-review, scheduling, session, payment, and settlement behavior.
+- Give trainers a clear sense of readiness and next action. Profile status,
+  missing setup requirements, availability, new session requests, and payment
+  blockers should be understandable without scanning several long forms.
+- Use one compact shared workspace header and four-route navigation. On desktop,
+  the active route and trainer status should remain visible near the page title;
+  on mobile, navigation must scroll or wrap without hiding destinations.
+- Profile setup should group public identity, coaching credentials, pricing,
+  public location, and private meeting instructions into purposeful sections.
+  Keep private-versus-public disclosure explicit at the point of entry.
+- Schedule should prioritize a readable weekly availability overview, then
+  date-specific exceptions. Avoid seven visually identical oversized rows when
+  a more scannable control can preserve the same inputs and semantics.
+- Sessions should behave like an operational inbox: surface request status,
+  player, date/time, amount, and the single primary next action before advanced
+  reschedule, decline, receipt review, cancellation, or refund controls.
+- Payments should retain automatic/manual checkout configuration and service-fee
+  settlement controls, but separate setup, live destination status, and money
+  owed into distinct hierarchy levels. Financial warnings must remain factual.
+- Prefer compact 16px-radius white work cards on the off-white dashboard,
+  understated dividers, 44px controls, and restrained use of green/lime for
+  readiness and primary action. Amber and red remain reserved for genuine
+  attention and destructive states.
+- Use only supported product facts. Do not invent earnings, conversion metrics,
+  review counts, response rates, calendar sync, messaging, or analytics.
+
 ## Registration success pages
 
 - Successful player registration lands at `/welcome/player`; successful

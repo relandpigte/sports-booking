@@ -53,7 +53,10 @@ export type AnalyticsTrendPoint = {
 export type UtilizationRow = {
   courtId: string;
   court: string;
+  hubId: string;
   hub: string;
+  partnerId: string;
+  partner: string;
   sport: string;
   bookedHours: number;
   availableHours: number;
@@ -103,7 +106,11 @@ export type BusinessAnalyticsData = {
   trainers: TrainerPerformanceRow[];
 };
 
-export type AnalyticsOption = { id: string; name: string };
+export type AnalyticsOption = {
+  id: string;
+  name: string;
+  description?: string;
+};
 
 export type AnalyticsFilterOptions = {
   partners: AnalyticsOption[];
@@ -650,7 +657,15 @@ async function utilizationMetrics(filters: BusinessAnalyticsFilters) {
       id: true,
       name: true,
       sport: true,
-      hub: { select: { name: true, operatingHours: true } },
+      hub: {
+        select: {
+          id: true,
+          name: true,
+          ownerId: true,
+          operatingHours: true,
+          owner: { select: { name: true, email: true } },
+        },
+      },
       scheduleRules: {
         select: { weekday: true, hour: true, closed: true },
       },
@@ -729,7 +744,10 @@ async function utilizationMetrics(filters: BusinessAnalyticsFilters) {
     rows.push({
       courtId: court.id,
       court: court.name,
+      hubId: court.hub.id,
       hub: court.hub.name,
+      partnerId: court.hub.ownerId,
+      partner: court.hub.owner.name ?? court.hub.owner.email,
       sport: court.sport ?? "Unspecified",
       bookedHours,
       availableHours,
@@ -960,25 +978,56 @@ export async function partnerAnalyticsOptions(
   };
 }
 
-export async function ownerAnalyticsOptions(): Promise<AnalyticsFilterOptions> {
-  const [partners, hubs, trainerSports] = await Promise.all([
-    prisma.user.findMany({
-      where: { role: "PARTNER" },
-      orderBy: [{ name: "asc" }, { email: "asc" }],
-      select: { id: true, name: true, email: true },
-    }),
-    prisma.hub.findMany({
-      orderBy: { name: "asc" },
-      select: {
-        id: true,
-        name: true,
-        ownerId: true,
-        games: true,
-        courts: {
-          orderBy: { name: "asc" },
-          select: { id: true, name: true, sport: true },
-        },
-      },
+export async function ownerAnalyticsOptions(
+  selected: {
+    partnerId?: string;
+    hubId?: string;
+    courtId?: string;
+  } = {}
+): Promise<AnalyticsFilterOptions> {
+  const [partner, hub, court, courtSports, trainerSports] = await Promise.all([
+    selected.partnerId
+      ? prisma.user.findFirst({
+          where: { id: selected.partnerId, role: "PARTNER" },
+          select: { id: true, name: true, email: true },
+        })
+      : null,
+    selected.hubId
+      ? prisma.hub.findFirst({
+          where: {
+            id: selected.hubId,
+            ...(selected.partnerId ? { ownerId: selected.partnerId } : {}),
+          },
+          select: {
+            id: true,
+            name: true,
+            ownerId: true,
+            owner: { select: { name: true, email: true } },
+          },
+        })
+      : null,
+    selected.courtId
+      ? prisma.court.findFirst({
+          where: {
+            id: selected.courtId,
+            ...(selected.hubId ? { hubId: selected.hubId } : {}),
+            ...(selected.partnerId
+              ? { hub: { ownerId: selected.partnerId } }
+              : {}),
+          },
+          select: {
+            id: true,
+            name: true,
+            sport: true,
+            hubId: true,
+            hub: { select: { name: true } },
+          },
+        })
+      : null,
+    prisma.court.findMany({
+      where: { sport: { not: null } },
+      distinct: ["sport"],
+      select: { sport: true },
     }),
     prisma.trainerProfile.findMany({
       where: { status: "ACTIVE" },
@@ -986,29 +1035,149 @@ export async function ownerAnalyticsOptions(): Promise<AnalyticsFilterOptions> {
     }),
   ]);
   return {
-    partners: partners.map((partner) => ({
-      id: partner.id,
-      name: partner.name ?? partner.email,
-    })),
-    hubs: hubs.map((hub) => ({
-      id: hub.id,
-      name: hub.name,
-      partnerId: hub.ownerId,
-    })),
-    courts: hubs.flatMap((hub) =>
-      hub.courts.map((court) => ({
-        id: court.id,
-        name: court.name,
-        hubId: hub.id,
-        sport: court.sport,
-      }))
-    ),
+    partners: partner
+      ? [
+          {
+            id: partner.id,
+            name: partner.name ?? partner.email,
+            description: partner.email,
+          },
+        ]
+      : [],
+    hubs: hub
+      ? [
+          {
+            id: hub.id,
+            name: hub.name,
+            partnerId: hub.ownerId,
+            description: hub.owner.name ?? hub.owner.email,
+          },
+        ]
+      : [],
+    courts: court
+      ? [
+          {
+            id: court.id,
+            name: court.name,
+            hubId: court.hubId,
+            sport: court.sport,
+            description: `${court.hub.name}${court.sport ? ` · ${court.sport}` : ""}`,
+          },
+        ]
+      : [],
     sports: [
       ...new Set([
-        ...hubs.flatMap((hub) => hub.games),
+        ...courtSports.flatMap((item) => (item.sport ? [item.sport] : [])),
         ...trainerSports.flatMap((trainer) => trainer.sports),
       ]),
     ].sort(),
+  };
+}
+
+export async function searchOwnerAnalyticsOptions(args: {
+  kind: "partner" | "hub" | "court";
+  query?: string;
+  partnerId?: string;
+  hubId?: string;
+  limit?: number;
+}): Promise<{ items: AnalyticsOption[]; hasMore: boolean }> {
+  const query = args.query?.trim();
+  const take = Math.min(Math.max(args.limit ?? 20, 1), 20);
+
+  if (args.kind === "partner") {
+    const rows = await prisma.user.findMany({
+      where: {
+        role: "PARTNER",
+        ...(query
+          ? {
+              OR: [
+                { name: { contains: query, mode: "insensitive" } },
+                { email: { contains: query, mode: "insensitive" } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ name: "asc" }, { email: "asc" }],
+      take: take + 1,
+      select: { id: true, name: true, email: true },
+    });
+    return {
+      items: rows.slice(0, take).map((row) => ({
+        id: row.id,
+        name: row.name ?? row.email,
+        description: row.email,
+      })),
+      hasMore: rows.length > take,
+    };
+  }
+
+  if (args.kind === "hub") {
+    const rows = await prisma.hub.findMany({
+      where: {
+        ...(args.partnerId ? { ownerId: args.partnerId } : {}),
+        ...(query
+          ? {
+              OR: [
+                { name: { contains: query, mode: "insensitive" } },
+                {
+                  owner: {
+                    OR: [
+                      { name: { contains: query, mode: "insensitive" } },
+                      { email: { contains: query, mode: "insensitive" } },
+                    ],
+                  },
+                },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+      take: take + 1,
+      select: {
+        id: true,
+        name: true,
+        owner: { select: { name: true, email: true } },
+      },
+    });
+    return {
+      items: rows.slice(0, take).map((row) => ({
+        id: row.id,
+        name: row.name,
+        description: row.owner.name ?? row.owner.email,
+      })),
+      hasMore: rows.length > take,
+    };
+  }
+
+  const rows = await prisma.court.findMany({
+    where: {
+      ...(args.hubId ? { hubId: args.hubId } : {}),
+      ...(args.partnerId ? { hub: { ownerId: args.partnerId } } : {}),
+      ...(query
+        ? {
+            OR: [
+              { name: { contains: query, mode: "insensitive" } },
+              { hub: { name: { contains: query, mode: "insensitive" } } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: [{ hub: { name: "asc" } }, { name: "asc" }],
+    take: take + 1,
+    select: {
+      id: true,
+      name: true,
+      sport: true,
+      hub: { select: { name: true } },
+    },
+  });
+  return {
+    items: rows.slice(0, take).map((row) => ({
+      id: row.id,
+      name: row.name,
+      description: `${row.hub.name}${row.sport ? ` · ${row.sport}` : ""}`,
+    })),
+    hasMore: rows.length > take,
   };
 }
 

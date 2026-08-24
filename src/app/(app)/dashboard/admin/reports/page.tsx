@@ -4,7 +4,11 @@ import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader"
 import { AnalyticsFilters } from "@/components/reports/AnalyticsFilters";
 import { BusinessAnalyticsDashboard } from "@/components/reports/BusinessAnalyticsDashboard";
 import { requireAdmin } from "@/lib/admin";
-import { parseAnalyticsFilters } from "@/lib/analytics-query";
+import {
+  parseAnalyticsFilters,
+  parseAnalyticsUtilizationView,
+  rawAnalyticsSelection,
+} from "@/lib/analytics-query";
 import {
   getBusinessAnalytics,
   ownerAnalyticsOptions,
@@ -20,12 +24,13 @@ export default async function AdminReportsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const [, query] = await Promise.all([requireAdmin(), searchParams]);
-  const options = await ownerAnalyticsOptions();
+  const options = await ownerAnalyticsOptions(rawAnalyticsSelection(query));
   const filters = parseAnalyticsFilters({
     query,
     audience: "owner",
     options,
   });
+  const utilizationView = parseAnalyticsUtilizationView(query);
   const data = await getBusinessAnalytics({ audience: "owner", filters });
 
   return (
@@ -37,13 +42,19 @@ export default async function AdminReportsPage({
       />
       <div className="mt-6">
         <AnalyticsFilters
+          key={JSON.stringify(query)}
           action="/dashboard/admin/reports"
           audience="owner"
           filters={filters}
           options={options}
         />
       </div>
-      <BusinessAnalyticsDashboard audience="owner" data={data} />
+      <BusinessAnalyticsDashboard
+        action="/dashboard/admin/reports"
+        audience="owner"
+        data={data}
+        utilizationView={utilizationView}
+      />
     </div>
   );
 }

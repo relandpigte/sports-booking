@@ -1,11 +1,10 @@
 import type { RevenuePoint } from "@/lib/analytics";
+import type { AnalyticsUtilizationView } from "@/lib/analytics-query";
 import type { BusinessAnalyticsData } from "@/lib/business-analytics";
 import { formatPHP } from "@/lib/currency";
-import { formatHourLabel } from "@/lib/time";
 
 import { RevenueChart } from "./RevenueChart";
-
-const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+import { UtilizationReport } from "./UtilizationReport";
 
 function percent(value: number) {
   return `${value.toFixed(1)}%`;
@@ -49,11 +48,15 @@ function SectionHeading({ eyebrow, title, description }: { eyebrow: string; titl
 }
 
 export function BusinessAnalyticsDashboard({
+  action,
   audience,
   data,
+  utilizationView,
 }: {
+  action: string;
   audience: "partner" | "owner";
   data: BusinessAnalyticsData;
+  utilizationView: AnalyticsUtilizationView;
 }) {
   const previous = data.previousKpis ?? undefined;
   const chartPoints: RevenuePoint[] = data.trend.map((point) => ({
@@ -61,8 +64,6 @@ export function BusinessAnalyticsDashboard({
     count: 0,
   }));
   const totalSource = Object.values(data.revenueBySource).reduce((sum, value) => sum + value, 0);
-  const maxPeak = Math.max(...data.peakHours.map((item) => item.bookedHours), 1);
-  const hours = [...new Set(data.peakHours.map((item) => item.hour))].sort((a, b) => a - b);
 
   return (
     <div className="mt-5 space-y-5">
@@ -125,26 +126,14 @@ export function BusinessAnalyticsDashboard({
         </div>
       </section>
 
-      <section id="courts" className="scroll-mt-24 rounded-2xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5">
-        <SectionHeading eyebrow="Capacity intelligence" title={audience === "owner" ? "Venue and court utilization" : "Court utilization"} description="Confirmed booking and published-event court-hours divided by effective available court-hours." />
-        <div className="mt-5 overflow-x-auto">
-          <table className="w-full min-w-[760px] text-sm">
-            <thead><tr className="border-b border-slate-200 text-left text-[11px] font-black uppercase tracking-[0.12em] text-slate-400"><th className="pb-3">Court</th><th className="pb-3">Hub</th><th className="pb-3">Sport</th><th className="pb-3 text-right">Booked</th><th className="pb-3 text-right">Available</th><th className="pb-3 pl-6">Utilization</th></tr></thead>
-            <tbody className="divide-y divide-slate-100">
-              {data.utilization.map((row) => (
-                <tr key={row.courtId}>
-                  <td className="py-3 font-bold text-navy">{row.court}{row.estimated ? <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">Estimated</span> : null}</td>
-                  <td className="py-3 text-slate-500">{row.hub}</td><td className="py-3 capitalize text-slate-500">{row.sport}</td><td className="py-3 text-right tabular-nums text-navy">{row.bookedHours}h</td><td className="py-3 text-right tabular-nums text-slate-500">{row.availableHours}h</td>
-                  <td className="py-3 pl-6"><div className="flex items-center gap-3"><div className="h-2 w-28 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, row.utilizationRate)}%` }} /></div><span className="font-bold tabular-nums text-navy">{percent(row.utilizationRate)}</span></div></td>
-                </tr>
-              ))}
-              {data.utilization.length === 0 ? <tr><td colSpan={6} className="py-10 text-center text-slate-500">No courts match these filters.</td></tr> : null}
-            </tbody>
-          </table>
-        </div>
-
-        {hours.length > 0 ? <div className="mt-8 border-t border-slate-100 pt-6"><h3 className="font-black text-navy">Peak-hour analysis</h3><p className="mt-1 text-sm text-slate-500">Darker cells show more confirmed court-hours in Manila time.</p><div className="mt-4 overflow-x-auto"><div className="grid min-w-[720px] gap-1" style={{ gridTemplateColumns: `64px repeat(${hours.length}, minmax(34px, 1fr))` }}><div />{hours.map((hour) => <div key={hour} className="pb-1 text-center text-[10px] font-bold text-slate-400">{formatHourLabel(hour).replace(":00", "")}</div>)}{weekdays.flatMap((day, weekday) => [<div key={`${day}-label`} className="flex items-center text-xs font-bold text-slate-500">{day}</div>, ...hours.map((hour) => { const value = data.peakHours.find((item) => item.weekday === weekday && item.hour === hour)?.bookedHours ?? 0; return <div key={`${weekday}-${hour}`} title={`${day} ${formatHourLabel(hour)}: ${value} booked court-hours`} className="h-8 rounded-md border border-primary/10" style={{ backgroundColor: `rgb(27 142 77 / ${value ? 0.12 + value / maxPeak * 0.68 : 0.03})` }} />; })])}</div></div></div> : null}
-      </section>
+      <UtilizationReport
+        action={action}
+        audience={audience}
+        filters={data.filters}
+        rows={data.utilization}
+        peakHours={data.peakHours}
+        view={utilizationView}
+      />
 
       <section id="customers" className="scroll-mt-24 rounded-2xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5">
         <SectionHeading eyebrow="Customer intelligence" title="Growth and 30-day retention" description="A new customer completed their first purchase in this scope; retained customers purchased again within 30 days." />

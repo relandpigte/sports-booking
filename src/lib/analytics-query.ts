@@ -7,14 +7,62 @@ import {
 } from "@/lib/business-analytics";
 import { addDays, isValidDateString } from "@/lib/time";
 
-type Query = Record<string, string | string[] | undefined>;
+export type AnalyticsQuery = Record<
+  string,
+  string | string[] | undefined
+>;
+
+export type UtilizationSort =
+  | "utilization-desc"
+  | "booked-desc"
+  | "name-asc";
+
+export type AnalyticsUtilizationView = {
+  page: number;
+  query: string;
+  sort: UtilizationSort;
+  expandedHubId?: string;
+};
 
 function single(value: string | string[] | undefined) {
   return Array.isArray(value) ? value.at(-1) : value;
 }
 
+export function rawAnalyticsSelection(query: AnalyticsQuery) {
+  return {
+    partnerId: single(query.partner),
+    hubId: single(query.hub),
+    courtId: single(query.court),
+  };
+}
+
+export function parseAnalyticsUtilizationView(
+  query: AnalyticsQuery
+): AnalyticsUtilizationView {
+  const rawPage = Number(single(query.utilizationPage));
+  const rawSort = single(query.utilizationSort);
+  const allowedSorts: UtilizationSort[] = [
+    "utilization-desc",
+    "booked-desc",
+    "name-asc",
+  ];
+  return {
+    page:
+      Number.isSafeInteger(rawPage) && rawPage > 0
+        ? Math.min(rawPage, 100_000)
+        : 1,
+    query: (single(query.utilizationQuery) ?? "").trim().slice(0, 100),
+    sort: allowedSorts.includes(rawSort as UtilizationSort)
+      ? (rawSort as UtilizationSort)
+      : "utilization-desc",
+    expandedHubId:
+      (single(query.utilizationHub) ?? "").trim().slice(0, 100) ||
+      undefined,
+  };
+}
+
 export function parseAnalyticsFilters(args: {
-  query: Query;
+  query: AnalyticsQuery;
   audience: "partner" | "owner";
   options: AnalyticsFilterOptions;
   partnerId?: string;

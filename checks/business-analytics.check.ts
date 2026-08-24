@@ -3,9 +3,15 @@ import fs from "node:fs";
 import { ok, run } from "./harness";
 
 async function main() {
-  const { parseAnalyticsFilters } = await import("@/lib/analytics-query");
+  const {
+    parseAnalyticsFilters,
+    parseAnalyticsUtilizationView,
+  } = await import("@/lib/analytics-query");
   const { previousAnalyticsRange } = await import(
     "@/lib/business-analytics"
+  );
+  const { hubUtilizationPage } = await import(
+    "@/lib/analytics-utilization"
   );
   const options = {
     partners: [
@@ -51,6 +57,48 @@ async function main() {
   });
   ok("reversed date inputs are normalized", reversed.from === "2026-08-10" && reversed.to === "2026-08-20");
   ok("prior period has matching inclusive length", JSON.stringify(previousAnalyticsRange("2026-08-10", "2026-08-20")) === JSON.stringify({ from: "2026-07-30", to: "2026-08-09" }));
+
+  const utilizationView = parseAnalyticsUtilizationView({
+    utilizationPage: "2",
+    utilizationQuery: "  Metro  ",
+    utilizationSort: "booked-desc",
+    utilizationHub: "hub-2",
+  });
+  ok("utilization view validates search, sorting, and drill-down state", JSON.stringify(utilizationView) === JSON.stringify({ page: 2, query: "Metro", sort: "booked-desc", expandedHubId: "hub-2" }));
+
+  const utilizationRows = Array.from({ length: 26 }, (_, index) => ({
+    courtId: `court-${index}`,
+    court: `Court ${index}`,
+    hubId: `hub-${index}`,
+    hub: `Hub ${String(index).padStart(2, "0")}`,
+    partnerId: `partner-${index}`,
+    partner: `Partner ${index}`,
+    sport: "pickleball",
+    bookedHours: index,
+    availableHours: 100,
+    utilizationRate: index,
+    estimated: false,
+  }));
+  utilizationRows.push({
+    ...utilizationRows[25],
+    courtId: "court-25-b",
+    court: "Court 25 B",
+    bookedHours: 25,
+  });
+  const utilizationPage = hubUtilizationPage(utilizationRows, {
+    page: 2,
+    query: "",
+    sort: "name-asc",
+  });
+  ok("admin utilization is paginated to 25 hubs", utilizationPage.pageSize === 25 && utilizationPage.page === 2 && utilizationPage.items.length === 1 && utilizationPage.total === 26);
+  ok("hub utilization groups court details with weighted totals", utilizationPage.items[0]?.courtCount === 2 && utilizationPage.items[0]?.bookedHours === 50 && utilizationPage.items[0]?.availableHours === 200 && utilizationPage.items[0]?.utilizationRate === 25);
+
+  const optionRoute = fs.readFileSync(
+    "src/app/api/analytics/options/route.ts",
+    "utf8"
+  );
+  ok("analytics option search is admin-only", optionRoute.includes('user.role !== "ADMIN"'));
+  ok("analytics option search has a bounded result window", optionRoute.includes("limit: 20"));
 
   const migration = fs.readFileSync(
     "prisma/migrations/202608240002_business_analytics/migration.sql",

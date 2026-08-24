@@ -8,7 +8,8 @@
       "activeDraftId": "036cb7da-811e-4595-a035-b9e7403ae694",
       "designSystemPath": ".superdesign/design-system.md",
       "referenceIds": [
-        "public-bunal-logo-v2-wordmark.png"
+        "public-bunal-logo-v2-wordmark.png",
+        "cd9c4586-6bbe-4dc2-9428-03c6a5ae3026"
       ],
       "brandAssets": {
         "logo": {
@@ -964,9 +965,9 @@
         "src/app/globals.css",
         "src/app/(app)/layout.tsx",
         "src/app/(app)/dashboard/reports/page.tsx",
-        "src/components/reports/RevenueReport.tsx",
+        "src/components/reports/AnalyticsFilters.tsx",
+        "src/components/reports/BusinessAnalyticsDashboard.tsx",
         "src/components/reports/RevenueChart.tsx",
-        "src/components/reports/PeriodPicker.tsx",
         "src/components/reports/ChartHover.tsx",
         "src/components/dashboard/AppShell.tsx",
         "src/components/dashboard/DashboardNav.tsx",
@@ -981,10 +982,10 @@
         ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
         "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
         "src/app/(app)/layout.tsx": "0096b1d5fcfb256cb7c09954a82f8ceae2f9fef8fae30668585ca1a6d01f0675",
-        "src/app/(app)/dashboard/reports/page.tsx": "df8685c1e90427f4439ef18782c4475bc7f07be7f8491914d9a7e383a405a689",
-        "src/components/reports/RevenueReport.tsx": "e409dd74579bfb9f08f5b68a5a4491fa728e55f1d4b961732622311777dd6b59",
+        "src/app/(app)/dashboard/reports/page.tsx": "c99d6f347033542a2cebb0f42a7e007b4ca52937ab6ad4eb655fcb17f326f2a8",
+        "src/components/reports/AnalyticsFilters.tsx": "8c5399cc9bb8c86936ad77b86cc6a6455ab12e7bc3828554011b50c2ed0be7ac",
+        "src/components/reports/BusinessAnalyticsDashboard.tsx": "4de8c3815c9768d1b36a7a047f8c36542c33cc08246d0e8c137ee09a6fbecdc8",
         "src/components/reports/RevenueChart.tsx": "532d4ba4470881c4934747b96e0af891b4518674297a7932a0b7bf46315f4d67",
-        "src/components/reports/PeriodPicker.tsx": "4aba846eb09de401e7f313d5eebfcfb0160bc1eadaef88541ac770473f362a19",
         "src/components/reports/ChartHover.tsx": "1c0d68c3dd66ed041d179a57130def4c7675e30979eec8e9c95e55ac94e1393a",
         "src/components/dashboard/AppShell.tsx": "27727e859d480e6fccfa55d3b240e6d7f0ae0456fc52ace6c6cb3006fb78ac2c",
         "src/components/dashboard/DashboardNav.tsx": "8ddbbd07fb323c9ee60e5685f007d6ceb999cb68f5076cf1fe28c5f07f987a73",
@@ -1005,11 +1006,11 @@
       "drafts": {
         "ac9ba65e-77af-4819-b1d4-2efce23ebe23": {
           "title": "Analytics & Business Intelligence — Partner",
-          "visualDirection": "cohesive partner business-performance workspace",
-          "currentVersion": 2
+          "visualDirection": "cohesive partner business-performance workspace with a compact progressive-disclosure filter toolbar",
+          "currentVersion": 3
         }
       },
-      "updatedAt": "2026-08-24T15:37:15Z"
+      "updatedAt": "2026-08-24T16:42:26Z"
     },
     "/dashboard/admin/reports": {
       "targetKind": "existing-ui",
@@ -1018,7 +1019,9 @@
       "activeDraftId": "6c193593-1ec9-4a62-bf9a-225b00d88984",
       "designSystemPath": ".superdesign/design-system.md",
       "referenceIds": [
-        "public-bunal-logo-v2-wordmark.png"
+        "public-bunal-logo-v2-wordmark.png",
+        "a2ef8aa5-30db-4e18-93c9-77d37c93f36b",
+        "905103f7-c4a9-41e1-8922-07401f592b08"
       ],
       "brandAssets": {
         "logo": {
@@ -1033,9 +1036,9 @@
         "src/app/globals.css",
         "src/app/(app)/layout.tsx",
         "src/app/(app)/dashboard/admin/reports/page.tsx",
-        "src/components/reports/RevenueReport.tsx",
+        "src/components/reports/AnalyticsFilters.tsx",
+        "src/components/reports/BusinessAnalyticsDashboard.tsx",
         "src/components/reports/RevenueChart.tsx",
-        "src/components/reports/PeriodPicker.tsx",
         "src/components/reports/ChartHover.tsx",
         "src/components/dashboard/AppShell.tsx",
         "src/components/dashboard/DashboardNav.tsx",
@@ -1050,10 +1053,10 @@
         ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
         "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
         "src/app/(app)/layout.tsx": "0096b1d5fcfb256cb7c09954a82f8ceae2f9fef8fae30668585ca1a6d01f0675",
-        "src/app/(app)/dashboard/admin/reports/page.tsx": "7c8596de3bb4e2de174c3bbabc4cc28aa6a595c2ba32bd7c78ae1da6e042b16a",
-        "src/components/reports/RevenueReport.tsx": "e409dd74579bfb9f08f5b68a5a4491fa728e55f1d4b961732622311777dd6b59",
+        "src/app/(app)/dashboard/admin/reports/page.tsx": "764cc94de37c4e350d143cd79bdb3bb20df3e38e7b5b8da64833557cf730ccac",
+        "src/components/reports/AnalyticsFilters.tsx": "8c5399cc9bb8c86936ad77b86cc6a6455ab12e7bc3828554011b50c2ed0be7ac",
+        "src/components/reports/BusinessAnalyticsDashboard.tsx": "4de8c3815c9768d1b36a7a047f8c36542c33cc08246d0e8c137ee09a6fbecdc8",
         "src/components/reports/RevenueChart.tsx": "532d4ba4470881c4934747b96e0af891b4518674297a7932a0b7bf46315f4d67",
-        "src/components/reports/PeriodPicker.tsx": "4aba846eb09de401e7f313d5eebfcfb0160bc1eadaef88541ac770473f362a19",
         "src/components/reports/ChartHover.tsx": "1c0d68c3dd66ed041d179a57130def4c7675e30979eec8e9c95e55ac94e1393a",
         "src/components/dashboard/AppShell.tsx": "27727e859d480e6fccfa55d3b240e6d7f0ae0456fc52ace6c6cb3006fb78ac2c",
         "src/components/dashboard/DashboardNav.tsx": "8ddbbd07fb323c9ee60e5685f007d6ceb999cb68f5076cf1fe28c5f07f987a73",
@@ -1074,11 +1077,11 @@
       "drafts": {
         "6c193593-1ec9-4a62-bf9a-225b00d88984": {
           "title": "Analytics & Business Intelligence — Owner",
-          "visualDirection": "cohesive owner platform-intelligence workspace",
-          "currentVersion": 2
+          "visualDirection": "cohesive owner platform-intelligence workspace with compact filters, async partner lookup, and paginated hub drill-down",
+          "currentVersion": 3
         }
       },
-      "updatedAt": "2026-08-24T15:37:15Z"
+      "updatedAt": "2026-08-24T16:42:26Z"
     }
   }
 }

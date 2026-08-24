@@ -1,4 +1,7 @@
-import { parseAnalyticsFilters } from "@/lib/analytics-query";
+import {
+  parseAnalyticsFilters,
+  rawAnalyticsSelection,
+} from "@/lib/analytics-query";
 import {
   getBusinessAnalytics,
   ownerAnalyticsOptions,
@@ -39,7 +42,7 @@ export async function GET(request: Request) {
 
   const options =
     audience === "owner"
-      ? await ownerAnalyticsOptions()
+      ? await ownerAnalyticsOptions(rawAnalyticsSelection(query))
       : await partnerAnalyticsOptions(partnerId!);
   const filters = parseAnalyticsFilters({
     query,

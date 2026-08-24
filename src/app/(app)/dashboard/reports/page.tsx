@@ -3,7 +3,10 @@ import type { Metadata } from "next";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { AnalyticsFilters } from "@/components/reports/AnalyticsFilters";
 import { BusinessAnalyticsDashboard } from "@/components/reports/BusinessAnalyticsDashboard";
-import { parseAnalyticsFilters } from "@/lib/analytics-query";
+import {
+  parseAnalyticsFilters,
+  parseAnalyticsUtilizationView,
+} from "@/lib/analytics-query";
 import {
   getBusinessAnalytics,
   partnerAnalyticsOptions,
@@ -30,6 +33,7 @@ export default async function PartnerReportsPage({
     options,
     partnerId: workspace.partnerId,
   });
+  const utilizationView = parseAnalyticsUtilizationView(query);
   const data = await getBusinessAnalytics({ audience: "partner", filters });
 
   return (
@@ -41,13 +45,19 @@ export default async function PartnerReportsPage({
       />
       <div className="mt-6">
         <AnalyticsFilters
+          key={JSON.stringify(query)}
           action="/dashboard/reports"
           audience="partner"
           filters={filters}
           options={options}
         />
       </div>
-      <BusinessAnalyticsDashboard audience="partner" data={data} />
+      <BusinessAnalyticsDashboard
+        action="/dashboard/reports"
+        audience="partner"
+        data={data}
+        utilizationView={utilizationView}
+      />
     </div>
   );
 }

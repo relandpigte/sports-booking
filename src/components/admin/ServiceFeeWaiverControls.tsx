@@ -42,7 +42,7 @@ export function ServiceFeeWaiverForm({
         type="button"
         disabled={amountDue < 0.01}
         onClick={() => setOpen(true)}
-        className="min-h-9 rounded-lg border border-primary/25 bg-primary-soft px-3 text-xs font-bold text-primary transition hover:bg-primary/15 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
+        className="min-h-11 rounded-lg border border-primary/25 bg-primary-soft px-3 text-xs font-bold text-primary transition hover:bg-primary/15 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
       >
         Waive balance
       </button>
@@ -88,10 +88,10 @@ export function ServiceFeeWaiverForm({
       </label>
       <ActionFeedback state={state} />
       <div className="mt-3 flex gap-2">
-        <button disabled={pending} className="min-h-9 rounded-lg bg-primary px-3 text-xs font-black text-white disabled:opacity-50">
+        <button disabled={pending} className="min-h-11 rounded-lg bg-primary px-3 text-xs font-black text-white disabled:opacity-50">
           {pending ? "Waiving…" : "Grant waiver"}
         </button>
-        <button type="button" onClick={() => setOpen(false)} className="min-h-9 rounded-lg px-3 text-xs font-bold text-slate-600 hover:bg-white">
+        <button type="button" onClick={() => setOpen(false)} className="min-h-11 rounded-lg px-3 text-xs font-bold text-slate-600 hover:bg-white">
           Close
         </button>
       </div>
@@ -111,11 +111,13 @@ export function ReverseServiceFeeWaiverForm({
     initialState
   );
   return (
-    <details className="mt-3 rounded-lg border border-red-100 bg-red-50 p-3">
-      <summary className="cursor-pointer text-xs font-bold text-red-700">Reverse waiver</summary>
+    <details className="mt-2 rounded-lg border border-red-100 bg-red-50 px-3 py-1">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center text-xs font-bold text-red-700">
+        Reverse waiver
+      </summary>
       <form
         action={action}
-        className="mt-3"
+        className="border-t border-red-100 pb-2 pt-3"
         onSubmit={(event) => {
           if (!window.confirm(`Reverse the ${formatPHP(amount)} waiver? The partner's outstanding balance and any overdue restriction may return immediately.`)) {
             event.preventDefault();
@@ -137,7 +139,7 @@ export function ReverseServiceFeeWaiverForm({
         </label>
         {state.errors?.reason ? <p className="mt-1 text-xs font-medium text-red-700">{state.errors.reason}</p> : null}
         <div className="mt-2"><ActionFeedback state={state} /></div>
-        <button disabled={pending} className="mt-3 min-h-9 rounded-lg bg-red-600 px-3 text-xs font-black text-white disabled:opacity-50">
+        <button disabled={pending} className="mt-3 min-h-11 rounded-lg bg-red-600 px-3 text-xs font-black text-white disabled:opacity-50">
           {pending ? "Reversing…" : "Confirm reversal"}
         </button>
       </form>

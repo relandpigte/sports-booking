@@ -367,6 +367,7 @@
         "src/components/admin/TrainerServiceFeeSettlements.tsx",
         "src/components/admin/PartnerServiceFeeBreakdown.tsx",
         "src/components/admin/ServiceFeeWaiverControls.tsx",
+        "src/components/admin/SettlementDisclosure.tsx",
         "src/app/(app)/layout.tsx",
         "src/components/dashboard/AppShell.tsx",
         "src/components/dashboard/DashboardNav.tsx",
@@ -376,10 +377,11 @@
         ".superdesign/design-system.md": "fcf6b4f8a2c1a03741249c2e5e944fcaec212113f2cb8269270799237c363ef1",
         ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
         "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
-        "src/app/(app)/dashboard/admin/settlements/page.tsx": "13e2c6faefa947b71db3e992629e449f256a5eea741a5f255d19ae2c95a88784",
-        "src/components/admin/TrainerServiceFeeSettlements.tsx": "f859c789eab11b98a1a9fa31f0b1154fcce95d5a71088a109560d6122fe023b4",
-        "src/components/admin/PartnerServiceFeeBreakdown.tsx": "33ab3c126bf8f87ad3e2806c0b92c9eb57d53080bcfd675dcd57dcdffa53bcfc",
-        "src/components/admin/ServiceFeeWaiverControls.tsx": "76bc666e5f2fea237adedfbbfa23d6d3e6f1ae6e3b7ef5f69666dba56ac33ae9",
+        "src/app/(app)/dashboard/admin/settlements/page.tsx": "930d06404059cd241d83a6b30bc75103730b5192d3f5536a4477c14d641699e3",
+        "src/components/admin/TrainerServiceFeeSettlements.tsx": "4bf9e7d8b6659a9520bb67587433f9fafd1ffd5bc6f5acc3277846cf6bb1e36e",
+        "src/components/admin/PartnerServiceFeeBreakdown.tsx": "3d1ad3d8b6c3f49d31b808208df4eec1bada896afca12781e69759b972fd9e6d",
+        "src/components/admin/ServiceFeeWaiverControls.tsx": "b7b887758e653d05a29ab4199607c4d5f6e746bef89c599a604a379fee9e2e4c",
+        "src/components/admin/SettlementDisclosure.tsx": "a67aedda2e040300f4529fd097388d69a031074f902db9e289a7b0b9b7ee712b",
         "src/app/(app)/layout.tsx": "0096b1d5fcfb256cb7c09954a82f8ceae2f9fef8fae30668585ca1a6d01f0675",
         "src/components/dashboard/AppShell.tsx": "27727e859d480e6fccfa55d3b240e6d7f0ae0456fc52ace6c6cb3006fb78ac2c",
         "src/components/dashboard/DashboardNav.tsx": "8ddbbd07fb323c9ee60e5685f007d6ceb999cb68f5076cf1fe28c5f07f987a73",
@@ -406,7 +408,7 @@
           "currentVersion": 1
         }
       },
-      "updatedAt": "2026-08-24T17:09:45+08:00"
+      "updatedAt": "2026-08-24T17:22:52+08:00"
     },
     "/users": {
       "targetKind": "existing-ui",

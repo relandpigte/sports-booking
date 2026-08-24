@@ -2,7 +2,7 @@ import "server-only";
 
 import { Resend } from "resend";
 
-import { passwordResetEmailHtml } from "@/lib/password-reset-email";
+import { passwordResetEmailContent } from "@/lib/password-reset-email";
 import {
   partnerApprovalEmailContent,
   type PartnerApprovalEmailContentInput,
@@ -159,18 +159,12 @@ export async function sendPasswordResetEmail({
   resetUrl,
   idempotencyKey,
 }: PasswordResetEmailInput): Promise<void> {
+  const content = passwordResetEmailContent(resetUrl);
   await deliverEmail({
     to,
-    subject: "Reset your Bunal.club password",
-    html: passwordResetEmailHtml(resetUrl),
-    text: [
-      "Someone requested a password reset for your Bunal.club account.",
-      "",
-      `Reset your password: ${resetUrl}`,
-      "",
-      "This link expires in 30 minutes and can only be used once.",
-      "If you did not request this, you can ignore this email.",
-    ].join("\n"),
+    subject: content.subject,
+    html: content.html,
+    text: content.text,
     idempotencyKey,
     category: "password-reset",
     description: "Password-reset email delivery",

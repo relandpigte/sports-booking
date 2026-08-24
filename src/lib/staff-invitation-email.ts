@@ -1,4 +1,4 @@
-import { transactionalEmailHtml } from "@/lib/email-html";
+import { transactionalEmailContent } from "@/lib/email-html";
 
 export type StaffInvitationEmailContentInput = {
   partnerName: string;
@@ -25,25 +25,14 @@ export function staffInvitationEmailContent(
   const note =
     "Only accept invitations you recognize. The link is single-use and does not give access until you sign in with the invited email address.";
 
-  return {
+  return transactionalEmailContent({
     subject,
-    html: transactionalEmailHtml({
-      preheader: `You were invited to the ${input.partnerName} team.`,
-      eyebrow: "Team invitation",
-      heading: `Join ${input.partnerName}`,
-      paragraphs,
-      actionLabel: "Accept invitation",
-      actionUrl: input.acceptUrl,
-      note,
-    }),
-    text: [
-      subject,
-      "",
-      ...paragraphs,
-      "",
-      `Accept invitation: ${input.acceptUrl}`,
-      "",
-      note,
-    ].join("\n"),
-  };
+    preheader: `You were invited to the ${input.partnerName} team.`,
+    eyebrow: "Team invitation",
+    heading: `Join ${input.partnerName}`,
+    paragraphs,
+    actionLabel: "Accept invitation",
+    actionUrl: input.acceptUrl,
+    note,
+  });
 }

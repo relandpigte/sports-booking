@@ -1,4 +1,4 @@
-import { transactionalEmailHtml } from "@/lib/email-html";
+import { transactionalEmailContent } from "@/lib/email-html";
 
 export function newDeviceLoginEmailContent({
   name,
@@ -21,32 +21,21 @@ export function newDeviceLoginEmailContent({
   });
   const details = `${device}${location ? ` near ${location}` : ""} on ${when}`;
   const paragraphs = [
-    `Hi ${name}, we noticed a sign-in from a device we haven't seen on your Bunal.club account before.`,
+    "We noticed a sign-in from a device we haven't seen on your Bunal.club account before.",
     details,
   ];
   const note =
     "If this was you, no action is needed. If you don't recognize it, revoke the session and change your password immediately.";
 
-  return {
+  return transactionalEmailContent({
     subject,
-    html: transactionalEmailHtml({
-      preheader: "A new device signed in to your Bunal.club account.",
-      eyebrow: "Account security",
-      heading: "New device sign-in",
-      paragraphs,
-      actionLabel: "Review account security",
-      actionUrl: securityUrl,
-      note,
-    }),
-    text: [
-      subject,
-      "",
-      ...paragraphs,
-      "",
-      `Review account security: ${securityUrl}`,
-      "",
-      note,
-    ].join("\n"),
-  };
+    preheader: "A new device signed in to your Bunal.club account.",
+    eyebrow: "Account security",
+    heading: "New device sign-in",
+    recipientName: name,
+    paragraphs,
+    actionLabel: "Review account security",
+    actionUrl: securityUrl,
+    note,
+  });
 }
-

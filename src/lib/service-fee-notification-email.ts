@@ -1,5 +1,5 @@
 import { formatPHP } from "@/lib/currency";
-import { transactionalEmailHtml } from "@/lib/email-html";
+import { transactionalEmailContent } from "@/lib/email-html";
 
 export type ServiceFeeOverdueEmailContentInput = {
   partnerName: string;
@@ -37,13 +37,13 @@ export function serviceFeeOverdueEmailContent(
   const trainer = input.accountType === "TRAINER";
   const paragraphs = dueSoon
     ? [
-        `Hi ${input.partnerName}, your Bunal.club service-fee balance of ${outstanding} is due tomorrow${dueDate ? `, ${dueDate}` : ""}.`,
+        `Your Bunal.club service-fee balance of ${outstanding} is due tomorrow${dueDate ? `, ${dueDate}` : ""}.`,
         "Settle the balance by the due date to keep your account current.",
         `Your hubs remain active. If the balance is not settled, a three-day grace period begins on the due date${enforcementDate ? ` and paid bookings will pause on ${enforcementDate}` : ""}.`,
         "Pay through QR Ph or submit your transfer reference and receipt from the Payments page. A manual transfer is credited only after admin approval.",
       ]
     : [
-        `Hi ${input.partnerName}, your Bunal.club service-fee settlement has an overdue balance of ${overdue}.`,
+        `Your Bunal.club service-fee settlement has an overdue balance of ${overdue}.`,
         `Your total outstanding service-fee balance is ${outstanding}${dueDate ? `, and the oldest unpaid balance was due on ${dueDate}` : ""}.`,
         input.blocked
           ? trainer
@@ -57,29 +57,19 @@ export function serviceFeeOverdueEmailContent(
   const note =
     "Submitting valid payment proof starts admin review; only an approved settlement reduces the balance. Bunal.club will never ask for your password, PayMongo secret key, or authenticator code by email.";
 
-  return {
+  return transactionalEmailContent({
     subject,
-    html: transactionalEmailHtml({
-      preheader: dueSoon
-        ? `${outstanding} in service fees is due tomorrow.`
-        : `${overdue} in service fees requires settlement.`,
-      eyebrow: dueSoon ? "Settlement reminder" : "Settlement overdue",
-      heading: dueSoon
-        ? "Your service-fee balance is due tomorrow"
-        : "Your service-fee balance needs attention",
-      paragraphs,
-      actionLabel: "Settle balance",
-      actionUrl: input.actionUrl,
-      note,
-    }),
-    text: [
-      subject,
-      "",
-      ...paragraphs,
-      "",
-      `Settle balance: ${input.actionUrl}`,
-      "",
-      note,
-    ].join("\n"),
-  };
+    preheader: dueSoon
+      ? `${outstanding} in service fees is due tomorrow.`
+      : `${overdue} in service fees requires settlement.`,
+    eyebrow: dueSoon ? "Settlement reminder" : "Settlement overdue",
+    heading: dueSoon
+      ? "Your service-fee balance is due tomorrow"
+      : "Your service-fee balance needs attention",
+    recipientName: input.partnerName,
+    paragraphs,
+    actionLabel: "Settle balance",
+    actionUrl: input.actionUrl,
+    note,
+  });
 }

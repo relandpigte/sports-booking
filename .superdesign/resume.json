@@ -147,7 +147,7 @@
       "activeDraftId": "3b7bf865-66b3-4018-83a4-9e55d687c13a",
       "designSystemPath": ".superdesign/design-system.md",
       "referenceIds": [
-        "309af3ca-c3f8-491c-a865-24f29ca5643d",
+        "3de22441-6510-4fcf-9b50-d780e3a48823",
         "public-bunal-logo-v2-wordmark.png"
       ],
       "brandAssets": {
@@ -161,54 +161,33 @@
         ".superdesign/design-system.md",
         ".superdesign/init/theme.md",
         "src/app/globals.css",
-        "src/app/hubs/[id]/page.tsx:287:672",
-        "src/components/hubs/BookCourtPanel.tsx",
-        "src/components/bookings/ReservationHoldDock.tsx",
-        "src/components/hubs/CourtAvailabilityBrowser.tsx",
-        "src/components/hubs/DateStrip.tsx",
-        "src/lib/booking-actions.ts",
-        "src/lib/booking-payment-actions.ts",
+        "src/app/bookings/guest/[guestReservationId]/page.tsx",
+        "src/components/bookings/ManualPaymentCheckout.tsx",
         "src/components/PageShell.tsx",
-        "src/components/dashboard/AppShell.tsx",
-        "src/components/dashboard/DashboardNav.tsx",
+        "src/components/hubs/PublicTopBar.tsx",
         "src/components/Logo.tsx",
-        "src/components/ui/Button.tsx",
-        "src/components/ui/Avatar.tsx"
+        "src/components/ui/Button.tsx"
       ],
       "fingerprints": {
-        ".superdesign/design-system.md": "156db42847e69056614b4cdfb37e050665e984a55229ab8dfcf3f305ea04b009",
+        ".superdesign/design-system.md": "4e78ea2dbdebeb923ec21e7c6a925eb3a82f8295d1af8082e8a697774a426197",
         ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
         "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
-        "src/app/hubs/[id]/page.tsx": "35fb164a032d47b9013ed9b9539146c8858ab25dd81ae331820754f3c31d8746",
-        "src/components/hubs/BookCourtPanel.tsx": "fd4d987be52bbc3a24d9c8a1ca65a6cb214a6c7a55803ebb03a1f19c349eac51",
-        "src/components/bookings/ReservationHoldDock.tsx": "5663863c723ba612473c99141a36637b074b19ffa2fb3b49c9a626e425c5694e",
-        "src/components/hubs/CourtAvailabilityBrowser.tsx": "1dcbe37a112abc90370818585872c0a326c5a85957b83febfe5fd1bd2d3f2e9f",
-        "src/components/hubs/DateStrip.tsx": "addcedeac8d08560652d20e042fcdcb2396c9837629299caa4471108bed3ef60",
-        "src/lib/booking-actions.ts": "b1b956cb4c04634413c0f126a3b39b31327832a80181227c65f792336aaac548",
-        "src/lib/booking-payment-actions.ts": "40a7674f27fbdac77507e63560ab7cd0ed18d82c6c00642978928c41cd1ae6a5",
-        "src/components/PageShell.tsx": "4e5187c7dc6c73947b63ef01df6103aeddcb0e725c450e1827495b00b73f9e2b",
-        "src/components/dashboard/AppShell.tsx": "27727e859d480e6fccfa55d3b240e6d7f0ae0456fc52ace6c6cb3006fb78ac2c",
-        "src/components/dashboard/DashboardNav.tsx": "8ddbbd07fb323c9ee60e5685f007d6ceb999cb68f5076cf1fe28c5f07f987a73",
+        "src/app/bookings/guest/[guestReservationId]/page.tsx": "5d92ea8f210f71398de492cc4fb13c80a9a49340a04a34fb10230001012921db",
+        "src/components/bookings/ManualPaymentCheckout.tsx": "33d71ee37151ea0943eca2ba7345ab9e3e80aba1c9579acacbe4838a0b428911",
+        "src/components/PageShell.tsx": "8cf5c18fb8033f53c49dd5d8e7df1c6140bd2a65bfa95a4bba79c452b7cc92b0",
+        "src/components/hubs/PublicTopBar.tsx": "d77256e43379e4b37f16be48b1d45838f968ddf49fafac052b93f4e50a6854b7",
         "src/components/Logo.tsx": "073c062cb0d022c9f5a1f78c79af6570143f03a8d6908c3268f79cb4370d6e2d",
-        "src/components/ui/Button.tsx": "d811d012bf62c684fa4dff3e20615fb17c998a862250aba27f15f14ec1f4513a",
-        "src/components/ui/Avatar.tsx": "e3af6ae6a7249c7f4ea61cb69e044c74fc27240af9ee5e9e645e7712f78a8214"
+        "src/components/ui/Button.tsx": "d811d012bf62c684fa4dff3e20615fb17c998a862250aba27f15f14ec1f4513a"
       },
-      "components": [
-        {
-          "name": "AppShell",
-          "id": "643a7b2a-c6f6-4f77-b880-018c281bfe34",
-          "sourcePath": "src/components/dashboard/AppShell.tsx",
-          "logoAssetKey": "public-bunal-logo-v2-wordmark.png"
-        }
-      ],
+      "components": [],
       "drafts": {
         "3b7bf865-66b3-4018-83a4-9e55d687c13a": {
           "title": "Bunal.club Guest Court Checkout",
-          "visualDirection": "current-style court selection with compact inline guest contact details and secure reservation messaging",
-          "currentVersion": 3
+          "visualDirection": "manual guest payment workspace with a compact read-only guest contact block inside the booking summary and no detached guest-details card",
+          "currentVersion": 5
         }
       },
-      "updatedAt": "2026-08-25T00:00:00+08:00"
+      "updatedAt": "2026-08-25T12:12:24+08:00"
     },
     "guest-booking-status": {
       "targetKind": "new-ui",

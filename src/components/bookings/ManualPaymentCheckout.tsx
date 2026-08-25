@@ -33,6 +33,11 @@ export type ManualPaymentCheckoutSummary = {
   venueHref: string;
   venuePhone: string | null;
   venueEmail: string | null;
+  guestContact?: {
+    name: string;
+    phone: string;
+    email: string;
+  };
   lines: Array<{
     id: string;
     label: string;
@@ -778,6 +783,36 @@ function BookingSummary({
             </dd>
           </div>
         </dl>
+        {summary.guestContact && (
+          <div className="mt-5 border-t border-slate-100 pt-4">
+            <h3 className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">
+              Guest contact
+            </h3>
+            <dl className="mt-3 space-y-3 text-sm">
+              <div>
+                <dt className="text-xs text-slate-400">Name</dt>
+                <dd className="mt-0.5 font-bold text-navy">
+                  {summary.guestContact.name}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-slate-400">Phone</dt>
+                <dd className="mt-0.5 font-bold text-navy">
+                  {summary.guestContact.phone}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-slate-400">Email updates</dt>
+                <dd className="mt-0.5 break-all font-bold text-navy">
+                  {summary.guestContact.email}
+                </dd>
+              </div>
+            </dl>
+            <p className="mt-3 text-xs leading-5 text-slate-500">
+              Booking and payment updates will be sent to this email.
+            </p>
+          </div>
+        )}
       </div>
     </section>
   );

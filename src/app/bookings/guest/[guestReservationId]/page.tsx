@@ -111,6 +111,11 @@ export default async function GuestBookingPage({
                 venueHref,
                 venuePhone: screen.venuePhone,
                 venueEmail: screen.venueEmail,
+                guestContact: {
+                  name: access.name,
+                  phone: access.phone,
+                  email: access.email,
+                },
                 lines: screen.payment.lines.map((line) => ({
                   id: line.bookingId,
                   label: line.courtName,
@@ -126,7 +131,6 @@ export default async function GuestBookingPage({
               }}
             />
           </div>
-          <GuestContactCard access={access} />
         </div>
       </PageShell>
     );

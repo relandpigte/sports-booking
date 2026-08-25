@@ -134,6 +134,12 @@ labels, 44px tap targets, sufficient contrast, and server-stable markup.
   action. Use the supplied Courtogo screenshot only for information hierarchy;
   retain Bunal.club's own shell, palette, typography, radii, and component
   language.
+- On private guest checkout, keep the captured guest name, phone, and email as
+  a compact read-only `Guest contact` subsection inside the booking summary,
+  after the total. Do not add a detached guest-details card below the payment
+  workspace or important notes. On mobile, the contact block stays within the
+  summary's normal reading order, and the email is clearly labeled as the
+  destination for booking and payment updates.
 - Before receipt submission, the copy must say that the slot will be released
   when the 15-minute hold expires. After submission, replace the timer with a
   clear amber “Pending booking” state explaining that the venue must approve

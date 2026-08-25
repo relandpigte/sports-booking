@@ -105,7 +105,7 @@ function CourtList({
   onToggle: (courtId: string, hour: number) => void;
 }) {
   return (
-    <div className="mt-5 space-y-4">
+    <div className="mt-4 space-y-2">
       {courts.map((court) => {
         const active = court.id === activeCourtId;
         const availableCount = court.slots.filter((slot) => slot.available).length;
@@ -119,14 +119,14 @@ function CourtList({
             <button
               type="button"
               onClick={() => onSelectCourt(court.id)}
-              className="flex min-h-14 w-full items-center justify-between gap-3 bg-gray-50/70 px-3 py-2 text-left sm:min-h-16 sm:gap-4 sm:px-5 sm:py-3"
+              className="flex min-h-12 w-full items-center justify-between gap-3 border-b border-gray-100 bg-gray-50/70 px-4 py-2 text-left sm:px-5"
               aria-pressed={active}
             >
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-extrabold text-navy sm:text-base">
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="truncate text-sm font-extrabold text-navy sm:text-base">
                   {court.name}
                 </span>
-                <span className="mt-1 block">
+                <span className="hidden shrink-0 min-[360px]:inline-flex">
                   <CourtTypeBadge courtType={court.courtType} />
                 </span>
               </span>
@@ -142,7 +142,7 @@ function CourtList({
             </button>
             {court.slots.length > 0 ? (
               <div
-                className="grid grid-cols-1 gap-1 p-2 sm:grid-cols-2 sm:gap-2 sm:p-4 xl:grid-cols-3"
+                className="divide-y divide-gray-100"
                 role="group"
                 aria-label={`${court.name} time slots`}
               >
@@ -158,7 +158,7 @@ function CourtList({
                 ))}
               </div>
             ) : (
-              <p className="px-5 py-6 text-sm text-gray-500">
+              <p className="px-5 py-5 text-sm text-gray-500">
                 No time slots available for this court on this date.
               </p>
             )}
@@ -210,13 +210,16 @@ function CourtComparisonGrid({
 
       <div className={singleCourt ? "hidden sm:block" : "overflow-x-auto"}>
         <table
-          className={`w-full border-separate border-spacing-0 ${
-            singleCourt ? "" : "min-w-[680px]"
-          }`}
+          className="w-full border-separate border-spacing-0"
+          style={
+            singleCourt
+              ? undefined
+              : { minWidth: `${108 + courts.length * 150}px` }
+          }
         >
           <thead>
             <tr>
-              <th className="sticky left-0 z-20 w-40 border-b border-r border-gray-200 bg-gray-50 px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-[0.16em] text-gray-400">
+              <th className="sticky left-0 z-20 w-[108px] min-w-[108px] border-b border-r border-gray-200 bg-gray-50 px-3 py-2 text-left text-[10px] font-black uppercase tracking-[0.16em] text-gray-400">
                 Time
               </th>
               {courts.map((court) => {
@@ -224,16 +227,14 @@ function CourtComparisonGrid({
                 return (
                   <th
                     key={court.id}
-                    className={`border-b border-r border-gray-200 px-2 py-1.5 text-center last:border-r-0 ${
-                      singleCourt ? "" : "min-w-32"
-                    } ${
+                    className={`min-w-[150px] border-b border-r border-gray-200 px-2 py-1.5 text-center last:border-r-0 ${
                       active ? "bg-primary-soft/70" : "bg-gray-50"
                     }`}
                   >
                     <button
                       type="button"
                       onClick={() => onSelectCourt(court.id)}
-                      className="min-h-9 w-full rounded-lg px-2 py-1"
+                      className="min-h-11 w-full rounded-lg px-2 py-1"
                       aria-pressed={active}
                     >
                       <span className="block truncate text-sm font-extrabold text-navy">
@@ -255,15 +256,18 @@ function CourtComparisonGrid({
                 .find((slot) => slot.hour === hour)?.label;
               return (
                 <tr key={hour}>
-                  <th className="sticky left-0 z-10 border-b border-r border-gray-200 bg-white px-4 py-2 text-left text-xs font-bold text-navy last:border-b-0">
-                    {label}
+                  <th
+                    title={label}
+                    className="sticky left-0 z-10 h-11 whitespace-nowrap border-b border-r border-gray-200 bg-white px-3 py-1.5 text-left text-[11px] font-bold text-navy last:border-b-0"
+                  >
+                    {formatCompactHourRange(hour)}
                   </th>
                   {courts.map((court) => {
                     const slot = court.slots.find((item) => item.hour === hour);
                     return (
                       <td
                         key={court.id}
-                        className="border-b border-r border-gray-100 p-1 last:border-r-0"
+                        className="border-b border-r border-gray-100 p-0.5 last:border-r-0"
                       >
                         {slot ? (
                           <SlotCell
@@ -277,7 +281,7 @@ function CourtComparisonGrid({
                             onToggle={onToggle}
                           />
                         ) : (
-                          <span className="flex min-h-10 items-center justify-center rounded-lg bg-gray-50 text-xs text-gray-300">
+                          <span className="flex min-h-11 items-center justify-center rounded-lg bg-gray-50 text-xs text-gray-300">
                             —
                           </span>
                         )}
@@ -423,11 +427,11 @@ function SlotCell({
       onClick={() => onToggle(court.id, slot.hour)}
       className={`w-full rounded-lg text-xs font-bold leading-tight transition-all ${
         showTime
-          ? "flex min-h-11 items-center justify-between gap-2 rounded-xl border px-3 py-1 text-left sm:block sm:min-h-14 sm:border-2 sm:px-2 sm:py-2 sm:text-center"
+          ? "flex min-h-11 items-center justify-between gap-3 px-4 py-1.5 text-left sm:px-5"
           : compact
-            ? "min-h-10 border px-1.5 py-1"
+            ? "min-h-11 border px-1.5 py-1"
             : "min-h-14 rounded-xl border-2 px-2 py-2"
-      } ${slotClasses(slot, selected)}`}
+      } ${showTime ? listSlotClasses(slot, selected) : slotClasses(slot, selected)}`}
     >
       {showTime ? (
         <>
@@ -498,9 +502,40 @@ function slotClasses(slot: Slot, selected: boolean) {
   }
 }
 
+function listSlotClasses(slot: Slot, selected: boolean) {
+  if (selected) {
+    return "bg-primary text-white shadow-sm shadow-primary/15";
+  }
+  switch (slot.reason) {
+    case "openPlay":
+      return "cursor-not-allowed bg-ocean-soft text-ocean";
+    case "booked":
+      return "cursor-not-allowed bg-gray-100 text-gray-400";
+    case "closed":
+      return "cursor-not-allowed bg-gray-50 text-gray-400";
+    case "past":
+      return "cursor-not-allowed bg-white text-gray-300";
+    default:
+      return "bg-white text-navy hover:bg-primary-soft hover:text-primary";
+  }
+}
+
+function formatCompactHourRange(hour: number) {
+  const start = ((hour % 24) + 24) % 24;
+  const end = (start + 1) % 24;
+  const startValue = start % 12 || 12;
+  const endValue = end % 12 || 12;
+  const startPeriod = start < 12 ? "AM" : "PM";
+  const endPeriod = end < 12 ? "AM" : "PM";
+
+  return startPeriod === endPeriod
+    ? `${startValue}–${endValue} ${endPeriod}`
+    : `${startValue} ${startPeriod}–${endValue} ${endPeriod}`;
+}
+
 function AvailabilityLegend({ live }: { live: boolean }) {
   return (
-    <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50/70 px-4 py-3">
+    <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2.5">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-gray-500">
         <LegendSwatch className="border border-gray-300 bg-white" label="Available" />
         <LegendSwatch className="bg-primary" label="Selected" />
@@ -574,7 +609,7 @@ function ViewButton({
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={`inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3 text-xs font-bold transition-colors sm:px-4 ${
+      className={`inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-xs font-bold transition-colors sm:px-4 ${
         active ? "bg-white text-navy shadow-sm" : "text-gray-500 hover:text-navy"
       }`}
     >
@@ -587,15 +622,15 @@ function ViewButton({
 function AvailabilitySkeleton({ view }: { view: CourtAvailabilityView }) {
   return (
     <div
-      className={`mt-5 grid gap-2 rounded-2xl border border-gray-200 p-4 ${
-        view === "grid" ? "grid-cols-3" : "grid-cols-2"
+      className={`mt-4 grid gap-1 rounded-2xl border border-gray-200 p-2 ${
+        view === "grid" ? "grid-cols-4" : "grid-cols-1"
       }`}
       aria-label="Loading live court availability"
     >
       {Array.from({ length: view === "grid" ? 12 : 8 }, (_, index) => (
         <span
           key={index}
-          className="h-14 animate-pulse rounded-xl bg-gray-100"
+          className="h-11 animate-pulse rounded-lg bg-gray-100"
         />
       ))}
     </div>

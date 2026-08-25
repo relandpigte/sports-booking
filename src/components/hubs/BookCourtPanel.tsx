@@ -8,7 +8,6 @@ import {
   useEffect,
   useMemo,
   useState,
-  useSyncExternalStore,
 } from "react";
 import type { Role } from "@prisma/client";
 
@@ -56,21 +55,6 @@ type PanelCourt = {
 };
 
 const initialState: BookingFormState = {};
-const mobileBookingViewQuery = "(max-width: 639px)";
-
-function subscribeToMobileBookingView(onChange: () => void) {
-  const mediaQuery = window.matchMedia(mobileBookingViewQuery);
-  mediaQuery.addEventListener("change", onChange);
-  return () => mediaQuery.removeEventListener("change", onChange);
-}
-
-function getMobileBookingViewSnapshot() {
-  return window.matchMedia(mobileBookingViewQuery).matches;
-}
-
-function getMobileBookingViewServerSnapshot() {
-  return true;
-}
 
 export function BookCourtPanel({
   hubId,
@@ -104,8 +88,7 @@ export function BookCourtPanel({
   const [pickedByCourt, setPickedByCourt] = useState<Record<string, number[]>>(
     {}
   );
-  const [viewOverride, setViewOverride] =
-    useState<CourtAvailabilityView | null>(null);
+  const [view, setView] = useState<CourtAvailabilityView>("list");
   const [closedHoldId, setClosedHoldId] = useState<string | null>(null);
   const [state, formAction, pending] = useActionState(
     createBookingAction,
@@ -116,13 +99,6 @@ export function BookCourtPanel({
   useEffect(() => {
     if (state.activeHoldConflict) router.refresh();
   }, [router, state.activeHoldConflict]);
-  const mobileBookingView = useSyncExternalStore(
-    subscribeToMobileBookingView,
-    getMobileBookingViewSnapshot,
-    getMobileBookingViewServerSnapshot
-  );
-  const view = viewOverride ?? (mobileBookingView ? "list" : "grid");
-
   const { occupancies, live } = useHubAvailabilityStream(
     hubId,
     date,
@@ -338,7 +314,7 @@ export function BookCourtPanel({
                     activeHold ? heldSelectedByCourt : selectedByCourt
                   }
                   view={view}
-                  onViewChange={setViewOverride}
+                  onViewChange={setView}
                   onSelectCourt={selectCourt}
                   onToggle={toggle}
                   loading={occupancies == null}

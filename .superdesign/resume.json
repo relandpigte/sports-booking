@@ -1068,6 +1068,59 @@
       },
       "updatedAt": "2026-08-24T16:42:26Z"
     },
+    "/hubs/[id]#court-availability": {
+      "targetKind": "existing-ui",
+      "projectId": "7aecef10-b93a-436e-a800-3acb35d937d4",
+      "baselineDraftId": "41afc5d6-2322-427d-b153-d9ea98400cbf",
+      "activeDraftId": "9f8bd84b-4f1e-4b1b-ad68-ab3a7bd2cdc9",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "1811ad01-375f-4706-9a42-b3ff65452946"
+      ],
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "src/app/globals.css",
+        "src/components/hubs/BookCourtPanel.tsx",
+        "src/components/hubs/CourtAvailabilityBrowser.tsx",
+        "src/components/hubs/DateStrip.tsx",
+        "src/components/bookings/ReservationHoldDock.tsx",
+        "src/components/PageShell.tsx",
+        "src/components/hubs/PublicTopBar.tsx",
+        "src/components/Logo.tsx",
+        "src/components/ui/Button.tsx",
+        "src/app/hubs/[id]/page.tsx:295:678"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "156db42847e69056614b4cdfb37e050665e984a55229ab8dfcf3f305ea04b009",
+        ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
+        "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
+        "src/components/hubs/BookCourtPanel.tsx": "71799c4e710e32e50ab85d23a0f33912a7803145ad7afada46b70caa247fb3e8",
+        "src/components/hubs/CourtAvailabilityBrowser.tsx": "bf86dc72ba1a41647489091e6410a7b3bf36c282388da85a12af2475fd000863",
+        "src/components/hubs/DateStrip.tsx": "addcedeac8d08560652d20e042fcdcb2396c9837629299caa4471108bed3ef60",
+        "src/components/bookings/ReservationHoldDock.tsx": "5663863c723ba612473c99141a36637b074b19ffa2fb3b49c9a626e425c5694e",
+        "src/components/PageShell.tsx": "4e5187c7dc6c73947b63ef01df6103aeddcb0e725c450e1827495b00b73f9e2b",
+        "src/components/hubs/PublicTopBar.tsx": "d77256e43379e4b37f16be48b1d45838f968ddf49fafac052b93f4e50a6854b7",
+        "src/components/Logo.tsx": "073c062cb0d022c9f5a1f78c79af6570143f03a8d6908c3268f79cb4370d6e2d",
+        "src/components/ui/Button.tsx": "d811d012bf62c684fa4dff3e20615fb17c998a862250aba27f15f14ec1f4513a",
+        "src/app/hubs/[id]/page.tsx": "35fb164a032d47b9013ed9b9539146c8858ab25dd81ae331820754f3c31d8746"
+      },
+      "components": [],
+      "drafts": {
+        "41afc5d6-2322-427d-b153-d9ea98400cbf": {
+          "title": "Bunal.club Court Booking List View",
+          "visualDirection": "faithful current court-booking baseline",
+          "currentVersion": 1
+        },
+        "9f8bd84b-4f1e-4b1b-ad68-ab3a7bd2cdc9": {
+          "title": "Bunal.club Responsive Court Availability Browser",
+          "visualDirection": "list-first compact single-column slots with a dense independently-rowed comparison table",
+          "parentDraftId": "41afc5d6-2322-427d-b153-d9ea98400cbf",
+          "currentVersion": 2
+        }
+      },
+      "updatedAt": "2026-08-25T08:20:00+08:00"
+    },
     "/dashboard/admin/reports": {
       "targetKind": "existing-ui",
       "projectId": "df2fe063-c6da-4978-8695-40c03895ddc6",

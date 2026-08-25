@@ -460,21 +460,31 @@ function ProgressSteps({ statusKind }: { statusKind: BookingStatusKind }) {
   return (
     <ol
       aria-label="Booking progress"
-      className="grid grid-cols-1 gap-4 px-5 py-6 sm:grid-cols-3 sm:gap-0 sm:px-7"
+      className="relative grid grid-cols-1 gap-4 px-5 py-6 sm:grid-cols-3 sm:gap-0 sm:px-7"
     >
+      <span
+        aria-hidden="true"
+        className={`absolute left-[16.6667%] right-1/2 top-[41px] hidden h-0.5 sm:block ${
+          statusKind === "declined" || statusKind === "expired"
+            ? "bg-red-300"
+            : "bg-primary"
+        }`}
+      />
+      <span
+        aria-hidden="true"
+        className={`absolute left-1/2 right-[16.6667%] top-[41px] hidden h-0.5 sm:block ${
+          statusKind === "confirmed"
+            ? "bg-primary"
+            : statusKind === "declined" || statusKind === "expired"
+              ? "bg-red-300"
+              : "bg-slate-200"
+        }`}
+      />
       {steps.map(([label, detail, tone], index) => (
         <li
           key={label}
-          className={`relative flex items-center gap-3 sm:block ${
-            index === 0 ? "sm:pr-4" : index === 2 ? "sm:pl-4" : "sm:px-4"
-          }`}
+          className="relative flex items-center gap-3 sm:flex-col sm:gap-0 sm:px-2 sm:text-center"
         >
-          {index > 0 && (
-            <span
-              aria-hidden="true"
-              className="absolute -left-1/2 right-1/2 top-[17px] hidden h-0.5 bg-slate-200 sm:block"
-            />
-          )}
           <span
             className={`relative z-10 flex size-9 shrink-0 items-center justify-center rounded-full border-2 text-sm font-black ${
               tone === "complete"

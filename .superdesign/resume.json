@@ -226,7 +226,7 @@
         ".superdesign/design-system.md": "36e92cca5f76d10d8114dfb6642cd0a6a61fd3fdce6b6750e4e482aa2000612d",
         ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
         "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
-        "src/app/bookings/guest/[guestReservationId]/page.tsx": "40a32b5c02a9c15dd57690d3b0a8b9874fc24ec8102063742901caf05877ce98",
+        "src/app/bookings/guest/[guestReservationId]/page.tsx": "9e7ea03e183d7c1e7339e0a38586f3c6a318f9539e062b85087fffe201d21568",
         "src/components/PageShell.tsx": "8cf5c18fb8033f53c49dd5d8e7df1c6140bd2a65bfa95a4bba79c452b7cc92b0",
         "src/components/hubs/PublicTopBar.tsx": "d77256e43379e4b37f16be48b1d45838f968ddf49fafac052b93f4e50a6854b7",
         "src/components/Logo.tsx": "073c062cb0d022c9f5a1f78c79af6570143f03a8d6908c3268f79cb4370d6e2d",
@@ -247,7 +247,7 @@
           "currentVersion": 1
         }
       },
-      "updatedAt": "2026-08-25T12:40:55+08:00"
+      "updatedAt": "2026-08-25T12:56:03+08:00"
     },
     "trainer-marketplace": {
       "targetKind": "existing-ui",

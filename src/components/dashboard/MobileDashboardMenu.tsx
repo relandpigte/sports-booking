@@ -10,93 +10,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { PartnerStatus, Role } from "@prisma/client";
 
+import { DashboardIcon } from "@/components/dashboard/DashboardIcon";
 import {
-  DashboardIcon,
-  type DashboardIconName,
-} from "@/components/dashboard/DashboardIcon";
+  dashboardPathMatches,
+  getDashboardNavigationItems,
+} from "@/components/dashboard/DashboardNavigation";
 import { Logo } from "@/components/Logo";
 import { Avatar } from "@/components/ui/Avatar";
 import { logoutAction } from "@/lib/actions";
-import type { PartnerWorkspace, StaffModule } from "@/lib/staffing";
-
-type MobileMenuItem = {
-  href: string;
-  label: string;
-  icon: DashboardIconName;
-  exact?: boolean;
-  staffModule?: StaffModule;
-  ownerOnly?: boolean;
-};
-
-const playerItems: MobileMenuItem[] = [
-  { href: "/dashboard/player", label: "Home", icon: "home", exact: true },
-  { href: "/hubs", label: "Find Courts", icon: "map" },
-  { href: "/events", label: "Events", icon: "trophy" },
-  { href: "/trainers", label: "Find Trainers", icon: "account" },
-  { href: "/dashboard/trainer", label: "Trainer Tools", icon: "account" },
-  { href: "/dashboard/bookings", label: "Bookings", icon: "booking" },
-  { href: "/dashboard/messages", label: "Messages", icon: "message" },
-  { href: "/dashboard/tournaments", label: "Tournaments", icon: "trophy" },
-  { href: "/leaderboard", label: "Leaderboard", icon: "report" },
-  { href: "/dashboard/account", label: "Account", icon: "account" },
-];
-
-const partnerItems: MobileMenuItem[] = [
-  { href: "/dashboard/partner", label: "Home", icon: "home", exact: true },
-  { href: "/dashboard/bookings", label: "Bookings", icon: "booking", staffModule: "bookings" },
-  { href: "/dashboard/messages", label: "Messages", icon: "message", staffModule: "messages" },
-  { href: "/dashboard/hubs", label: "My Hubs", icon: "hub", staffModule: "hubs" },
-  { href: "/dashboard/reports", label: "Reports", icon: "report", staffModule: "reports" },
-  { href: "/dashboard/events", label: "Events", icon: "trophy", staffModule: "events" },
-  { href: "/dashboard/bunalq", label: "BunalQ", icon: "booking", staffModule: "openPlay" },
-  { href: "/dashboard/payments", label: "Payments", icon: "payment", staffModule: "payments" },
-  { href: "/dashboard/team", label: "Team", icon: "account", ownerOnly: true },
-  { href: "/dashboard/account", label: "Account", icon: "account" },
-];
-
-const pendingPartnerItems: MobileMenuItem[] = [
-  { href: "/dashboard/partner", label: "Home", icon: "home", exact: true },
-  { href: "/dashboard/account", label: "Account", icon: "account" },
-];
-
-const draftPartnerItems: MobileMenuItem[] = [
-  { href: "/dashboard/partner", label: "Home", icon: "home", exact: true },
-  {
-    href: "/dashboard/partner/onboarding",
-    label: "Venue application",
-    icon: "hub",
-  },
-  { href: "/dashboard/account", label: "Account", icon: "account" },
-];
-
-const adminItems: MobileMenuItem[] = [
-  { href: "/dashboard/admin", label: "Home", icon: "home", exact: true },
-  { href: "/dashboard/account", label: "Account Settings", icon: "account" },
-  { href: "/dashboard/admin/trainers", label: "Trainer reviews", icon: "account" },
-  {
-    href: "/dashboard/admin/payments",
-    label: "Payment setup",
-    icon: "payment",
-  },
-  { href: "/dashboard/admin/reports", label: "Reports", icon: "report" },
-  {
-    href: "/dashboard/admin/settlements",
-    label: "Settlements",
-    icon: "booking",
-  },
-  {
-    href: "/dashboard/admin/messages",
-    label: "Message reports",
-    icon: "message",
-  },
-  { href: "/users", label: "Manage Users", icon: "shield" },
-];
-
-function pathMatches(pathname: string, item: MobileMenuItem) {
-  return item.exact
-    ? pathname === item.href
-    : pathname === item.href || pathname.startsWith(`${item.href}/`);
-}
+import type { PartnerWorkspace } from "@/lib/staffing-shared";
 
 export function MobileDashboardMenu({
   role,
@@ -123,30 +45,11 @@ export function MobileDashboardMenu({
   const closeRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
 
-  const staffWorkspace = workspace?.kind === "STAFF";
-  const roleItems =
-    role === "ADMIN"
-      ? adminItems
-      : staffWorkspace
-        ? partnerItems
-      : role === "PLAYER"
-        ? playerItems
-        : partnerStatus === "ACTIVE"
-          ? partnerItems
-          : partnerStatus === "DRAFT"
-            ? draftPartnerItems
-            : pendingPartnerItems;
-  const items = roleItems.filter((item) => {
-    if (item.href === "/dashboard/messages" && !hasMessages) return false;
-    if (item.ownerOnly && workspace?.kind !== "OWNER") return false;
-    if (
-      staffWorkspace &&
-      item.staffModule &&
-      workspace.permissions[item.staffModule] === "NONE"
-    ) {
-      return false;
-    }
-    return true;
+  const items = getDashboardNavigationItems({
+    role,
+    partnerStatus,
+    hasMessages,
+    workspace,
   });
 
   useEffect(() => {
@@ -212,7 +115,7 @@ export function MobileDashboardMenu({
       <div
         aria-hidden="true"
         onClick={() => closeMenu({ restoreFocus: true })}
-        className={`fixed inset-0 z-[60] bg-navy/60 backdrop-blur-[2px] transition-opacity duration-300 md:hidden ${
+        className={`fixed inset-0 z-[60] bg-navy/60 backdrop-blur-[2px] transition-opacity duration-300 lg:hidden ${
           open
             ? "pointer-events-auto opacity-100"
             : "pointer-events-none opacity-0"
@@ -228,7 +131,7 @@ export function MobileDashboardMenu({
         aria-hidden={!open}
         inert={!open}
         onKeyDown={trapFocus}
-        className={`fixed inset-y-0 left-0 z-[70] flex w-[min(84vw,340px)] min-w-0 flex-col bg-navy pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] shadow-2xl transition-transform duration-300 ease-out md:hidden ${
+        className={`fixed inset-y-0 left-0 z-[70] flex w-[min(84vw,340px)] min-w-0 flex-col bg-navy pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] shadow-2xl transition-transform duration-300 ease-out lg:hidden ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -279,7 +182,7 @@ export function MobileDashboardMenu({
           className="flex-1 space-y-1 overflow-y-auto px-3 py-4"
         >
           {items.map((item) => {
-            const active = pathMatches(pathname, item);
+            const active = dashboardPathMatches(pathname, item);
             return (
               <Link
                 key={item.href}

@@ -7,7 +7,6 @@ import { Avatar } from "@/components/ui/Avatar";
 import { DashboardNav } from "@/components/dashboard/DashboardNav";
 import { MobileDashboardMenu } from "@/components/dashboard/MobileDashboardMenu";
 import { ReservationHoldDock } from "@/components/bookings/ReservationHoldDock";
-import { logoutAction } from "@/lib/actions";
 import { stopPartnerImpersonationAction } from "@/lib/impersonation-actions";
 import {
   enterPersonalWorkspaceAction,
@@ -25,7 +24,7 @@ export type ShellUser = {
   partnerStatus: PartnerStatus | null;
 };
 
-// The signed-in chrome: sidebar, nav, account footer.
+// The signed-in chrome: responsive navigation, account menu, and app content.
 //
 // Lives here rather than only in (app)/layout.tsx because the public hub pages
 // need it too — a signed-in visitor browsing /hubs should never lose their way
@@ -67,8 +66,8 @@ export function AppShell({
         : "Player workspace";
 
   return (
-    <div className="flex min-h-screen w-full min-w-0 flex-col overflow-x-clip bg-[#f7faf8] md:flex-row">
-      <header className="sticky top-0 z-40 flex min-w-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] md:hidden">
+    <div className="flex min-h-screen w-full min-w-0 flex-col overflow-x-clip bg-[#f7faf8]">
+      <header className="sticky top-0 z-40 flex min-w-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] lg:hidden">
         <div className="flex min-w-0 items-center gap-3">
           <MobileDashboardMenu
             role={user.role}
@@ -91,53 +90,16 @@ export function AppShell({
         <Avatar src={user.image} name={displayName} size={38} />
       </header>
 
-      <aside className="z-40 hidden flex-col bg-navy p-4 md:sticky md:top-0 md:flex md:h-screen md:w-[272px] md:shrink-0">
-        <div>
-          <Link
-            href="/dashboard"
-            aria-label="Bunal.club dashboard home"
-            className="block w-fit p-2.5"
-          >
-            <Logo />
-          </Link>
-        </div>
-
-        <p className="px-3 pt-7 text-[11px] font-bold uppercase tracking-[0.2em] text-white/35">
-          {workspaceLabel}
-        </p>
-
-        <DashboardNav
-          role={user.role}
-          partnerStatus={impersonation ? "ACTIVE" : user.partnerStatus}
-          hasMessages={hasMessages}
-          workspace={workspace}
-        />
-
-        <div className="mt-auto hidden rounded-2xl border border-white/10 bg-white/5 p-3 md:flex md:items-center md:gap-3">
-          <Avatar
-            src={user.image}
-            name={displayName}
-            size={38}
-            className="ring-2 ring-white/15"
-          />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-white">
-              {displayName}
-            </p>
-            <p className="truncate text-xs text-white/40">{user.email}</p>
-          </div>
-          <form action={logoutAction}>
-            <button
-              type="submit"
-              title="Log out"
-              aria-label="Log out"
-              className="flex h-9 w-9 items-center justify-center rounded-xl text-white/45 transition-colors hover:bg-white/10 hover:text-white"
-            >
-              <LogoutIcon />
-            </button>
-          </form>
-        </div>
-      </aside>
+      <DashboardNav
+        role={user.role}
+        partnerStatus={impersonation ? "ACTIVE" : user.partnerStatus}
+        displayName={displayName}
+        email={user.email}
+        image={user.image}
+        workspaceLabel={workspaceLabel}
+        hasMessages={hasMessages}
+        workspace={workspace}
+      />
 
       <main
         className="min-w-0 flex-1 px-4 pb-8 pt-6 sm:px-6 md:px-8 md:py-10"
@@ -214,24 +176,4 @@ function formatImpersonationExpiry(value: Date) {
     minute: "2-digit",
     timeZone: "Asia/Manila",
   }).format(value);
-}
-
-function LogoutIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-      <polyline points="16 17 21 12 16 7" />
-      <line x1="21" y1="12" x2="9" y2="12" />
-    </svg>
-  );
 }

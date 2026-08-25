@@ -81,7 +81,6 @@ export default async function Home() {
         <ReservationHoldDock
           hold={activeBookingHold}
           hideOnOwnHub
-          withSidebar={false}
         />
       )}
     </>

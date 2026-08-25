@@ -152,13 +152,15 @@ brand, with denser spacing and calmer surfaces than the marketing homepage.
 Preserve every route and role permission while making the shared shell and
 page composition consistent.
 
-- Desktop shell: a 272px navy sidebar with the real logo on a white inset,
-  clearly grouped navigation, a lime/green active marker, and a compact
-  signed-in user card at the bottom. The content area uses the off-white
-  background and a centered 1180px work surface.
-- Mobile shell: a compact white header with the logo and horizontally
-  scrollable role navigation. Never hide required destinations behind an
-  inaccessible hover state and avoid horizontal page overflow.
+- Desktop shell (1024px and wider): a sticky white top bar with the real logo,
+  role-aware primary navigation, and an avatar account menu. Show four direct
+  destinations at laptop widths and up to six from 1280px, moving the remaining
+  permitted destinations into an accessible More menu. Keep the content area
+  full-width on the off-white background with a centered work surface.
+- Mobile and tablet shell (below 1024px): a compact sticky white header with a
+  hamburger that opens the navy navigation drawer. The drawer uses the same
+  role and workspace permission rules as desktop, traps focus while open, and
+  includes account identity and logout. Avoid horizontal page overflow.
 - Page headers: small uppercase role/context eyebrow, 28–32px navy title,
   concise muted description, and actions aligned right when space permits.
 - Dashboard cards: white, 1px `#dfe7e2` border, 16–20px radius, restrained

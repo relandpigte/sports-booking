@@ -1,416 +1,401 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type Ref } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { PartnerStatus, Role } from "@prisma/client";
 
-import { dashboardHomeFor } from "@/lib/dashboard";
-import type { PartnerWorkspace, StaffModule } from "@/lib/staffing";
-
-type Item = {
-  href: string;
-  label: string;
-  exact?: boolean;
-  playerOnly?: boolean;
-  partnerOnly?: boolean;
-  messagesOnly?: boolean;
-  staffModule?: StaffModule;
-  ownerOnly?: boolean;
-  icon: ReactNode;
-};
-
-const iconProps = {
-  width: 18,
-  height: 18,
-  viewBox: "0 0 24 24",
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 2,
-  strokeLinecap: "round" as const,
-  strokeLinejoin: "round" as const,
-  "aria-hidden": true,
-};
-
-const items: Item[] = [
-  {
-    href: "/dashboard",
-    label: "Home",
-    exact: true,
-    icon: (
-      <svg {...iconProps}>
-        <path d="M3 9.5 12 3l9 6.5" />
-        <path d="M5 10v10h14V10" />
-      </svg>
-    ),
-  },
-  {
-    href: "/hubs",
-    label: "Find Courts",
-    playerOnly: true,
-    icon: (
-      <svg {...iconProps}>
-        <path d="M3 21h18M5 21V8l7-4 7 4v13" />
-        <path d="M9 21v-6h6v6" />
-      </svg>
-    ),
-  },
-  {
-    href: "/dashboard/hubs",
-    label: "My Hubs",
-    partnerOnly: true,
-    staffModule: "hubs",
-    icon: (
-      <svg {...iconProps}>
-        <path d="M3 21h18M5 21V8l7-4 7 4v13" />
-        <path d="M9 21v-6h6v6" />
-      </svg>
-    ),
-  },
-  {
-    href: "/dashboard/reports",
-    label: "Reports",
-    partnerOnly: true,
-    staffModule: "reports",
-    icon: (
-      <svg {...iconProps}>
-        <path d="M3 3v18h18" />
-        <path d="M7 15l4-5 3 3 5-7" />
-      </svg>
-    ),
-  },
-  {
-    href: "/dashboard/bookings",
-    label: "Bookings",
-    partnerOnly: true,
-    staffModule: "bookings",
-    icon: (
-      <svg {...iconProps}>
-        <rect x="3" y="4" width="18" height="18" rx="2" />
-        <path d="M16 2v4M8 2v4M3 10h18" />
-        <path d="m9 16 2 2 4-4" />
-      </svg>
-    ),
-  },
-  {
-    href: "/trainers",
-    label: "Find Trainers",
-    playerOnly: true,
-    icon: (
-      <svg {...iconProps}>
-        <circle cx="12" cy="7" r="4" />
-        <path d="M5 21a7 7 0 0 1 14 0M18 5l2-2M4 3l2 2" />
-      </svg>
-    ),
-  },
-  {
-    href: "/dashboard/trainer",
-    label: "Trainer Tools",
-    playerOnly: true,
-    icon: (
-      <svg {...iconProps}>
-        <path d="M4 7h16M7 4v6M17 4v6M5 12h14v8H5z" />
-      </svg>
-    ),
-  },
-  {
-    href: "/dashboard/messages",
-    label: "Messages",
-    partnerOnly: true,
-    messagesOnly: true,
-    staffModule: "messages",
-    icon: (
-      <svg {...iconProps}>
-        <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z" />
-        <path d="M8 9h8M8 13h5" />
-      </svg>
-    ),
-  },
-  {
-    href: "/dashboard/events",
-    label: "Events",
-    partnerOnly: true,
-    staffModule: "events",
-    icon: (
-      <svg {...iconProps}>
-        <rect x="3" y="5" width="18" height="16" rx="2" />
-        <path d="M16 3v4M8 3v4M3 11h18M8 15h3M13 15h3" />
-      </svg>
-    ),
-  },
-  {
-    href: "/dashboard/bunalq",
-    label: "BunalQ",
-    partnerOnly: true,
-    staffModule: "openPlay",
-    icon: (
-      <svg {...iconProps}>
-        <path d="M4 6h16M4 12h10M4 18h7" />
-        <circle cx="19" cy="17" r="3" />
-      </svg>
-    ),
-  },
-  {
-    href: "/dashboard/payments",
-    label: "Payments",
-    partnerOnly: true,
-    staffModule: "payments",
-    icon: (
-      <svg {...iconProps}>
-        <rect x="2" y="5" width="20" height="14" rx="2" />
-        <path d="M2 10h20" />
-      </svg>
-    ),
-  },
-  {
-    href: "/dashboard/team",
-    label: "Team",
-    partnerOnly: true,
-    ownerOnly: true,
-    icon: (
-      <svg {...iconProps}>
-        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-        <circle cx="9" cy="7" r="4" />
-        <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-      </svg>
-    ),
-  },
-  {
-    href: "/events",
-    label: "Events",
-    playerOnly: true,
-    icon: (
-      <svg {...iconProps}>
-        <path d="M6 4h12v3a6 6 0 0 1-12 0z" />
-        <path d="M6 5H4v2a3 3 0 0 0 3 3M18 5h2v2a3 3 0 0 1-3 3" />
-        <path d="M9 18h6M10 14v4M14 14v4M8 21h8" />
-      </svg>
-    ),
-  },
-  {
-    href: "/dashboard/bookings",
-    label: "Bookings",
-    playerOnly: true,
-    icon: (
-      <svg {...iconProps}>
-        <rect x="3" y="4" width="18" height="18" rx="2" />
-        <path d="M16 2v4M8 2v4M3 10h18" />
-      </svg>
-    ),
-  },
-  {
-    href: "/dashboard/messages",
-    label: "Messages",
-    playerOnly: true,
-    messagesOnly: true,
-    icon: (
-      <svg {...iconProps}>
-        <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z" />
-        <path d="M8 9h8M8 13h5" />
-      </svg>
-    ),
-  },
-  {
-    href: "/dashboard/account",
-    label: "Account Settings",
-    icon: (
-      <svg {...iconProps}>
-        <circle cx="12" cy="8" r="4" />
-        <path d="M4 21a8 8 0 0 1 16 0" />
-      </svg>
-    ),
-  },
-];
+import { Logo } from "@/components/Logo";
+import { DashboardIcon } from "@/components/dashboard/DashboardIcon";
+import {
+  dashboardPathMatches,
+  getDashboardNavigationItems,
+  type DashboardNavigationItem,
+} from "@/components/dashboard/DashboardNavigation";
+import { Avatar } from "@/components/ui/Avatar";
+import { logoutAction } from "@/lib/actions";
+import type { PartnerWorkspace } from "@/lib/staffing-shared";
 
 export function DashboardNav({
   role,
   partnerStatus,
+  displayName,
+  email,
+  image,
+  workspaceLabel,
   hasMessages = false,
   workspace,
 }: {
-  role?: Role;
-  partnerStatus?: PartnerStatus | null;
+  role: Role;
+  partnerStatus: PartnerStatus | null;
+  displayName: string;
+  email: string;
+  image: string | null;
+  workspaceLabel: string;
   hasMessages?: boolean;
   workspace?: PartnerWorkspace | null;
 }) {
   const pathname = usePathname();
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const laptopMoreRef = useRef<HTMLDivElement>(null);
+  const wideMoreRef = useRef<HTMLDivElement>(null);
+  const accountRef = useRef<HTMLDivElement>(null);
+  const laptopMoreTriggerRef = useRef<HTMLButtonElement>(null);
+  const wideMoreTriggerRef = useRef<HTMLButtonElement>(null);
+  const accountTriggerRef = useRef<HTMLButtonElement>(null);
 
-  const isActive = (item: Item) =>
-    item.exact
-      ? pathname === item.href
-      : pathname === item.href || pathname.startsWith(item.href + "/");
+  const items = getDashboardNavigationItems({
+    role,
+    partnerStatus,
+    hasMessages,
+    workspace,
+  }).filter((item) => !item.accountOnly);
+  const laptopPrimary = items.slice(0, 4);
+  const widePrimary = items.slice(4, 6);
+  const laptopOverflow = items.slice(4);
+  const wideOverflow = items.slice(6);
 
-  const linkClass = (active: boolean) =>
-    `flex min-h-11 items-center gap-3 whitespace-nowrap border-l-[3px] px-3 py-2.5 text-sm font-semibold transition-colors md:rounded-xl ${
-      active
-        ? "border-primary bg-primary-soft text-primary md:border-accent md:bg-white/10 md:text-white"
-        : "border-transparent text-slate-600 hover:bg-slate-100 hover:text-navy md:text-white/55 md:hover:bg-white/5 md:hover:text-white"
-    }`;
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      const target = event.target as Node;
+      if (
+        !laptopMoreRef.current?.contains(target) &&
+        !wideMoreRef.current?.contains(target)
+      ) {
+        setMoreOpen(false);
+      }
+      if (!accountRef.current?.contains(target)) {
+        setAccountOpen(false);
+      }
+    }
 
-  const visibleItems = items
-    .filter(
-      (item) =>
-        (!item.playerOnly ||
-          (role === "PLAYER" && workspace?.kind !== "STAFF")) &&
-        (!item.messagesOnly || hasMessages) &&
-        (!item.ownerOnly || workspace?.kind === "OWNER") &&
-        (!item.partnerOnly ||
-          (role === "PARTNER" && partnerStatus === "ACTIVE") ||
-          (workspace?.kind === "STAFF" &&
-            (!item.staffModule ||
-              workspace.permissions[item.staffModule] !== "NONE")))
-    )
-    // Home points straight at the role's own dashboard, so the link highlights
-    // when you're on it — /dashboard only ever redirects there anyway.
-    .map((item) =>
-      item.href === "/dashboard" && role
-        ? {
-            ...item,
-            href:
-              workspace?.kind === "STAFF"
-                ? "/dashboard/partner"
-                : dashboardHomeFor(role),
-          }
-        : item
-    );
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      if (accountOpen) {
+        setAccountOpen(false);
+        accountTriggerRef.current?.focus();
+        return;
+      }
+      if (moreOpen) {
+        setMoreOpen(false);
+        const visibleTrigger =
+          wideMoreTriggerRef.current?.offsetParent !== null
+            ? wideMoreTriggerRef.current
+            : laptopMoreTriggerRef.current;
+        visibleTrigger?.focus();
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [accountOpen, moreOpen]);
+
+  function toggleMore() {
+    setMoreOpen((open) => !open);
+    setAccountOpen(false);
+  }
+
+  function toggleAccount() {
+    setAccountOpen((open) => !open);
+    setMoreOpen(false);
+  }
 
   return (
-    <nav
-      className={`${
-        role === "ADMIN" ? "flex" : "hidden"
-      } flex-row gap-1 overflow-x-auto border-t border-slate-100 px-3 py-2 md:mt-3 md:flex md:flex-col md:overflow-visible md:border-0 md:px-0 md:py-0`}
+    <header className="sticky top-0 z-50 hidden border-b border-slate-200 bg-white/95 shadow-[0_1px_0_rgba(16,36,58,0.02)] backdrop-blur-xl lg:block">
+      <div className="mx-auto flex h-[76px] w-full max-w-[1600px] items-center gap-4 px-6 xl:px-8">
+        <Link
+          href="/dashboard"
+          aria-label="Bunal.club dashboard home"
+          className="flex shrink-0 items-center pr-1"
+        >
+          <Logo />
+        </Link>
+
+        <nav
+          aria-label="Dashboard navigation"
+          className="flex min-w-0 flex-1 items-center gap-1"
+        >
+          {laptopPrimary.map((item) => (
+            <DesktopNavigationLink
+              key={item.href}
+              item={item}
+              active={dashboardPathMatches(pathname, item)}
+            />
+          ))}
+          {widePrimary.map((item) => (
+            <DesktopNavigationLink
+              key={item.href}
+              item={item}
+              active={dashboardPathMatches(pathname, item)}
+              className="hidden xl:inline-flex"
+            />
+          ))}
+
+          {laptopOverflow.length > 0 && (
+            <div ref={laptopMoreRef} className="relative xl:hidden">
+              <MoreButton
+                ref={laptopMoreTriggerRef}
+                open={moreOpen}
+                active={laptopOverflow.some((item) =>
+                  dashboardPathMatches(pathname, item)
+                )}
+                controls="dashboard-more-menu-laptop"
+                onClick={toggleMore}
+              />
+              {moreOpen && (
+                <NavigationMenu
+                  id="dashboard-more-menu-laptop"
+                  items={laptopOverflow}
+                  pathname={pathname}
+                  onNavigate={() => setMoreOpen(false)}
+                />
+              )}
+            </div>
+          )}
+
+          {wideOverflow.length > 0 && (
+            <div ref={wideMoreRef} className="relative hidden xl:block">
+              <MoreButton
+                ref={wideMoreTriggerRef}
+                open={moreOpen}
+                active={wideOverflow.some((item) =>
+                  dashboardPathMatches(pathname, item)
+                )}
+                controls="dashboard-more-menu-wide"
+                onClick={toggleMore}
+              />
+              {moreOpen && (
+                <NavigationMenu
+                  id="dashboard-more-menu-wide"
+                  items={wideOverflow}
+                  pathname={pathname}
+                  onNavigate={() => setMoreOpen(false)}
+                />
+              )}
+            </div>
+          )}
+        </nav>
+
+        <div ref={accountRef} className="relative shrink-0">
+          <button
+            ref={accountTriggerRef}
+            type="button"
+            aria-label={`Open account menu for ${displayName}`}
+            aria-haspopup="menu"
+            aria-expanded={accountOpen}
+            aria-controls="dashboard-account-menu"
+            onClick={toggleAccount}
+            className={`flex min-h-12 items-center gap-3 rounded-2xl border bg-white px-2.5 py-1.5 transition-colors ${
+              accountOpen
+                ? "border-primary/30 bg-primary-soft/40"
+                : "border-slate-200 hover:border-primary/30 hover:bg-[#f7faf8]"
+            }`}
+          >
+            <Avatar src={image} name={displayName} size={36} />
+            <span className="hidden min-w-0 2xl:block">
+              <span className="block max-w-36 truncate text-left text-sm font-bold text-navy">
+                {displayName}
+              </span>
+              <span className="block max-w-36 truncate text-left text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                {workspaceLabel}
+              </span>
+            </span>
+            <ChevronIcon open={accountOpen} />
+          </button>
+
+          {accountOpen && (
+            <div
+              id="dashboard-account-menu"
+              role="menu"
+              className="absolute right-0 top-full mt-2 w-72 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-navy/10"
+            >
+              <div className="border-b border-slate-100 px-3 py-3">
+                <p className="truncate text-sm font-bold text-navy">
+                  {displayName}
+                </p>
+                <p className="mt-0.5 truncate text-xs text-slate-500">{email}</p>
+                <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.14em] text-primary">
+                  {workspaceLabel}
+                </p>
+              </div>
+              <Link
+                href="/dashboard/account"
+                role="menuitem"
+                onClick={() => setAccountOpen(false)}
+                className="mt-1 flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-navy"
+              >
+                <DashboardIcon
+                  name="account"
+                  className="h-[18px] w-[18px] text-slate-400"
+                />
+                Account Settings
+              </Link>
+              <form action={logoutAction}>
+                <button
+                  type="submit"
+                  role="menuitem"
+                  className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-navy"
+                >
+                  <LogoutIcon />
+                  Log out
+                </button>
+              </form>
+            </div>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function DesktopNavigationLink({
+  item,
+  active,
+  className = "inline-flex",
+}: {
+  item: DashboardNavigationItem;
+  active: boolean;
+  className?: string;
+}) {
+  return (
+    <Link
+      href={item.href}
+      aria-current={active ? "page" : undefined}
+      className={`${className} min-h-11 items-center gap-2 whitespace-nowrap rounded-xl px-3 text-sm font-semibold transition-colors ${
+        active
+          ? "bg-primary-soft text-primary"
+          : "text-slate-600 hover:bg-slate-50 hover:text-navy"
+      }`}
     >
-      {visibleItems.map((item) => (
-        <Link
-          key={item.href}
-          href={item.href}
-          aria-current={isActive(item) ? "page" : undefined}
-          className={linkClass(isActive(item))}
-        >
-          {item.icon}
-          <span>{item.label}</span>
-        </Link>
-      ))}
+      <DashboardIcon name={item.icon} className="h-[17px] w-[17px]" />
+      <span>{item.label}</span>
+    </Link>
+  );
+}
 
-      {role === "PARTNER" && partnerStatus === "DRAFT" && (
-        <Link
-          href="/dashboard/partner/onboarding"
-          aria-current={
-            pathname.startsWith("/dashboard/partner/onboarding")
-              ? "page"
-              : undefined
-          }
-          className={linkClass(
-            pathname.startsWith("/dashboard/partner/onboarding")
-          )}
-        >
-          <svg {...iconProps}>
-            <path d="M3 21h18M5 21V8l7-4 7 4v13" />
-            <path d="M9 21v-6h6v6" />
-          </svg>
-          <span>Venue application</span>
-        </Link>
-      )}
+function MoreButton({
+  ref,
+  open,
+  active,
+  controls,
+  onClick,
+}: {
+  ref: Ref<HTMLButtonElement>;
+  open: boolean;
+  active: boolean;
+  controls: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      ref={ref}
+      type="button"
+      aria-haspopup="menu"
+      aria-expanded={open}
+      aria-controls={controls}
+      onClick={onClick}
+      className={`inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition-colors ${
+        active || open
+          ? "bg-primary-soft text-primary"
+          : "text-slate-600 hover:bg-slate-50 hover:text-navy"
+      }`}
+    >
+      <DashboardIcon name="more" className="h-[17px] w-[17px]" />
+      <span>More</span>
+      <ChevronIcon open={open} />
+    </button>
+  );
+}
 
-      {role === "ADMIN" && (
-        <Link
-          href="/dashboard/admin/trainers"
-          aria-current={pathname.startsWith("/dashboard/admin/trainers") ? "page" : undefined}
-          className={linkClass(pathname.startsWith("/dashboard/admin/trainers"))}
-        >
-          <svg {...iconProps}><circle cx="12" cy="7" r="4" /><path d="M5 21a7 7 0 0 1 14 0M17 14l2 2 3-4" /></svg>
-          <span>Trainer reviews</span>
-        </Link>
-      )}
+function NavigationMenu({
+  id,
+  items,
+  pathname,
+  onNavigate,
+}: {
+  id: string;
+  items: DashboardNavigationItem[];
+  pathname: string;
+  onNavigate: () => void;
+}) {
+  return (
+    <div
+      id={id}
+      role="menu"
+      className="absolute left-0 top-full mt-2 w-60 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-navy/10"
+    >
+      {items.map((item) => {
+        const active = dashboardPathMatches(pathname, item);
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            role="menuitem"
+            aria-current={active ? "page" : undefined}
+            onClick={onNavigate}
+            className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-colors ${
+              active
+                ? "bg-primary-soft text-primary"
+                : "text-slate-700 hover:bg-slate-50 hover:text-navy"
+            }`}
+          >
+            <DashboardIcon
+              name={item.icon}
+              className={`h-[18px] w-[18px] ${
+                active ? "text-primary" : "text-slate-400"
+              }`}
+            />
+            <span>{item.label}</span>
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
 
-      {role === "ADMIN" && (
-        <Link
-          href="/dashboard/admin/payments"
-          aria-current={
-            pathname.startsWith("/dashboard/admin/payments")
-              ? "page"
-              : undefined
-          }
-          className={`${linkClass(
-            pathname.startsWith("/dashboard/admin/payments")
-          )} md:mt-3`}
-        >
-          <svg {...iconProps}>
-            <rect x="2" y="5" width="20" height="14" rx="2" />
-            <path d="M2 10h20M16 15h2" />
-          </svg>
-          <span>Payment setup</span>
-        </Link>
-      )}
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={`shrink-0 text-slate-400 transition-transform ${
+        open ? "rotate-180" : ""
+      }`}
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
 
-      {role === "ADMIN" && (
-        <Link
-          href="/dashboard/admin/reports"
-          aria-current={
-            pathname.startsWith("/dashboard/admin/reports") ? "page" : undefined
-          }
-          className={linkClass(pathname.startsWith("/dashboard/admin/reports"))}
-        >
-          <svg {...iconProps}>
-            <path d="M3 3v18h18" />
-            <path d="M7 15l4-5 3 3 5-7" />
-          </svg>
-          <span>Reports</span>
-        </Link>
-      )}
-
-      {role === "ADMIN" && (
-        <Link
-          href="/dashboard/admin/settlements"
-          aria-current={
-            pathname.startsWith("/dashboard/admin/settlements")
-              ? "page"
-              : undefined
-          }
-          className={linkClass(
-            pathname.startsWith("/dashboard/admin/settlements")
-          )}
-        >
-          <svg {...iconProps}>
-            <path d="M4 4h16v16H4z" />
-            <path d="M8 9h8M8 13h5M8 17h3" />
-          </svg>
-          <span>Settlements</span>
-        </Link>
-      )}
-
-      {role === "ADMIN" && (
-        <Link
-          href="/dashboard/admin/messages"
-          aria-current={pathname.startsWith("/dashboard/admin/messages") ? "page" : undefined}
-          className={linkClass(pathname.startsWith("/dashboard/admin/messages"))}
-        >
-          <svg {...iconProps}>
-            <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z" />
-            <path d="m9 10 2 2 4-4" />
-          </svg>
-          <span>Message reports</span>
-        </Link>
-      )}
-
-      {role === "ADMIN" && (
-        <Link
-          href="/users"
-          aria-current={
-            pathname === "/users" || pathname.startsWith("/users/")
-              ? "page"
-              : undefined
-          }
-          className={linkClass(
-            pathname === "/users" || pathname.startsWith("/users/")
-          )}
-        >
-          <svg {...iconProps}>
-            <path d="M12 3l8 4v5c0 4.5-3 7.5-8 9-5-1.5-8-4.5-8-9V7z" />
-          </svg>
-          <span>Manage Users</span>
-        </Link>
-      )}
-    </nav>
+function LogoutIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="text-slate-400"
+    >
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" y1="12" x2="9" y2="12" />
+    </svg>
   );
 }

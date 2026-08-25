@@ -28,12 +28,10 @@ export function ReservationHoldDock({
   hold,
   onClosed,
   hideOnOwnHub = false,
-  withSidebar = true,
 }: {
   hold: BookingHoldView;
   onClosed?: () => void;
   hideOnOwnHub?: boolean;
-  withSidebar?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -99,7 +97,7 @@ export function ReservationHoldDock({
   return (
     <section
       aria-label="Reserved booking"
-      className={`fixed inset-x-0 bottom-0 z-[60] border-t border-accent/60 bg-navy/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-14px_35px_rgba(16,36,58,0.22)] backdrop-blur-xl ${withSidebar ? "md:left-[272px]" : ""}`}
+      className="fixed inset-x-0 bottom-0 z-[60] border-t border-accent/60 bg-navy/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-14px_35px_rgba(16,36,58,0.22)] backdrop-blur-xl"
     >
       <div className="mx-auto w-full max-w-7xl px-4 py-3 sm:px-6 sm:py-4 lg:px-8">
         {message && (

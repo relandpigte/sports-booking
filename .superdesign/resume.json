@@ -1121,6 +1121,74 @@
       },
       "updatedAt": "2026-08-25T08:20:00+08:00"
     },
+    "authenticated-app-shell": {
+      "targetKind": "existing-ui",
+      "projectId": "df2fe063-c6da-4978-8695-40c03895ddc6",
+      "baselineDraftId": "7c692b71-6943-4afa-aebf-089b15f75f70",
+      "activeDraftId": "7c692b71-6943-4afa-aebf-089b15f75f70",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "public-bunal-logo-v2-wordmark.png"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "public-bunal-logo-v2-wordmark.png",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/e4c8e4e6-58c1-4931-a0f3-9eae8122ee8e/brand-assets/public-bunal-logo-v2-wordmark.png/bunal-logo-v2-wordmark.png",
+          "sourcePath": "public/bunal-logo-v2-wordmark.png"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "src/app/globals.css",
+        "src/app/(app)/layout.tsx",
+        "src/components/dashboard/AppShell.tsx",
+        "src/components/dashboard/DashboardNav.tsx",
+        "src/components/dashboard/DashboardNavigation.ts",
+        "src/components/dashboard/MobileDashboardMenu.tsx",
+        "src/components/dashboard/DashboardIcon.tsx",
+        "src/components/Logo.tsx",
+        "src/components/ui/Avatar.tsx",
+        "src/components/bookings/ReservationHoldDock.tsx",
+        "src/components/PageShell.tsx",
+        "src/app/page.tsx",
+        "src/components/dashboard/home/AdminHome.tsx",
+        "src/components/dashboard/DashboardPageHeader.tsx",
+        "src/components/dashboard/home/AnalyticsHomeSummary.tsx",
+        "src/lib/dashboard.ts",
+        "src/lib/staffing-shared.ts"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "3bd464823bd145f6578f638d89a6ce73e8661d53e4ad5bd5122ad616dd5490c8",
+        ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
+        "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
+        "src/app/(app)/layout.tsx": "0096b1d5fcfb256cb7c09954a82f8ceae2f9fef8fae30668585ca1a6d01f0675",
+        "src/components/dashboard/AppShell.tsx": "0b287f061fd17665d82435e441b6e4fbdd7e92583fb658bf5d01107ad26e0777",
+        "src/components/dashboard/DashboardNav.tsx": "dd96d593ab70da912b1ae59769f34550567260afe554b2858b9cf1cfbe7b217a",
+        "src/components/dashboard/DashboardNavigation.ts": "1b9b72b5d508a34fff4e60a2943178e3c42ec7e134e9aa0be93095161cc691b0",
+        "src/components/dashboard/MobileDashboardMenu.tsx": "f7b4d344675c1f64e97b58caa058f32eff2477a4fbd35185ceeddd6d1c042640",
+        "src/components/dashboard/DashboardIcon.tsx": "75c39b27fb813cbe5b179f6adb69863211d7ed24c52ecaec9b17f1dfb79eb49d",
+        "src/components/Logo.tsx": "073c062cb0d022c9f5a1f78c79af6570143f03a8d6908c3268f79cb4370d6e2d",
+        "src/components/ui/Avatar.tsx": "e3af6ae6a7249c7f4ea61cb69e044c74fc27240af9ee5e9e645e7712f78a8214",
+        "src/components/bookings/ReservationHoldDock.tsx": "45ddbf9e2b5b5fd292516a98a843cbb1ea0f99ff1ecf9a407123ad2e4375594c",
+        "src/components/PageShell.tsx": "8cf5c18fb8033f53c49dd5d8e7df1c6140bd2a65bfa95a4bba79c452b7cc92b0",
+        "src/app/page.tsx": "0071de25258420b75cacf0a61718b8e270e18830ab954f7ea2aa15131eccf108",
+        "src/components/dashboard/home/AdminHome.tsx": "e4e0ef11715007732c41a68248aecb34dca53f36786ed1c63aaaa04b0460e7f1",
+        "src/components/dashboard/DashboardPageHeader.tsx": "fe77a8b2c4f147e439506287277024d83a7e55c6382067a2196a873d198c7e4e",
+        "src/components/dashboard/home/AnalyticsHomeSummary.tsx": "4fd3b384e5a38adc23a31f557b262c3eb7afacd61ffd02690c24c8859fc7ded5",
+        "src/lib/dashboard.ts": "d3c4a319372fc92fe97705ee9417bf2ae09ceefdad37279725b6bac46f666fc8",
+        "src/lib/staffing-shared.ts": "89d05f5bc677f97918f089d0bfd482a4dc8a948e9679fb23f584a39f38cb36e9"
+      },
+      "components": [],
+      "drafts": {
+        "7c692b71-6943-4afa-aebf-089b15f75f70": {
+          "title": "Authenticated Dashboard — Professional Top Navigation",
+          "visualDirection": "white sticky authenticated top bar with adaptive role navigation, More overflow, and an account menu",
+          "currentVersion": 2
+        }
+      },
+      "updatedAt": "2026-08-25T08:56:22+08:00"
+    },
     "/dashboard/admin/reports": {
       "targetKind": "existing-ui",
       "projectId": "df2fe063-c6da-4978-8695-40c03895ddc6",

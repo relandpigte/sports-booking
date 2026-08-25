@@ -9,7 +9,7 @@ import { newGuestAccessToken } from "@/lib/guest-bookings";
 
 const prisma = new PrismaClient();
 const PARTNER_EMAIL = "check-guest-booking-partner@example.test";
-const PLAYER_EMAIL = "check-guest-booking-player@example.test";
+const PLAYER_EMAIL = "check-guest-booking-player@example.com";
 
 async function cleanup() {
   await prisma.guestReservation.deleteMany({
@@ -30,7 +30,13 @@ async function check() {
         role: "PARTNER",
         partnerStatus: "ACTIVE",
       },
-      select: { id: true, email: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        partnerStatus: true,
+      },
     }),
     prisma.user.create({
       data: {
@@ -89,7 +95,7 @@ async function check() {
     },
     select: { id: true },
   });
-  await prisma.booking.create({
+  const manualBooking = await prisma.booking.create({
     data: {
       hubId: hub.id,
       courtId: hub.courts[0].id,
@@ -104,6 +110,16 @@ async function check() {
       hourlyRate: 450,
       totalPrice: 450,
       status: "PENDING",
+      holdExpiresAt: accessExpiresAt,
+    },
+    select: { id: true },
+  });
+  await prisma.bookingSlot.create({
+    data: {
+      bookingId: manualBooking.id,
+      courtId: hub.courts[0].id,
+      date: "2035-01-01",
+      hour: 9,
       holdExpiresAt: accessExpiresAt,
     },
   });
@@ -162,6 +178,150 @@ async function check() {
       guestHold.amount === 463.5 &&
       guestHold.lines[0]?.courtName === "Guest Court"
   );
+
+  await prisma.bookingPayment.update({
+    where: { id: payment.id },
+    data: {
+      manualReceiptImage: "data:image/png;base64,check",
+      manualSubmittedAt: new Date("2035-01-01T00:05:00.000Z"),
+    },
+  });
+
+  const originalApiKey = process.env.RESEND_API_KEY;
+  const originalEmailFrom = process.env.EMAIL_FROM;
+  const originalFetch = globalThis.fetch;
+  const emailRequests: Array<{
+    body: Record<string, unknown>;
+    headers: Headers;
+  }> = [];
+  process.env.RESEND_API_KEY = "re_guest_confirmation_check_only";
+  process.env.EMAIL_FROM = "Bunal.club <check@example.test>";
+  globalThis.fetch = (async (_input, init) => {
+    emailRequests.push({
+      body: JSON.parse(String(init?.body)) as Record<string, unknown>,
+      headers: new Headers(init?.headers),
+    });
+    return new Response(JSON.stringify({ id: `guest-${emailRequests.length}` }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  try {
+    const { reviewManualPaymentAction } = await import(
+      "@/lib/manual-payment-actions"
+    );
+    const approval = new FormData();
+    approval.set("paymentId", payment.id);
+    approval.set("decision", "approve");
+    const approvalResult = await reviewManualPaymentAction({}, approval);
+    const manualConfirmation = emailRequests[0];
+    ok(
+      "partner approval emails a guest player with a private confirmed-booking link",
+      approvalResult.success ===
+        "Payment approved and the booking was confirmed." &&
+        String(manualConfirmation?.body.to).includes(PLAYER_EMAIL) &&
+        String(manualConfirmation?.body.html).includes(
+          "approved your manual payment"
+        ) &&
+        String(manualConfirmation?.body.html).includes("/bookings/access/") &&
+        manualConfirmation?.headers.get("Idempotency-Key") ===
+          `player-manual-booking-confirmed-${payment.id}`
+    );
+
+    const retryResult = await reviewManualPaymentAction({}, approval);
+    const manualRetry = emailRequests[1];
+    ok(
+      "an already-approved manual payment can retry the same idempotent confirmation",
+      retryResult.success ===
+        "Payment was already approved. The confirmation email was checked." &&
+        manualRetry?.headers.get("Idempotency-Key") ===
+          manualConfirmation?.headers.get("Idempotency-Key")
+    );
+
+    const automaticGuest = await prisma.guestReservation.create({
+      data: {
+        name: "Automatic Guest Checkout",
+        phone: "+639171113333",
+        email: PLAYER_EMAIL,
+        accessExpiresAt,
+      },
+      select: { id: true },
+    });
+    const automaticPayment = await prisma.bookingPayment.create({
+      data: {
+        partnerId: partner.id,
+        guestReservationId: automaticGuest.id,
+        hubId: hub.id,
+        amount: 463.5,
+        venueAmount: 450,
+        platformFee: 13.5,
+        processingFee: 15,
+        method: "QRPH",
+        collectionMode: "AUTOMATIC",
+        status: "SUCCEEDED",
+        provider: "paymongo",
+        providerPaymentId: "pi_guest_confirmation_check",
+        paidAt: new Date(),
+        expiresAt: accessExpiresAt,
+      },
+      select: { id: true },
+    });
+    const automaticBooking = await prisma.booking.create({
+      data: {
+        hubId: hub.id,
+        courtId: hub.courts[0].id,
+        guestReservationId: automaticGuest.id,
+        bookingPaymentId: automaticPayment.id,
+        date: "2035-01-02",
+        startHour: 11,
+        endHour: 12,
+        hours: 1,
+        startsAt: new Date("2035-01-02T03:00:00.000Z"),
+        endsAt: new Date("2035-01-02T04:00:00.000Z"),
+        hourlyRate: 450,
+        totalPrice: 450,
+        status: "PENDING",
+        holdExpiresAt: accessExpiresAt,
+      },
+      select: { id: true },
+    });
+    await prisma.bookingSlot.create({
+      data: {
+        bookingId: automaticBooking.id,
+        courtId: hub.courts[0].id,
+        date: "2035-01-02",
+        hour: 11,
+        holdExpiresAt: accessExpiresAt,
+      },
+    });
+
+    const { settleBookingPayment } = await import("@/lib/booking-payments");
+    const automaticSettlement = await settleBookingPayment(
+      automaticPayment.id
+    );
+    const automaticConfirmation = emailRequests[2];
+    ok(
+      "automatic PayMongo settlement emails a guest player with a private confirmed-booking link",
+      automaticSettlement.status === "confirmed" &&
+        automaticSettlement.confirmationEmail === "sent" &&
+        String(automaticConfirmation?.body.to).includes(PLAYER_EMAIL) &&
+        String(automaticConfirmation?.body.html).includes(
+          "payment was successful"
+        ) &&
+        String(automaticConfirmation?.body.html).includes(
+          "/bookings/access/"
+        ) &&
+        automaticConfirmation?.headers.get("Idempotency-Key") ===
+          `player-automatic-booking-confirmed-${automaticPayment.id}`
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.RESEND_API_KEY;
+    else process.env.RESEND_API_KEY = originalApiKey;
+    if (originalEmailFrom === undefined) delete process.env.EMAIL_FROM;
+    else process.env.EMAIL_FROM = originalEmailFrom;
+  }
 
   let rejectedDualOwner = false;
   try {

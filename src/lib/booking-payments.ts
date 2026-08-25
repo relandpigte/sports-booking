@@ -650,23 +650,36 @@ export async function recordBookingChargeResult(
 class LostHold extends Error {}
 
 export type SettleOutcome =
-  | { status: "confirmed"; bookingIds: string[]; registrationId?: string }
-  | { status: "already" }
+  | {
+      status: "confirmed";
+      bookingIds: string[];
+      registrationId?: string;
+      confirmationEmail?: ConfirmationEmailDelivery;
+    }
+  | { status: "already"; confirmationEmail?: ConfirmationEmailDelivery }
   | { status: "not-paid" }
   | { status: "missing" }
   // Paid, but the hold lapsed and the hours went to someone else. The bookings
   // are marked EXPIRED and the payment is refunded before this returns.
   | { status: "lost"; refunded: boolean };
 
-async function notifyPlayerOfAutomaticPaymentConfirmation(paymentId: string) {
+type ConfirmationEmailDelivery =
+  | "sent"
+  | "not-configured"
+  | "skipped"
+  | "failed";
+
+async function notifyPlayerOfPaymentConfirmation(
+  paymentId: string
+): Promise<ConfirmationEmailDelivery | undefined> {
   const payment = await prisma.bookingPayment.findFirst({
     where: {
       id: paymentId,
       status: "SUCCEEDED",
-      collectionMode: "AUTOMATIC",
     },
     select: {
       id: true,
+      collectionMode: true,
       user: { select: { email: true, name: true, playerName: true } },
       guestReservation: {
         select: { id: true, email: true, name: true },
@@ -719,14 +732,14 @@ async function notifyPlayerOfAutomaticPaymentConfirmation(paymentId: string) {
       },
     },
   });
-  if (!payment) return;
+  if (!payment) return undefined;
 
   const event =
     payment.eventRegistration?.status === "CONFIRMED"
       ? payment.eventRegistration.event
       : payment.eventGuestSlots[0]?.registration.event;
   const firstBooking = payment.bookings[0];
-  if (!event && !firstBooking) return;
+  if (!event && !firstBooking) return undefined;
 
   const bookingTitle = event
     ? event.title
@@ -751,7 +764,8 @@ async function notifyPlayerOfAutomaticPaymentConfirmation(paymentId: string) {
   const guestToken = payment.guestReservation
     ? await issueGuestAccessToken(payment.guestReservation.id)
     : null;
-  await notifyPlayerBookingConfirmed({
+  const paymentMode = payment.collectionMode;
+  return notifyPlayerBookingConfirmed({
     to: payment.user?.email ?? payment.guestReservation!.email,
     playerName:
       payment.user?.playerName ??
@@ -766,8 +780,8 @@ async function notifyPlayerOfAutomaticPaymentConfirmation(paymentId: string) {
       : event
         ? `/dashboard/bookings?q=${encodeURIComponent(event.publicId)}`
         : `/dashboard/bookings?q=${encodeURIComponent(payment.id)}`,
-    idempotencyKey: `player-automatic-booking-confirmed-${payment.id}`,
-    paymentMode: "AUTOMATIC",
+    idempotencyKey: `player-${paymentMode.toLowerCase()}-booking-confirmed-${payment.id}`,
+    paymentMode,
   });
 }
 
@@ -776,7 +790,9 @@ export async function settleBookingPayment(
 ): Promise<SettleOutcome> {
   const outcome = await settleBookingPaymentState(paymentId);
   if (outcome.status === "confirmed" || outcome.status === "already") {
-    await notifyPlayerOfAutomaticPaymentConfirmation(paymentId);
+    const confirmationEmail =
+      await notifyPlayerOfPaymentConfirmation(paymentId);
+    return { ...outcome, confirmationEmail };
   }
   return outcome;
 }

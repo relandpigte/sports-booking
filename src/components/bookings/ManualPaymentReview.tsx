@@ -315,6 +315,23 @@ export function ManualPaymentReview({
 
                     {payment.status === "SUCCEEDED" && (
                       <div className="mt-5 border-t border-slate-100 pt-5">
+                        <form action={action} className="mb-4">
+                          <input
+                            type="hidden"
+                            name="paymentId"
+                            value={payment.id}
+                          />
+                          <button
+                            name="decision"
+                            value="approve"
+                            disabled={pending}
+                            className="text-xs font-bold text-primary hover:underline disabled:opacity-50"
+                          >
+                            {pending
+                              ? "Checking confirmation…"
+                              : "Retry confirmation email"}
+                          </button>
+                        </form>
                         {!showRefund ? (
                           <button
                             type="button"
@@ -509,6 +526,29 @@ export function ManualPaymentReview({
 
         {payment.status === "SUCCEEDED" && (
           <div className="mt-3 border-t border-amber-200 pt-3">
+            <form action={action} className="mb-3">
+              <input type="hidden" name="paymentId" value={payment.id} />
+              <button
+                name="decision"
+                value="approve"
+                disabled={pending}
+                className="text-xs font-bold text-primary hover:underline disabled:opacity-50"
+              >
+                {pending
+                  ? "Checking confirmation…"
+                  : "Retry confirmation email"}
+              </button>
+            </form>
+            {state.message && (
+              <p className="mb-3 text-xs text-red-600" role="alert">
+                {state.message}
+              </p>
+            )}
+            {state.success && (
+              <p className="mb-3 text-xs text-green-700" role="status">
+                {state.success}
+              </p>
+            )}
             {!showRefund ? (
               <button
                 type="button"

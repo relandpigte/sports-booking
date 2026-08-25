@@ -78,14 +78,21 @@ export async function notifyPlayerBookingConfirmed(input: {
   actionPath: string;
   idempotencyKey: string;
   paymentMode: "MANUAL" | "AUTOMATIC" | "NONE";
-}): Promise<void> {
-  if (!emailDeliveryConfigured() || isReservedTestAddress(input.to)) return;
+}): Promise<"sent" | "not-configured" | "skipped" | "failed"> {
+  if (isReservedTestAddress(input.to)) return "skipped";
+  if (!emailDeliveryConfigured()) {
+    console.error(
+      "Player booking-confirmation email delivery skipped: RESEND_API_KEY and EMAIL_FROM must be configured."
+    );
+    return "not-configured";
+  }
 
   try {
     await sendPlayerBookingConfirmedEmail({
       ...input,
       actionUrl: appUrl(input.actionPath),
     });
+    return "sent";
   } catch (error) {
     // Payment approval has already committed. A provider outage must not make
     // a confirmed booking appear to have failed.
@@ -93,6 +100,7 @@ export async function notifyPlayerBookingConfirmed(input: {
       "Player booking-confirmation email delivery failed:",
       error instanceof Error ? error.message : "Unknown provider error"
     );
+    return "failed";
   }
 }
 

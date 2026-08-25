@@ -15,7 +15,6 @@ import { recordImpersonatedAction } from "@/lib/impersonation";
 import { revalidatePartnerPaymentSurfaces } from "@/lib/payment-revalidation";
 import {
   notifyPartnerTeamOfBooking,
-  notifyPlayerBookingConfirmed,
   notifyPlayerBookingDeclined,
   notifyPlayerManualReceiptReceived,
 } from "@/lib/booking-notifications";
@@ -632,12 +631,19 @@ export async function reviewManualPaymentAction(
       id: paymentId,
       partnerId: workspace.partnerId,
       collectionMode: "MANUAL",
-      status: "PENDING",
-      manualSubmittedAt: { not: null },
+      ...(decision === "approve"
+        ? {
+            OR: [
+              { status: "PENDING" as const, manualSubmittedAt: { not: null } },
+              { status: "SUCCEEDED" as const },
+            ],
+          }
+        : { status: "PENDING" as const, manualSubmittedAt: { not: null } }),
     },
     select: {
       id: true,
       hubId: true,
+      status: true,
       user: {
         select: { email: true, name: true, playerName: true },
       },
@@ -720,17 +726,23 @@ export async function reviewManualPaymentAction(
           booking.endHour
         )}`
       : "See your Bunal.club schedule for details";
-  const guestToken = payment.guestReservation
-    ? await issueGuestAccessToken(payment.guestReservation.id)
-    : null;
-  const actionPath = guestToken
-    ? guestAccessPath(guestToken)
-    : event
-      ? `/dashboard/bookings?q=${encodeURIComponent(event.publicId)}`
-      : `/dashboard/bookings?q=${encodeURIComponent(payment.id)}`;
   const recipient = payment.user?.email ?? payment.guestReservation!.email;
+  let confirmationEmailIssue = false;
 
   if (decision === "approve") {
+    if (payment.status === "SUCCEEDED") {
+      const settled = await settleBookingPayment(payment.id);
+      const confirmationEmail =
+        "confirmationEmail" in settled
+          ? settled.confirmationEmail
+          : undefined;
+      return {
+        success:
+          confirmationEmail === "sent" || confirmationEmail === "skipped"
+            ? "Payment was already approved. The confirmation email was checked."
+            : "Payment was already approved, but the confirmation email could not be sent. Check email delivery settings, then approve again to retry.",
+      };
+    }
     const updated = await prisma.bookingPayment.updateMany({
       where: { id: payment.id, status: "PENDING", manualSubmittedAt: { not: null } },
       data: {
@@ -746,19 +758,22 @@ export async function reviewManualPaymentAction(
     if (settled.status === "lost") {
       return { message: "The reserved capacity could not be confirmed. Review the payment manually." };
     }
-    if (settled.status === "confirmed") {
-      await notifyPlayerBookingConfirmed({
-        to: recipient,
-        playerName,
-        venueName,
-        bookingTitle,
-        schedule,
-        actionPath,
-        idempotencyKey: `player-manual-booking-confirmed-${payment.id}`,
-        paymentMode: "MANUAL",
-      });
-    }
+    const confirmationEmail =
+      "confirmationEmail" in settled
+        ? settled.confirmationEmail
+        : undefined;
+    confirmationEmailIssue =
+      confirmationEmail === "not-configured" ||
+      confirmationEmail === "failed";
   } else {
+    const guestToken = payment.guestReservation
+      ? await issueGuestAccessToken(payment.guestReservation.id)
+      : null;
+    const actionPath = guestToken
+      ? guestAccessPath(guestToken)
+      : event
+        ? `/dashboard/bookings?q=${encodeURIComponent(event.publicId)}`
+        : `/dashboard/bookings?q=${encodeURIComponent(payment.id)}`;
     await prisma.$transaction([
       prisma.bookingSlot.deleteMany({
         where: { booking: { bookingPaymentId: payment.id, status: "PENDING" } },
@@ -827,7 +842,9 @@ export async function reviewManualPaymentAction(
   return {
     success:
       decision === "approve"
-        ? "Payment approved and the booking was confirmed."
+        ? confirmationEmailIssue
+          ? "Payment approved and the booking was confirmed, but the confirmation email could not be sent. Check email delivery settings, then approve again to retry."
+          : "Payment approved and the booking was confirmed."
         : "Payment declined and the reserved capacity was released.",
   };
 }

@@ -34,8 +34,8 @@ jobs:
       BOOKING_SWEEP_SECRET: ci-sweep-secret
       PARTNER_MFA_REQUIRED_AFTER: "2000-01-01T00:00:00.000Z"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -43,7 +43,8 @@ jobs:
         run: touch .env
       - run: npm ci
       - run: npm audit --audit-level=high
-      - run: npm run db:push
+      - name: Apply database migrations
+        run: npx prisma migrate deploy
       - name: Prepare isolated check fixtures
         run: node checks/prepare-ci-database.mjs
       - run: npm run lint

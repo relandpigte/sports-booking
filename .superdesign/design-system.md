@@ -144,6 +144,18 @@ labels, 44px tap targets, sufficient contrast, and server-stable markup.
   when the 15-minute hold expires. After submission, replace the timer with a
   clear amber “Pending booking” state explaining that the venue must approve
   the proof before confirmation.
+- The private guest booking-status page uses a compact centered `max-w-3xl`
+  work area. Lead with the venue, reference, current status pill, and one
+  state-specific banner with a three-step progress treatment.
+- Show only the guest's actual outcome: payment required, QR verification,
+  manual venue review, confirmed, declined, or expired. Never render the other
+  status treatments as examples on the live page.
+- Follow the status banner with a responsive 2×2 card grid for court details,
+  price breakdown, guest contact, and venue contact. Keep live PayMongo controls
+  between the status banner and the details grid when payment is still active.
+- End with the private-link safety notice and one contextual next action. On
+  mobile, every card becomes one column and progress steps use vertical reading
+  order without horizontal overflow.
 - Partner review stays inside existing booking and event detail surfaces. Show
   expected amount, chosen network, reference, receipt preview, submission time,
   and Approve/Decline actions. Decline reason is optional and releases the held

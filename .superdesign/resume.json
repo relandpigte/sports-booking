@@ -191,7 +191,7 @@
     },
     "guest-booking-status": {
       "targetKind": "new-ui",
-      "projectId": "e4c8e4e6-58c1-4931-a0f3-9e55d687c13a",
+      "projectId": "e4c8e4e6-58c1-4931-a0f3-9eae8122ee8e",
       "activeDraftId": "e1c1894e-41e2-4b3b-93b5-536aaa1f8cb7",
       "sourceTarget": "booking-reservation-hold-bar",
       "sourceDraftId": "3b7bf865-66b3-4018-83a4-9e55d687c13a",
@@ -210,28 +210,32 @@
         ".superdesign/design-system.md",
         ".superdesign/init/theme.md",
         "src/app/globals.css",
-        "src/app/(app)/dashboard/bookings/pay/[paymentId]/page.tsx",
+        "src/app/bookings/guest/[guestReservationId]/page.tsx",
+        "src/components/PageShell.tsx",
+        "src/components/hubs/PublicTopBar.tsx",
+        "src/components/Logo.tsx",
         "src/components/bookings/ManualPaymentCheckout.tsx",
         "src/components/bookings/PayBookingPanel.tsx",
         "src/components/bookings/PayMongoCheckout.tsx",
         "src/components/bookings/PaymentStatusPoller.tsx",
         "src/components/bookings/HoldCountdown.tsx",
-        "src/components/hubs/PublicTopBar.tsx",
-        "src/components/Logo.tsx",
+        "src/components/bookings/CancelBookingHoldButton.tsx",
         "src/components/ui/Button.tsx"
       ],
       "fingerprints": {
-        ".superdesign/design-system.md": "156db42847e69056614b4cdfb37e050665e984a55229ab8dfcf3f305ea04b009",
+        ".superdesign/design-system.md": "36e92cca5f76d10d8114dfb6642cd0a6a61fd3fdce6b6750e4e482aa2000612d",
         ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
         "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
-        "src/app/(app)/dashboard/bookings/pay/[paymentId]/page.tsx": "2f4e476a8b1ff60deb829c81513053ab12d9844c41d5263ca3133d601cd6c322",
-        "src/components/bookings/ManualPaymentCheckout.tsx": "75b3db981489023c65cea21bcb081393c7c9882aca4f97d324cd2801c000b5e8",
+        "src/app/bookings/guest/[guestReservationId]/page.tsx": "40a32b5c02a9c15dd57690d3b0a8b9874fc24ec8102063742901caf05877ce98",
+        "src/components/PageShell.tsx": "8cf5c18fb8033f53c49dd5d8e7df1c6140bd2a65bfa95a4bba79c452b7cc92b0",
+        "src/components/hubs/PublicTopBar.tsx": "d77256e43379e4b37f16be48b1d45838f968ddf49fafac052b93f4e50a6854b7",
+        "src/components/Logo.tsx": "073c062cb0d022c9f5a1f78c79af6570143f03a8d6908c3268f79cb4370d6e2d",
+        "src/components/bookings/ManualPaymentCheckout.tsx": "33d71ee37151ea0943eca2ba7345ab9e3e80aba1c9579acacbe4838a0b428911",
         "src/components/bookings/PayBookingPanel.tsx": "e1036fcc41a32a29de454f72b1e7f0e264af692a84a0cbd8150d7f6d21657438",
         "src/components/bookings/PayMongoCheckout.tsx": "9d79471849e876f5b6e7709017758c2df7839a61148801c4d256790f6b1a221e",
         "src/components/bookings/PaymentStatusPoller.tsx": "ef8c9bd81af6add26756e58f97822417224bd5e2c817aa7d5f640bb2e92d21f9",
         "src/components/bookings/HoldCountdown.tsx": "ad877f6af281478fc1aa34ed921db2812d493f6cc8dd355d61483e280e98b312",
-        "src/components/hubs/PublicTopBar.tsx": "d77256e43379e4b37f16be48b1d45838f968ddf49fafac052b93f4e50a6854b7",
-        "src/components/Logo.tsx": "073c062cb0d022c9f5a1f78c79af6570143f03a8d6908c3268f79cb4370d6e2d",
+        "src/components/bookings/CancelBookingHoldButton.tsx": "ea1e1ce18bd224638f331daea7c6a48f36a25125d80c0148988e153eb7b89dc0",
         "src/components/ui/Button.tsx": "d811d012bf62c684fa4dff3e20615fb17c998a862250aba27f15f14ec1f4513a"
       },
       "components": [],
@@ -243,7 +247,7 @@
           "currentVersion": 1
         }
       },
-      "updatedAt": "2026-08-25T00:00:00+08:00"
+      "updatedAt": "2026-08-25T12:40:55+08:00"
     },
     "trainer-marketplace": {
       "targetKind": "existing-ui",

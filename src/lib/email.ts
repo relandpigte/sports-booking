@@ -19,9 +19,11 @@ import { newDeviceLoginEmailContent } from "@/lib/security-alert-email";
 import {
   partnerBookingNotificationEmailContent,
   playerBookingConfirmedEmailContent,
+  playerBookingDeclinedEmailContent,
   playerManualReceiptReceivedEmailContent,
   type PartnerBookingNotificationEmailContentInput,
   type PlayerBookingConfirmedEmailContentInput,
+  type PlayerBookingDeclinedEmailContentInput,
   type PlayerManualReceiptReceivedEmailContentInput,
 } from "@/lib/booking-notification-email";
 import {
@@ -82,6 +84,12 @@ type PlayerBookingConfirmedEmailInput =
 
 type PlayerManualReceiptReceivedEmailInput =
   PlayerManualReceiptReceivedEmailContentInput & {
+    to: string;
+    idempotencyKey: string;
+  };
+
+type PlayerBookingDeclinedEmailInput =
+  PlayerBookingDeclinedEmailContentInput & {
     to: string;
     idempotencyKey: string;
   };
@@ -305,6 +313,21 @@ export async function sendPlayerManualReceiptReceivedEmail(
     idempotencyKey: input.idempotencyKey,
     category: "player-manual-receipt-received",
     description: "Player manual-receipt email delivery",
+  });
+}
+
+export async function sendPlayerBookingDeclinedEmail(
+  input: PlayerBookingDeclinedEmailInput
+): Promise<void> {
+  const content = playerBookingDeclinedEmailContent(input);
+  await deliverEmail({
+    to: input.to,
+    subject: content.subject,
+    html: content.html,
+    text: content.text,
+    idempotencyKey: input.idempotencyKey,
+    category: "player-booking-declined",
+    description: "Player booking-decline email delivery",
   });
 }
 

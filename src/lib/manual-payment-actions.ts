@@ -4,7 +4,11 @@ import { Prisma, type ManualPaymentNetwork } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
 import { sanitizeImageDataUrl } from "@/lib/avatar";
-import { settleBookingPayment, markBookingPaymentRefunded } from "@/lib/booking-payments";
+import {
+  settleBookingPayment,
+  markBookingPaymentRefunded,
+  type BookingPaymentOwner,
+} from "@/lib/booking-payments";
 import { prisma } from "@/lib/db";
 import { getViewer, requireRecentMfa } from "@/lib/dal";
 import { recordImpersonatedAction } from "@/lib/impersonation";
@@ -12,6 +16,7 @@ import { revalidatePartnerPaymentSurfaces } from "@/lib/payment-revalidation";
 import {
   notifyPartnerTeamOfBooking,
   notifyPlayerBookingConfirmed,
+  notifyPlayerBookingDeclined,
   notifyPlayerManualReceiptReceived,
 } from "@/lib/booking-notifications";
 import { formatManilaDateLong, formatSlotRange } from "@/lib/time";
@@ -22,6 +27,11 @@ import {
   recordPartnerActivity,
   requirePartnerWorkspace,
 } from "@/lib/staffing";
+import {
+  getCurrentGuestReservationId,
+  guestAccessPath,
+  issueGuestAccessToken,
+} from "@/lib/guest-bookings";
 
 const NETWORKS = new Set<ManualPaymentNetwork>([
   "GCASH",
@@ -39,6 +49,26 @@ export type ManualPaymentFormState = {
 
 function value(formData: FormData, key: string, max = 200) {
   return String(formData.get(key) ?? "").trim().slice(0, max);
+}
+
+async function resolvePaymentOwner(
+  paymentId: string
+): Promise<BookingPaymentOwner | null> {
+  const viewer = await getViewer();
+  // Preserve the signed-in flow's non-enumerating "Payment not found"
+  // response; the locked SQL query below still enforces actual ownership.
+  if (viewer?.role === "PLAYER") {
+    return { userId: viewer.id };
+  }
+  const payment = await prisma.bookingPayment.findUnique({
+    where: { id: paymentId },
+    select: { guestReservationId: true },
+  });
+  if (!payment) return null;
+  const guestReservationId = await getCurrentGuestReservationId();
+  return guestReservationId && payment.guestReservationId === guestReservationId
+    ? { guestReservationId }
+    : null;
 }
 
 function revalidatePayment(payment: {
@@ -213,19 +243,20 @@ export async function submitManualPaymentProofAction(
   _previous: ManualPaymentFormState,
   formData: FormData
 ): Promise<ManualPaymentFormState> {
-  const viewer = await getViewer();
-  if (!viewer || viewer.role !== "PLAYER") {
-    return { message: "Sign in with a player account to submit payment proof." };
-  }
+  const paymentId = value(formData, "paymentId", 40);
+  const owner = await resolvePaymentOwner(paymentId);
+  if (!owner) return { message: "This private booking access is unavailable." };
+  const rateSubject = owner.userId
+    ? owner.userId
+    : `guest:${owner.guestReservationId}`;
   if (!(await consumeRateLimit({
     namespace: "manual-proof",
-    subject: viewer.id,
+    subject: rateSubject,
     limit: 10,
     windowSeconds: 60 * 60,
   }))) {
     return { message: "Too many payment-proof attempts. Try again later." };
   }
-  const paymentId = value(formData, "paymentId", 40);
   const methodId = value(formData, "methodId", 40);
   const rawReceiptImage = value(formData, "receiptImage", 1_200_000);
   const receiptImage = await sanitizeImageDataUrl(rawReceiptImage, "receipt");
@@ -266,7 +297,9 @@ export async function submitManualPaymentProofAction(
       FROM "BookingPayment" payment
       INNER JOIN "Hub" hub ON hub."id" = payment."hubId"
       WHERE payment."id" = ${paymentId}
-        AND payment."userId" = ${viewer.id}
+        AND ${owner.userId
+          ? Prisma.sql`payment."userId" = ${owner.userId}`
+          : Prisma.sql`payment."guestReservationId" = ${owner.guestReservationId}`}
         AND payment."collectionMode" = 'MANUAL'::"PaymentCollectionMode"
       FOR UPDATE OF payment, hub
     `);
@@ -309,7 +342,9 @@ export async function submitManualPaymentProofAction(
             SELECT COUNT(*)::int
             FROM "BookingPayment" other
             WHERE other."id" <> ${payment.id}
-              AND other."userId" = ${viewer.id}
+              AND ${owner.userId
+                ? Prisma.sql`other."userId" = ${owner.userId}`
+                : Prisma.sql`other."guestReservationId" = ${owner.guestReservationId}`}
               AND other."hubId" = ${payment.hubId}
               AND other."collectionMode" = 'MANUAL'::"PaymentCollectionMode"
               AND other."status" = 'PENDING'::"PaymentStatus"
@@ -432,6 +467,9 @@ export async function submitManualPaymentProofAction(
         select: {
           partner: { select: { id: true } },
           user: { select: { email: true, name: true, playerName: true } },
+          guestReservation: {
+            select: { id: true, email: true, name: true },
+          },
           bookings: {
             take: 1,
             orderBy: { startsAt: "asc" },
@@ -491,7 +529,10 @@ export async function submitManualPaymentProofAction(
           });
         }
         const playerName =
-          payment.user.playerName ?? payment.user.name ?? "A player";
+          payment.user?.playerName ??
+          payment.user?.name ??
+          payment.guestReservation?.name ??
+          "A player";
         const venueName =
           event?.hub.name ?? booking?.hub.name ?? "Your venue";
         const bookingTitle =
@@ -507,6 +548,9 @@ export async function submitManualPaymentProofAction(
                 booking.endHour
               )}`
             : "See your Bunal.club schedule for details";
+        const guestToken = payment.guestReservation
+          ? await issueGuestAccessToken(payment.guestReservation.id)
+          : null;
         await Promise.all([
           notifyPartnerTeamOfBooking({
             partnerId: payment.partner.id,
@@ -521,14 +565,16 @@ export async function submitManualPaymentProofAction(
             idempotencyKey: `partner-manual-proof-submitted-${result.payment.id}`,
           }),
           notifyPlayerManualReceiptReceived({
-            to: payment.user.email,
+            to: payment.user?.email ?? payment.guestReservation!.email,
             playerName,
             venueName,
             bookingTitle,
             schedule,
-            actionPath: event
-              ? `/dashboard/bookings?q=${encodeURIComponent(event.publicId)}`
-              : `/dashboard/bookings?q=${encodeURIComponent(result.payment.id)}`,
+            actionPath: guestToken
+              ? guestAccessPath(guestToken)
+              : event
+                ? `/dashboard/bookings?q=${encodeURIComponent(event.publicId)}`
+                : `/dashboard/bookings?q=${encodeURIComponent(result.payment.id)}`,
             idempotencyKey: `player-manual-receipt-received-${result.payment.id}`,
           }),
         ]);
@@ -595,6 +641,9 @@ export async function reviewManualPaymentAction(
       user: {
         select: { email: true, name: true, playerName: true },
       },
+      guestReservation: {
+        select: { id: true, email: true, name: true },
+      },
       bookings: {
         take: 1,
         orderBy: { startsAt: "asc" },
@@ -649,6 +698,37 @@ export async function reviewManualPaymentAction(
   if (!hasStaffAccess(workspace, requiredModule, "MANAGE")) {
     return { message: `Manage access to ${requiredModule} is required.` };
   }
+  const event =
+    payment.eventRegistration?.event ??
+    payment.eventGuestSlots[0]?.registration.event;
+  const booking = payment.bookings[0];
+  const playerName =
+    payment.user?.playerName ??
+    payment.user?.name ??
+    payment.guestReservation?.name ??
+    "Bunal.club player";
+  const venueName = event?.hub.name ?? booking?.hub.name ?? "Your venue";
+  const bookingTitle = event?.title ?? booking?.court.name ?? "Your booking";
+  const schedule = event
+    ? `${formatManilaDateLong(event.date)} · ${formatSlotRange(
+        event.startHour,
+        event.endHour
+      )}`
+    : booking
+      ? `${formatManilaDateLong(booking.date)} · ${formatSlotRange(
+          booking.startHour,
+          booking.endHour
+        )}`
+      : "See your Bunal.club schedule for details";
+  const guestToken = payment.guestReservation
+    ? await issueGuestAccessToken(payment.guestReservation.id)
+    : null;
+  const actionPath = guestToken
+    ? guestAccessPath(guestToken)
+    : event
+      ? `/dashboard/bookings?q=${encodeURIComponent(event.publicId)}`
+      : `/dashboard/bookings?q=${encodeURIComponent(payment.id)}`;
+  const recipient = payment.user?.email ?? payment.guestReservation!.email;
 
   if (decision === "approve") {
     const updated = await prisma.bookingPayment.updateMany({
@@ -667,30 +747,13 @@ export async function reviewManualPaymentAction(
       return { message: "The reserved capacity could not be confirmed. Review the payment manually." };
     }
     if (settled.status === "confirmed") {
-      const event =
-        payment.eventRegistration?.event ??
-        payment.eventGuestSlots[0]?.registration.event;
-      const booking = payment.bookings[0];
       await notifyPlayerBookingConfirmed({
-        to: payment.user.email,
-        playerName:
-          payment.user.playerName ?? payment.user.name ?? "Bunal.club player",
-        venueName: event?.hub.name ?? booking?.hub.name ?? "Your venue",
-        bookingTitle: event?.title ?? booking?.court.name ?? "Your booking",
-        schedule: event
-          ? `${formatManilaDateLong(event.date)} · ${formatSlotRange(
-              event.startHour,
-              event.endHour
-            )}`
-          : booking
-            ? `${formatManilaDateLong(booking.date)} · ${formatSlotRange(
-                booking.startHour,
-                booking.endHour
-              )}`
-            : "See your Bunal.club schedule for details",
-        actionPath: event
-          ? `/dashboard/bookings?q=${encodeURIComponent(event.publicId)}`
-          : `/dashboard/bookings?q=${encodeURIComponent(payment.id)}`,
+        to: recipient,
+        playerName,
+        venueName,
+        bookingTitle,
+        schedule,
+        actionPath,
         idempotencyKey: `player-manual-booking-confirmed-${payment.id}`,
         paymentMode: "MANUAL",
       });
@@ -724,6 +787,16 @@ export async function reviewManualPaymentAction(
         },
       }),
     ]);
+    await notifyPlayerBookingDeclined({
+      to: recipient,
+      playerName,
+      venueName,
+      bookingTitle,
+      schedule,
+      reason: note || "The venue declined the submitted payment proof.",
+      actionPath,
+      idempotencyKey: `player-manual-booking-declined-${payment.id}`,
+    });
   }
   revalidatePayment({
     id: payment.id,

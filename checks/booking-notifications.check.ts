@@ -5,6 +5,7 @@ import { ok, run } from "./harness";
 import {
   sendPartnerBookingNotificationEmail,
   sendPlayerBookingConfirmedEmail,
+  sendPlayerBookingDeclinedEmail,
   sendPlayerManualReceiptReceivedEmail,
   sendServiceFeeOverdueEmail,
 } from "@/lib/email";
@@ -88,6 +89,26 @@ async function check() {
       idempotencyKey: "player-automatic-booking-confirmed-2",
       paymentMode: "AUTOMATIC",
     });
+    await sendPlayerBookingConfirmedEmail({
+      to: "no-payment@example.test",
+      playerName: "Guest Player",
+      venueName: "Community Court",
+      bookingTitle: "Court One",
+      schedule: "August 12, 2026 · 8:00 AM–9:00 AM",
+      actionUrl: "https://www.bunal.club/bookings/access/guest-confirmed",
+      idempotencyKey: "guest-no-payment-booking-confirmed-3",
+      paymentMode: "NONE",
+    });
+    await sendPlayerBookingDeclinedEmail({
+      to: "guest@example.test",
+      playerName: "Guest Player",
+      venueName: "Bunal Club",
+      bookingTitle: "Annex C",
+      schedule: "August 13, 2026 · 5:00 PM–6:00 PM",
+      reason: "The transfer reference could not be verified.",
+      actionUrl: "https://www.bunal.club/bookings/access/guest-declined",
+      idempotencyKey: "guest-manual-booking-declined-4",
+    });
     await sendServiceFeeOverdueEmail({
       to: "partner@example.test",
       partnerName: "Venue <Owner>",
@@ -106,11 +127,13 @@ async function check() {
       receipt,
       manualConfirmation,
       automaticConfirmation,
+      noPaymentConfirmation,
+      declined,
       settlement,
     ] = requests;
     ok(
       "booking, confirmation, and settlement emails are delivered",
-      requests.length === 6
+      requests.length === 8
     );
     ok(
       "partner court notifications link to the review workspace",
@@ -149,6 +172,24 @@ async function check() {
         )
     );
     ok(
+      "free guest bookings receive an explicit confirmation and private link",
+      String(noPaymentConfirmation?.body.html).includes(
+        "No online payment was required"
+      ) &&
+        String(noPaymentConfirmation?.body.html).includes(
+          "/bookings/access/guest-confirmed"
+        )
+    );
+    ok(
+      "declined manual payments explain the outcome and release the court",
+      String(declined?.body.html).includes("booking was not confirmed") &&
+        String(declined?.body.html).includes(
+          "transfer reference could not be verified"
+        ) &&
+        String(declined?.body.html).includes("court hours have been released") &&
+        JSON.stringify(declined?.body.tags).includes("player-booking-declined")
+    );
+    ok(
       "notification content escapes player-provided names",
       String(court?.body.html).includes("Player &lt;One&gt;") &&
         !String(court?.body.html).includes("Player <One>")
@@ -173,6 +214,10 @@ async function check() {
           "player-manual-booking-confirmed-1" &&
         automaticConfirmation?.headers.get("Idempotency-Key") ===
           "player-automatic-booking-confirmed-2" &&
+        noPaymentConfirmation?.headers.get("Idempotency-Key") ===
+          "guest-no-payment-booking-confirmed-3" &&
+        declined?.headers.get("Idempotency-Key") ===
+          "guest-manual-booking-declined-4" &&
         settlement?.headers.get("Idempotency-Key") ===
           "service-fee-overdue-partner-1-2026-08-10"
     );

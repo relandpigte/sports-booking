@@ -5,6 +5,7 @@ import { ok, run } from "./harness";
 import {
   partnerBookingNotificationEmailContent,
   playerBookingConfirmedEmailContent,
+  playerBookingDeclinedEmailContent,
   playerManualReceiptReceivedEmailContent,
 } from "@/lib/booking-notification-email";
 import type { TransactionalEmailContent } from "@/lib/email-html";
@@ -116,6 +117,17 @@ async function check() {
       }),
     },
     {
+      name: "booking declined",
+      content: playerBookingDeclinedEmailContent({
+        playerName: "Guest Player",
+        venueName: "Bunal Club Hub",
+        bookingTitle: "Court 1",
+        schedule: "January 2, 2030 · 9:00 AM–10:00 AM",
+        reason: "The transfer could not be verified.",
+        actionUrl: `${APP_URL}/bookings/access/test`,
+      }),
+    },
+    {
       name: "service-fee reminder",
       content: serviceFeeOverdueEmailContent({
         partnerName: "Venue Owner",
@@ -155,7 +167,7 @@ async function check() {
     },
   ];
 
-  ok("the inventory covers every transactional email family", templates.length === 13);
+  ok("the inventory covers every transactional email family", templates.length === 14);
 
   for (const { name, content } of templates) {
     ok(

@@ -36,6 +36,10 @@ import {
 } from "@/lib/message-system-events";
 import { notifyPlayerBookingConfirmed } from "@/lib/booking-notifications";
 import { hubPublicPath } from "@/lib/hub-slug";
+import {
+  guestAccessPath,
+  issueGuestAccessToken,
+} from "@/lib/guest-bookings";
 
 // Players paying venues through each partner's own gateway.
 //
@@ -396,6 +400,17 @@ export async function getBookingPaymentForPlayer(
   return row ? mapBookingPayment(row) : null;
 }
 
+export async function getBookingPaymentForGuest(
+  paymentId: string,
+  guestReservationId: string
+): Promise<BookingPaymentView | null> {
+  const row = await prisma.bookingPayment.findFirst({
+    where: { id: paymentId, guestReservationId },
+    select: paymentSelect,
+  });
+  return row ? mapBookingPayment(row) : null;
+}
+
 // Everything the checkout page renders, in one read. The venue's name needs a
 // second query because hubId is deliberately a scalar with no relation —
 // deleting a hub must not cascade away a financial record.
@@ -413,6 +428,45 @@ export async function getBookingPaymentScreen(
   const payment = await getBookingPaymentForPlayer(paymentId, userId);
   if (!payment) return null;
 
+  const [hub, manualMethods] = await Promise.all([
+    prisma.hub.findUnique({
+      where: { id: payment.hubId },
+      select: { name: true, slug: true, phone: true, email: true },
+    }),
+    payment.collectionMode === "MANUAL" && !payment.manualSubmittedAt
+      ? prisma.bookingPayment
+          .findUnique({ where: { id: payment.id }, select: { partnerId: true } })
+          .then((row) =>
+            row ? getActiveManualPaymentMethods(row.partnerId) : []
+          )
+      : Promise.resolve([]),
+  ]);
+  return {
+    payment,
+    venueName: hub?.name ?? "the venue",
+    venueSlug: hub?.slug ?? null,
+    venuePhone: hub?.phone ?? null,
+    venueEmail: hub?.email ?? null,
+    manualMethods,
+  };
+}
+
+export async function getGuestBookingPaymentScreen(
+  paymentId: string,
+  guestReservationId: string
+): Promise<{
+  payment: BookingPaymentView;
+  venueName: string;
+  venueSlug: string | null;
+  venuePhone: string | null;
+  venueEmail: string | null;
+  manualMethods: ManualPaymentMethodView[];
+} | null> {
+  const payment = await getBookingPaymentForGuest(
+    paymentId,
+    guestReservationId
+  );
+  if (!payment) return null;
   const [hub, manualMethods] = await Promise.all([
     prisma.hub.findUnique({
       where: { id: payment.hubId },
@@ -454,6 +508,33 @@ export async function getBookingPaymentStatus(
   });
   if (!payment) return null;
 
+  return {
+    status: payment.status,
+    secondsLeft: Math.max(
+      0,
+      Math.round((payment.expiresAt.getTime() - Date.now()) / 1000)
+    ),
+    chargeInFlight: payment.chargeStartedAt != null,
+  };
+}
+
+export async function getGuestBookingPaymentStatus(
+  paymentId: string,
+  guestReservationId: string
+): Promise<{
+  status: PaymentStatus;
+  secondsLeft: number;
+  chargeInFlight: boolean;
+} | null> {
+  const payment = await prisma.bookingPayment.findFirst({
+    where: { id: paymentId, guestReservationId },
+    select: {
+      status: true,
+      expiresAt: true,
+      chargeStartedAt: true,
+    },
+  });
+  if (!payment) return null;
   return {
     status: payment.status,
     secondsLeft: Math.max(
@@ -573,6 +654,9 @@ async function notifyPlayerOfAutomaticPaymentConfirmation(paymentId: string) {
     select: {
       id: true,
       user: { select: { email: true, name: true, playerName: true } },
+      guestReservation: {
+        select: { id: true, email: true, name: true },
+      },
       bookings: {
         where: { status: "CONFIRMED" },
         orderBy: { startsAt: "asc" },
@@ -650,16 +734,24 @@ async function notifyPlayerOfAutomaticPaymentConfirmation(paymentId: string) {
         )
         .join("; ")}`;
 
+  const guestToken = payment.guestReservation
+    ? await issueGuestAccessToken(payment.guestReservation.id)
+    : null;
   await notifyPlayerBookingConfirmed({
-    to: payment.user.email,
+    to: payment.user?.email ?? payment.guestReservation!.email,
     playerName:
-      payment.user.playerName ?? payment.user.name ?? "Bunal.club player",
+      payment.user?.playerName ??
+      payment.user?.name ??
+      payment.guestReservation?.name ??
+      "Bunal.club player",
     venueName: event?.hub.name ?? firstBooking.hub.name,
     bookingTitle,
     schedule,
-    actionPath: event
-      ? `/dashboard/bookings?q=${encodeURIComponent(event.publicId)}`
-      : `/dashboard/bookings?q=${encodeURIComponent(payment.id)}`,
+    actionPath: guestToken
+      ? guestAccessPath(guestToken)
+      : event
+        ? `/dashboard/bookings?q=${encodeURIComponent(event.publicId)}`
+        : `/dashboard/bookings?q=${encodeURIComponent(payment.id)}`,
     idempotencyKey: `player-automatic-booking-confirmed-${payment.id}`,
     paymentMode: "AUTOMATIC",
   });
@@ -777,7 +869,7 @@ async function settleBookingPaymentState(
       ]);
       const recovered = await recoverPaidEventRegistration({
         eventId: registration.event.id,
-        userId: payment.userId,
+        userId: payment.userId!,
       });
       if (recovered.status === "confirmed") {
         return {
@@ -854,7 +946,7 @@ async function settleBookingPaymentState(
       ]);
       const recovered = await recoverPaidEventRegistration({
         eventId: registration.event.id,
-        userId: payment.userId,
+        userId: payment.userId!,
       });
       if (recovered.status === "confirmed") {
         return {
@@ -1361,6 +1453,16 @@ export type ChargeOutcome =
   | { status: "already-paid" }
   | { status: "missing" };
 
+export type BookingPaymentOwner =
+  | { userId: string; guestReservationId?: never }
+  | { guestReservationId: string; userId?: never };
+
+function paymentOwnerWhere(owner: BookingPaymentOwner) {
+  return owner.userId
+    ? { userId: owner.userId }
+    : { guestReservationId: owner.guestReservationId };
+}
+
 function describe(lines: BookingPaymentLine[]): string {
   const first = lines[0];
   if (!first) return "Court booking";
@@ -1370,14 +1472,13 @@ function describe(lines: BookingPaymentLine[]): string {
 
 // The one place a player's money moves. Auth belongs to the caller; everything
 // that has to be true about the payment itself is checked here.
-export async function chargeBookingPayment(args: {
-  paymentId: string;
-  userId: string;
-}): Promise<ChargeOutcome> {
-  const { paymentId, userId } = args;
+export async function chargeBookingPayment(
+  args: { paymentId: string } & BookingPaymentOwner
+): Promise<ChargeOutcome> {
+  const { paymentId } = args;
 
   const payment = await prisma.bookingPayment.findFirst({
-    where: { id: paymentId, userId },
+    where: { id: paymentId, ...paymentOwnerWhere(args) },
     select: { ...paymentSelect, gatewayId: true },
   });
   if (!payment) return { status: "missing" };
@@ -1586,12 +1687,11 @@ export type CancelAutomaticBookingHoldOutcome =
 // the safety invariant: if money wins the race, the provider reports success
 // and settlement confirms the booking; slots are freed only after PayMongo has
 // made a late payment impossible.
-export async function cancelAutomaticBookingHold(args: {
-  paymentId: string;
-  userId: string;
-}): Promise<CancelAutomaticBookingHoldOutcome> {
+export async function cancelAutomaticBookingHold(
+  args: { paymentId: string } & BookingPaymentOwner
+): Promise<CancelAutomaticBookingHoldOutcome> {
   const payment = await prisma.bookingPayment.findFirst({
-    where: { id: args.paymentId, userId: args.userId },
+    where: { id: args.paymentId, ...paymentOwnerWhere(args) },
     select: {
       id: true,
       hubId: true,
@@ -1662,7 +1762,9 @@ export async function cancelAutomaticBookingHold(args: {
         payment."providerPaymentId"
       FROM "BookingPayment" payment
       WHERE payment."id" = ${payment.id}
-        AND payment."userId" = ${args.userId}
+        AND ${args.userId
+          ? Prisma.sql`payment."userId" = ${args.userId}`
+          : Prisma.sql`payment."guestReservationId" = ${args.guestReservationId}`}
       FOR UPDATE
     `);
     if (!current) return { status: "missing" as const };
@@ -1683,7 +1785,7 @@ export async function cancelAutomaticBookingHold(args: {
     const bookings = await tx.booking.findMany({
       where: {
         bookingPaymentId: payment.id,
-        userId: args.userId,
+        ...paymentOwnerWhere(args),
         status: "PENDING",
       },
       select: { id: true },

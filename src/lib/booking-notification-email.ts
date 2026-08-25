@@ -18,13 +18,20 @@ export type PlayerBookingConfirmedEmailContentInput = {
   bookingTitle: string;
   schedule: string;
   actionUrl: string;
-  paymentMode: "MANUAL" | "AUTOMATIC";
+  paymentMode: "MANUAL" | "AUTOMATIC" | "NONE";
 };
 
 export type PlayerManualReceiptReceivedEmailContentInput = Omit<
   PlayerBookingConfirmedEmailContentInput,
   "paymentMode"
 >;
+
+export type PlayerBookingDeclinedEmailContentInput = Omit<
+  PlayerBookingConfirmedEmailContentInput,
+  "paymentMode"
+> & {
+  reason: string;
+};
 
 export function partnerBookingNotificationEmailContent(
   input: PartnerBookingNotificationEmailContentInput
@@ -63,7 +70,9 @@ export function playerBookingConfirmedEmailContent(
   const confirmationCopy =
     input.paymentMode === "MANUAL"
       ? `${input.venueName} approved your manual payment and confirmed your booking.`
-      : `Your payment was successful and your booking at ${input.venueName} is confirmed.`;
+      : input.paymentMode === "AUTOMATIC"
+        ? `Your payment was successful and your booking at ${input.venueName} is confirmed.`
+        : `Your booking at ${input.venueName} is confirmed. No online payment was required.`;
   const paragraphs = [
     confirmationCopy,
     `${input.bookingTitle} · ${input.schedule}`,
@@ -82,6 +91,30 @@ export function playerBookingConfirmedEmailContent(
     actionLabel: "View booking",
     actionUrl: input.actionUrl,
     note,
+  });
+}
+
+export function playerBookingDeclinedEmailContent(
+  input: PlayerBookingDeclinedEmailContentInput
+) {
+  const subject = `Your booking was declined — ${input.venueName}`;
+  const paragraphs = [
+    `${input.venueName} declined the submitted manual payment for ${input.bookingTitle}.`,
+    input.schedule,
+    `Reason: ${input.reason}`,
+    "The reserved court hours have been released and are available to other players.",
+  ];
+
+  return transactionalEmailContent({
+    subject,
+    preheader: `${input.venueName} declined the booking after reviewing the payment.`,
+    eyebrow: "Booking declined",
+    heading: "The booking was not confirmed",
+    recipientName: input.playerName,
+    paragraphs,
+    actionLabel: "View booking status",
+    actionUrl: input.actionUrl,
+    note: "If you believe this was a mistake, contact the venue directly before making another transfer.",
   });
 }
 

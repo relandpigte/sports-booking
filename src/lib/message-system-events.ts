@@ -90,7 +90,8 @@ async function recordBookingSystemMessageUnsafe(
       court: { select: { name: true } },
     },
   });
-  if (!booking) return;
+  if (!booking || !booking.userId) return;
+  const playerId = booking.userId;
   const schedule = `${formatManilaDateLong(booking.date)}, ${formatSlotRange(
     booking.startHour,
     booking.endHour
@@ -111,7 +112,7 @@ async function recordBookingSystemMessageUnsafe(
     const conversation = await ensureHubPlayerConversation(
       tx,
       booking.hubId,
-      booking.userId
+      playerId
     );
     await createSystemMessage(tx, {
       conversationId: conversation.id,

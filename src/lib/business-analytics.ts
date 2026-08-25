@@ -240,6 +240,7 @@ async function venuePayments(
     select: {
       id: true,
       userId: true,
+      guestReservationId: true,
       amount: true,
       venueAmount: true,
       platformFee: true,
@@ -338,7 +339,8 @@ async function venuePayments(
       grossRefund: payment.refundedAt ? recipientShare : 0,
       recipientRefund: payment.refundedAt ? recipientShare : 0,
       serviceFeeRefund: 0,
-      userId: payment.userId,
+      userId:
+        payment.userId ?? `guest:${payment.guestReservationId ?? payment.id}`,
       collectionMode: payment.collectionMode,
       ...(event
         ? {

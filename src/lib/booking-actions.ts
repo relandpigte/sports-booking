@@ -25,6 +25,7 @@ import {
 } from "@/lib/bookings";
 import {
   CreateBookingSchema,
+  GuestBookingContactSchema,
   PartnerCancelBookingSchema,
   RefundBookingSchema,
   RescheduleBookingSchema,
@@ -52,10 +53,20 @@ import {
 import {
   recordImpersonatedAction,
 } from "@/lib/impersonation";
-import { notifyPartnerTeamOfBooking } from "@/lib/booking-notifications";
+import {
+  notifyPartnerTeamOfBooking,
+  notifyPlayerBookingConfirmed,
+} from "@/lib/booking-notifications";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { recordBookingSystemMessage } from "@/lib/message-system-events";
 import { hubPublicPath } from "@/lib/hub-slug";
+import { getSecurityRequestContext } from "@/lib/security-context";
+import {
+  guestAccessPath,
+  guestBookingPath,
+  newGuestAccessToken,
+  setGuestBookingCookie,
+} from "@/lib/guest-bookings";
 import {
   getPartnerWorkspace,
   hasStaffAccess,
@@ -69,6 +80,7 @@ export type BookingFormState = {
   success?: string;
   bookingId?: string;
   hold?: BookingHoldView;
+  managePath?: string;
   activeHoldConflict?: boolean;
 };
 
@@ -128,19 +140,38 @@ export async function createBookingAction(
   _prev: BookingFormState,
   formData: FormData
 ): Promise<BookingFormState> {
-  // The UI hides the form from anonymous and non-player visitors, but a Server
-  // Action is a public endpoint — it has to defend itself.
   const viewer = await getViewer();
-  if (!viewer) return { message: "Sign in to book a court." };
-  if (viewer.role !== "PLAYER") {
+  if (viewer && viewer.role !== "PLAYER") {
     return { message: "Only player accounts can book courts." };
   }
-  if (!(await consumeRateLimit({
-    namespace: "booking-create",
-    subject: viewer.id,
-    limit: 20,
-    windowSeconds: 10 * 60,
-  }))) {
+  const guestContact = viewer
+    ? null
+    : GuestBookingContactSchema.safeParse({
+        guestName: String(formData.get("guestName") ?? ""),
+        guestPhone: String(formData.get("guestPhone") ?? ""),
+        guestEmail: String(formData.get("guestEmail") ?? ""),
+      });
+  if (guestContact && !guestContact.success) {
+    return { errors: firstErrors(guestContact.error) };
+  }
+  const guest = guestContact?.success ? guestContact.data : null;
+  const guestIpHash = viewer
+    ? null
+    : (await getSecurityRequestContext()).ipHash;
+  const rateSubjects = viewer
+    ? [viewer.id]
+    : [`email:${guest!.guestEmail}`, `ip:${guestIpHash}`];
+  const rateResults = await Promise.all(
+    rateSubjects.map((subject) =>
+      consumeRateLimit({
+        namespace: "booking-create",
+        subject,
+        limit: 20,
+        windowSeconds: 10 * 60,
+      })
+    )
+  );
+  if (rateResults.some((allowed) => !allowed)) {
     return { message: "Too many booking attempts. Wait a few minutes and try again." };
   }
 
@@ -255,6 +286,15 @@ export async function createBookingAction(
   const holdExpiresAt = requiresPayment
     ? new Date(now.getTime() + BOOKING_HOLD_MINUTES * 60_000)
     : null;
+  const accessExpiresAt = new Date(
+    Math.max(
+      ...groups.flatMap((group) =>
+        group.runs.map((run) => manilaInstant(date, run.end + 1).getTime())
+      )
+    ) +
+      90 * 24 * 60 * 60_000
+  );
+  const initialGuestToken = guest ? newGuestAccessToken() : null;
 
   let created: Array<{
     id: string;
@@ -265,6 +305,7 @@ export async function createBookingAction(
     hours: number;
   }>;
   let paymentId: string | null = null;
+  let guestReservationId: string | null = null;
   try {
     // The full multi-court cart is atomic. A collision on any court-hour rolls
     // back the payment ledger, every Booking, and every slot in the cart.
@@ -277,6 +318,25 @@ export async function createBookingAction(
         endHour: number;
         hours: number;
       }> = [];
+
+      if (guest && initialGuestToken) {
+        const reservation = await tx.guestReservation.create({
+          data: {
+            name: guest.guestName,
+            phone: guest.guestPhone,
+            email: guest.guestEmail,
+            accessExpiresAt,
+            accessTokens: {
+              create: {
+                tokenHash: initialGuestToken.hash,
+                expiresAt: accessExpiresAt,
+              },
+            },
+          },
+          select: { id: true },
+        });
+        guestReservationId = reservation.id;
+      }
 
       for (const group of groups) {
         await tx.bookingSlot.deleteMany({
@@ -298,13 +358,15 @@ export async function createBookingAction(
           Prisma.sql`
             SELECT true AS "locked"
             FROM (
-              SELECT pg_advisory_xact_lock(hashtextextended(${viewer.id}, 0))
+              SELECT pg_advisory_xact_lock(hashtextextended(${viewer?.id ?? `guest:${guest!.guestEmail}`}, 0))
             ) AS "playerHoldLock"
           `
         );
         const existingHold = await tx.bookingPayment.findFirst({
           where: {
-            userId: viewer.id,
+            ...(viewer
+              ? { userId: viewer.id }
+              : { guestReservation: { email: guest!.guestEmail } }),
             status: "PENDING",
             expiresAt: { gt: now },
             manualSubmittedAt: null,
@@ -340,7 +402,8 @@ export async function createBookingAction(
           data: {
             partnerId: hub.ownerId,
             gatewayId: manualPayment ? null : paymentSetup.gateway!.id,
-            userId: viewer.id,
+            userId: viewer?.id ?? null,
+            guestReservationId,
             hubId: hub.id,
             amount: new Prisma.Decimal(
               manualPayment ? manualGrossFor(total) : grossFor(total)
@@ -376,7 +439,8 @@ export async function createBookingAction(
             data: {
               courtId: group.court.id,
               hubId: hub.id,
-              userId: viewer.id,
+              userId: viewer?.id ?? null,
+              guestReservationId,
               date,
               startHour: run.start,
               endHour: run.end + 1,
@@ -439,27 +503,31 @@ export async function createBookingAction(
   }
 
   revalidateBookingSurfaces(hub.id);
+  if (guestReservationId) {
+    await setGuestBookingCookie(guestReservationId, accessExpiresAt);
+  }
+  const playerName = viewer?.playerName ?? viewer?.name ?? guest?.guestName ?? "A player";
+  const bookingTitle =
+    groups.length === 1 ? groups[0].court.name : `${groups.length} courts`;
+  const schedule = `${date} · ${groups
+    .map(
+      (group) =>
+        `${group.court.name}: ${group.runs
+          .map(
+            (run) =>
+              `${formatHourLabel(run.start)}–${formatHourLabel(run.end + 1)}`
+          )
+          .join(", ")}`
+    )
+    .join("; ")}`;
   await notifyPartnerTeamOfBooking({
     partnerId: hub.ownerId,
     module: "bookings",
-    playerName: viewer.playerName ?? viewer.name ?? "A player",
+    playerName,
     kind: "COURT",
     venueName: hub.name,
-    bookingTitle:
-      groups.length === 1
-        ? groups[0].court.name
-        : `${groups.length} courts`,
-    schedule: `${date} · ${groups
-      .map(
-        (group) =>
-          `${group.court.name}: ${group.runs
-            .map(
-              (run) =>
-                `${formatHourLabel(run.start)}–${formatHourLabel(run.end + 1)}`
-            )
-            .join(", ")}`
-      )
-      .join("; ")}`,
+    bookingTitle,
+    schedule,
     status: requiresPayment
       ? manualPayment
         ? "Pending manual payment"
@@ -474,6 +542,19 @@ export async function createBookingAction(
         recordBookingSystemMessage(booking.id, "CONFIRMED")
       )
     );
+    await notifyPlayerBookingConfirmed({
+      to: viewer?.email ?? guest!.guestEmail,
+      playerName,
+      venueName: hub.name,
+      bookingTitle,
+      schedule,
+      actionPath:
+        guestReservationId && initialGuestToken
+          ? guestAccessPath(initialGuestToken.raw)
+          : `/dashboard/bookings?q=${encodeURIComponent(created[0].id)}`,
+      idempotencyKey: `player-no-payment-booking-confirmed-${guestReservationId ?? created[0].id}`,
+      paymentMode: "NONE",
+    });
   }
   if (paymentId) {
     // Keep the player on the availability screen after the database hold is
@@ -515,6 +596,9 @@ export async function createBookingAction(
         ? `Booked ${created[0].courtName} on ${date}.`
         : `Booked ${created.length} sessions across ${groups.length} courts on ${date}.`,
     bookingId: created[0].id,
+    managePath: guestReservationId
+      ? guestBookingPath(guestReservationId)
+      : undefined,
   };
 }
 
@@ -735,6 +819,7 @@ export async function rescheduleHubBookingAction(
       id: true,
       hubId: true,
       userId: true,
+      guestReservationId: true,
       courtId: true,
       date: true,
       startHour: true,
@@ -866,7 +951,9 @@ export async function rescheduleHubBookingAction(
 
   try {
     await prisma.$transaction(async (tx) => {
-      await lockPlayerBookingHours(tx, booking.userId, date, hours);
+      if (booking.userId) {
+        await lockPlayerBookingHours(tx, booking.userId, date, hours);
+      }
 
       // The checks above ran outside the transaction; the player may have
       // cancelled since.
@@ -881,7 +968,9 @@ export async function rescheduleHubBookingAction(
       for (const run of runs) {
         const clash = await tx.booking.findFirst({
           where: {
-            userId: booking.userId,
+            ...(booking.userId
+              ? { userId: booking.userId }
+              : { guestReservationId: booking.guestReservationId }),
             id: { not: booking.id },
             ...liveBookingWhere(),
             startsAt: { lt: manilaInstant(date, run.end + 1) },
@@ -939,6 +1028,7 @@ export async function rescheduleHubBookingAction(
             courtId,
             hubId: booking.hubId,
             userId: booking.userId,
+            guestReservationId: booking.guestReservationId,
             date,
             startHour: run.start,
             endHour: run.end + 1,

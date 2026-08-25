@@ -4,6 +4,7 @@ import {
   emailDeliveryConfigured,
   sendPartnerBookingNotificationEmail,
   sendPlayerBookingConfirmedEmail,
+  sendPlayerBookingDeclinedEmail,
   sendPlayerManualReceiptReceivedEmail,
 } from "@/lib/email";
 import { listOperationalRecipients } from "@/lib/operational-recipients";
@@ -76,7 +77,7 @@ export async function notifyPlayerBookingConfirmed(input: {
   schedule: string;
   actionPath: string;
   idempotencyKey: string;
-  paymentMode: "MANUAL" | "AUTOMATIC";
+  paymentMode: "MANUAL" | "AUTOMATIC" | "NONE";
 }): Promise<void> {
   if (!emailDeliveryConfigured() || isReservedTestAddress(input.to)) return;
 
@@ -90,6 +91,31 @@ export async function notifyPlayerBookingConfirmed(input: {
     // a confirmed booking appear to have failed.
     console.error(
       "Player booking-confirmation email delivery failed:",
+      error instanceof Error ? error.message : "Unknown provider error"
+    );
+  }
+}
+
+export async function notifyPlayerBookingDeclined(input: {
+  to: string;
+  playerName: string;
+  venueName: string;
+  bookingTitle: string;
+  schedule: string;
+  reason: string;
+  actionPath: string;
+  idempotencyKey: string;
+}): Promise<void> {
+  if (!emailDeliveryConfigured() || isReservedTestAddress(input.to)) return;
+
+  try {
+    await sendPlayerBookingDeclinedEmail({
+      ...input,
+      actionUrl: appUrl(input.actionPath),
+    });
+  } catch (error) {
+    console.error(
+      "Player booking-decline email delivery failed:",
       error instanceof Error ? error.message : "Unknown provider error"
     );
   }

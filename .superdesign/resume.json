@@ -176,19 +176,19 @@
         "src/components/ui/Avatar.tsx"
       ],
       "fingerprints": {
-        ".superdesign/design-system.md": "fcf6b4f8a2c1a03741249c2e5e944fcaec212113f2cb8269270799237c363ef1",
+        ".superdesign/design-system.md": "156db42847e69056614b4cdfb37e050665e984a55229ab8dfcf3f305ea04b009",
         ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
         "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
-        "src/app/hubs/[id]/page.tsx": "43bc3831c39b8998243bc24183a16986e59fecf95330e117796b921c62a18abe",
-        "src/components/hubs/BookCourtPanel.tsx": "2d07448638c1e91b14fd44ba09b3be11df6372452e6798d43860d6a21bb76c93",
-        "src/components/bookings/ReservationHoldDock.tsx": "4051d5d2837c5b0f52cc4a7ea82ebf9d9bce4c220f7b9bca36d8fc472015be02",
+        "src/app/hubs/[id]/page.tsx": "35fb164a032d47b9013ed9b9539146c8858ab25dd81ae331820754f3c31d8746",
+        "src/components/hubs/BookCourtPanel.tsx": "fd4d987be52bbc3a24d9c8a1ca65a6cb214a6c7a55803ebb03a1f19c349eac51",
+        "src/components/bookings/ReservationHoldDock.tsx": "5663863c723ba612473c99141a36637b074b19ffa2fb3b49c9a626e425c5694e",
         "src/components/hubs/CourtAvailabilityBrowser.tsx": "1dcbe37a112abc90370818585872c0a326c5a85957b83febfe5fd1bd2d3f2e9f",
         "src/components/hubs/DateStrip.tsx": "addcedeac8d08560652d20e042fcdcb2396c9837629299caa4471108bed3ef60",
-        "src/lib/booking-actions.ts": "ff3a3f6696ed50d76b9203ae27cf811d1ee3d9046703948d5808a3a8adf605a2",
-        "src/lib/booking-payment-actions.ts": "d0cd2c429e33c700443eecb09ca6a33871a372fca22f83c0ee508cb4e3aa0ca3",
-        "src/components/PageShell.tsx": "8401f0b1eea38300d8c2522069a5df38ee9c8fb2d5093ec8eea7d416bd3ab14c",
-        "src/components/dashboard/AppShell.tsx": "85169c0a615efed6974f37e440902461d952eea834893f5001b03db5d13694de",
-        "src/components/dashboard/DashboardNav.tsx": "1699d82a1ec51fc5978c8cbc780bfe1a5102a9f44e66542e1a0256e4959391f3",
+        "src/lib/booking-actions.ts": "b1b956cb4c04634413c0f126a3b39b31327832a80181227c65f792336aaac548",
+        "src/lib/booking-payment-actions.ts": "40a7674f27fbdac77507e63560ab7cd0ed18d82c6c00642978928c41cd1ae6a5",
+        "src/components/PageShell.tsx": "4e5187c7dc6c73947b63ef01df6103aeddcb0e725c450e1827495b00b73f9e2b",
+        "src/components/dashboard/AppShell.tsx": "27727e859d480e6fccfa55d3b240e6d7f0ae0456fc52ace6c6cb3006fb78ac2c",
+        "src/components/dashboard/DashboardNav.tsx": "8ddbbd07fb323c9ee60e5685f007d6ceb999cb68f5076cf1fe28c5f07f987a73",
         "src/components/Logo.tsx": "073c062cb0d022c9f5a1f78c79af6570143f03a8d6908c3268f79cb4370d6e2d",
         "src/components/ui/Button.tsx": "d811d012bf62c684fa4dff3e20615fb17c998a862250aba27f15f14ec1f4513a",
         "src/components/ui/Avatar.tsx": "e3af6ae6a7249c7f4ea61cb69e044c74fc27240af9ee5e9e645e7712f78a8214"
@@ -203,12 +203,68 @@
       ],
       "drafts": {
         "3b7bf865-66b3-4018-83a4-9e55d687c13a": {
-          "title": "Bunal.club Booking Hold Bar",
-          "visualDirection": "brand-aligned fixed reservation dock with contextual slot details, prominent countdown, release action, and payment total",
-          "currentVersion": 2
+          "title": "Bunal.club Guest Court Checkout",
+          "visualDirection": "current-style court selection with compact inline guest contact details and secure reservation messaging",
+          "currentVersion": 3
         }
       },
-      "updatedAt": "2026-08-18T14:48:00+08:00"
+      "updatedAt": "2026-08-25T00:00:00+08:00"
+    },
+    "guest-booking-status": {
+      "targetKind": "new-ui",
+      "projectId": "e4c8e4e6-58c1-4931-a0f3-9e55d687c13a",
+      "activeDraftId": "e1c1894e-41e2-4b3b-93b5-536aaa1f8cb7",
+      "sourceTarget": "booking-reservation-hold-bar",
+      "sourceDraftId": "3b7bf865-66b3-4018-83a4-9e55d687c13a",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "public-bunal-logo-v2-wordmark.png"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "public-bunal-logo-v2-wordmark.png",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/e4c8e4e6-58c1-4931-a0f3-9eae8122ee8e/brand-assets/public-bunal-logo-v2-wordmark.png/bunal-logo-v2-wordmark.png",
+          "sourcePath": "public/bunal-logo-v2-wordmark.png"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "src/app/globals.css",
+        "src/app/(app)/dashboard/bookings/pay/[paymentId]/page.tsx",
+        "src/components/bookings/ManualPaymentCheckout.tsx",
+        "src/components/bookings/PayBookingPanel.tsx",
+        "src/components/bookings/PayMongoCheckout.tsx",
+        "src/components/bookings/PaymentStatusPoller.tsx",
+        "src/components/bookings/HoldCountdown.tsx",
+        "src/components/hubs/PublicTopBar.tsx",
+        "src/components/Logo.tsx",
+        "src/components/ui/Button.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "156db42847e69056614b4cdfb37e050665e984a55229ab8dfcf3f305ea04b009",
+        ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
+        "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
+        "src/app/(app)/dashboard/bookings/pay/[paymentId]/page.tsx": "2f4e476a8b1ff60deb829c81513053ab12d9844c41d5263ca3133d601cd6c322",
+        "src/components/bookings/ManualPaymentCheckout.tsx": "75b3db981489023c65cea21bcb081393c7c9882aca4f97d324cd2801c000b5e8",
+        "src/components/bookings/PayBookingPanel.tsx": "e1036fcc41a32a29de454f72b1e7f0e264af692a84a0cbd8150d7f6d21657438",
+        "src/components/bookings/PayMongoCheckout.tsx": "9d79471849e876f5b6e7709017758c2df7839a61148801c4d256790f6b1a221e",
+        "src/components/bookings/PaymentStatusPoller.tsx": "ef8c9bd81af6add26756e58f97822417224bd5e2c817aa7d5f640bb2e92d21f9",
+        "src/components/bookings/HoldCountdown.tsx": "ad877f6af281478fc1aa34ed921db2812d493f6cc8dd355d61483e280e98b312",
+        "src/components/hubs/PublicTopBar.tsx": "d77256e43379e4b37f16be48b1d45838f968ddf49fafac052b93f4e50a6854b7",
+        "src/components/Logo.tsx": "073c062cb0d022c9f5a1f78c79af6570143f03a8d6908c3268f79cb4370d6e2d",
+        "src/components/ui/Button.tsx": "d811d012bf62c684fa4dff3e20615fb17c998a862250aba27f15f14ec1f4513a"
+      },
+      "components": [],
+      "drafts": {
+        "e1c1894e-41e2-4b3b-93b5-536aaa1f8cb7": {
+          "title": "Bunal.club Guest Booking Status",
+          "visualDirection": "compact public booking status and payment workspace with manual review, automatic payment, confirmed, and declined states",
+          "parentDraftId": "3b7bf865-66b3-4018-83a4-9e55d687c13a",
+          "currentVersion": 1
+        }
+      },
+      "updatedAt": "2026-08-25T00:00:00+08:00"
     },
     "trainer-marketplace": {
       "targetKind": "existing-ui",

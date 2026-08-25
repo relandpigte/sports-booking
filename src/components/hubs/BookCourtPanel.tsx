@@ -299,10 +299,10 @@ export function BookCourtPanel({
                 >
                   {state.success}{" "}
                   <Link
-                    href="/dashboard/bookings"
+                    href={state.managePath ?? "/dashboard/bookings"}
                     className="font-semibold underline"
                   >
-                    View your bookings
+                    View booking
                   </Link>
                 </p>
               )}
@@ -488,15 +488,71 @@ export function BookCourtPanel({
               </div>
             )}
 
+            {viewerRole === null && !activeHold && (
+              <div className="mt-6 border-t border-navy/10 pt-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.16em] text-navy/50">
+                      Guest details
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-navy/55">
+                      No account required. We&apos;ll email payment and booking updates.
+                    </p>
+                  </div>
+                  <Link href="/login" className="shrink-0 text-xs font-bold text-primary hover:underline">
+                    Sign in
+                  </Link>
+                </div>
+                <div className="mt-4 grid gap-3">
+                  <label className="text-xs font-bold text-navy">
+                    Full name
+                    <input
+                      name="guestName"
+                      autoComplete="name"
+                      maxLength={100}
+                      required
+                      className="mt-1.5 min-h-11 w-full rounded-xl border border-navy/15 bg-white px-3 text-sm font-medium text-navy outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
+                      placeholder="Your full name"
+                    />
+                    {state.errors?.guestName && <span className="mt-1 block font-medium text-red-500">{state.errors.guestName}</span>}
+                  </label>
+                  <label className="text-xs font-bold text-navy">
+                    Phone
+                    <input
+                      name="guestPhone"
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      maxLength={30}
+                      required
+                      className="mt-1.5 min-h-11 w-full rounded-xl border border-navy/15 bg-white px-3 text-sm font-medium text-navy outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
+                      placeholder="09XX XXX XXXX"
+                    />
+                    {state.errors?.guestPhone && <span className="mt-1 block font-medium text-red-500">{state.errors.guestPhone}</span>}
+                  </label>
+                  <label className="text-xs font-bold text-navy">
+                    Email
+                    <input
+                      name="guestEmail"
+                      type="email"
+                      inputMode="email"
+                      autoComplete="email"
+                      required
+                      className="mt-1.5 min-h-11 w-full rounded-xl border border-navy/15 bg-white px-3 text-sm font-medium text-navy outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
+                      placeholder="you@example.com"
+                    />
+                    {state.errors?.guestEmail && <span className="mt-1 block font-medium text-red-500">{state.errors.guestEmail}</span>}
+                  </label>
+                </div>
+                <p className="mt-3 flex items-start gap-2 text-[11px] leading-5 text-navy/50">
+                  <LockIcon />
+                  Your private booking link is sent only to this email. Providing these details does not create an account.
+                </p>
+              </div>
+            )}
+
             <div className="mt-6 flex flex-col gap-4">
-              {viewerRole === null ? (
-                <Link
-                  href="/login"
-                  className="flex min-h-12 items-center justify-center rounded-xl bg-primary px-4 py-3 text-center text-sm font-semibold text-white shadow-lg shadow-primary/20 transition-colors hover:bg-primary-hover"
-                >
-                  Sign in to book
-                </Link>
-              ) : viewerRole !== "PLAYER" ? (
+              {viewerRole !== null && viewerRole !== "PLAYER" ? (
                 <p className="rounded-xl bg-white/60 px-4 py-3 text-sm text-navy/65">
                   Bookings are for player accounts.
                 </p>
@@ -575,5 +631,14 @@ export function BookCourtPanel({
         )}
       </div>
     </section>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg className="mt-0.5 shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <rect width="16" height="12" x="4" y="10" rx="2" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+    </svg>
   );
 }

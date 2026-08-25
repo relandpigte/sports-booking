@@ -867,12 +867,15 @@ model BookingPayment {
 
   // Denormalized like Booking.hubId — the partner's list and the ownership
   // check shouldn't need a join.
-  partnerId String
-  gatewayId String?
-  userId    String // the player who paid
+  partnerId          String
+  gatewayId          String?
+  userId             String? // the signed-in player who paid; null for guest checkout
+  // A guest cart owns the same payment ledger without creating a User row.
+  // Exactly one of userId / guestReservationId is required by the migration.
+  guestReservationId String? @unique
   // A scalar with no relation ON PURPOSE: deleting a hub must not destroy a
   // financial record.
-  hubId     String
+  hubId              String
 
   // The booking subtotal: court time plus the Bunal.club service fee.
   amount         Decimal               @db.Decimal(10, 2)
@@ -936,7 +939,8 @@ model BookingPayment {
   updatedAt DateTime @updatedAt
 
   partner             User                        @relation("PartnerBookingPayments", fields: [partnerId], references: [id], onDelete: Cascade)
-  user                User                        @relation("PlayerBookingPayments", fields: [userId], references: [id], onDelete: Cascade)
+  user                User?                       @relation("PlayerBookingPayments", fields: [userId], references: [id], onDelete: Cascade)
+  guestReservation    GuestReservation?           @relation(fields: [guestReservationId], references: [id], onDelete: Cascade)
   gateway             PartnerGateway?             @relation(fields: [gatewayId], references: [id])
   manualPaymentMethod PartnerManualPaymentMethod? @relation(fields: [manualPaymentMethodId], references: [id], onDelete: SetNull)
   bookings            Booking[]
@@ -946,11 +950,46 @@ model BookingPayment {
 
   @@index([partnerId, createdAt])
   @@index([userId, createdAt])
+  @@index([guestReservationId, createdAt])
   @@index([hubId, createdAt])
   @@index([providerPaymentId])
   @@index([manualPaymentMethodId])
   @@index([partnerId, manualSubmittedAt])
   @@index([status, expiresAt])
+}
+
+// One anonymous checkout reservation. Contact details are snapshots, not
+// accounts, and remain separate even when the email matches an existing User.
+// Email access tokens are stored separately as hashes so several idempotent
+// lifecycle emails can keep valid private links without storing raw secrets.
+model GuestReservation {
+  id              String   @id @default(cuid())
+  name            String
+  phone           String
+  email           String
+  accessExpiresAt DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  bookings     Booking[]
+  payment      BookingPayment?
+  accessTokens GuestReservationAccessToken[]
+
+  @@index([email, createdAt])
+  @@index([accessExpiresAt])
+}
+
+model GuestReservationAccessToken {
+  id                 String   @id @default(cuid())
+  guestReservationId String
+  tokenHash          String   @unique
+  expiresAt          DateTime
+  createdAt          DateTime @default(now())
+
+  guestReservation GuestReservation @relation(fields: [guestReservationId], references: [id], onDelete: Cascade)
+
+  @@index([guestReservationId, expiresAt])
+  @@index([expiresAt])
 }
 
 // Immutable service-fee ledger. Successful bookings and organizer-added event
@@ -1265,28 +1304,29 @@ enum RescheduledBy {
 //
 // There is no COMPLETED status: "past" is derived from `endsAt < now`.
 model Booking {
-  id           String        @id @default(cuid())
-  courtId      String
+  id                 String        @id @default(cuid())
+  courtId            String
   // Denormalized so the partner list and revalidation don't need a join.
-  hubId        String
-  userId       String
-  date         String
-  startHour    Int
-  endHour      Int
-  hours        Int
-  startsAt     DateTime
-  endsAt       DateTime
+  hubId              String
+  userId             String?
+  guestReservationId String?
+  date               String
+  startHour          Int
+  endHour            Int
+  hours              Int
+  startsAt           DateTime
+  endsAt             DateTime
   // Snapshots: a partner can edit Court.hourlyRate after the booking is made.
-  hourlyRate   Decimal?      @db.Decimal(10, 2)
-  totalPrice   Decimal?      @db.Decimal(10, 2)
-  status       BookingStatus @default(CONFIRMED)
+  hourlyRate         Decimal?      @db.Decimal(10, 2)
+  totalPrice         Decimal?      @db.Decimal(10, 2)
+  status             BookingStatus @default(CONFIRMED)
   // The moment this reservation first became eligible for Messages. Existing
   // confirmed rows are backfilled during the chat migration.
-  confirmedAt  DateTime?
-  notes        String?       @db.Text
-  cancelledAt  DateTime?
-  cancelledBy  CancelledBy?
-  cancelReason String?       @db.Text
+  confirmedAt        DateTime?
+  notes              String?       @db.Text
+  cancelledAt        DateTime?
+  cancelledBy        CancelledBy?
+  cancelReason       String?       @db.Text
 
   // --- Reschedule (venue-initiated move) ---------------------------------
   // Only the venue moves a booking. We keep just the IMMEDIATELY PRECEDING
@@ -1318,13 +1358,15 @@ model Booking {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  court          Court           @relation(fields: [courtId], references: [id], onDelete: Cascade)
-  hub            Hub             @relation(fields: [hubId], references: [id], onDelete: Cascade)
-  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bookingPayment BookingPayment? @relation(fields: [bookingPaymentId], references: [id])
-  slots          BookingSlot[]
+  court            Court             @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  hub              Hub               @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  user             User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guestReservation GuestReservation? @relation(fields: [guestReservationId], references: [id], onDelete: Cascade)
+  bookingPayment   BookingPayment?   @relation(fields: [bookingPaymentId], references: [id])
+  slots            BookingSlot[]
 
   @@index([userId, startsAt])
+  @@index([guestReservationId, startsAt])
   @@index([hubId, startsAt])
   @@index([userId, status, endsAt])
   @@index([hubId, userId, status, endsAt])

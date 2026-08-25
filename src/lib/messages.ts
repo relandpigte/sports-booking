@@ -455,7 +455,7 @@ async function listConversationAccesses(
               userId: viewer.id,
               hub: { owner: { partnerStatus: "ACTIVE" } },
             }
-          : { hub: { ownerId: viewer.id } }),
+          : { hub: { ownerId: viewer.id }, userId: { not: null } }),
         status: "CONFIRMED",
         endsAt: { gt: activeAfter },
       },
@@ -532,13 +532,13 @@ async function listConversationAccesses(
             where: {
               hubId_playerId: {
                 hubId: booking.hubId,
-                playerId: booking.userId,
+                playerId: booking.userId!,
               },
             },
             create: {
               kind: "HUB_PLAYER",
               hubId: booking.hubId,
-              playerId: booking.userId,
+              playerId: booking.userId!,
             },
             update: {},
           })

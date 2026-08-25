@@ -11,8 +11,13 @@ import { PayBookingSchema } from "@/lib/validation";
 import {
   cancelAutomaticBookingHold,
   chargeBookingPayment,
+  type BookingPaymentOwner,
 } from "@/lib/booking-payments";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import {
+  getCurrentGuestReservationId,
+  guestBookingPath,
+} from "@/lib/guest-bookings";
 
 // Starting a payment is now a single button: PayMongo hosts the form, so there
 // is no method to choose here and no card detail to collect — which is why this
@@ -43,6 +48,33 @@ function revalidateHeldBookingPaths(paymentId: string, hubId?: string) {
   }
 }
 
+async function resolveBookingPaymentOwner(
+  paymentId: string
+): Promise<{ owner: BookingPaymentOwner; guestReservationId: string | null } | null> {
+  const [viewer, payment] = await Promise.all([
+    getViewer(),
+    prisma.bookingPayment.findUnique({
+      where: { id: paymentId },
+      select: { userId: true, guestReservationId: true },
+    }),
+  ]);
+  if (!payment) return null;
+  if (viewer?.role === "PLAYER" && payment.userId === viewer.id) {
+    return { owner: { userId: viewer.id }, guestReservationId: null };
+  }
+  const guestReservationId = await getCurrentGuestReservationId();
+  if (
+    guestReservationId &&
+    payment.guestReservationId === guestReservationId
+  ) {
+    return {
+      owner: { guestReservationId },
+      guestReservationId,
+    };
+  }
+  return null;
+}
+
 // The dock's Pay now action prepares automatic QR Ph payment before routing
 // to the checkout page. Manual payments need no provider call and go straight
 // to the venue's transfer instructions.
@@ -50,18 +82,16 @@ export async function continueHeldBookingPaymentAction(
   _prev: HeldBookingActionState,
   formData: FormData
 ): Promise<HeldBookingActionState> {
-  const viewer = await getViewer();
-  if (!viewer || viewer.role !== "PLAYER") {
-    return { message: "Sign in with the player account that made this booking." };
-  }
-
   const parsed = PayBookingSchema.safeParse({
     paymentId: String(formData.get("paymentId") ?? ""),
   });
   if (!parsed.success) return { message: "Choose a valid booking hold." };
 
+  const access = await resolveBookingPaymentOwner(parsed.data.paymentId);
+  if (!access) return { message: "This private booking access is unavailable." };
+
   const payment = await prisma.bookingPayment.findFirst({
-    where: { id: parsed.data.paymentId, userId: viewer.id },
+    where: { id: parsed.data.paymentId, ...access.owner },
     select: {
       id: true,
       hubId: true,
@@ -77,12 +107,16 @@ export async function continueHeldBookingPaymentAction(
 
   revalidateHeldBookingPaths(payment.id, payment.hubId);
   if (payment.collectionMode === "MANUAL") {
-    redirect(`/dashboard/bookings/pay/${payment.id}`);
+    redirect(
+      access.guestReservationId
+        ? guestBookingPath(access.guestReservationId)
+        : `/dashboard/bookings/pay/${payment.id}`
+    );
   }
 
   const outcome = await chargeBookingPayment({
     paymentId: payment.id,
-    userId: viewer.id,
+    ...access.owner,
   });
   revalidateHeldBookingPaths(payment.id, payment.hubId);
 
@@ -92,7 +126,11 @@ export async function continueHeldBookingPaymentAction(
     case "pending":
     case "in-flight":
     case "already-paid":
-      redirect(`/dashboard/bookings/pay/${payment.id}`);
+      redirect(
+        access.guestReservationId
+          ? guestBookingPath(access.guestReservationId)
+          : `/dashboard/bookings/pay/${payment.id}`
+      );
     case "declined":
       return { message: outcome.message };
     case "expired":
@@ -110,23 +148,23 @@ export async function releaseBookingHoldAction(
   _prev: HeldBookingActionState,
   formData: FormData
 ): Promise<HeldBookingActionState> {
-  const viewer = await getViewer();
-  if (!viewer || viewer.role !== "PLAYER") {
-    return { message: "Sign in with the player account that made this booking." };
-  }
+  const parsed = PayBookingSchema.safeParse({
+    paymentId: String(formData.get("paymentId") ?? ""),
+  });
+  if (!parsed.success) return { message: "Choose a valid booking hold." };
+  const access = await resolveBookingPaymentOwner(parsed.data.paymentId);
+  if (!access) return { message: "This private booking access is unavailable." };
+  const rateSubject = access.owner.userId
+    ? access.owner.userId
+    : `guest:${access.owner.guestReservationId}`;
   if (!(await consumeRateLimit({
     namespace: "booking-hold-release",
-    subject: viewer.id,
+    subject: rateSubject,
     limit: 20,
     windowSeconds: 10 * 60,
   }))) {
     return { message: "Too many requests. Wait a moment and try again." };
   }
-
-  const parsed = PayBookingSchema.safeParse({
-    paymentId: String(formData.get("paymentId") ?? ""),
-  });
-  if (!parsed.success) return { message: "Choose a valid booking hold." };
 
   const now = new Date();
   const result = await prisma.$transaction(async (tx) => {
@@ -151,7 +189,9 @@ export async function releaseBookingHoldAction(
         payment."manualSubmittedAt"
       FROM "BookingPayment" payment
       WHERE payment."id" = ${parsed.data.paymentId}
-        AND payment."userId" = ${viewer.id}
+        AND ${access.owner.userId
+          ? Prisma.sql`payment."userId" = ${access.owner.userId}`
+          : Prisma.sql`payment."guestReservationId" = ${access.owner.guestReservationId}`}
       FOR UPDATE
     `);
     if (!payment) return { kind: "missing" as const };
@@ -172,7 +212,7 @@ export async function releaseBookingHoldAction(
     const bookings = await tx.booking.findMany({
       where: {
         bookingPaymentId: payment.id,
-        userId: viewer.id,
+        ...access.owner,
         status: "PENDING",
       },
       select: { id: true },
@@ -217,7 +257,7 @@ export async function releaseBookingHoldAction(
     case "started": {
       const cancelled = await cancelAutomaticBookingHold({
         paymentId: parsed.data.paymentId,
-        userId: viewer.id,
+        ...access.owner,
       });
       revalidateHeldBookingPaths(
         parsed.data.paymentId,
@@ -251,18 +291,17 @@ export async function payForBookingAction(
   _prev: PayBookingFormState,
   formData: FormData
 ): Promise<PayBookingFormState> {
-  const viewer = await getViewer();
-  if (!viewer) return { message: "Sign in to pay for your booking." };
-
   const parsed = PayBookingSchema.safeParse({
     paymentId: String(formData.get("paymentId") ?? ""),
   });
   if (!parsed.success) return { errors: firstErrors(parsed.error) };
+  const access = await resolveBookingPaymentOwner(parsed.data.paymentId);
+  if (!access) return { message: "This private booking access is unavailable." };
 
   // Ownership is enforced inside, in the where clause.
   const outcome = await chargeBookingPayment({
     paymentId: parsed.data.paymentId,
-    userId: viewer.id,
+    ...access.owner,
   });
 
   revalidateHeldBookingPaths(parsed.data.paymentId);

@@ -58,7 +58,7 @@ export function PartnerBookingListRow({
   const playerName =
     booking.player.playerName ?? booking.player.name ?? "Player";
   const hasBookingActions =
-    (canMessage && booking.status === "CONFIRMED") ||
+    (canMessage && !booking.player.guest && booking.status === "CONFIRMED") ||
     (manageable && paid) ||
     (manageable && cancellable &&
       !manualProofPending &&
@@ -82,6 +82,11 @@ export function PartnerBookingListRow({
             <p className="truncate text-xs text-gray-500">
               {booking.player.phone ?? "No phone provided"}
             </p>
+            {booking.player.guest && (
+              <p className="truncate text-[11px] text-gray-400">
+                {booking.player.email} · Guest
+              </p>
+            )}
           </div>
         </div>
 
@@ -216,7 +221,7 @@ export function PartnerBookingListRow({
 
       {hasBookingActions && (
         <div className="mt-3 flex flex-wrap items-start justify-end gap-1 border-t border-gray-100 pt-2">
-          {booking.status === "CONFIRMED" && canMessage && (
+          {booking.status === "CONFIRMED" && canMessage && !booking.player.guest && (
             <Link
               href="/dashboard/messages"
               className="inline-flex min-h-9 items-center rounded-lg bg-primary-soft px-3 text-xs font-bold text-primary hover:bg-primary/15"

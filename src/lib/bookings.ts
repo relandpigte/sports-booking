@@ -82,6 +82,8 @@ export type BookingView = {
     name: string | null;
     playerName: string | null;
     phone: string | null;
+    email: string | null;
+    guest: boolean;
   };
 };
 
@@ -131,7 +133,10 @@ const bookingSelect = {
     select: { id: true, slug: true, name: true, logo: true, address: true },
   },
   user: {
-    select: { id: true, name: true, playerName: true, phone: true },
+    select: { id: true, name: true, playerName: true, phone: true, email: true },
+  },
+  guestReservation: {
+    select: { id: true, name: true, phone: true, email: true },
   },
 } as const;
 
@@ -158,6 +163,7 @@ function effectiveStatus(row: {
 function mapBooking(row: BookingRow): BookingView {
   const {
     user,
+    guestReservation,
     hourlyRate,
     totalPrice,
     rescheduledAt,
@@ -219,7 +225,16 @@ function mapBooking(row: BookingRow): BookingView {
           refundedAt: bookingPayment.refundedAt,
         }
       : null,
-    player: user,
+    player: user
+      ? { ...user, guest: false }
+      : {
+          id: `guest:${guestReservation!.id}`,
+          name: guestReservation!.name,
+          playerName: null,
+          phone: guestReservation!.phone,
+          email: guestReservation!.email,
+          guest: true,
+        },
   };
 }
 
@@ -755,6 +770,21 @@ export async function listPartnerBookings(
           },
         },
         { user: { phone: { contains: filters.query, mode: "insensitive" } } },
+        {
+          guestReservation: {
+            name: { contains: filters.query, mode: "insensitive" },
+          },
+        },
+        {
+          guestReservation: {
+            phone: { contains: filters.query, mode: "insensitive" },
+          },
+        },
+        {
+          guestReservation: {
+            email: { contains: filters.query, mode: "insensitive" },
+          },
+        },
       ],
     });
   }

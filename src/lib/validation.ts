@@ -210,6 +210,23 @@ export const CreateBookingSchema = z.object({
   notes: optionalText,
 });
 
+export const GuestBookingContactSchema = z.object({
+  guestName: z
+    .string()
+    .trim()
+    .min(2, { error: "Enter your full name" })
+    .max(100, { error: "Name must be 100 characters or fewer" }),
+  guestPhone: z
+    .string()
+    .trim()
+    .min(7, { error: "Enter a valid phone number" })
+    .max(30, { error: "Phone number must be 30 characters or fewer" }),
+  guestEmail: z
+    .email({ error: "Enter a valid email address" })
+    .trim()
+    .toLowerCase(),
+});
+
 // The partner is declining someone else's reservation, so a reason is required.
 export const PartnerCancelBookingSchema = z.object({
   id: z.string().min(1),

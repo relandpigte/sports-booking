@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ServiceFeeManualDestinations } from "@/components/payments/ServiceFeeManualDestinations";
+import { ServiceFeeSettlementTabs } from "@/components/payments/ServiceFeeSettlementTabs";
 import { ReceiptUpload } from "@/components/partner/ReceiptUpload";
 import {
   startServiceFeeCheckoutAction,
@@ -149,39 +150,6 @@ export function ServiceFeePanel({
           remains in place during review.
         </p>
       )}
-      {state.success && (
-        <p
-          role="status"
-          className="mt-4 rounded-lg bg-green-50 px-3 py-2.5 text-sm text-green-700"
-        >
-          {state.success}
-        </p>
-      )}
-      {state.message && (
-        <p
-          role="alert"
-          className="mt-4 rounded-lg bg-red-50 px-3 py-2.5 text-sm text-red-700"
-        >
-          {state.message}
-        </p>
-      )}
-      {checkoutState.success && (
-        <p
-          role="status"
-          className="mt-4 rounded-lg bg-green-50 px-3 py-2.5 text-sm text-green-700"
-        >
-          {checkoutState.success}
-        </p>
-      )}
-      {checkoutState.message && (
-        <p
-          role="alert"
-          className="mt-4 rounded-lg bg-red-50 px-3 py-2.5 text-sm text-red-700"
-        >
-          {checkoutState.message}
-        </p>
-      )}
-
       {readOnly && balance.amountDue > 0 && (
         <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
           Settlement payment and receipt submission must be completed by the
@@ -190,85 +158,118 @@ export function ServiceFeePanel({
       )}
 
       {!readOnly && balance.amountDue > 0 && balance.pending < 0.01 && (
-        <div className="mt-4 flex flex-col gap-4">
-          {paymongoSettlementEnabled && (
-            <form
-              action={checkoutAction}
-              className="rounded-xl border border-primary/20 bg-primary-soft p-3.5"
-            >
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary">
-                1 · Recommended
-              </p>
-              <h3 className="text-sm font-semibold text-gray-900">
-                Pay {formatPHP(balance.amountDue)} with QR Ph
-              </h3>
-              <p className="mt-1 text-xs text-gray-600">
-                Use PayMongo&apos;s secure exact-amount checkout. Payment is
-                confirmed automatically after a successful transfer.
-              </p>
-              <Button
-                type="submit"
-                disabled={startingCheckout}
-                className="mt-3 sm:w-fit sm:px-6"
-              >
-                {startingCheckout
-                  ? "Opening PayMongo…"
-                  : awaitingCheckout
-                    ? "Continue PayMongo payment"
-                    : "Pay with QR Ph"}
-              </Button>
-            </form>
-          )}
-
-          {awaitingCheckout && (
-            <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
-              A QR Ph checkout is already active. Continue it above, or let it
-              expire before using a manual transfer option.
-            </p>
-          )}
-
-          {!awaitingCheckout && (
+        <ServiceFeeSettlementTabs
+          paymongoAvailable={paymongoSettlementEnabled}
+          paymongo={
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary">
+                  Recommended method
+                </p>
+                <h3 className="mt-1 text-sm font-bold text-navy">
+                  Pay {formatPHP(balance.amountDue)} securely with QR Ph
+                </h3>
+                <p className="mt-1 max-w-xl text-xs leading-5 text-slate-600">
+                  Pay the exact amount through PayMongo. A successful transfer
+                  is confirmed automatically, so no receipt or review
+                  submission is needed.
+                </p>
+                {checkoutState.success && (
+                  <p
+                    role="status"
+                    className="mt-3 rounded-lg bg-green-50 px-3 py-2.5 text-sm text-green-700"
+                  >
+                    {checkoutState.success}
+                  </p>
+                )}
+                {checkoutState.message && (
+                  <p
+                    role="alert"
+                    className="mt-3 rounded-lg bg-red-50 px-3 py-2.5 text-sm text-red-700"
+                  >
+                    {checkoutState.message}
+                  </p>
+                )}
+              </div>
+              <form action={checkoutAction} className="shrink-0">
+                <Button
+                  type="submit"
+                  disabled={startingCheckout}
+                  className="sm:w-fit sm:px-6"
+                >
+                  {startingCheckout
+                    ? "Opening PayMongo…"
+                    : awaitingCheckout
+                      ? "Continue PayMongo payment"
+                      : "Pay with QR Ph"}
+                </Button>
+              </form>
+            </div>
+          }
+          manual={
             <>
               <ServiceFeeManualDestinations
                 amount={formatPHP(balance.amountDue)}
                 qrPhAvailable={paymongoSettlementEnabled}
               />
-              <form
-                action={action}
-                className="flex flex-col gap-3.5 border-t border-slate-100 pt-5"
-              >
-                <div>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
-                    {paymongoSettlementEnabled
-                      ? "3 · Submit for review"
-                      : "2 · Submit for review"}
-                  </p>
-                  <h3 className="mt-1 text-base font-semibold text-gray-900">
-                    Share your transfer details
-                  </h3>
-                  <p className="mt-1 text-xs leading-5 text-gray-500">
-                    {paymentInstructions} Your manual payment remains pending
-                    until the Bunal.club owner reviews it.
-                  </p>
-                </div>
-                <Input
-                  label="Transaction reference"
-                  name="paymentReference"
-                  placeholder="Bank or GCash transaction reference"
-                  error={state.errors?.paymentReference}
-                />
-                <ReceiptUpload error={state.errors?.receiptImage} />
-                <Button
-                  type="submit"
-                  disabled={pending}
-                  className="sm:w-fit sm:px-6"
+              {awaitingCheckout ? (
+                <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
+                  A QR Ph checkout is already active. Continue it from the
+                  PayMongo tab, or let it expire before submitting a manual
+                  transfer for review.
+                </p>
+              ) : (
+                <form
+                  action={action}
+                  className="mt-5 flex flex-col gap-3.5 border-t border-slate-100 pt-5"
                 >
-                  {pending ? "Submitting…" : "Submit for review"}
-                </Button>
-              </form>
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                      Manual payment review
+                    </p>
+                    <h3 className="mt-1 text-base font-semibold text-gray-900">
+                      Share your transfer details
+                    </h3>
+                    <p className="mt-1 text-xs leading-5 text-gray-500">
+                      {paymentInstructions} Your manual payment remains pending
+                      until the Bunal.club owner reviews it.
+                    </p>
+                  </div>
+                  {state.success && (
+                    <p
+                      role="status"
+                      className="rounded-lg bg-green-50 px-3 py-2.5 text-sm text-green-700"
+                    >
+                      {state.success}
+                    </p>
+                  )}
+                  {state.message && (
+                    <p
+                      role="alert"
+                      className="rounded-lg bg-red-50 px-3 py-2.5 text-sm text-red-700"
+                    >
+                      {state.message}
+                    </p>
+                  )}
+                  <Input
+                    label="Transaction reference"
+                    name="paymentReference"
+                    placeholder="Bank or GCash transaction reference"
+                    error={state.errors?.paymentReference}
+                  />
+                  <ReceiptUpload error={state.errors?.receiptImage} />
+                  <Button
+                    type="submit"
+                    disabled={pending}
+                    className="sm:w-fit sm:px-6"
+                  >
+                    {pending ? "Submitting…" : "Submit for review"}
+                  </Button>
+                </form>
+              )}
             </>
-          )}
-        </div>
+          }
+        />
       )}
 
       {settlements.length > 0 && (

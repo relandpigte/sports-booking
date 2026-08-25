@@ -232,6 +232,14 @@ page composition consistent.
 - Payments should retain automatic/manual checkout configuration and service-fee
   settlement controls, but separate setup, live destination status, and money
   owed into distinct hierarchy levels. Financial warnings must remain factual.
+- Present service-fee payment methods as two peer tabs for both partners and
+  trainers: `PayMongo` first and selected by default when available, followed by
+  `Manual fallback`. Keep PayMongo checkout focused on QR Ph and automatic
+  confirmation. Place the owner GCash/BDO destinations, payment reference or
+  receipt fields, and `Submit for review` action only inside Manual fallback;
+  manual payment is an alternative when PayMongo cannot be used, not a
+  replacement for it. Keep settlement totals, status, and history outside the
+  method tabs so they remain visible while switching payment methods.
 - Prefer compact 16px-radius white work cards on the off-white dashboard,
   understated dividers, 44px controls, and restrained use of green/lime for
   readiness and primary action. Amber and red remain reserved for genuine

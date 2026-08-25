@@ -952,32 +952,36 @@
         "src/components/ui/Badge.tsx",
         "src/app/(app)/dashboard/trainer/schedule/page.tsx",
         "src/components/partner/ServiceFeePanel.tsx",
+        "src/app/(app)/dashboard/payments/page.tsx",
         "src/app/(app)/dashboard/trainer/sessions/page.tsx",
         "src/components/payments/ServiceFeeManualDestinations.tsx",
+        "src/components/payments/ServiceFeeSettlementTabs.tsx",
         "src/app/(app)/dashboard/trainer/payments/page.tsx",
-        "src/components/trainers/TrainerPaymentSettings.tsx:92:1105",
+        "src/components/trainers/TrainerPaymentSettings.tsx:92:1191",
         "src/components/partner/PaymentWorkspace.tsx",
         "src/components/partner/ReceiptUpload.tsx"
       ],
       "fingerprints": {
-        ".superdesign/design-system.md": "a350a72af5dd2b0d752b1d112e1bd487edf733a05904843e9912563f7eb6972a",
+        ".superdesign/design-system.md": "e261397953844a7784a161e61795f6410c8c1055fd573cd0c89de5cc2795919c",
         ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
         "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
         "src/components/trainers/TrainerTabs.tsx": "80e6d81d5997804bcfb2f3a8be86a3733bbba7fa14922326fc09ca19c74ae669",
         "src/components/dashboard/DashboardPageHeader.tsx": "fe77a8b2c4f147e439506287277024d83a7e55c6382067a2196a873d198c7e4e",
-        "src/components/dashboard/AppShell.tsx": "27727e859d480e6fccfa55d3b240e6d7f0ae0456fc52ace6c6cb3006fb78ac2c",
+        "src/components/dashboard/AppShell.tsx": "0b287f061fd17665d82435e441b6e4fbdd7e92583fb658bf5d01107ad26e0777",
         "src/components/Logo.tsx": "073c062cb0d022c9f5a1f78c79af6570143f03a8d6908c3268f79cb4370d6e2d",
         "src/components/ui/Button.tsx": "d811d012bf62c684fa4dff3e20615fb17c998a862250aba27f15f14ec1f4513a",
         "src/components/ui/Input.tsx": "f67f19236edec1912c0efab5ee5d704104edad2fd052b4088a8f7afc1b7d6830",
         "src/components/ui/Select.tsx": "c4fe4d426794402b1b8da2cea1cf06dcc79cf334b6cee8520b4e3c369954c410",
         "src/components/ui/Textarea.tsx": "e7e2d6783e60bc4bc3bcf2a65a653fdc0a077123db9f1f749df9e11583cdefad",
         "src/components/ui/Badge.tsx": "aaa6074f7e159cb71056bb61ae95cafc3345f353db12af8d399d55e31dc20c88",
-        "src/app/(app)/dashboard/trainer/schedule/page.tsx": "299aaa75c2e88e83b191dfecc3f8c55fb748d072d048ec921993a58b4e11a975",
-        "src/components/partner/ServiceFeePanel.tsx": "b97c8c97258f5fe26a3eeaffc6f476963a71e1d2e5d8e0ea4ea28066a4be852e",
-        "src/app/(app)/dashboard/trainer/sessions/page.tsx": "27aeb88e4f64968033677e485b45847148866cb281873e7e09779cf31b594680",
-        "src/components/payments/ServiceFeeManualDestinations.tsx": "e4189ae60bc4ba7f38df6d9fc092b805ed134d2e9b58ccdf74c1a56fba254a8b",
-        "src/app/(app)/dashboard/trainer/payments/page.tsx": "52b96dd417d51f716e833b9695c49da310a7a330a11429486b28ef399f062d16",
-        "src/components/trainers/TrainerPaymentSettings.tsx": "5b99fc518577c05d23a423e8a6e1d28a8a58629d7c63d972d0b74d9f8dee28e6",
+        "src/app/(app)/dashboard/trainer/schedule/page.tsx": "8af97719b05a84cadb91bb9fd170a4e7f6b48136c3c191b3e61020493968accd",
+        "src/components/partner/ServiceFeePanel.tsx": "acc4cb9c9083fab91788cb9a87bac8abb1ba0e539e5772785796b853e30b639d",
+        "src/app/(app)/dashboard/payments/page.tsx": "a5992faa994284bbb53f852e52bd64b1251c2d23cd2381909a2989ec4fd89c8b",
+        "src/app/(app)/dashboard/trainer/sessions/page.tsx": "a1bfbd586a91e5be357d3837267ad22ec879edb2671ce7fccc13f026d815d0cf",
+        "src/components/payments/ServiceFeeManualDestinations.tsx": "4cdf1bd2ecbd4ddec5e79b98fb74e5b74ace6d3a40eda00c9e0b2bc431528e93",
+        "src/components/payments/ServiceFeeSettlementTabs.tsx": "6242de97959645c710405fd283792b1210ed3f11df7db66201bd1b3de931637f",
+        "src/app/(app)/dashboard/trainer/payments/page.tsx": "f8a4c349381f03190949bba216a3275d5f2676a16313747c080b012103437d5b",
+        "src/components/trainers/TrainerPaymentSettings.tsx": "021e17cdd3b2c84248f260c7e8d012d11dc1e6c42330cd6b847a624d8daf0031",
         "src/components/partner/PaymentWorkspace.tsx": "f018c4bd404b17fb5e9064bf706dd5b49a99cd49ceede04f244acb1da2738e9c",
         "src/components/partner/ReceiptUpload.tsx": "e4a02736d0d84f10a1097af7298c11f79756bc0b9cd5f0779c8720549bbd271a"
       },
@@ -986,18 +990,19 @@
           "name": "AppShell",
           "id": "51496e41-e380-408f-b0d8-0fd066d3f389",
           "sourcePath": "src/components/dashboard/AppShell.tsx",
-          "logoAssetKey": "public-bunal-logo-v2-wordmark.png"
+          "logoAssetKey": "public-bunal-logo-v2-wordmark.png",
+          "version": 2
         }
       ],
       "drafts": {
         "f411efff-1fbc-425e-91f5-d41fe28f7f0a": {
           "title": "Trainer Payments — Payment Operations",
-          "visualDirection": "factual payment operations with QR Ph as the recommended service-fee settlement path and polished GCash or BDO owner-transfer fallbacks",
+          "visualDirection": "shared partner and trainer service-fee method tabs with PayMongo selected by default, GCash and BDO owner-transfer fallbacks, and review submission confined to the manual tab",
           "parentDraftId": "7a0e7f50-eec4-4d0b-82f0-6dd5d292e93a",
-          "currentVersion": 2
+          "currentVersion": 4
         }
       },
-      "updatedAt": "2026-08-24T19:14:00+08:00"
+      "updatedAt": "2026-08-25T11:12:47+08:00"
     },
     "/dashboard/reports": {
       "targetKind": "existing-ui",

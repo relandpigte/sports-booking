@@ -65,21 +65,21 @@ export function ServiceFeeManualDestinations({
   return (
     <section
       aria-labelledby="manual-settlement-heading"
-      className="border-t border-slate-100 pt-5"
     >
       <div>
         <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
-          {qrPhAvailable ? "2 · Manual fallback" : "1 · Manual settlement"}
+          {qrPhAvailable ? "Manual fallback" : "Manual settlement"}
         </p>
         <h3
           id="manual-settlement-heading"
           className="mt-1 text-base font-semibold text-navy"
         >
-          {qrPhAvailable ? "Can’t use QR Ph?" : "Pay by manual transfer"}
+          Transfer to the Bunal.club owner
         </h3>
         <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
-          Transfer the exact {amount} due to the Bunal.club owner using either
-          destination below. Keep your receipt so the payment can be reviewed.
+          {qrPhAvailable
+            ? `If PayMongo QR Ph is unavailable, transfer the exact ${amount} due using either destination below, then submit the transaction details for owner review.`
+            : `Transfer the exact ${amount} due using either destination below, then submit the transaction details for owner review.`}
         </p>
       </div>
 

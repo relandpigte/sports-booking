@@ -419,6 +419,9 @@ export async function deleteUserAction(
               trainerPaymentsReceived: true,
               trainerFeeEntries: true,
               trainerFeeSettlements: true,
+              trainerFeeWaivers: true,
+              trainerFeeWaiversGranted: true,
+              trainerFeeWaiversReversed: true,
             },
           },
         },
@@ -428,7 +431,7 @@ export async function deleteUserAction(
       if (user.trainerProfile?.status === "ACTIVE") {
         return { message: "Deactivate this trainer profile before deleting the account." };
       }
-      const hasTrainerHistory = user.trainerGateway !== null || user._count.trainerManualMethods > 0 || user._count.trainerSessionsBooked > 0 || user._count.trainerPaymentsMade > 0 || user._count.trainerPaymentsReceived > 0 || user._count.trainerFeeEntries > 0 || user._count.trainerFeeSettlements > 0;
+      const hasTrainerHistory = user.trainerGateway !== null || user._count.trainerManualMethods > 0 || user._count.trainerSessionsBooked > 0 || user._count.trainerPaymentsMade > 0 || user._count.trainerPaymentsReceived > 0 || user._count.trainerFeeEntries > 0 || user._count.trainerFeeSettlements > 0 || user._count.trainerFeeWaivers > 0 || user._count.trainerFeeWaiversGranted > 0 || user._count.trainerFeeWaiversReversed > 0;
       if (hasTrainerHistory) {
         return { message: "This account has trainer session, payment, or settlement history and cannot be permanently deleted." };
       }

@@ -22,6 +22,7 @@ import {
 import {
   listAdminTrainerServiceFeeBreakdown,
   listAdminTrainerServiceFeeTransactions,
+  listAdminTrainerServiceFeeWaivers,
 } from "@/lib/trainer-service-fees";
 
 export const metadata: Metadata = {
@@ -134,6 +135,7 @@ export default async function AdminSettlementsPage({
       trainerSettlements,
       trainerBalances,
       trainerTransactions,
+      trainerWaivers,
       partnerCount,
       trainerCount,
     ] = await Promise.all([
@@ -148,6 +150,7 @@ export default async function AdminSettlementsPage({
       }),
       listAdminTrainerServiceFeeBreakdown(),
       listAdminTrainerServiceFeeTransactions(),
+      listAdminTrainerServiceFeeWaivers(),
       prisma.user.count({ where: { role: "PARTNER" } }),
       prisma.trainerProfile.count({ where: { status: "ACTIVE" } }),
     ]);
@@ -170,6 +173,7 @@ export default async function AdminSettlementsPage({
           balances={trainerBalances}
           transactions={trainerTransactions}
           settlements={settlements}
+          waivers={trainerWaivers}
         />
       </div>
     );

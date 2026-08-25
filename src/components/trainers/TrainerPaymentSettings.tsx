@@ -60,6 +60,7 @@ type TrainerServiceFeeView = {
   accrued: number;
   pending: number;
   paid: number;
+  waived: number;
   due: number;
   overdue: number;
   blocked: boolean;
@@ -72,6 +73,14 @@ type TrainerServiceFeeView = {
     status: string;
     provider: string | null;
     submittedAt: string;
+  }>;
+  waivers: Array<{
+    id: string;
+    amount: number;
+    reason: string;
+    grantedAt: string;
+    reversedAt: string | null;
+    reversalReason: string | null;
   }>;
 };
 
@@ -1025,10 +1034,11 @@ function TrainerSettlementPanel({
         </span>
       </div>
 
-      <dl className="mt-5 grid gap-3 sm:grid-cols-3">
+      <dl className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <SettlementMetric label="Accrued" value={serviceFees.accrued} />
         <SettlementMetric label="Under review" value={serviceFees.pending} />
         <SettlementMetric label="Settled" value={serviceFees.paid} />
+        <SettlementMetric label="Waived" value={serviceFees.waived} />
       </dl>
 
       {serviceFees.due > 0 && serviceFees.dueAt && (
@@ -1164,6 +1174,47 @@ function TrainerSettlementPanel({
                 <strong className="text-xs text-slate-500">
                   {item.status.replaceAll("_", " ")}
                 </strong>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {serviceFees.waivers.length > 0 && (
+        <div className="mt-5 overflow-hidden rounded-xl border border-primary/15">
+          <p className="border-b border-primary/10 bg-primary-soft px-4 py-3 text-xs font-bold uppercase tracking-[0.14em] text-primary">
+            Waiver history
+          </p>
+          <div className="divide-y divide-slate-100">
+            {serviceFees.waivers.map((item) => (
+              <div key={item.id} className="px-4 py-3 text-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-navy">
+                      {formatPHP(item.amount)} service-fee credit
+                    </p>
+                    <p className="mt-0.5 text-xs leading-5 text-slate-500">
+                      {item.reason}
+                    </p>
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      Granted {formatSettlementDate(item.grantedAt)}
+                    </p>
+                  </div>
+                  <strong
+                    className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] uppercase tracking-wide ${
+                      item.reversedAt
+                        ? "bg-red-50 text-red-600"
+                        : "bg-primary-soft text-primary"
+                    }`}
+                  >
+                    {item.reversedAt ? "Reversed" : "Active"}
+                  </strong>
+                </div>
+                {item.reversedAt && item.reversalReason ? (
+                  <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">
+                    {item.reversalReason}
+                  </p>
+                ) : null}
               </div>
             ))}
           </div>

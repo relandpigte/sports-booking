@@ -11,6 +11,7 @@ import { requireActivePartner, requireRecentMfa } from "@/lib/dal";
 import { platformPaymongoConfigured } from "@/lib/payments/paymongo-platform";
 import { calculateServiceFeeBalance } from "@/lib/service-fees";
 import { startServiceFeeCheckout } from "@/lib/service-fee-payments";
+import { calculateTrainerServiceFeeBalance } from "@/lib/trainer-service-fees";
 import { isPartnerImpersonationActive } from "@/lib/impersonation";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { firstErrors } from "@/lib/zod-errors";
@@ -28,6 +29,7 @@ function revalidateSettlementSurfaces() {
   revalidatePath("/dashboard/events");
   revalidatePath("/dashboard/admin");
   revalidatePath("/dashboard/admin/settlements");
+  revalidatePath("/dashboard/trainer/payments");
   revalidatePath("/hubs");
   revalidatePath("/events");
 }
@@ -57,6 +59,12 @@ const ReverseServiceFeeWaiverSchema = z.object({
     .trim()
     .min(10, { error: "Give a reversal reason of at least 10 characters." })
     .max(500, { error: "Keep the reason under 500 characters." }),
+});
+
+const WaiveTrainerServiceFeeSchema = WaiveServiceFeeSchema.omit({
+  partnerId: true,
+}).extend({
+  trainerId: z.string().trim().min(1, { error: "Trainer not found." }),
 });
 
 class ActiveServiceFeeSettlementError extends Error {}
@@ -222,6 +230,184 @@ export async function reverseServiceFeeWaiverAction(
     revalidateSettlementSurfaces();
     return {
       success: `₱${result.amount.toFixed(2)} waiver reversed. The partner balance has been restored.`,
+    };
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2034"
+    ) {
+      return { message: "The balance changed. Review it and try again." };
+    }
+    throw error;
+  }
+}
+
+export async function waiveTrainerServiceFeeBalanceAction(
+  _prev: ServiceFeeFormState,
+  formData: FormData
+): Promise<ServiceFeeFormState> {
+  const admin = await requireAdmin();
+  await requireRecentMfa("/dashboard/admin/settlements?view=trainers");
+  const parsed = WaiveTrainerServiceFeeSchema.safeParse({
+    trainerId: String(formData.get("trainerId") ?? ""),
+    amount: formData.get("amount"),
+    reason: String(formData.get("reason") ?? ""),
+  });
+  if (!parsed.success) return { errors: firstErrors(parsed.error) };
+
+  if (!(await consumeRateLimit({
+    namespace: "admin-trainer-service-fee-waiver",
+    subject: admin.id,
+    limit: 20,
+    windowSeconds: 60 * 60,
+  }))) {
+    return { message: "Too many waiver attempts. Wait before trying again." };
+  }
+
+  const amount = Math.round(parsed.data.amount * 100) / 100;
+  try {
+    const waiver = await prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw(
+          Prisma.sql`SELECT "id" FROM "User" WHERE "id" = ${parsed.data.trainerId} FOR UPDATE`
+        );
+        const trainer = await tx.trainerProfile.findUnique({
+          where: { userId: parsed.data.trainerId },
+          select: { userId: true },
+        });
+        if (!trainer) return null;
+
+        const activeSettlement = await tx.trainerServiceFeeSettlement.count({
+          where: {
+            trainerId: trainer.userId,
+            status: { in: ["SUBMITTED", "AWAITING_PAYMENT"] },
+          },
+        });
+        if (activeSettlement > 0) {
+          throw new ActiveServiceFeeSettlementError();
+        }
+
+        const balance = await calculateTrainerServiceFeeBalance(
+          tx,
+          trainer.userId
+        );
+        if (amount > balance.amountDue || balance.amountDue < 0.01) {
+          throw new ServiceFeeWaiverAmountError(balance.amountDue);
+        }
+        const balanceAfter =
+          Math.round((balance.amountDue - amount) * 100) / 100;
+        return tx.trainerServiceFeeWaiver.create({
+          data: {
+            trainerId: trainer.userId,
+            amount: new Prisma.Decimal(amount),
+            reason: parsed.data.reason,
+            grantedById: admin.id,
+            balanceBefore: new Prisma.Decimal(balance.amountDue),
+            balanceAfter: new Prisma.Decimal(balanceAfter),
+          },
+          select: { id: true },
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
+    if (!waiver) return { message: "Trainer not found." };
+  } catch (error) {
+    if (error instanceof ActiveServiceFeeSettlementError) {
+      return {
+        message:
+          "This trainer has a submitted receipt or active PayMongo settlement. Resolve it before granting a waiver.",
+      };
+    }
+    if (error instanceof ServiceFeeWaiverAmountError) {
+      return {
+        errors: {
+          amount:
+            error.amountDue < 0.01
+              ? "This trainer has no outstanding balance."
+              : `Enter no more than ₱${error.amountDue.toFixed(2)}.`,
+        },
+      };
+    }
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2034"
+    ) {
+      return { message: "The balance changed. Review it and try again." };
+    }
+    throw error;
+  }
+
+  revalidateSettlementSurfaces();
+  return { success: `₱${amount.toFixed(2)} trainer service-fee waiver granted.` };
+}
+
+export async function reverseTrainerServiceFeeWaiverAction(
+  _prev: ServiceFeeFormState,
+  formData: FormData
+): Promise<ServiceFeeFormState> {
+  const admin = await requireAdmin();
+  await requireRecentMfa("/dashboard/admin/settlements?view=trainers");
+  const parsed = ReverseServiceFeeWaiverSchema.safeParse({
+    waiverId: String(formData.get("waiverId") ?? ""),
+    reason: String(formData.get("reason") ?? ""),
+  });
+  if (!parsed.success) return { errors: firstErrors(parsed.error) };
+
+  try {
+    const result = await prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw(
+          Prisma.sql`SELECT "id" FROM "TrainerServiceFeeWaiver" WHERE "id" = ${parsed.data.waiverId} FOR UPDATE`
+        );
+        const waiver = await tx.trainerServiceFeeWaiver.findUnique({
+          where: { id: parsed.data.waiverId },
+          select: {
+            id: true,
+            trainerId: true,
+            amount: true,
+            reversedAt: true,
+          },
+        });
+        if (!waiver) return { status: "missing" as const, amount: 0 };
+        if (waiver.reversedAt) {
+          return { status: "reversed" as const, amount: Number(waiver.amount) };
+        }
+
+        const before = await calculateTrainerServiceFeeBalance(
+          tx,
+          waiver.trainerId
+        );
+        const reversedAt = new Date();
+        await tx.trainerServiceFeeWaiver.update({
+          where: { id: waiver.id },
+          data: {
+            reversedAt,
+            reversedById: admin.id,
+            reversalReason: parsed.data.reason,
+            reversalBalanceBefore: new Prisma.Decimal(before.amountDue),
+          },
+        });
+        const after = await calculateTrainerServiceFeeBalance(
+          tx,
+          waiver.trainerId
+        );
+        await tx.trainerServiceFeeWaiver.update({
+          where: { id: waiver.id },
+          data: {
+            reversalBalanceAfter: new Prisma.Decimal(after.amountDue),
+          },
+        });
+        return { status: "reversed-now" as const, amount: Number(waiver.amount) };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
+    if (result.status === "missing") return { message: "Waiver not found." };
+    if (result.status === "reversed") {
+      return { message: "This waiver has already been reversed." };
+    }
+    revalidateSettlementSurfaces();
+    return {
+      success: `₱${result.amount.toFixed(2)} waiver reversed. The trainer balance has been restored.`,
     };
   } catch (error) {
     if (

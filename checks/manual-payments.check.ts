@@ -91,6 +91,8 @@ async function check() {
       id: true,
       email: true,
       role: true,
+      name: true,
+      partnerStatus: true,
       manualPaymentMethods: { select: { id: true } },
     },
   });
@@ -441,6 +443,65 @@ async function check() {
   ok(
     "an overdue manual service-fee balance blocks new paid bookings",
     blockedHub?.bookable === false && blockedHub.blockedBy === "settlement"
+  );
+
+  const fallbackMethod = await prisma.partnerManualPaymentMethod.create({
+    data: {
+      partnerId: partner.id,
+      network: "MAYA",
+      label: "Venue Maya",
+      accountIdentifier: "09180000000",
+      active: true,
+      sortOrder: 1,
+    },
+  });
+  // The action module was loaded above with this mutable request-context
+  // actor. Switch that same actor to the venue owner before exercising the
+  // authenticated settings action.
+  Object.assign(player, partner);
+  stubRequestContext(partner);
+  const { deleteManualPaymentMethodAction } = await import(
+    "@/lib/manual-payment-actions"
+  );
+  const deleteMethodData = new FormData();
+  deleteMethodData.set("id", partner.manualPaymentMethods[0].id);
+  const deleteMethodResult = await deleteManualPaymentMethodAction(
+    {},
+    deleteMethodData
+  );
+  const historicalPayment = await prisma.bookingPayment.findUnique({
+    where: { id: courtPayment.id },
+    select: {
+      manualPaymentMethodId: true,
+      manualMethodLabel: true,
+      manualAccountDetails: true,
+    },
+  });
+  ok(
+    "a partner can delete a manual destination when another one is enabled",
+    Boolean(deleteMethodResult.success) &&
+      (await prisma.partnerManualPaymentMethod.findUnique({
+        where: { id: partner.manualPaymentMethods[0].id },
+      })) === null
+  );
+  ok(
+    "deleting a partner destination preserves historical payment snapshots",
+    historicalPayment?.manualPaymentMethodId === null &&
+      historicalPayment.manualMethodLabel === "Venue GCash" &&
+      historicalPayment.manualAccountDetails === "09170000000"
+  );
+  const deleteFinalMethodData = new FormData();
+  deleteFinalMethodData.set("id", fallbackMethod.id);
+  const deleteFinalMethodResult = await deleteManualPaymentMethodAction(
+    {},
+    deleteFinalMethodData
+  );
+  ok(
+    "manual checkout prevents deleting its final active partner destination",
+    Boolean(deleteFinalMethodResult.message) &&
+      (await prisma.partnerManualPaymentMethod.findUnique({
+        where: { id: fallbackMethod.id },
+      })) !== null
   );
 }
 

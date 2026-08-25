@@ -60,6 +60,9 @@ const userListSelect = {
       trainerPaymentsReceived: true,
       trainerFeeEntries: true,
       trainerFeeSettlements: true,
+      trainerFeeWaivers: true,
+      trainerFeeWaiversGranted: true,
+      trainerFeeWaiversReversed: true,
     },
   },
 } as const;
@@ -88,7 +91,7 @@ function mapAdminUser(user: AdminUserRecord): AdminUser {
   if (trainerProfile?.status === "ACTIVE") {
     return { ...baseUser, deleteBlockedReason: "Deactivate this trainer profile before deleting the account." };
   }
-  const hasTrainerHistory = trainerGateway !== null || _count.trainerManualMethods > 0 || _count.trainerSessionsBooked > 0 || _count.trainerPaymentsMade > 0 || _count.trainerPaymentsReceived > 0 || _count.trainerFeeEntries > 0 || _count.trainerFeeSettlements > 0;
+  const hasTrainerHistory = trainerGateway !== null || _count.trainerManualMethods > 0 || _count.trainerSessionsBooked > 0 || _count.trainerPaymentsMade > 0 || _count.trainerPaymentsReceived > 0 || _count.trainerFeeEntries > 0 || _count.trainerFeeSettlements > 0 || _count.trainerFeeWaivers > 0 || _count.trainerFeeWaiversGranted > 0 || _count.trainerFeeWaiversReversed > 0;
   if (hasTrainerHistory) {
     return { ...baseUser, deleteBlockedReason: "This account has trainer session, payment, or settlement history and cannot be permanently deleted." };
   }

@@ -2,6 +2,10 @@
 import type { ServiceFeeSettlementStatus } from "@prisma/client";
 
 import { SettlementDisclosure } from "@/components/admin/SettlementDisclosure";
+import {
+  ReverseTrainerServiceFeeWaiverForm,
+  TrainerServiceFeeWaiverForm,
+} from "@/components/admin/ServiceFeeWaiverControls";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { formatPHP } from "@/lib/currency";
 import type { ServiceFeeStanding } from "@/lib/service-fees";
@@ -9,6 +13,7 @@ import { reviewTrainerServiceFeeSettlementAction } from "@/lib/trainer-payment-a
 import type {
   AdminTrainerServiceFeeBreakdown,
   AdminTrainerServiceFeeTransaction,
+  TrainerServiceFeeWaiverView,
 } from "@/lib/trainer-service-fees";
 import { formatSlotRange } from "@/lib/time";
 
@@ -73,7 +78,7 @@ function TrainerBalanceTable({
 
   return (
     <div className="mt-3 overflow-x-auto rounded-xl border border-gray-200 bg-white">
-      <table className="w-full min-w-[1080px] text-left text-xs">
+      <table className="w-full min-w-[1240px] text-left text-xs">
         <thead className="border-b border-gray-200 bg-gray-50 text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-500">
           <tr>
             <th scope="col" className="px-4 py-2.5">Trainer</th>
@@ -81,11 +86,13 @@ function TrainerBalanceTable({
             <th scope="col" className="px-3 py-2.5 text-right">Transactions</th>
             <th scope="col" className="px-3 py-2.5 text-right">Accrued</th>
             <th scope="col" className="px-3 py-2.5 text-right">Settled</th>
+            <th scope="col" className="px-3 py-2.5 text-right">Waived</th>
             <th scope="col" className="px-3 py-2.5 text-right">Outstanding</th>
             <th scope="col" className="px-3 py-2.5 text-right">Under review</th>
             <th scope="col" className="px-3 py-2.5 text-right">Overdue</th>
             <th scope="col" className="px-3 py-2.5">Next deadline</th>
             <th scope="col" className="px-4 py-2.5">Last settled</th>
+            <th scope="col" className="px-4 py-2.5 text-right">Action</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
@@ -108,6 +115,7 @@ function TrainerBalanceTable({
                 <td className="px-3 py-2 text-right tabular-nums text-gray-700">{trainer.transactionCount}</td>
                 <td className="px-3 py-2 text-right font-medium tabular-nums text-gray-900">{formatPHP(trainer.balance.earned)}</td>
                 <td className="px-3 py-2 text-right tabular-nums text-gray-700">{formatPHP(trainer.balance.paid)}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-primary">{formatPHP(trainer.balance.waived)}</td>
                 <td className="px-3 py-2 text-right font-semibold tabular-nums text-navy">{formatPHP(trainer.balance.amountDue)}</td>
                 <td className="px-3 py-2 text-right tabular-nums text-amber-700">{formatPHP(trainer.balance.pending)}</td>
                 <td className="px-3 py-2 text-right font-medium tabular-nums text-red-600">{formatPHP(trainer.balance.overdueAmount)}</td>
@@ -129,11 +137,94 @@ function TrainerBalanceTable({
                     </>
                   ) : "—"}
                 </td>
+                <td className="px-4 py-2 text-right">
+                  <TrainerServiceFeeWaiverForm
+                    trainerId={trainer.trainerId}
+                    trainerName={trainer.trainerName}
+                    amountDue={trainer.balance.amountDue}
+                  />
+                </td>
               </tr>
             );
           })}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function TrainerWaiverList({
+  waivers,
+}: {
+  waivers: TrainerServiceFeeWaiverView[];
+}) {
+  if (!waivers.length) {
+    return (
+      <p className="bg-gray-50 px-4 py-5 text-center text-xs text-gray-500">
+        No trainer service-fee waivers have been granted yet.
+      </p>
+    );
+  }
+
+  return (
+    <div className="divide-y divide-gray-200">
+      {waivers.map((waiver) => (
+        <article key={waiver.id} className="px-4 py-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold text-navy">
+                {waiver.trainerName}
+              </h3>
+              <p className="text-[11px] text-gray-500">
+                {waiver.trainerEmail}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm font-semibold tabular-nums text-navy">
+                {formatPHP(waiver.amount)}
+              </p>
+              <Badge tone={waiver.reversedAt ? "danger" : "primary"}>
+                {waiver.reversedAt ? "Reversed" : "Waived"}
+              </Badge>
+            </div>
+          </div>
+          <dl className="mt-2 grid gap-2 text-[11px] sm:grid-cols-3">
+            <div>
+              <dt className="text-gray-500">Balance change</dt>
+              <dd className="mt-0.5 font-medium text-gray-900">
+                {formatPHP(waiver.balanceBefore)} → {formatPHP(waiver.balanceAfter)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-gray-500">Granted</dt>
+              <dd className="mt-0.5 text-gray-900">
+                {waiver.grantedByName} · {formatDateTime(waiver.grantedAt)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-gray-500">Reason</dt>
+              <dd className="mt-0.5 text-gray-900">{waiver.reason}</dd>
+            </div>
+          </dl>
+          {waiver.reversedAt ? (
+            <div className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-[11px] text-red-700">
+              <p className="font-semibold">
+                Reversed
+                {waiver.reversedByName ? ` by ${waiver.reversedByName}` : ""}
+                {` · ${formatDateTime(waiver.reversedAt)}`}
+              </p>
+              {waiver.reversalReason ? (
+                <p className="mt-0.5">{waiver.reversalReason}</p>
+              ) : null}
+            </div>
+          ) : (
+            <ReverseTrainerServiceFeeWaiverForm
+              waiverId={waiver.id}
+              amount={waiver.amount}
+            />
+          )}
+        </article>
+      ))}
     </div>
   );
 }
@@ -330,10 +421,12 @@ export function TrainerServiceFeeSettlements({
   balances,
   transactions,
   settlements,
+  waivers,
 }: {
   balances: AdminTrainerServiceFeeBreakdown[];
   transactions: AdminTrainerServiceFeeTransaction[];
   settlements: AdminTrainerServiceFeeSettlementView[];
+  waivers: TrainerServiceFeeWaiverView[];
 }) {
   const submitted = settlements.filter((settlement) => settlement.status === "SUBMITTED");
   const history = settlements.filter(
@@ -344,6 +437,13 @@ export function TrainerServiceFeeSettlements({
   const outstanding = balances.reduce((total, trainer) => total + trainer.balance.amountDue, 0);
   const underReview = submitted.reduce((total, settlement) => total + settlement.amount, 0);
   const paid = history.filter((settlement) => settlement.status === "PAID").reduce((total, settlement) => total + settlement.amount, 0);
+  const waived = balances.reduce(
+    (total, trainer) => total + trainer.balance.waived,
+    0
+  );
+  const activeWaiverCount = waivers.filter(
+    (waiver) => waiver.reversedAt === null
+  ).length;
   const chargeCount = transactions.filter((transaction) => transaction.type === "CHARGE").length;
   const refundCount = transactions.length - chargeCount;
   const transactionTotal = transactions.reduce((total, transaction) => total + transaction.amount, 0);
@@ -357,7 +457,7 @@ export function TrainerServiceFeeSettlements({
         <p className="mt-0.5 max-w-3xl text-xs text-gray-500">
           Paid training sessions accrue a 3% Bunal.club fee before remittance.
         </p>
-        <dl className="mt-3 grid grid-cols-2 overflow-hidden rounded-xl border border-gray-200 bg-white lg:grid-cols-5">
+        <dl className="mt-3 grid grid-cols-2 overflow-hidden rounded-xl border border-gray-200 bg-white lg:grid-cols-6">
           <div className="border-b border-r border-gray-200 px-4 py-3 lg:border-b-0">
             <dt className="text-[11px] font-medium text-gray-500">Approved trainers</dt>
             <dd className="mt-1 text-lg font-semibold tabular-nums text-navy">{trainerCount}</dd>
@@ -366,6 +466,11 @@ export function TrainerServiceFeeSettlements({
             <dt className="text-[11px] font-medium text-gray-500">Accrued</dt>
             <dd className="mt-1 text-lg font-semibold tabular-nums text-navy">{formatPHP(accrued)}</dd>
             <p className="text-[10px] text-gray-400">{transactions.length} {transactions.length === 1 ? "entry" : "entries"}</p>
+          </div>
+          <div className="border-b border-primary/10 bg-primary-soft px-4 py-3 lg:border-b-0 lg:border-r">
+            <dt className="text-[11px] font-semibold text-primary">Waived</dt>
+            <dd className="mt-1 text-lg font-semibold tabular-nums text-navy">{formatPHP(waived)}</dd>
+            <p className="text-[10px] text-primary/70">{activeWaiverCount} active</p>
           </div>
           <div className="border-b border-r border-red-100 bg-red-50 px-4 py-3 lg:border-b-0">
             <dt className="text-[11px] font-semibold text-red-700">Outstanding</dt>
@@ -401,6 +506,14 @@ export function TrainerServiceFeeSettlements({
           label="transactions"
         >
           <TrainerTransactionList transactions={transactions} />
+        </SettlementDisclosure>
+        <SettlementDisclosure
+          title="Trainer waiver history"
+          count={waivers.length}
+          description={`${activeWaiverCount} active · ${waivers.length - activeWaiverCount} reversed · administrative credits tracked separately`}
+          label="trainer waiver history"
+        >
+          <TrainerWaiverList waivers={waivers} />
         </SettlementDisclosure>
         <SettlementDisclosure
           title="Trainer review history"

@@ -7,6 +7,7 @@ import { ReceiptUpload } from "@/components/partner/ReceiptUpload";
 import { GatewayPanel } from "@/components/partner/GatewayPanel";
 import { Badge } from "@/components/ui/Badge";
 import {
+  deleteManualPaymentMethodAction,
   saveManualPaymentMethodAction,
   savePartnerPaymentModeAction,
   type ManualPaymentFormState,
@@ -183,49 +184,111 @@ function MethodFields({
 }
 
 function MethodForm({ method }: { method: ManualPaymentMethodView }) {
-  const [state, action, pending] = useActionState(
+  const [saveState, saveAction, saving] = useActionState(
     saveManualPaymentMethodAction,
     initialState
   );
-  const [open, setOpen] = useState(false);
-  if (!open) {
+  const [deleteState, deleteAction, deleting] = useActionState(
+    deleteManualPaymentMethodAction,
+    initialState
+  );
+  const [editing, setEditing] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  if (!editing) {
     return (
-      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center">
-        {method.qrImage ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={method.qrImage} alt="" className="size-16 rounded-xl border border-slate-200 object-contain" />
-        ) : (
-          <div className="flex size-16 items-center justify-center rounded-xl bg-navy-soft text-xs font-black text-navy">QR</div>
-        )}
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="font-bold text-navy">{method.label}</p>
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${method.active ? "bg-green-50 text-green-700" : "bg-slate-100 text-slate-500"}`}>
-              {method.active ? "Enabled" : "Disabled"}
-            </span>
+      <div className="rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          {method.qrImage ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={method.qrImage} alt="" className="size-16 rounded-xl border border-slate-200 object-contain" />
+          ) : (
+            <div className="flex size-16 items-center justify-center rounded-xl bg-navy-soft text-xs font-black text-navy">QR</div>
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-bold text-navy">{method.label}</p>
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${method.active ? "bg-green-50 text-green-700" : "bg-slate-100 text-slate-500"}`}>
+                {method.active ? "Enabled" : "Disabled"}
+              </span>
+            </div>
+            <p className="mt-1 truncate text-sm text-slate-500">
+              {[method.accountName, method.accountIdentifier].filter(Boolean).join(" · ") || "Instructions only"}
+            </p>
           </div>
-          <p className="mt-1 truncate text-sm text-slate-500">
-            {[method.accountName, method.accountIdentifier].filter(Boolean).join(" · ") || "Instructions only"}
-          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setConfirmingDelete(false);
+                setEditing(true);
+              }}
+              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-navy hover:bg-slate-50"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmingDelete(true)}
+              aria-expanded={confirmingDelete}
+              className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50"
+            >
+              Delete
+            </button>
+          </div>
         </div>
-        <button type="button" onClick={() => setOpen(true)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-navy hover:bg-slate-50">
-          Edit
-        </button>
+
+        {confirmingDelete && (
+          <div
+            role="alertdialog"
+            aria-label={`Delete ${method.label}`}
+            className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3.5"
+          >
+            <p className="text-sm font-bold text-red-700">
+              Delete {method.label}?
+            </p>
+            <p className="mt-1 text-xs leading-5 text-red-600">
+              Players cannot select it for new bookings. Existing payment
+              records keep their saved destination details.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <form action={deleteAction}>
+                <input type="hidden" name="id" value={method.id} />
+                <button
+                  disabled={deleting}
+                  className="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  {deleting ? "Deleting…" : "Yes, delete"}
+                </button>
+              </form>
+              <button
+                type="button"
+                onClick={() => setConfirmingDelete(false)}
+                disabled={deleting}
+                className="rounded-lg px-3 py-2 text-xs font-bold text-slate-600 hover:bg-white disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
+            <div className="mt-2">
+              <Result state={deleteState} />
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
   return (
-    <form action={action} className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+    <form action={saveAction} className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
       <input type="hidden" name="id" value={method.id} />
-      <MethodFields method={method} state={state} />
+      <MethodFields method={method} state={saveState} />
       <div className="mt-4 space-y-3">
-        <Result state={state} />
+        <Result state={saveState} />
         <div className="flex gap-2">
-          <button disabled={pending} className="rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white hover:bg-primary-hover disabled:opacity-50">
-            {pending ? "Saving…" : "Save method"}
+          <button disabled={saving} className="rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white hover:bg-primary-hover disabled:opacity-50">
+            {saving ? "Saving…" : "Save method"}
           </button>
-          <button type="button" onClick={() => setOpen(false)} className="rounded-xl px-4 py-3 text-sm font-bold text-slate-500 hover:bg-slate-50">Cancel</button>
+          <button type="button" onClick={() => setEditing(false)} className="rounded-xl px-4 py-3 text-sm font-bold text-slate-500 hover:bg-slate-50">Cancel</button>
         </div>
       </div>
     </form>

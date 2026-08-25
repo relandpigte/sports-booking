@@ -11,6 +11,15 @@ const EMAIL_PREFIX = "check-trainers-";
 const FUTURE_DATE = "2099-11-10";
 
 async function cleanup() {
+  await prisma.trainerServiceFeeWaiver.deleteMany({
+    where: {
+      OR: [
+        { trainer: { email: { startsWith: EMAIL_PREFIX } } },
+        { grantedBy: { email: { startsWith: EMAIL_PREFIX } } },
+        { reversedBy: { email: { startsWith: EMAIL_PREFIX } } },
+      ],
+    },
+  });
   await prisma.user.deleteMany({ where: { email: { startsWith: EMAIL_PREFIX } } });
 }
 
@@ -265,6 +274,51 @@ async function check() {
   ok(
     "an unpaid trainer fee pauses public discovery after the deadline and grace",
     (await trainerFees.isTrainerServiceFeeOverdue(trainerUser.id)) &&
+      (await trainers.getPublicTrainer("coach-check")) === null
+  );
+  const serviceFeeActions = await import("@/lib/service-fee-actions");
+  const waiverData = new FormData();
+  waiverData.set("trainerId", trainerUser.id);
+  waiverData.set("amount", "15.00");
+  waiverData.set("reason", "Approved trainer payment-system testing fees.");
+  const waiverResult =
+    await serviceFeeActions.waiveTrainerServiceFeeBalanceAction(
+      {},
+      waiverData
+    );
+  const activeWaiver = await prisma.trainerServiceFeeWaiver.findFirstOrThrow({
+    where: { trainerId: trainerUser.id, reversedAt: null },
+  });
+  const waivedBalance = await trainerFees.calculateTrainerServiceFeeBalance(
+    prisma,
+    trainerUser.id
+  );
+  ok(
+    "an admin trainer waiver clears the balance without recording cash",
+    Boolean(waiverResult.success) &&
+      waivedBalance.amountDue === 0 &&
+      waivedBalance.paid === 0 &&
+      waivedBalance.waived === 15 &&
+      (await trainers.getPublicTrainer("coach-check"))?.id === profile.id
+  );
+  const reverseWaiverData = new FormData();
+  reverseWaiverData.set("waiverId", activeWaiver.id);
+  reverseWaiverData.set(
+    "reason",
+    "Reverse the trainer waiver after payment-flow verification."
+  );
+  const reversalResult =
+    await serviceFeeActions.reverseTrainerServiceFeeWaiverAction(
+      {},
+      reverseWaiverData
+    );
+  ok(
+    "reversing a trainer waiver restores the overdue balance and restriction",
+    Boolean(reversalResult.success) &&
+      (await trainerFees.calculateTrainerServiceFeeBalance(
+        prisma,
+        trainerUser.id
+      )).amountDue === 15 &&
       (await trainers.getPublicTrainer("coach-check")) === null
   );
   await prisma.trainerServiceFeeSettlement.create({

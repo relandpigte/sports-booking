@@ -238,6 +238,71 @@ export async function saveManualPaymentMethodAction(
   return { success: id ? "Payment method updated." : "Payment method added." };
 }
 
+export async function deleteManualPaymentMethodAction(
+  _previous: ManualPaymentFormState,
+  formData: FormData
+): Promise<ManualPaymentFormState> {
+  const workspace = await requirePartnerWorkspace("payments", "MANAGE");
+  if (workspace.kind !== "STAFF") {
+    await requireRecentMfa("/dashboard/payments");
+  }
+  const id = value(formData, "id", 40);
+  if (!id) return { message: "Choose a payment destination to delete." };
+
+  const [method, account, otherActiveMethods] = await Promise.all([
+    prisma.partnerManualPaymentMethod.findFirst({
+      where: { id, partnerId: workspace.partnerId },
+      select: { id: true, active: true, network: true, label: true },
+    }),
+    prisma.user.findUnique({
+      where: { id: workspace.partnerId },
+      select: { partnerPaymentMode: true },
+    }),
+    prisma.partnerManualPaymentMethod.count({
+      where: {
+        partnerId: workspace.partnerId,
+        active: true,
+        id: { not: id },
+      },
+    }),
+  ]);
+
+  if (!method) return { message: "Payment destination not found." };
+  if (
+    method.active &&
+    account?.partnerPaymentMode === "MANUAL" &&
+    otherActiveMethods === 0
+  ) {
+    return {
+      message:
+        "Switch to Automatic or enable another manual destination before deleting this one.",
+    };
+  }
+
+  const deleted = await prisma.partnerManualPaymentMethod.deleteMany({
+    where: { id, partnerId: workspace.partnerId },
+  });
+  if (deleted.count !== 1) {
+    return { message: "Payment destination not found." };
+  }
+
+  await revalidatePartnerPaymentSurfaces(workspace.partnerId);
+  await recordImpersonatedAction({
+    action: "MANUAL_PAYMENT_METHOD_DELETED",
+    targetType: "PartnerManualPaymentMethod",
+    targetId: method.id,
+    metadata: { network: method.network, label: method.label },
+  });
+  await recordPartnerActivity({
+    workspace,
+    action: "MANUAL_PAYMENT_METHOD_DELETED",
+    targetType: "PartnerManualPaymentMethod",
+    targetId: method.id,
+    metadata: { network: method.network, label: method.label },
+  });
+  return { success: "Payment destination deleted." };
+}
+
 export async function submitManualPaymentProofAction(
   _previous: ManualPaymentFormState,
   formData: FormData

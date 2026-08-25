@@ -8,7 +8,10 @@ import { Badge } from "@/components/ui/Badge";
 import { getCurrentUser } from "@/lib/dal";
 import { prisma } from "@/lib/db";
 import { platformPaymongoConfigured } from "@/lib/payments/paymongo-platform";
-import { calculateTrainerServiceFeeBalance } from "@/lib/trainer-service-fees";
+import {
+  calculateTrainerServiceFeeBalance,
+  listTrainerServiceFeeWaivers,
+} from "@/lib/trainer-service-fees";
 import {
   pollLatestTrainerServiceFeeCheckout,
   pollTrainerServiceFeeCheckout,
@@ -40,7 +43,7 @@ export default async function TrainerPaymentsPage({
   } else {
     await pollLatestTrainerServiceFeeCheckout(user.id);
   }
-  const [balance, settlements, paymongoSettlementEnabled] = await Promise.all([
+  const [balance, settlements, waivers, paymongoSettlementEnabled] = await Promise.all([
     calculateTrainerServiceFeeBalance(prisma, user.id),
     prisma.trainerServiceFeeSettlement.findMany({
       where: { trainerId: user.id },
@@ -54,6 +57,7 @@ export default async function TrainerPaymentsPage({
         submittedAt: true,
       },
     }),
+    listTrainerServiceFeeWaivers(user.id, 12),
     platformPaymongoConfigured(),
   ]);
   const gateway = profile.user.trainerGateway
@@ -123,6 +127,7 @@ export default async function TrainerPaymentsPage({
         serviceFees={{
           accrued: balance.earned,
           paid: balance.paid,
+          waived: balance.waived,
           pending: balance.pending,
           due: balance.amountDue,
           overdue: balance.overdueAmount,
@@ -134,6 +139,14 @@ export default async function TrainerPaymentsPage({
             ...item,
             amount: Number(item.amount),
             submittedAt: item.submittedAt.toISOString(),
+          })),
+          waivers: waivers.map((item) => ({
+            id: item.id,
+            amount: item.amount,
+            reason: item.reason,
+            grantedAt: item.grantedAt.toISOString(),
+            reversedAt: item.reversedAt?.toISOString() ?? null,
+            reversalReason: item.reversalReason,
           })),
         }}
       />

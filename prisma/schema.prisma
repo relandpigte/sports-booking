@@ -227,14 +227,17 @@ model User {
   chatBlocksReceived   ChatBlock[]         @relation("ChatBlocked")
   chatReports          ChatReport[]        @relation("ChatReporter")
 
-  trainerProfile          TrainerProfile?
-  trainerGateway          TrainerGateway?
-  trainerManualMethods    TrainerManualPaymentMethod[]
-  trainerSessionsBooked   TrainerSession[]              @relation("TrainerSessionPlayer")
-  trainerPaymentsMade     TrainerPayment[]              @relation("TrainerPaymentPlayer")
-  trainerPaymentsReceived TrainerPayment[]              @relation("TrainerPaymentTrainer")
-  trainerFeeEntries       TrainerServiceFeeEntry[]      @relation("TrainerServiceFeeOwner")
-  trainerFeeSettlements   TrainerServiceFeeSettlement[] @relation("TrainerServiceFeeSettlementOwner")
+  trainerProfile            TrainerProfile?
+  trainerGateway            TrainerGateway?
+  trainerManualMethods      TrainerManualPaymentMethod[]
+  trainerSessionsBooked     TrainerSession[]              @relation("TrainerSessionPlayer")
+  trainerPaymentsMade       TrainerPayment[]              @relation("TrainerPaymentPlayer")
+  trainerPaymentsReceived   TrainerPayment[]              @relation("TrainerPaymentTrainer")
+  trainerFeeEntries         TrainerServiceFeeEntry[]      @relation("TrainerServiceFeeOwner")
+  trainerFeeSettlements     TrainerServiceFeeSettlement[] @relation("TrainerServiceFeeSettlementOwner")
+  trainerFeeWaivers         TrainerServiceFeeWaiver[]     @relation("TrainerServiceFeeWaiverOwner")
+  trainerFeeWaiversGranted  TrainerServiceFeeWaiver[]     @relation("TrainerServiceFeeWaiverGrantor")
+  trainerFeeWaiversReversed TrainerServiceFeeWaiver[]     @relation("TrainerServiceFeeWaiverReverser")
 
   partnerGateway            PartnerGateway?
   manualPaymentMethods      PartnerManualPaymentMethod[]
@@ -541,6 +544,34 @@ model TrainerServiceFeeSettlement {
 
   @@index([trainerId, submittedAt])
   @@index([status, submittedAt])
+}
+
+// Trainer waivers mirror partner waivers while retaining a separate ledger.
+// They are administrative credits, never cash settlements, and reversals keep
+// their complete attribution and balance snapshots for auditability.
+model TrainerServiceFeeWaiver {
+  id            String   @id @default(cuid())
+  trainerId     String
+  amount        Decimal  @db.Decimal(10, 2)
+  reason        String   @db.Text
+  grantedById   String
+  balanceBefore Decimal  @db.Decimal(10, 2)
+  balanceAfter  Decimal  @db.Decimal(10, 2)
+  grantedAt     DateTime @default(now())
+
+  reversedAt            DateTime?
+  reversedById          String?
+  reversalReason        String?   @db.Text
+  reversalBalanceBefore Decimal?  @db.Decimal(10, 2)
+  reversalBalanceAfter  Decimal?  @db.Decimal(10, 2)
+  updatedAt             DateTime  @updatedAt
+
+  trainer    User  @relation("TrainerServiceFeeWaiverOwner", fields: [trainerId], references: [id], onDelete: Cascade)
+  grantedBy  User  @relation("TrainerServiceFeeWaiverGrantor", fields: [grantedById], references: [id], onDelete: Restrict)
+  reversedBy User? @relation("TrainerServiceFeeWaiverReverser", fields: [reversedById], references: [id], onDelete: Restrict)
+
+  @@index([trainerId, grantedAt])
+  @@index([reversedAt, grantedAt])
 }
 
 // A player identity may work for one partner team. Permissions are explicit

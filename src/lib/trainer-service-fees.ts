@@ -19,8 +19,28 @@ import {
 
 type TrainerFeeDb = Pick<
   Prisma.TransactionClient,
-  "trainerServiceFeeEntry" | "trainerServiceFeeSettlement"
+  | "trainerServiceFeeEntry"
+  | "trainerServiceFeeSettlement"
+  | "trainerServiceFeeWaiver"
 >;
+
+export type TrainerServiceFeeWaiverView = {
+  id: string;
+  trainerId: string;
+  trainerName: string;
+  trainerEmail: string;
+  amount: number;
+  reason: string;
+  grantedAt: Date;
+  grantedByName: string;
+  balanceBefore: number;
+  balanceAfter: number;
+  reversedAt: Date | null;
+  reversalReason: string | null;
+  reversedByName: string | null;
+  reversalBalanceBefore: number | null;
+  reversalBalanceAfter: number | null;
+};
 
 export type AdminTrainerServiceFeeBreakdown = {
   trainerId: string;
@@ -71,7 +91,7 @@ export async function calculateTrainerServiceFeeBalance(
   now: Date = new Date()
 ): Promise<ServiceFeeBalance> {
   const cutoff = serviceFeeOverdueCutoff(now);
-  const [entries, overdueEntries, paid, pending] = await Promise.all([
+  const [entries, overdueEntries, paid, waived, pending] = await Promise.all([
     db.trainerServiceFeeEntry.findMany({
       where: { trainerId },
       orderBy: { createdAt: "asc" },
@@ -85,6 +105,10 @@ export async function calculateTrainerServiceFeeBalance(
       where: { trainerId, status: "PAID" },
       _sum: { amount: true },
     }),
+    db.trainerServiceFeeWaiver.aggregate({
+      where: { trainerId, reversedAt: null },
+      _sum: { amount: true },
+    }),
     db.trainerServiceFeeSettlement.aggregate({
       where: { trainerId, status: "SUBMITTED" },
       _sum: { amount: true },
@@ -95,7 +119,7 @@ export async function calculateTrainerServiceFeeBalance(
     earned: entries.reduce((sum, entry) => sum + Number(entry.amount), 0),
     overdueBase: Number(overdueEntries._sum.amount ?? 0),
     paid: Number(paid._sum.amount ?? 0),
-    waived: 0,
+    waived: Number(waived._sum.amount ?? 0),
     pending: Number(pending._sum.amount ?? 0),
     entries,
     now,
@@ -118,7 +142,7 @@ export async function listOverdueTrainerIds(
   if (trainerIds.length === 0) return new Set();
   const uniqueTrainerIds = [...new Set(trainerIds)];
   const cutoff = serviceFeeOverdueCutoff(now);
-  const [entries, paidGroups] = await Promise.all([
+  const [entries, paidGroups, waivedGroups] = await Promise.all([
     prisma.trainerServiceFeeEntry.findMany({
       where: { trainerId: { in: uniqueTrainerIds } },
       orderBy: [{ trainerId: "asc" }, { createdAt: "asc" }],
@@ -127,6 +151,14 @@ export async function listOverdueTrainerIds(
     prisma.trainerServiceFeeSettlement.groupBy({
       by: ["trainerId"],
       where: { trainerId: { in: uniqueTrainerIds }, status: "PAID" },
+      _sum: { amount: true },
+    }),
+    prisma.trainerServiceFeeWaiver.groupBy({
+      by: ["trainerId"],
+      where: {
+        trainerId: { in: uniqueTrainerIds },
+        reversedAt: null,
+      },
       _sum: { amount: true },
     }),
   ]);
@@ -141,6 +173,9 @@ export async function listOverdueTrainerIds(
   }
   const paidByTrainer = new Map(
     paidGroups.map((row) => [row.trainerId, Number(row._sum.amount ?? 0)])
+  );
+  const waivedByTrainer = new Map(
+    waivedGroups.map((row) => [row.trainerId, Number(row._sum.amount ?? 0)])
   );
 
   return new Set(
@@ -157,7 +192,7 @@ export async function listOverdueTrainerIds(
           0
         ),
         paid: paidByTrainer.get(trainerId) ?? 0,
-        waived: 0,
+        waived: waivedByTrainer.get(trainerId) ?? 0,
         pending: 0,
         entries: trainerEntries,
         now,
@@ -173,7 +208,14 @@ export async function listAdminTrainerServiceFeeBreakdown(
   await requireAdmin();
 
   const cutoff = serviceFeeOverdueCutoff(now);
-  const [profiles, entries, paidGroups, pendingGroups, paidSettlements] =
+  const [
+    profiles,
+    entries,
+    paidGroups,
+    waivedGroups,
+    pendingGroups,
+    paidSettlements,
+  ] =
     await Promise.all([
       prisma.trainerProfile.findMany({
         orderBy: [
@@ -199,6 +241,11 @@ export async function listAdminTrainerServiceFeeBreakdown(
       prisma.trainerServiceFeeSettlement.groupBy({
         by: ["trainerId"],
         where: { status: "PAID" },
+        _sum: { amount: true },
+      }),
+      prisma.trainerServiceFeeWaiver.groupBy({
+        by: ["trainerId"],
+        where: { reversedAt: null },
         _sum: { amount: true },
       }),
       prisma.trainerServiceFeeSettlement.groupBy({
@@ -230,6 +277,9 @@ export async function listAdminTrainerServiceFeeBreakdown(
   const paidByTrainer = new Map(
     paidGroups.map((row) => [row.trainerId, Number(row._sum.amount ?? 0)])
   );
+  const waivedByTrainer = new Map(
+    waivedGroups.map((row) => [row.trainerId, Number(row._sum.amount ?? 0)])
+  );
   const pendingByTrainer = new Map(
     pendingGroups.map((row) => [row.trainerId, Number(row._sum.amount ?? 0)])
   );
@@ -260,7 +310,7 @@ export async function listAdminTrainerServiceFeeBreakdown(
           0
         ),
         paid: paidByTrainer.get(trainer.id) ?? 0,
-        waived: 0,
+        waived: waivedByTrainer.get(trainer.id) ?? 0,
         pending: pendingByTrainer.get(trainer.id) ?? 0,
         entries: trainerEntries,
         now,
@@ -285,6 +335,7 @@ export async function listAdminTrainerServiceFeeBreakdown(
         trainer.trainerStatus === "ACTIVE" ||
         trainer.transactionCount > 0 ||
         trainer.balance.paid > 0 ||
+        trainer.balance.waived > 0 ||
         trainer.balance.pending > 0
     )
     .sort(
@@ -294,6 +345,84 @@ export async function listAdminTrainerServiceFeeBreakdown(
           (right.balance.nextDueAt?.getTime() ?? Number.MAX_SAFE_INTEGER) ||
         left.trainerName.localeCompare(right.trainerName)
     );
+}
+
+const trainerWaiverSelect = {
+  id: true,
+  trainerId: true,
+  amount: true,
+  reason: true,
+  grantedAt: true,
+  balanceBefore: true,
+  balanceAfter: true,
+  reversedAt: true,
+  reversalReason: true,
+  reversalBalanceBefore: true,
+  reversalBalanceAfter: true,
+  trainer: {
+    select: { name: true, playerName: true, email: true },
+  },
+  grantedBy: { select: { name: true, email: true } },
+  reversedBy: { select: { name: true, email: true } },
+} as const;
+
+function mapTrainerWaiver(
+  row: Prisma.TrainerServiceFeeWaiverGetPayload<{
+    select: typeof trainerWaiverSelect;
+  }>
+): TrainerServiceFeeWaiverView {
+  return {
+    id: row.id,
+    trainerId: row.trainerId,
+    trainerName:
+      row.trainer.playerName ?? row.trainer.name ?? row.trainer.email,
+    trainerEmail: row.trainer.email,
+    amount: Number(row.amount),
+    reason: row.reason,
+    grantedAt: row.grantedAt,
+    grantedByName: row.grantedBy.name ?? row.grantedBy.email,
+    balanceBefore: Number(row.balanceBefore),
+    balanceAfter: Number(row.balanceAfter),
+    reversedAt: row.reversedAt,
+    reversalReason: row.reversalReason,
+    reversedByName: row.reversedBy
+      ? row.reversedBy.name ?? row.reversedBy.email
+      : null,
+    reversalBalanceBefore:
+      row.reversalBalanceBefore === null
+        ? null
+        : Number(row.reversalBalanceBefore),
+    reversalBalanceAfter:
+      row.reversalBalanceAfter === null
+        ? null
+        : Number(row.reversalBalanceAfter),
+  };
+}
+
+export async function listTrainerServiceFeeWaivers(
+  trainerId: string,
+  take = 20
+): Promise<TrainerServiceFeeWaiverView[]> {
+  const rows = await prisma.trainerServiceFeeWaiver.findMany({
+    where: { trainerId },
+    orderBy: { grantedAt: "desc" },
+    take,
+    select: trainerWaiverSelect,
+  });
+  return rows.map(mapTrainerWaiver);
+}
+
+export async function listAdminTrainerServiceFeeWaivers(): Promise<
+  TrainerServiceFeeWaiverView[]
+> {
+  const { requireAdmin } = await import("@/lib/admin");
+  await requireAdmin();
+  const rows = await prisma.trainerServiceFeeWaiver.findMany({
+    orderBy: { grantedAt: "desc" },
+    take: 100,
+    select: trainerWaiverSelect,
+  });
+  return rows.map(mapTrainerWaiver);
 }
 
 export async function listAdminTrainerServiceFeeTransactions(): Promise<

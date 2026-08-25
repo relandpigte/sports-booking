@@ -249,6 +249,110 @@
       },
       "updatedAt": "2026-08-25T12:56:03+08:00"
     },
+    "/dashboard/bookings/pay/[paymentId]": {
+      "targetKind": "existing-ui",
+      "projectId": "e4c8e4e6-58c1-4931-a0f3-9eae8122ee8e",
+      "activeDraftId": "0a657b7f-fa29-4d52-aa30-383ce0b5c884",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "6a426363-2c60-43c0-a0c8-0daa7c2855f6",
+        "public-bunal-logo-v2-wordmark.png"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "public-bunal-logo-v2-wordmark.png",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/e4c8e4e6-58c1-4931-a0f3-9eae8122ee8e/brand-assets/public-bunal-logo-v2-wordmark.png/bunal-logo-v2-wordmark.png",
+          "sourcePath": "public/bunal-logo-v2-wordmark.png"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "src/app/globals.css",
+        "src/app/(app)/dashboard/bookings/pay/[paymentId]/page.tsx",
+        "src/app/(app)/layout.tsx",
+        "src/components/bookings/BookingHoldClosedState.tsx",
+        "src/components/dashboard/AppShell.tsx",
+        "src/components/dashboard/DashboardNav.tsx",
+        "src/components/Logo.tsx",
+        "src/components/ui/Avatar.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "4eefc25ff528d497a043ab0fe763896dbc22438e6314a976a8e49a298ff0f146",
+        ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
+        "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
+        "src/app/(app)/dashboard/bookings/pay/[paymentId]/page.tsx": "639e16659f8e191963255db1211f72bb5edfb82424562132baacdfbaf7a62519",
+        "src/app/(app)/layout.tsx": "0096b1d5fcfb256cb7c09954a82f8ceae2f9fef8fae30668585ca1a6d01f0675",
+        "src/components/bookings/BookingHoldClosedState.tsx": "fa784b496358c44d6ea6102ea13e6fb599a6831baebc5b4a020205c4fe1bd81d",
+        "src/components/dashboard/AppShell.tsx": "0b287f061fd17665d82435e441b6e4fbdd7e92583fb658bf5d01107ad26e0777",
+        "src/components/dashboard/DashboardNav.tsx": "dd96d593ab70da912b1ae59769f34550567260afe554b2858b9cf1cfbe7b217a",
+        "src/components/Logo.tsx": "073c062cb0d022c9f5a1f78c79af6570143f03a8d6908c3268f79cb4370d6e2d",
+        "src/components/ui/Avatar.tsx": "e3af6ae6a7249c7f4ea61cb69e044c74fc27240af9ee5e9e645e7712f78a8214"
+      },
+      "components": [],
+      "drafts": {
+        "0a657b7f-fa29-4d52-aa30-383ce0b5c884": {
+          "title": "Signed-in Booking Hold Expired — Professional",
+          "visualDirection": "authenticated max-w-4xl booking outcome workspace with calm expiry hierarchy, aligned outcome steps, explicit no-charge summary, and navy recovery actions",
+          "currentVersion": 1
+        }
+      },
+      "updatedAt": "2026-08-25T13:12:00+08:00"
+    },
+    "guest-reservation-hold-dock": {
+      "targetKind": "existing-ui",
+      "projectId": "e4c8e4e6-58c1-4931-a0f3-9eae8122ee8e",
+      "activeDraftId": "8fa8a5b3-2548-4456-ad2d-62535b7d3a2d",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "85d74fee-eaab-4c59-aa35-5d9c1c12a83e",
+        "public-bunal-logo-v2-wordmark.png"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "public-bunal-logo-v2-wordmark.png",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/e4c8e4e6-58c1-4931-a0f3-9eae8122ee8e/brand-assets/public-bunal-logo-v2-wordmark.png/bunal-logo-v2-wordmark.png",
+          "sourcePath": "public/bunal-logo-v2-wordmark.png"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "src/app/globals.css",
+        "src/components/bookings/ReservationHoldDock.tsx",
+        "src/components/PageShell.tsx",
+        "src/app/page.tsx",
+        "src/lib/guest-bookings.ts",
+        "src/lib/booking-payments.ts",
+        "src/lib/booking-payment-actions.ts",
+        "src/components/hubs/PublicTopBar.tsx",
+        "src/lib/currency.ts",
+        "src/lib/time.ts"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "4eefc25ff528d497a043ab0fe763896dbc22438e6314a976a8e49a298ff0f146",
+        ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
+        "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
+        "src/components/bookings/ReservationHoldDock.tsx": "e6dd9f56972c20dcf479b32cf481c420e25b42cf6ece1b924f52a965262b9494",
+        "src/components/PageShell.tsx": "d90c6196ad19565e806d75eb3a54a76c127b839ddbd9cfc6aa2397b2a1888eaf",
+        "src/app/page.tsx": "c97ccd3d938281884f3dd65e23a6ad82b5ae7e264c319990337efa0f96264b90",
+        "src/lib/guest-bookings.ts": "14ddbbee136da7ce743f0faccfebe3ba2bfa1a8be9391d2af8ed4e159c8eddfb",
+        "src/lib/booking-payments.ts": "f72985eaef3f59ecf71d15c9e8ca339559821463eb7c3ef27cc2b9647367c32a",
+        "src/lib/booking-payment-actions.ts": "be9c6d0d381b426021040792374330fe0c1990ee757893b234a80a4f55d46de3",
+        "src/components/hubs/PublicTopBar.tsx": "d77256e43379e4b37f16be48b1d45838f968ddf49fafac052b93f4e50a6854b7",
+        "src/lib/currency.ts": "14403a51f449f116dc7ab302b648f84de2957c0ee2a50407011ecd138670b587",
+        "src/lib/time.ts": "90fcf99803b288bbd3d766542c3a3f7e86ba85d76d7cbf8c1801d78bc5ca0bed"
+      },
+      "components": [],
+      "drafts": {
+        "8fa8a5b3-2548-4456-ad2d-62535b7d3a2d": {
+          "title": "Guest Booking Hold Dock — Public Pages",
+          "visualDirection": "persistent navy guest reservation dock with private-booking context, compact countdown, release control, and an explicit path back to payment",
+          "currentVersion": 1
+        }
+      },
+      "updatedAt": "2026-08-25T13:12:00+08:00"
+    },
     "trainer-marketplace": {
       "targetKind": "existing-ui",
       "projectId": "df2fe063-c6da-4978-8695-40c03895ddc6",

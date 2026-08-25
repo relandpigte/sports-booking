@@ -28,10 +28,14 @@ export function ReservationHoldDock({
   hold,
   onClosed,
   hideOnOwnHub = false,
+  isGuest = false,
+  reservePageSpace = false,
 }: {
   hold: BookingHoldView;
   onClosed?: () => void;
   hideOnOwnHub?: boolean;
+  isGuest?: boolean;
+  reservePageSpace?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -86,6 +90,7 @@ export function ReservationHoldDock({
   if (
     closed ||
     pathname.startsWith("/dashboard/bookings/pay/") ||
+    pathname.startsWith("/bookings/guest/") ||
     (hideOnOwnHub && onHeldHub)
   ) {
     return null;
@@ -95,10 +100,14 @@ export function ReservationHoldDock({
   const urgent = secondsLeft <= 60;
 
   return (
-    <section
-      aria-label="Reserved booking"
-      className="fixed inset-x-0 bottom-0 z-[60] border-t border-accent/60 bg-navy/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-14px_35px_rgba(16,36,58,0.22)] backdrop-blur-xl"
-    >
+    <>
+      {reservePageSpace && (
+        <div aria-hidden="true" className="h-44 sm:h-36 lg:h-28" />
+      )}
+      <section
+        aria-label="Reserved booking"
+        className="fixed inset-x-0 bottom-0 z-[60] border-t border-accent/60 bg-navy/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-14px_35px_rgba(16,36,58,0.22)] backdrop-blur-xl"
+      >
       <div className="mx-auto w-full max-w-7xl px-4 py-3 sm:px-6 sm:py-4 lg:px-8">
         {message && (
           <p
@@ -124,6 +133,7 @@ export function ReservationHoldDock({
                 </p>
               </div>
               <p className="mt-1 truncate text-[11px] font-semibold text-white/45 sm:text-xs">
+                {isGuest && "Private guest booking · "}
                 {hold.venueName} · {summary}
               </p>
             </div>
@@ -198,7 +208,7 @@ export function ReservationHoldDock({
                     ? "Opening payment…"
                     : "Preparing QR Ph…"
                   : hold.releaseAllowed
-                    ? `Pay ${formatPHP(hold.amount)}`
+                    ? `${isGuest ? "Continue payment · " : "Pay "}${formatPHP(hold.amount)}`
                     : "Continue payment"}
                 {!startingPayment && <ArrowIcon />}
               </button>
@@ -206,7 +216,8 @@ export function ReservationHoldDock({
           </div>
         </div>
       </div>
-    </section>
+      </section>
+    </>
   );
 }
 

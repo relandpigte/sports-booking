@@ -143,17 +143,17 @@ export type BookingPaymentView = {
   } | null;
 };
 
-// Restores the player's one live court-payment hold across hub and dashboard
-// navigation. A submitted manual receipt is no longer an unpaid checkout and
-// intentionally drops out; an automatic payment already in motion remains
-// visible, but the dock cancels the remote QR intent before releasing slots.
-export async function getActiveBookingHoldForUser(args: {
-  userId: string;
-}): Promise<BookingHoldView | null> {
+// Restores one owner's live court-payment hold across site navigation. Guest
+// ownership is resolved from the signed, HttpOnly reservation cookie before
+// this query is called; no private reservation id is sent to the client just
+// to render the dock. A submitted manual receipt intentionally drops out.
+async function getActiveBookingHoldForOwner(
+  owner: BookingPaymentOwner
+): Promise<BookingHoldView | null> {
   const now = new Date();
   const payment = await prisma.bookingPayment.findFirst({
     where: {
-      userId: args.userId,
+      ...paymentOwnerWhere(owner),
       status: "PENDING",
       expiresAt: { gt: now },
       manualSubmittedAt: null,
@@ -232,6 +232,20 @@ export async function getActiveBookingHoldForUser(args: {
       }))
     ),
   };
+}
+
+export async function getActiveBookingHoldForUser(args: {
+  userId: string;
+}): Promise<BookingHoldView | null> {
+  return getActiveBookingHoldForOwner({ userId: args.userId });
+}
+
+export async function getActiveBookingHoldForGuest(args: {
+  guestReservationId: string;
+}): Promise<BookingHoldView | null> {
+  return getActiveBookingHoldForOwner({
+    guestReservationId: args.guestReservationId,
+  });
 }
 
 export async function getActiveBookingHoldForHub(args: {

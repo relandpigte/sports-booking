@@ -142,6 +142,27 @@ async function check() {
       result.items[0]?.player.id !== existingPlayer.id
   );
 
+  await prisma.bookingPayment.update({
+    where: { id: payment.id },
+    data: {
+      manualReceiptImage: null,
+      manualSubmittedAt: null,
+    },
+  });
+  const { getActiveBookingHoldForGuest } = await import(
+    "@/lib/booking-payments"
+  );
+  const guestHold = await getActiveBookingHoldForGuest({
+    guestReservationId: guest.id,
+  });
+  ok(
+    "a live guest checkout can restore its reservation dock across public pages",
+    guestHold?.paymentId === payment.id &&
+      guestHold.venueName === "Guest Checkout Hub" &&
+      guestHold.amount === 463.5 &&
+      guestHold.lines[0]?.courtName === "Guest Court"
+  );
+
   let rejectedDualOwner = false;
   try {
     await prisma.booking.create({

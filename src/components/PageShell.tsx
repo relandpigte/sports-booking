@@ -5,7 +5,11 @@ import { AppShell } from "@/components/dashboard/AppShell";
 import { ReservationHoldDock } from "@/components/bookings/ReservationHoldDock";
 import { getAuthenticatedUser, getViewer } from "@/lib/dal";
 import { getActivePartnerImpersonation } from "@/lib/impersonation";
-import { getActiveBookingHoldForUser } from "@/lib/booking-payments";
+import {
+  getActiveBookingHoldForGuest,
+  getActiveBookingHoldForUser,
+} from "@/lib/booking-payments";
+import { getCurrentGuestReservationId } from "@/lib/guest-bookings";
 import { hasMessageAccess } from "@/lib/messages";
 import { getPartnerWorkspace } from "@/lib/staffing";
 
@@ -35,13 +39,18 @@ export async function PageShell({
     getViewer(),
     getAuthenticatedUser(),
   ]);
+  const guestReservationId = viewer
+    ? null
+    : await getCurrentGuestReservationId();
   const [impersonation, activeBookingHold, workspace] = await Promise.all([
     actor?.role === "ADMIN"
       ? getActivePartnerImpersonation(actor.id)
       : Promise.resolve(null),
     viewer?.role === "PLAYER"
       ? getActiveBookingHoldForUser({ userId: viewer.id })
-      : Promise.resolve(null),
+      : guestReservationId
+        ? getActiveBookingHoldForGuest({ guestReservationId })
+        : Promise.resolve(null),
     viewer ? getPartnerWorkspace() : Promise.resolve(null),
   ]);
   const hasMessages = !viewer || impersonation
@@ -89,7 +98,12 @@ export async function PageShell({
         {children}
       </main>
       {activeBookingHold && (
-        <ReservationHoldDock hold={activeBookingHold} hideOnOwnHub />
+        <ReservationHoldDock
+          hold={activeBookingHold}
+          hideOnOwnHub={Boolean(viewer)}
+          isGuest={!viewer}
+          reservePageSpace={!viewer}
+        />
       )}
     </div>
   );

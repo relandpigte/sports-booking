@@ -5,7 +5,11 @@ import { HomePage } from "@/components/home/HomePage";
 import { ReservationHoldDock } from "@/components/bookings/ReservationHoldDock";
 import { auth } from "@/lib/auth";
 import { getViewer } from "@/lib/dal";
-import { getActiveBookingHoldForUser } from "@/lib/booking-payments";
+import {
+  getActiveBookingHoldForGuest,
+  getActiveBookingHoldForUser,
+} from "@/lib/booking-payments";
+import { getCurrentGuestReservationId } from "@/lib/guest-bookings";
 import {
   SITE_DESCRIPTION,
   SITE_NAME,
@@ -68,10 +72,15 @@ const homeJsonLd = {
 
 export default async function Home() {
   const [session, viewer] = await Promise.all([auth(), getViewer()]);
+  const guestReservationId = viewer
+    ? null
+    : await getCurrentGuestReservationId();
   const activeBookingHold =
     viewer?.role === "PLAYER"
       ? await getActiveBookingHoldForUser({ userId: viewer.id })
-      : null;
+      : guestReservationId
+        ? await getActiveBookingHoldForGuest({ guestReservationId })
+        : null;
 
   return (
     <>
@@ -80,7 +89,9 @@ export default async function Home() {
       {activeBookingHold && (
         <ReservationHoldDock
           hold={activeBookingHold}
-          hideOnOwnHub
+          hideOnOwnHub={Boolean(viewer)}
+          isGuest={!viewer}
+          reservePageSpace={!viewer}
         />
       )}
     </>

@@ -140,6 +140,18 @@ labels, 44px tap targets, sufficient contrast, and server-stable markup.
   workspace or important notes. On mobile, the contact block stays within the
   summary's normal reading order, and the email is clearly labeled as the
   destination for booking and payment updates.
+- While a signed-out guest still has an unpaid court hold, keep a persistent
+  navy reservation dock on public browsing pages. Resolve it from the signed,
+  HttpOnly guest-booking cookie; never expose a private reservation token just
+  to render or operate the dock.
+- The guest hold dock uses the same slot summary, countdown, release action,
+  and payment amount as the signed-in player dock. Label the reservation as a
+  private guest booking and make the primary action an obvious route back to
+  payment. Hide the dock on the private guest booking page itself.
+- On mobile, stack the dock summary above a compact countdown and full-width
+  release/continue actions. Preserve safe-area padding, 44px minimum targets,
+  live countdown announcements only when urgent, and enough page bottom space
+  that the fixed dock does not permanently cover important controls.
 - Before receipt submission, the copy must say that the slot will be released
   when the 15-minute hold expires. After submission, replace the timer with a
   clear amber “Pending booking” state explaining that the venue must approve
@@ -156,6 +168,16 @@ labels, 44px tap targets, sufficient contrast, and server-stable markup.
 - End with the private-link safety notice and one contextual next action. On
   mobile, every card becomes one column and progress steps use vertical reading
   order without horizontal overflow.
+- Signed-in booking-payment outcomes stay inside the authenticated shell and
+  use a centered `max-w-4xl` status workspace rather than a small generic form
+  card floating in the full dashboard canvas.
+- For expired or player-cancelled holds, use a calm state banner, a concise
+  three-step outcome summary, separate reservation and previous-total cards,
+  and explicitly state that no court, service, or processing fee was charged.
+  Expiry is an outcome to recover from, not an application error.
+- End signed-in terminal payment states with a navy recovery panel: the primary
+  action checks the venue's current availability, while a secondary action
+  returns to My bookings. Collapse details and actions to one column on mobile.
 - Partner review stays inside existing booking and event detail surfaces. Show
   expected amount, chosen network, reference, receipt preview, submission time,
   and Approve/Decline actions. Decline reason is optional and releases the held

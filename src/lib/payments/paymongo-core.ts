@@ -215,15 +215,42 @@ export type PaymentIntent = {
   amount?: number;
   status?: string;
   client_key?: string;
+  // PayMongo includes this only for QR Ph intents created with test keys. It
+  // opens their simulator so a test payment can be completed without scanning
+  // a QR that may route a real transfer.
+  test_url?: string;
   payments?: PayMongoPayment[];
   last_payment_error?:
     | string
     | { code?: string; detail?: string; message?: string }
     | null;
   next_action?: {
-    code?: { image_url?: string; expires_at?: string };
+    code?: { image_url?: string; expires_at?: string; test_url?: string };
+    test_url?: string;
   } | null;
 };
+
+export function paymentIntentTestUrl(intent: PaymentIntent): string | null {
+  const candidate =
+    intent.test_url ??
+    intent.next_action?.test_url ??
+    intent.next_action?.code?.test_url;
+  if (!candidate) return null;
+
+  try {
+    const url = new URL(candidate);
+    if (
+      url.protocol !== "https:" ||
+      (url.hostname !== "paymongo.com" &&
+        !url.hostname.endsWith(".paymongo.com"))
+    ) {
+      return null;
+    }
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
 
 export function paymentIntentQrExpired(
   intent: PaymentIntent,

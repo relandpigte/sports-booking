@@ -27,6 +27,7 @@ export type MockState = {
       clientKey: string;
       qrImageUrl?: string;
       expiresAt?: string;
+      testUrl?: string;
       lastPaymentError?: { code: string; detail: string };
     }
   >;
@@ -198,11 +199,15 @@ export function installPaymongoMock(): MockState {
       const qrImageUrl = `data:image/svg+xml;base64,${Buffer.from(
         `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="white"/><path d="M16 16h80v80H16zm144 0h80v80h-80zM16 160h80v80H16z" fill="#10243a"/></svg>`
       ).toString("base64")}`;
+      const testUrl = decoded.startsWith("sk_test_")
+        ? `https://test.paymongo.com/qrph/${attach[1]}`
+        : undefined;
       state.intents.set(attach[1], {
         ...found,
         status: "awaiting_next_action",
         qrImageUrl,
         expiresAt,
+        testUrl,
       });
       return json(200, {
         data: {
@@ -215,6 +220,7 @@ export function installPaymongoMock(): MockState {
             next_action: {
               code: { image_url: qrImageUrl, expires_at: expiresAt },
             },
+            test_url: testUrl,
           },
         },
       });
@@ -251,6 +257,7 @@ export function installPaymongoMock(): MockState {
                   },
                 }
               : null,
+            test_url: found.testUrl,
             last_payment_error: found.lastPaymentError,
           },
         },

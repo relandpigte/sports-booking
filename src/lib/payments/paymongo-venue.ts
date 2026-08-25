@@ -26,6 +26,7 @@ import {
   parsePaymongoEvent,
   paymentIntentError,
   paymentIntentQrExpired,
+  paymentIntentTestUrl,
   paymongoRequest,
   resolvePaymentId,
   toCentavos,
@@ -174,7 +175,13 @@ export function paymongoVenueGateway(creds: GatewayCredentials): VenueGateway {
         return {
           status: "requires_action",
           paymentId: intent.id,
-          redirectUrl: null,
+          // PayMongo's QR Ph test response includes a simulator page. Never
+          // infer test mode in the browser: only pass through the provider URL
+          // when the server is using a verified test secret key.
+          redirectUrl:
+            keyMode(secretKey) === "test"
+              ? paymentIntentTestUrl(intent.attributes)
+              : null,
           qrImageUrl,
           clientKey: intent.attributes.client_key ?? null,
           raw: intent.attributes,

@@ -12,6 +12,55 @@ export function PayMongoCheckout({
   expiresAt?: string;
   initialSeconds?: number;
 }) {
+  if (qrImageUrl && checkoutUrl) {
+    return (
+      <div className="flex flex-col gap-3">
+        <div className="overflow-hidden rounded-2xl border border-sky-200 bg-white shadow-sm">
+          <div className="border-b border-sky-100 bg-sky-50 px-5 py-4">
+            <div className="flex items-start gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-600 text-white">
+                <TestModeIcon />
+              </span>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-sky-700">
+                  PayMongo test mode
+                </p>
+                <h2 className="mt-0.5 font-bold text-navy">
+                  Complete a simulated payment
+                </h2>
+              </div>
+            </div>
+          </div>
+
+          <div className="px-5 py-5">
+            <p className="text-sm leading-6 text-navy/70">
+              No real money will move. PayMongo will open its test page where
+              you can choose the payment result, then this booking will update
+              automatically.
+            </p>
+            <a
+              href={checkoutUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white shadow-sm shadow-primary/20 transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            >
+              Complete test payment
+              <ExternalLinkIcon />
+            </a>
+            <p className="mt-3 text-center text-xs font-medium text-sky-700">
+              Keep this page open while completing the PayMongo test.
+            </p>
+          </div>
+        </div>
+
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-xs font-semibold leading-5 text-amber-800">
+          Do not scan the QR code in test mode. PayMongo recommends using its
+          test page because scanning may initiate a real transfer.
+        </p>
+      </div>
+    );
+  }
+
   if (qrImageUrl) {
     return (
       <div className="flex flex-col gap-3">
@@ -163,6 +212,44 @@ function QrIcon() {
     >
       <rect width="18" height="18" x="3" y="3" rx="2" />
       <path d="M7 7h3v3H7zM14 7h3v3h-3zM7 14h3v3H7zM14 14h1M17 14v3h-3" />
+    </svg>
+  );
+}
+
+function TestModeIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M9 3h6M10 9l-4.5 8a2 2 0 0 0 1.75 3h9.5a2 2 0 0 0 1.75-3L14 9V3" />
+      <path d="M8.5 15h7" />
+    </svg>
+  );
+}
+
+function ExternalLinkIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M15 3h6v6M10 14 21 3" />
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
     </svg>
   );
 }

@@ -156,6 +156,9 @@ async function check() {
       Number(registration.payment.platformFee) === 45 &&
       registration.payment.providerPaymentId?.startsWith("pi_") === true &&
       registration.payment.qrImageUrl?.startsWith("data:image/") === true &&
+      registration.payment.redirectUrl?.startsWith(
+        "https://test.paymongo.com/qrph/"
+      ) === true &&
       Number(registration.payment.processingFee) === 23.54 &&
       registration.holdExpiresAt != null &&
       registration.holdExpiresAt.getTime() >=

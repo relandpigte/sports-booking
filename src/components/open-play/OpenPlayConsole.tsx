@@ -367,6 +367,30 @@ function ParticipantPrimaryAction({
   return null;
 }
 
+function hasParticipantPrimaryAction(status: ParticipantStatus) {
+  return [
+    "PENDING_APPROVAL",
+    "NOT_CHECKED_IN",
+    "CHECKED_OUT",
+    "QUEUED",
+    "PAUSED",
+  ].includes(status);
+}
+
+function hasParticipantMoreActions(status: ParticipantStatus) {
+  const canCheckOut = ["NOT_CHECKED_IN", "QUEUED", "PAUSED"].includes(
+    status
+  );
+  const canRemove = ![
+    "STAGED",
+    "PLAYING",
+    "REMOVED",
+    "PENDING_APPROVAL",
+  ].includes(status);
+  const canEdit = !["REMOVED", "PENDING_APPROVAL"].includes(status);
+  return status === "PENDING_APPROVAL" || canCheckOut || canRemove || canEdit;
+}
+
 function ParticipantMoreActions({
   snapshot,
   participant,
@@ -378,15 +402,15 @@ function ParticipantMoreActions({
   const canCheckOut = ["NOT_CHECKED_IN", "QUEUED", "PAUSED"].includes(participant.status);
   const canRemove = !["STAGED", "PLAYING", "REMOVED", "PENDING_APPROVAL"].includes(participant.status);
   const canEdit = !["REMOVED", "PENDING_APPROVAL"].includes(participant.status);
-  const hasActions = participant.status === "PENDING_APPROVAL" || canCheckOut || canRemove || canEdit;
+  const hasActions = hasParticipantMoreActions(participant.status);
 
   if (!hasActions) return null;
   return (
-    <details className="relative">
+    <details className="relative z-10 shrink-0 open:z-30">
       <summary className="flex min-h-9 cursor-pointer list-none items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
         More
       </summary>
-      <div className="mt-2 flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-lg xl:absolute xl:right-0 xl:z-20 xl:w-80">
+      <div className="absolute right-0 top-full z-30 mt-2 flex w-[min(18rem,calc(100vw-3rem))] flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
         {participant.status === "PENDING_APPROVAL" ? (
           <ActionForm action={rejectPublicQueueGuestAction} values={values} label="Reject request" tone="danger" />
         ) : null}
@@ -525,25 +549,8 @@ function ParticipantRoster({ snapshot }: { snapshot: OpenPlaySnapshot }) {
           ))}
         </div>
       </div>
-      <div className="hidden grid-cols-[40px_minmax(180px,1.35fr)_110px_110px_72px_minmax(170px,auto)] items-center gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 lg:grid">
-        <div className="flex justify-center">
-          {selectable.length > 0 ? (
-            <input
-              type="checkbox"
-              checked={selectable.every((player) => selected.has(player.id))}
-              onChange={(event) => selectVisibleEligible(event.target.checked)}
-              aria-label="Select all actionable players in this view"
-            />
-          ) : null}
-        </div>
-        <span>Player &amp; source</span>
-        <span>Skill</span>
-        <span>Status</span>
-        <span>Wait</span>
-        <span className="text-right">Action</span>
-      </div>
       {selectable.length > 0 ? (
-        <label className="flex min-h-11 cursor-pointer items-center gap-2 border-b border-slate-100 bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600 lg:hidden">
+        <label className="flex min-h-11 cursor-pointer items-center gap-2 border-b border-slate-100 bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600 sm:px-5">
           <input
             type="checkbox"
             checked={selectable.every((player) => selected.has(player.id))}
@@ -552,12 +559,15 @@ function ParticipantRoster({ snapshot }: { snapshot: OpenPlaySnapshot }) {
           Select actionable players in this view
         </label>
       ) : null}
-      <div className="divide-y divide-slate-100">
+      <div className="grid grid-cols-1 gap-3 p-3 sm:p-4 lg:grid-cols-3">
         {visibleParticipants.length === 0 ? (
-          <p className="px-4 py-10 text-center text-sm text-slate-500">No players in this view.</p>
+          <p className="col-span-full px-4 py-10 text-center text-sm text-slate-500">No players in this view.</p>
         ) : visibleParticipants.map((player) => {
           const groupLabel = GROUPS.find(([status]) => status === player.status)?.[1] ?? player.status;
           const isEligible = ["NOT_CHECKED_IN", "CHECKED_OUT", "QUEUED", "PAUSED"].includes(player.status);
+          const hasActions =
+            hasParticipantPrimaryAction(player.status) ||
+            hasParticipantMoreActions(player.status);
           const queueNumber = player.queuePosition
             ? snapshot.participants.filter(
                 (item) => item.status === "QUEUED" && (item.queuePosition ?? 0) <= player.queuePosition!
@@ -566,58 +576,78 @@ function ParticipantRoster({ snapshot }: { snapshot: OpenPlaySnapshot }) {
           return (
             <article
               key={player.id}
-              className={`relative grid grid-cols-[36px_minmax(0,1fr)] gap-x-3 gap-y-2 p-4 transition lg:grid-cols-[40px_minmax(180px,1.35fr)_110px_110px_72px_minmax(170px,auto)] lg:items-center lg:gap-3 lg:px-4 lg:py-3 ${
+              className={`relative flex h-full min-w-0 flex-col rounded-xl border transition hover:shadow-sm ${
                 player.status === "PENDING_APPROVAL"
-                  ? "bg-amber-50/70 hover:bg-amber-50"
+                  ? "border-amber-200 bg-amber-50/70 hover:border-amber-300 hover:bg-amber-50"
                   : player.status === "REMOVED"
-                    ? "bg-slate-50/60 opacity-60"
-                    : "bg-white hover:bg-slate-50/70"
+                    ? "border-slate-200 bg-slate-50/60 opacity-60"
+                    : "border-slate-200 bg-white hover:border-primary/25"
               }`}
             >
-              <div className="flex h-9 items-center justify-center lg:h-auto">
-                {isEligible ? (
-                  <input
-                    type="checkbox"
-                    checked={selected.has(player.id)}
-                    onChange={() => toggle(player.id)}
-                    aria-label={`Select ${player.displayName}`}
-                  />
-                ) : (
-                  <span className={`flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-black ${
-                    queueNumber ? "bg-primary-soft text-primary" : "bg-slate-100 text-slate-500"
-                  }`}>
-                    {queueNumber ?? player.displayName.slice(0, 1).toUpperCase()}
+              <div className="flex flex-1 flex-col p-4">
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    {isEligible ? (
+                      <label className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-slate-50 ring-1 ring-slate-200">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(player.id)}
+                          onChange={() => toggle(player.id)}
+                          aria-label={`Select ${player.displayName}`}
+                        />
+                      </label>
+                    ) : (
+                      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[10px] font-black ${
+                        queueNumber ? "bg-primary-soft text-primary" : "bg-slate-100 text-slate-500"
+                      }`}>
+                        {queueNumber ?? player.displayName.slice(0, 1).toUpperCase()}
+                      </span>
+                    )}
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-black text-navy">{player.displayName}</p>
+                      <p className="mt-0.5 truncate text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                        {player.source.toLowerCase().replaceAll("_", " ")}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`inline-flex shrink-0 rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-wide ${STATUS_STYLES[player.status]}`}>
+                    {groupLabel}
                   </span>
-                )}
-              </div>
-              <div className="min-w-0 self-center">
-                <p className="truncate text-sm font-black text-navy">{player.displayName}</p>
-                <p className="mt-0.5 truncate text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                  {player.source.toLowerCase().replaceAll("_", " ")}
-                </p>
-              </div>
-              <div className="col-span-2 grid grid-cols-3 gap-2 border-t border-slate-100 pt-2 lg:col-span-1 lg:block lg:border-0 lg:pt-0">
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 lg:hidden">Skill</p>
-                  <span className="text-[11px] font-bold capitalize text-slate-600">{player.skillLevel}</span>
                 </div>
-                <div className="lg:hidden">
-                  <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Status</p>
-                  <span className={`mt-0.5 inline-flex rounded-full px-2 py-0.5 text-[9px] font-black ${STATUS_STYLES[player.status]}`}>{groupLabel}</span>
-                </div>
-                <div className="lg:hidden">
-                  <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Wait</p>
-                  <span className="text-[11px] font-bold text-slate-500">{player.estimatedWaitMinutes ? `~${player.estimatedWaitMinutes}m` : "—"}</span>
+
+                <div className={`mt-4 grid grid-cols-2 gap-3 border-t pt-3 ${
+                  player.status === "PENDING_APPROVAL"
+                    ? "border-amber-200/70"
+                    : "border-slate-100"
+                }`}>
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Skill</p>
+                    <p className="mt-0.5 text-xs font-bold capitalize text-slate-600">{player.skillLevel}</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Estimated wait</p>
+                    <p className="mt-0.5 text-xs font-bold text-slate-600">
+                      {player.estimatedWaitMinutes ? `~${player.estimatedWaitMinutes}m` : "—"}
+                    </p>
+                  </div>
                 </div>
               </div>
-              <div className="hidden lg:block">
-                <span className={`inline-flex rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-wide ${STATUS_STYLES[player.status]}`}>{groupLabel}</span>
-              </div>
-              <span className="hidden text-xs font-bold text-slate-500 lg:block">{player.estimatedWaitMinutes ? `~${player.estimatedWaitMinutes}m` : "—"}</span>
-              <div className="col-span-2 flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-2 lg:col-span-1 lg:border-0 lg:pt-0">
-                <ParticipantPrimaryAction snapshot={snapshot} participant={player} />
-                <ParticipantMoreActions snapshot={snapshot} participant={player} />
-              </div>
+              {hasActions ? (
+                <div className={`mt-auto flex items-start justify-end gap-2 border-t px-4 py-3 ${
+                  player.status === "PENDING_APPROVAL"
+                    ? "border-amber-200 bg-amber-100/30"
+                    : "border-slate-200 bg-slate-50/80"
+                }`}>
+                  <ParticipantPrimaryAction
+                    snapshot={snapshot}
+                    participant={player}
+                  />
+                  <ParticipantMoreActions
+                    snapshot={snapshot}
+                    participant={player}
+                  />
+                </div>
+              ) : null}
             </article>
           );
         })}

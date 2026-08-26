@@ -401,17 +401,17 @@
         "src/components/ui/Select.tsx"
       ],
       "fingerprints": {
-        ".superdesign/design-system.md": "fcf6b4f8a2c1a03741249c2e5e944fcaec212113f2cb8269270799237c363ef1",
+        ".superdesign/design-system.md": "4eefc25ff528d497a043ab0fe763896dbc22438e6314a976a8e49a298ff0f146",
         ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
         "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
         "src/app/(app)/dashboard/events/[publicId]/open-play/page.tsx": "b8c6e5a716e7ba9d24323ba4b410bcac494f943fa8f05c11214d44d4164bcdae",
         "src/app/(app)/dashboard/bunalq/[publicId]/page.tsx": "865de91d2f430ee88a6aa56dac9b4a0eccaff3d5e5097fdec3331d1073035dcd",
-        "src/components/open-play/OpenPlayConsole.tsx": "7175eca04e1532ac24a6042bc07a4159cb7d63ba9e17b02ec2f99bdd75e5a317",
+        "src/components/open-play/OpenPlayConsole.tsx": "5063b24ba7640d404bc8aaacef01d3cb28e60c9a14eaba2a11f2d6dd4b166d8b",
         "src/components/open-play/OpenPlayBoard.tsx": "f611e1f9ab68b23a84a718c48bfa86ccb4f99c07e2ac75bced629b48a6d5065d",
-        "src/components/dashboard/AppShell.tsx": "85169c0a615efed6974f37e440902461d952eea834893f5001b03db5d13694de",
-        "src/components/dashboard/DashboardNav.tsx": "1699d82a1ec51fc5978c8cbc780bfe1a5102a9f44e66542e1a0256e4959391f3",
+        "src/components/dashboard/AppShell.tsx": "0b287f061fd17665d82435e441b6e4fbdd7e92583fb658bf5d01107ad26e0777",
+        "src/components/dashboard/DashboardNav.tsx": "dd96d593ab70da912b1ae59769f34550567260afe554b2858b9cf1cfbe7b217a",
         "src/components/Logo.tsx": "073c062cb0d022c9f5a1f78c79af6570143f03a8d6908c3268f79cb4370d6e2d",
-        "src/components/ui/Avatar.tsx": "e3af6ae6a7249c7f4ea61cb69e044c74fc27240af9ee5e9e645e7712f78a8214",
+        "src/components/ui/Avatar.tsx": "d94da873214543817b018dbfd5d48e250f3181cb77285243b417ebed08409b73",
         "src/components/ui/Button.tsx": "d811d012bf62c684fa4dff3e20615fb17c998a862250aba27f15f14ec1f4513a",
         "src/components/ui/Select.tsx": "c4fe4d426794402b1b8da2cea1cf06dcc79cf334b6cee8520b4e3c369954c410"
       },
@@ -425,12 +425,12 @@
       ],
       "drafts": {
         "eada36c4-9545-4f09-bc1d-dab0299f29ba": {
-          "title": "Refined BunalQ Operations Workspace",
-          "visualDirection": "full-width court status and compact responsive roster with filter chips, contextual actions, and coordinated public board",
-          "currentVersion": 3
+          "title": "BunalQ Adaptive Roster Update",
+          "visualDirection": "adaptive participant cards with one column below desktop and three columns from 1024px while preserving filter, selection, bulk, and participant actions",
+          "currentVersion": 6
         }
       },
-      "updatedAt": "2026-08-18T16:49:57+08:00"
+      "updatedAt": "2026-08-27T01:45:00+08:00"
     },
     "booking-reservation-hold-bar": {
       "targetKind": "existing-ui",

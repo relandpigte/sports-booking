@@ -23,6 +23,9 @@ export function FeaturedEventCard({ event }: { event: PublicEventView }) {
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-accent">
                 {formatManilaDate(event.date)}
+                {event.series
+                  ? ` · Weekly ${event.series.position}/${event.series.total}`
+                  : ""}
               </p>
               <h2 className="mt-2 break-words text-2xl font-black leading-[1.08] tracking-[-0.035em] text-white transition-colors group-hover:text-accent sm:text-3xl">
                 {event.title}
@@ -129,6 +132,11 @@ export function EventCard({
             <Badge tone={past ? "neutral" : "primary"} className="bg-white/90 uppercase tracking-[0.12em]">
               Open play
             </Badge>
+            {event.series ? (
+              <Badge tone="neutral" className="bg-white/90">
+                Weekly {event.series.position}/{event.series.total}
+              </Badge>
+            ) : null}
             {event.full && !past && <Badge tone="warn">Waitlist open</Badge>}
           </div>
           <div className="absolute bottom-5 left-5 right-5 flex items-end justify-between gap-4 text-white">

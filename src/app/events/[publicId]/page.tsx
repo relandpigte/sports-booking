@@ -74,6 +74,11 @@ export default async function EventDetailPage({
                   <Badge tone={cancelled ? "danger" : ended ? "neutral" : "primary"} className="uppercase tracking-[0.15em]">
                     {cancelled ? "Cancelled" : ended ? "Past event" : "Open play"}
                   </Badge>
+                  {event.series ? (
+                    <Badge tone="neutral">
+                      Weekly event {event.series.position} of {event.series.total}
+                    </Badge>
+                  ) : null}
                   <Link
                     href={`/hubs/${event.hub.slug ?? event.hub.id}`}
                     className="text-sm font-bold text-ocean hover:text-navy"

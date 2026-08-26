@@ -7,7 +7,7 @@ import { Prisma, PrismaClient } from "@prisma/client";
 
 import { ok, run, stubRequestContext } from "./harness";
 import { type OperatingHours, WEEKDAYS } from "@/lib/constants";
-import { manilaInstant } from "@/lib/time";
+import { addDays, manilaInstant } from "@/lib/time";
 
 const prisma = new PrismaClient();
 const PARTNER_EMAIL = "check-events-partner@example.test";
@@ -320,7 +320,90 @@ async function check() {
     cancelEventAction,
     deleteCancelledEventAction,
     removeOrganizerEventGuestAction,
+    saveEventAction,
   } = await import("@/lib/event-actions");
+
+  const recurringForm = new FormData();
+  recurringForm.set("hubId", hub.id);
+  recurringForm.set("title", "Weekly recurring check");
+  recurringForm.set("description", "Three independent weekly events.");
+  recurringForm.set("sport", "pickleball");
+  recurringForm.set("date", DATE);
+  recurringForm.set("startHour", "15");
+  recurringForm.set("endHour", "17");
+  recurringForm.set("capacity", "16");
+  recurringForm.set("registrationFee", "0");
+  recurringForm.append("courtIds", courtA.id);
+  recurringForm.set("recurrence", "weekly");
+  recurringForm.set("repeatUntil", addDays(DATE, 14));
+  recurringForm.set("intent", "publish");
+  let recurringRedirected = false;
+  try {
+    await saveEventAction({}, recurringForm);
+  } catch (error) {
+    recurringRedirected =
+      error instanceof Error && error.message.includes("redirect");
+  }
+  const recurringEvents = await prisma.event.findMany({
+    where: { title: "Weekly recurring check", hubId: hub.id },
+    orderBy: { seriesPosition: "asc" },
+    select: {
+      publicId: true,
+      date: true,
+      status: true,
+      seriesId: true,
+      seriesPosition: true,
+      slots: { select: { hour: true } },
+    },
+  });
+  ok(
+    "weekly creation publishes each occurrence with independent court protection",
+    recurringRedirected &&
+      recurringEvents.length === 3 &&
+      recurringEvents.map((item) => item.date).join(",") ===
+        [DATE, addDays(DATE, 7), addDays(DATE, 14)].join(",") &&
+      recurringEvents.every(
+        (item, index) =>
+          item.status === "PUBLISHED" &&
+          item.seriesId === recurringEvents[0]?.seriesId &&
+          item.seriesPosition === index + 1 &&
+          item.slots.length === 2
+      )
+  );
+  const recurringOwnerView = recurringEvents[0]
+    ? await getOwnerEventDetails(recurringEvents[0].publicId, partner.id)
+    : null;
+  ok(
+    "the owner workspace links every occurrence in a weekly series",
+    recurringOwnerView?.seriesOccurrences.length === 3 &&
+      recurringOwnerView.seriesOccurrences[2]?.date === addDays(DATE, 14)
+  );
+
+  const conflictingRecurringForm = new FormData();
+  conflictingRecurringForm.set("hubId", hub.id);
+  conflictingRecurringForm.set("title", "Conflicting weekly check");
+  conflictingRecurringForm.set("sport", "pickleball");
+  conflictingRecurringForm.set("date", DATE);
+  conflictingRecurringForm.set("startHour", "10");
+  conflictingRecurringForm.set("endHour", "11");
+  conflictingRecurringForm.set("capacity", "16");
+  conflictingRecurringForm.set("registrationFee", "0");
+  conflictingRecurringForm.append("courtIds", courtA.id);
+  conflictingRecurringForm.set("recurrence", "weekly");
+  conflictingRecurringForm.set("repeatUntil", addDays(DATE, 7));
+  conflictingRecurringForm.set("intent", "publish");
+  const recurringConflict = await saveEventAction(
+    {},
+    conflictingRecurringForm
+  );
+  ok(
+    "one court conflict prevents the entire weekly series from being created",
+    Boolean(recurringConflict.errors?.courtIds?.includes("Court A")) &&
+      (await prisma.event.count({
+        where: { title: "Conflicting weekly check", hubId: hub.id },
+      })) === 0
+  );
+
   const paymentsBeforeOrganizerGuests = await prisma.bookingPayment.count();
   const addOrganizerGuestsForm = new FormData();
   addOrganizerGuestsForm.set("eventId", organizerEvent.id);

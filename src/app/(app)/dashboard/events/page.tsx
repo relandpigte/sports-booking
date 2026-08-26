@@ -51,7 +51,14 @@ export default async function OwnerEventsPage({ searchParams }: { searchParams: 
             {events.map((event) => (
               <article key={event.id} className="grid gap-4 px-5 py-5 sm:grid-cols-[1.5fr_1fr_0.7fr_auto] sm:items-center sm:px-6">
                 <div className="min-w-0">
-                  <h2 className="truncate font-black text-navy">{event.title}</h2>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <h2 className="truncate font-black text-navy">{event.title}</h2>
+                    {event.series ? (
+                      <span className="shrink-0 rounded-full bg-ocean-soft px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-ocean">
+                        Weekly {event.series.position}/{event.series.total}
+                      </span>
+                    ) : null}
+                  </div>
                   <p className="mt-1 truncate text-xs text-slate-500">{event.hub.name} · {event.courts.map((court) => court.name).join(", ")}</p>
                 </div>
                 <div><p className="text-sm font-bold text-navy">{formatManilaDate(event.date)}</p><p className="mt-1 text-xs text-slate-500">{formatSlotRange(event.startHour, event.endHour)}</p></div>

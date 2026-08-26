@@ -6,6 +6,7 @@ import type { OperatingHours } from "@/lib/constants";
 import { prisma } from "@/lib/db";
 import { getViewer } from "@/lib/dal";
 import { buildSlots } from "@/lib/slots";
+import { weeklyEventDates } from "@/lib/event-recurrence";
 import { manilaNowHour, manilaToday } from "@/lib/time";
 
 export type EventCourtView = {
@@ -46,6 +47,10 @@ export type PublicEventView = {
   remainingSpots: number;
   full: boolean;
   liveQueuePublicId: string | null;
+  series: {
+    position: number;
+    total: number;
+  } | null;
   hub: {
     id: string;
     slug: string | null;
@@ -169,6 +174,12 @@ export type OwnerEventDetailView = EventEditorView & {
   courts: EventCourtView[];
   registrations: OwnerEventRegistrationView[];
   organizerGuests: OwnerEventOrganizerGuestView[];
+  seriesOccurrences: {
+    publicId: string;
+    date: string;
+    status: EventStatus;
+    position: number;
+  }[];
   finance: {
     successfulPayments: number;
     pendingPayments: number;
@@ -231,6 +242,13 @@ const eventSelect = {
   registrationFee: true,
   status: true,
   cancelReason: true,
+  seriesPosition: true,
+  series: {
+    select: {
+      startsOn: true,
+      endsOn: true,
+    },
+  },
   hub: {
     select: {
       id: true,
@@ -380,6 +398,15 @@ function mapPublicEvent(row: EventRow, now = new Date()): PublicEventView {
     remainingSpots: counts.remaining,
     full: counts.full,
     liveQueuePublicId: row.openPlayQueue?.publicId ?? null,
+    series:
+      row.series && row.seriesPosition
+        ? {
+            position: row.seriesPosition,
+            total:
+              weeklyEventDates(row.series.startsOn, row.series.endsOn)
+                ?.length ?? row.seriesPosition,
+          }
+        : null,
     hub: {
       id: row.hub.id,
       slug: row.hub.slug,
@@ -954,6 +981,19 @@ export async function getOwnerEventDetails(
       registrationFee: true,
       status: true,
       cancelReason: true,
+      series: {
+        select: {
+          events: {
+            orderBy: { seriesPosition: "asc" },
+            select: {
+              publicId: true,
+              date: true,
+              status: true,
+              seriesPosition: true,
+            },
+          },
+        },
+      },
       hub: {
         select: {
           id: true,
@@ -1218,6 +1258,13 @@ export async function getOwnerEventDetails(
     courts: row.courts.map(({ court }) => court),
     registrations,
     organizerGuests,
+    seriesOccurrences:
+      row.series?.events.map((occurrence, index) => ({
+        publicId: occurrence.publicId,
+        date: occurrence.date,
+        status: occurrence.status,
+        position: occurrence.seriesPosition ?? index + 1,
+      })) ?? [],
     finance: {
       successfulPayments: successfulPayments.length,
       pendingPayments: pendingPayments.length,

@@ -8,7 +8,11 @@ import type {
   EventEditorView,
   EventFormHub,
 } from "@/lib/events";
-import { formatHourLabel } from "@/lib/time";
+import { addDays, formatHourLabel } from "@/lib/time";
+import {
+  MAX_WEEKLY_EVENT_OCCURRENCES,
+  weeklyEventDates,
+} from "@/lib/event-recurrence";
 import {
   bookingServiceFeeFor,
   MANUAL_SERVICE_FEE_PERCENT,
@@ -35,6 +39,8 @@ export function EventForm({
   const [hubId, setHubId] = useState(initialHub?.id ?? "");
   const [sport, setSport] = useState(event?.sport ?? initialHub?.games[0] ?? "");
   const [date, setDate] = useState(event?.date ?? today);
+  const [repeatWeekly, setRepeatWeekly] = useState(false);
+  const [repeatUntil, setRepeatUntil] = useState(addDays(event?.date ?? today, 35));
   const [startHour, setStartHour] = useState(event?.startHour ?? 9);
   const [endHour, setEndHour] = useState(event?.endHour ?? 11);
   const [fee, setFee] = useState(event?.registrationFee ?? 0);
@@ -56,6 +62,9 @@ export function EventForm({
       : bookingServiceFeeFor(fee);
   const checkoutTotal = Math.round((fee + serviceFee) * 100) / 100;
   const locked = event?.status === "CANCELLED";
+  const recurrenceDates = repeatWeekly
+    ? weeklyEventDates(date, repeatUntil) ?? []
+    : [date];
 
   useEffect(() => {
     if (!hubId || !date || endHour <= startHour) {
@@ -102,9 +111,21 @@ export function EventForm({
     setAvailabilityState("idle");
   }
 
+  function chooseDate(nextDate: string) {
+    setDate(nextDate);
+    if (repeatUntil < addDays(nextDate, 7)) {
+      setRepeatUntil(addDays(nextDate, 35));
+    }
+  }
+
   return (
     <form action={formAction} className="space-y-6">
       {event?.id && <input type="hidden" name="eventId" value={event.id} />}
+      <input
+        type="hidden"
+        name="recurrence"
+        value={!event && repeatWeekly ? "weekly" : "once"}
+      />
       {selectedCourts.map((courtId) => (
         <input key={courtId} type="hidden" name="courtIds" value={courtId} />
       ))}
@@ -178,7 +199,7 @@ export function EventForm({
       <FormSection number="02" title="Schedule" description="One shared time block applies to every selected court.">
         <div className="grid gap-5 sm:grid-cols-3">
           <Field label="Date" error={state.errors?.date}>
-            <input name="date" type="date" min={today} value={date} onChange={(input) => setDate(input.target.value)} disabled={locked} className={inputClass} />
+            <input name="date" type="date" min={today} value={date} onChange={(input) => chooseDate(input.target.value)} disabled={locked} className={inputClass} />
           </Field>
           <Field label="Start time" error={state.errors?.startHour}>
             <select name="startHour" value={startHour} onChange={(input) => setStartHour(Number(input.target.value))} disabled={locked} className={inputClass}>
@@ -191,6 +212,47 @@ export function EventForm({
             </select>
           </Field>
         </div>
+        {!event ? (
+          <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={repeatWeekly}
+                onChange={(input) => setRepeatWeekly(input.target.checked)}
+                className="mt-0.5 h-5 w-5 accent-primary"
+              />
+              <span>
+                <span className="block text-sm font-black text-navy">
+                  Repeat every week
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-slate-500">
+                  Create a separate event for each week so registrations,
+                  payments, and cancellations stay independent.
+                </span>
+              </span>
+            </label>
+            {repeatWeekly ? (
+              <div className="mt-4 border-t border-slate-200 pt-4">
+                <Field label="Repeat until" error={state.errors?.repeatUntil}>
+                  <input
+                    name="repeatUntil"
+                    type="date"
+                    min={addDays(date, 7)}
+                    max={addDays(date, (MAX_WEEKLY_EVENT_OCCURRENCES - 1) * 7)}
+                    value={repeatUntil}
+                    onChange={(input) => setRepeatUntil(input.target.value)}
+                    className={inputClass}
+                  />
+                </Field>
+                <p className="mt-2 text-xs leading-5 text-slate-500">
+                  {recurrenceDates.length >= 2
+                    ? `${recurrenceDates.length} weekly events will be created. Publishing checks every date before reserving any court time.`
+                    : `Choose an end date at least one week later. A series can contain up to ${MAX_WEEKLY_EVENT_OCCURRENCES} events.`}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </FormSection>
 
       <FormSection number="03" title="Courts" description="Unavailable courts are protected by bookings, events, operating hours, or weekly closures.">
@@ -249,7 +311,13 @@ export function EventForm({
             <button name="intent" value="draft" disabled={pending} className="min-h-11 rounded-xl border border-slate-300 px-5 text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Save draft</button>
           )}
           <button name="intent" value="publish" disabled={pending || selectedCourts.length === 0} className="min-h-11 rounded-xl bg-primary px-6 text-sm font-black text-white shadow-sm shadow-primary/20 hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50">
-            {pending ? "Saving…" : event?.status === "PUBLISHED" ? "Save changes" : "Publish event"}
+            {pending
+              ? "Saving…"
+              : event?.status === "PUBLISHED"
+                ? "Save changes"
+                : repeatWeekly
+                  ? `Publish ${recurrenceDates.length || "weekly"} events`
+                  : "Publish event"}
           </button>
         </div>
       )}

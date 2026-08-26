@@ -1189,6 +1189,7 @@ model Hub {
   courts            Court[]
   bookings          Booking[]
   events            Event[]
+  eventSeries       EventSeries[]
   openPlayQueues    OpenPlayQueue[]
   courtBlocks       CourtBlock[]
   chatConversations ChatConversation[]
@@ -1467,6 +1468,23 @@ enum EventRegistrationStatus {
   EXPIRED
 }
 
+// A weekly event series groups otherwise independent event occurrences. Each
+// occurrence keeps its own registrations, payments, queue, and cancellation
+// lifecycle so changing one week cannot rewrite another week's audit trail.
+model EventSeries {
+  id        String   @id @default(cuid())
+  hubId     String
+  startsOn  String
+  endsOn    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  hub    Hub     @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  events Event[]
+
+  @@index([hubId, startsOn])
+}
+
 // A hub-hosted open play. Every selected court shares one Manila-local date
 // and start/end window. Published events own BookingSlot rows, so a normal
 // booking and an event can never claim the same court-hour concurrently.
@@ -1474,6 +1492,8 @@ model Event {
   id              String      @id @default(cuid())
   publicId        String      @unique
   hubId           String
+  seriesId        String?
+  seriesPosition  Int?
   title           String
   description     String?     @db.Text
   sport           String
@@ -1492,6 +1512,7 @@ model Event {
   updatedAt       DateTime    @updatedAt
 
   hub              Hub                   @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  series           EventSeries?          @relation(fields: [seriesId], references: [id], onDelete: SetNull)
   courts           EventCourt[]
   slots            BookingSlot[]
   registrations    EventRegistration[]
@@ -1499,7 +1520,9 @@ model Event {
   chatConversation ChatConversation?
   openPlayQueue    OpenPlayQueue?
 
+  @@unique([seriesId, date])
   @@index([hubId, startsAt])
+  @@index([seriesId, seriesPosition])
   @@index([status, startsAt])
   @@index([hubId, status, endsAt])
 }

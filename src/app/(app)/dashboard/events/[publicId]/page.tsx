@@ -270,6 +270,13 @@ export default async function PartnerEventDetailsPage({
                 Event details
               </p>
               <Badge tone={statusTone(event.status)}>{event.status}</Badge>
+              {event.seriesOccurrences.length > 1 ? (
+                <Badge tone="primary">
+                  Weekly series · {event.seriesOccurrences.findIndex(
+                    (occurrence) => occurrence.publicId === event.publicId
+                  ) + 1} of {event.seriesOccurrences.length}
+                </Badge>
+              ) : null}
             </div>
             <h1 className="mt-2 text-3xl font-black tracking-tight text-navy">
               {event.title}
@@ -325,6 +332,43 @@ export default async function PartnerEventDetailsPage({
 
       {tab === "overview" ? (
         <div className="mt-6 space-y-6">
+          {event.seriesOccurrences.length > 1 ? (
+            <section className="rounded-3xl border border-ocean/20 bg-ocean-soft/50 p-5 sm:p-6">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-ocean">
+                Weekly series
+              </p>
+              <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                {event.seriesOccurrences.map((occurrence) => {
+                  const current = occurrence.publicId === event.publicId;
+                  return (
+                    <Link
+                      key={occurrence.publicId}
+                      href={`/dashboard/events/${occurrence.publicId}`}
+                      aria-current={current ? "page" : undefined}
+                      className={`min-w-36 rounded-2xl border px-4 py-3 transition-colors ${
+                        current
+                          ? "border-ocean bg-white shadow-sm"
+                          : "border-transparent bg-white/70 hover:border-ocean/30"
+                      }`}
+                    >
+                      <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-ocean">
+                        Event {occurrence.position}
+                      </span>
+                      <span className="mt-1 block text-sm font-black text-navy">
+                        {formatManilaDateLong(occurrence.date)}
+                      </span>
+                      <span className="mt-1 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                        {occurrence.status}
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+              <p className="mt-3 text-xs leading-5 text-slate-500">
+                Each week has its own players, payments, settings, and cancellation history.
+              </p>
+            </section>
+          ) : null}
           <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard
               label="Confirmed players"

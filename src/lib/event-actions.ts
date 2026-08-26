@@ -37,6 +37,7 @@ import {
   manilaToday,
 } from "@/lib/time";
 import { firstErrors } from "@/lib/zod-errors";
+import { weeklyEventDates } from "@/lib/event-recurrence";
 import { recordImpersonatedAction } from "@/lib/impersonation";
 import { notifyPartnerTeamOfBooking } from "@/lib/booking-notifications";
 import { consumeRateLimit } from "@/lib/rate-limit";
@@ -80,6 +81,8 @@ const EventFormSchema = z
       .array(z.string().min(1))
       .min(1, { error: "Choose at least one court." })
       .max(40, { error: "Too many courts selected." }),
+    recurrence: z.enum(["once", "weekly"]).catch("once"),
+    repeatUntil: z.string().optional(),
     intent: z.enum(["draft", "publish"]),
   })
   .refine((value) => value.endHour > value.startHour, {
@@ -89,7 +92,17 @@ const EventFormSchema = z
   .refine((value) => value.endHour - value.startHour <= 16, {
     error: "An event can run for at most 16 hours.",
     path: ["endHour"],
-  });
+  })
+  .refine(
+    (value) =>
+      value.recurrence !== "weekly" ||
+      weeklyEventDates(value.date, value.repeatUntil ?? "") !== null,
+    {
+      error:
+        "Choose an end date at least one week after the first event, with up to 26 events in the series.",
+      path: ["repeatUntil"],
+    },
+  );
 
 const CancelEventSchema = z.object({
   eventId: z.string().min(1),
@@ -250,11 +263,17 @@ export async function saveEventAction(
     capacity: formData.get("capacity"),
     registrationFee: formData.get("registrationFee"),
     courtIds: formData.getAll("courtIds").map(String),
+    recurrence: String(formData.get("recurrence") ?? "once"),
+    repeatUntil: String(formData.get("repeatUntil") ?? "") || undefined,
     intent: String(formData.get("intent") ?? "draft"),
   });
   if (!parsed.success) return { errors: firstErrors(parsed.error) };
 
   const values = parsed.data;
+  const occurrenceDates =
+    values.recurrence === "weekly"
+      ? weeklyEventDates(values.date, values.repeatUntil ?? "") ?? []
+      : [values.date];
   if (values.date < manilaToday()) {
     return { errors: { date: "That date has already passed." } };
   }
@@ -328,6 +347,12 @@ export async function saveEventAction(
       })
     : null;
   if (values.eventId && !existing) return { message: "Event not found." };
+  if (existing && values.recurrence === "weekly") {
+    return {
+      message:
+        "Recurrence can only be chosen when creating a series. This page edits this occurrence only.",
+    };
+  }
   if (existing?.status === "CANCELLED") {
     return { message: "A cancelled event cannot be edited." };
   }
@@ -391,83 +416,143 @@ export async function saveEventAction(
     };
   }
   if (willPublish) {
-    const availability = await getEventCourtAvailability({
-      ownerId: partner.id,
-      hubId: values.hubId,
-      date: values.date,
-      startHour: values.startHour,
-      endHour: values.endHour,
-      excludeEventId: existing?.id,
-    });
-    const unavailable = availability?.filter(
-      (court) => uniqueCourtIds.includes(court.id) && !court.available
+    const checks = await Promise.all(
+      occurrenceDates.map(async (date) => ({
+        date,
+        availability: await getEventCourtAvailability({
+          ownerId: partner.id,
+          hubId: values.hubId,
+          date,
+          startHour: values.startHour,
+          endHour: values.endHour,
+          excludeEventId: existing?.id,
+        }),
+      }))
     );
-    if (!availability || unavailable?.length) {
+    const conflicts = checks.flatMap(({ date, availability }) => {
+      if (!availability) return [`${formatManilaDateLong(date)}: availability could not be checked.`];
+      return availability
+        .filter((court) => uniqueCourtIds.includes(court.id) && !court.available)
+        .map((court) => `${formatManilaDateLong(date)} — ${court.name}: ${court.reason}`);
+    });
+    if (conflicts.length > 0) {
       return {
         errors: {
-          courtIds:
-            unavailable?.map((court) => `${court.name}: ${court.reason}`).join(" ") ??
-            "Court availability could not be checked.",
+          courtIds: `${conflicts.slice(0, 3).join(" ")}${
+            conflicts.length > 3
+              ? ` Plus ${conflicts.length - 3} more conflict${conflicts.length - 3 === 1 ? "" : "s"}.`
+              : ""
+          }`,
         },
       };
     }
   }
 
-  const publicId = existing?.publicId ?? eventPublicId();
+  const occurrencePublicIds = occurrenceDates.map(() => eventPublicId());
+  const occurrenceEventIds = occurrenceDates.map(() => crypto.randomUUID());
+  const publicId = existing?.publicId ?? occurrencePublicIds[0];
   let eventId = existing?.id;
   try {
     await prisma.$transaction(async (tx) => {
-      const data = {
+      const dataForDate = (date: string) => ({
         hubId: values.hubId,
         title: values.title,
         description: values.description ?? null,
         sport: values.sport,
-        date: values.date,
+        date,
         startHour: values.startHour,
         endHour: values.endHour,
-        startsAt: manilaInstant(values.date, values.startHour),
-        endsAt: manilaInstant(values.date, values.endHour),
+        startsAt: manilaInstant(date, values.startHour),
+        endsAt: manilaInstant(date, values.endHour),
         capacity: values.capacity,
         registrationFee: new Prisma.Decimal(
           Math.round(values.registrationFee * 100) / 100
         ),
         status: willPublish ? ("PUBLISHED" as const) : ("DRAFT" as const),
         publishedAt: willPublish ? new Date() : null,
-      };
-
-      if (existing) {
-        await tx.event.update({ where: { id: existing.id }, data });
-        eventId = existing.id;
-      } else {
-        const created = await tx.event.create({
-          data: { ...data, publicId },
-          select: { id: true },
-        });
-        eventId = created.id;
-      }
-
-      await tx.eventCourt.deleteMany({ where: { eventId: eventId! } });
-      await tx.eventCourt.createMany({
-        data: uniqueCourtIds.map((courtId) => ({ eventId: eventId!, courtId })),
       });
 
-      await tx.bookingSlot.deleteMany({ where: { eventId: eventId! } });
-      if (willPublish) {
+      if (existing) {
+        await tx.event.update({
+          where: { id: existing.id },
+          data: dataForDate(values.date),
+        });
+        eventId = existing.id;
+      } else {
+        const series =
+          occurrenceDates.length > 1
+            ? await tx.eventSeries.create({
+                data: {
+                  hubId: values.hubId,
+                  startsOn: occurrenceDates[0],
+                  endsOn: occurrenceDates.at(-1)!,
+                },
+                select: { id: true },
+              })
+            : null;
         const hours = Array.from(
           { length: values.endHour - values.startHour },
           (_, index) => values.startHour + index
         );
-        await tx.bookingSlot.createMany({
-          data: uniqueCourtIds.flatMap((courtId) =>
-            hours.map((hour) => ({
-              eventId: eventId!,
+        await tx.event.createMany({
+          data: occurrenceDates.map((date, index) => ({
+            id: occurrenceEventIds[index],
+            publicId: occurrencePublicIds[index],
+            seriesId: series?.id,
+            seriesPosition: series ? index + 1 : null,
+            ...dataForDate(date),
+          })),
+        });
+        await tx.eventCourt.createMany({
+          data: occurrenceEventIds.flatMap((occurrenceEventId) =>
+            uniqueCourtIds.map((courtId) => ({
+              eventId: occurrenceEventId,
               courtId,
-              date: values.date,
-              hour,
-              holdExpiresAt: null,
             }))
           ),
         });
+        if (willPublish) {
+          await tx.bookingSlot.createMany({
+            data: occurrenceDates.flatMap((date, index) =>
+              uniqueCourtIds.flatMap((courtId) =>
+                hours.map((hour) => ({
+                  eventId: occurrenceEventIds[index],
+                  courtId,
+                  date,
+                  hour,
+                  holdExpiresAt: null,
+                }))
+              )
+            ),
+          });
+        }
+        eventId = occurrenceEventIds[0];
+      }
+
+      if (existing) {
+        await tx.eventCourt.deleteMany({ where: { eventId: eventId! } });
+        await tx.eventCourt.createMany({
+          data: uniqueCourtIds.map((courtId) => ({ eventId: eventId!, courtId })),
+        });
+
+        await tx.bookingSlot.deleteMany({ where: { eventId: eventId! } });
+        if (willPublish) {
+          const hours = Array.from(
+            { length: values.endHour - values.startHour },
+            (_, index) => values.startHour + index
+          );
+          await tx.bookingSlot.createMany({
+            data: uniqueCourtIds.flatMap((courtId) =>
+              hours.map((hour) => ({
+                eventId: eventId!,
+                courtId,
+                date: values.date,
+                hour,
+                holdExpiresAt: null,
+              }))
+            ),
+          });
+        }
       }
     });
   } catch (error) {
@@ -483,7 +568,11 @@ export async function saveEventAction(
     throw error;
   }
 
-  revalidateEventSurfaces(publicId, values.hubId);
+  for (const occurrencePublicId of existing
+    ? [publicId]
+    : occurrencePublicIds) {
+    revalidateEventSurfaces(occurrencePublicId, values.hubId);
+  }
   if (existing && willPublish && eventId) {
     await recordEventSystemMessage(eventId, "UPDATED");
   }
@@ -491,14 +580,14 @@ export async function saveEventAction(
     action: existing ? "EVENT_UPDATED" : "EVENT_CREATED",
     targetType: "Event",
     targetId: eventId,
-    metadata: { published: willPublish },
+    metadata: { published: willPublish, occurrences: occurrenceDates.length },
   });
   await recordPartnerActivity({
     workspace,
     action: existing ? "EVENT_UPDATED" : "EVENT_CREATED",
     targetType: "Event",
     targetId: eventId,
-    metadata: { published: willPublish },
+    metadata: { published: willPublish, occurrences: occurrenceDates.length },
   });
   redirect(`/dashboard/events/${publicId}`);
 }

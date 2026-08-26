@@ -14,9 +14,11 @@ const initialState: EventFormState = {};
 export function DeleteCancelledEventButton({
   eventId,
   title,
+  redirectTo = "/dashboard/events",
 }: {
   eventId: string;
   title: string;
+  redirectTo?: string;
 }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(
@@ -25,8 +27,8 @@ export function DeleteCancelledEventButton({
   );
 
   useEffect(() => {
-    if (state.success) router.push("/dashboard/events");
-  }, [router, state.success]);
+    if (state.success) router.push(redirectTo);
+  }, [redirectTo, router, state.success]);
 
   function confirmDelete(event: FormEvent<HTMLFormElement>) {
     if (

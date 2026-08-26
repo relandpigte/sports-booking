@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { DeleteCancelledEventButton } from "@/components/events/DeleteCancelledEventButton";
 import { Badge } from "@/components/ui/Badge";
 import { listMyEvents } from "@/lib/events";
 import { formatManilaDate, formatSlotRange, manilaToday } from "@/lib/time";
@@ -63,7 +64,17 @@ export default async function OwnerEventsPage({ searchParams }: { searchParams: 
                 </div>
                 <div><p className="text-sm font-bold text-navy">{formatManilaDate(event.date)}</p><p className="mt-1 text-xs text-slate-500">{formatSlotRange(event.startHour, event.endHour)}</p></div>
                 <Badge tone={event.status === "PUBLISHED" ? "primary" : event.status === "DRAFT" ? "neutral" : "danger"} className="w-fit">{event.status}</Badge>
-                <div className="flex flex-wrap items-start gap-2 sm:justify-end"><Link href={`/events/${event.publicId}`} className="rounded-lg px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50">Public page</Link><Link href={`/dashboard/events/${event.publicId}`} className="rounded-lg bg-primary-soft px-3 py-2 text-xs font-bold text-primary hover:bg-primary/15">Event details</Link></div>
+                <div className="flex flex-wrap items-start gap-2 sm:justify-end">
+                  <Link href={`/events/${event.publicId}`} className="rounded-lg px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50">Public page</Link>
+                  <Link href={`/dashboard/events/${event.publicId}`} className="rounded-lg bg-primary-soft px-3 py-2 text-xs font-bold text-primary hover:bg-primary/15">Event details</Link>
+                  {canManage && event.status === "CANCELLED" ? (
+                    <DeleteCancelledEventButton
+                      eventId={event.id}
+                      title={event.title}
+                      redirectTo={`/dashboard/events?view=${view}`}
+                    />
+                  ) : null}
+                </div>
               </article>
             ))}
           </div>

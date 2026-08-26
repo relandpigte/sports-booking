@@ -7,6 +7,7 @@
       "activeDraftId": "fbf6aa93-05e6-42f7-b81d-428a64bb78ed",
       "designSystemPath": ".superdesign/design-system.md",
       "referenceIds": [
+        "c234aaf2-e6c7-4dd2-9b19-d16ebe15c1f3",
         "public-bunal-logo-v2-wordmark.png"
       ],
       "brandAssets": {
@@ -33,12 +34,12 @@
         ".superdesign/design-system.md": "4eefc25ff528d497a043ab0fe763896dbc22438e6314a976a8e49a298ff0f146",
         ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
         "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
-        "src/app/events/[publicId]/page.tsx": "325b52a8aaf76d213aed822bd4a79865081506084da15cd1a112496c36a09632",
+        "src/app/events/[publicId]/page.tsx": "adb427e3d554614b776169aebccf6207c87e37f564773237df7a755983b8e815",
         "src/components/PageShell.tsx": "d90c6196ad19565e806d75eb3a54a76c127b839ddbd9cfc6aa2397b2a1888eaf",
         "src/components/hubs/PublicTopBar.tsx": "d77256e43379e4b37f16be48b1d45838f968ddf49fafac052b93f4e50a6854b7",
         "src/components/Logo.tsx": "073c062cb0d022c9f5a1f78c79af6570143f03a8d6908c3268f79cb4370d6e2d",
         "src/components/events/EventRegistrationPanel.tsx": "5ead82d5c738e2dfaf9fc49535d728ba8d3da4fed8552b6131631f92a1a0be1c",
-        "src/components/events/ShareEventButton.tsx": "e528cecc6a245b3b9bd332c330bfe5c1176478123c90785dcbb85696801d8877",
+        "src/components/events/ShareEventButton.tsx": "d9165d15955b23d38b181dbfef6dc952177862524a9a5b4a012351e43e799ee9",
         "src/components/ui/Avatar.tsx": "d94da873214543817b018dbfd5d48e250f3181cb77285243b417ebed08409b73",
         "src/components/ui/Badge.tsx": "aaa6074f7e159cb71056bb61ae95cafc3345f353db12af8d399d55e31dc20c88"
       },
@@ -52,12 +53,12 @@
       ],
       "drafts": {
         "fbf6aa93-05e6-42f7-b81d-428a64bb78ed": {
-          "title": "Event Detail — Venue Logo and Event QR",
-          "visualDirection": "current event detail page with the navy watermark hero replaced by a venue identity and scannable event-link QR composition",
-          "currentVersion": 1
+          "title": "Bunal.club Event Detail — Event Pass Redesign",
+          "visualDirection": "premium compact event-pass hero with venue identity, event title and schedule, scannable QR, and a subtle share action",
+          "currentVersion": 3
         }
       },
-      "updatedAt": "2026-08-26T12:44:54+08:00"
+      "updatedAt": "2026-08-26T13:24:28+08:00"
     },
     "/dashboard/admin/trainers": {
       "targetKind": "existing-ui",

@@ -13,6 +13,7 @@ import { getPublicEvent } from "@/lib/events";
 import { qrSvg } from "@/lib/qr";
 import { absoluteUrl } from "@/lib/site";
 import {
+  formatManilaDate,
   formatManilaDateLong,
   formatSlotRange,
 } from "@/lib/time";
@@ -63,86 +64,128 @@ export default async function EventDetailPage({
       <div className="min-w-0 py-6 sm:py-12">
         <div className="grid min-w-0 gap-8 lg:grid-cols-12 lg:gap-12">
             <section className="order-1 min-w-0 lg:col-span-8">
-              <div className="relative min-h-[460px] w-full min-w-0 overflow-hidden rounded-3xl bg-navy sm:aspect-[21/9] sm:min-h-[300px]">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(163,206,60,0.2)_1px,transparent_0)] bg-[size:24px_24px]" />
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/35 via-transparent to-ocean/35" />
-                <div className="relative flex min-h-[460px] flex-col items-center justify-center gap-7 px-5 pb-7 pt-20 sm:min-h-[300px] sm:flex-row sm:justify-between sm:gap-8 sm:px-8 sm:pb-8 sm:pt-20 md:px-10">
-                  <div className="flex min-w-0 flex-col items-center gap-5 text-center sm:flex-row sm:text-left">
+              <div className="relative w-full min-w-0 overflow-hidden rounded-3xl border border-navy/10 bg-navy shadow-md shadow-navy/10">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(163,206,60,0.24)_1px,transparent_0)] bg-[size:20px_20px]" />
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/30 via-transparent to-ocean/25" />
+
+                <div className="relative flex flex-col items-center gap-6 px-6 pb-7 pt-16 md:flex-row md:items-stretch md:gap-0 md:p-8">
+                  <div className="flex shrink-0 items-center justify-center md:border-r md:border-white/15 md:pr-6">
                     <Avatar
                       src={event.hub.logo}
                       name={event.hub.name}
                       size={112}
                       shape="rounded"
                       fit="contain"
-                      className="border border-white/20 bg-white p-2 text-4xl font-black shadow-2xl shadow-black/20"
+                      className="border border-white/25 bg-white p-2 text-4xl font-black shadow-xl shadow-black/25"
                     />
-                    <div className="min-w-0 text-white">
-                      <p className="text-[11px] font-black uppercase tracking-[0.2em] text-primary-soft">
-                        Hosted by
+                  </div>
+
+                  <div className="flex min-w-0 flex-1 flex-col justify-center text-center text-white md:px-6 md:text-left">
+                    <div className="flex flex-wrap items-center justify-center gap-2 md:justify-start">
+                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-accent">
+                        Hosted by{" "}
+                        <Link
+                          href={`/hubs/${event.hub.slug ?? event.hub.id}`}
+                          className="text-white hover:text-accent"
+                        >
+                          {event.hub.name}
+                        </Link>
                       </p>
-                      <h2 className="mt-2 break-words text-2xl font-black leading-tight tracking-[-0.03em] sm:text-3xl">
-                        {event.hub.name}
-                      </h2>
-                      <p className="mt-3 max-w-xs text-sm leading-6 text-white/70">
-                        Scan to open this event and registration.
-                      </p>
+                      <span
+                        className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] ${
+                          cancelled
+                            ? "border-red-300/30 bg-red-400/15 text-red-100"
+                            : ended
+                              ? "border-white/20 bg-white/10 text-white/75"
+                              : "border-primary/50 bg-primary/25 text-white"
+                        }`}
+                      >
+                        {cancelled
+                          ? "Cancelled"
+                          : ended
+                            ? "Past event"
+                            : "Open play"}
+                      </span>
+                    </div>
+                    <h1 className="mt-3 break-words text-3xl font-black uppercase leading-[1.05] tracking-[-0.04em] sm:text-4xl">
+                      {event.title}
+                    </h1>
+                    <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs font-bold text-white/75 sm:text-sm md:justify-start">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="text-accent">
+                          <CalendarIcon />
+                        </span>
+                        {formatManilaDate(event.date)}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="text-accent">
+                          <ClockIcon />
+                        </span>
+                        {formatSlotRange(event.startHour, event.endHour)}
+                      </span>
                     </div>
                   </div>
 
-                  <div className="shrink-0 rounded-3xl border border-white/15 bg-white p-3 shadow-2xl shadow-black/20 sm:p-4">
-                    <div
-                      className="h-24 w-24 sm:h-32 sm:w-32"
-                      dangerouslySetInnerHTML={{ __html: eventQrSvg }}
-                    />
-                    <p className="mt-2 text-center text-[10px] font-black uppercase tracking-[0.14em] text-navy">
-                      Event link
-                    </p>
+                  <div className="flex shrink-0 items-center justify-center md:border-l md:border-white/15 md:pl-6 md:pt-10">
+                    <div className="rounded-[18px] bg-white p-3.5 shadow-lg shadow-black/15">
+                      <div
+                        className="h-[104px] w-[104px]"
+                        dangerouslySetInnerHTML={{ __html: eventQrSvg }}
+                      />
+                      <p className="mt-1.5 text-center text-[9px] font-black uppercase tracking-[0.16em] text-primary">
+                        Event link
+                      </p>
+                    </div>
                   </div>
                 </div>
-                <div className="absolute right-5 top-5">
-                  <ShareEventButton title={event.title} url={eventUrl} />
+
+                <div className="absolute right-4 top-4">
+                  <ShareEventButton
+                    title={event.title}
+                    url={eventUrl}
+                    variant="compact"
+                  />
                 </div>
               </div>
 
-              <div className="mt-7">
-                <div className="flex flex-wrap items-center gap-3">
-                  <Badge tone={cancelled ? "danger" : ended ? "neutral" : "primary"} className="uppercase tracking-[0.15em]">
-                    {cancelled ? "Cancelled" : ended ? "Past event" : "Open play"}
-                  </Badge>
-                  {event.series ? (
-                    <Badge tone="neutral">
-                      Weekly event {event.series.position} of {event.series.total}
-                    </Badge>
+              {event.series ||
+              event.liveQueuePublicId ||
+              event.description ||
+              cancelled ? (
+                <div className="mt-6">
+                  {event.series || event.liveQueuePublicId ? (
+                    <div className="flex flex-wrap items-center gap-3">
+                      {event.series ? (
+                        <Badge tone="neutral">
+                          Weekly event {event.series.position} of{" "}
+                          {event.series.total}
+                        </Badge>
+                      ) : null}
+                      {event.liveQueuePublicId ? (
+                        <Link
+                          href={`/q/${event.liveQueuePublicId}`}
+                          className="rounded-full bg-primary-soft px-3 py-1 text-xs font-black text-primary hover:bg-accent-soft"
+                        >
+                          BunalQ live
+                        </Link>
+                      ) : null}
+                    </div>
                   ) : null}
-                  <Link
-                    href={`/hubs/${event.hub.slug ?? event.hub.id}`}
-                    className="text-sm font-bold text-ocean hover:text-navy"
-                  >
-                    {event.hub.name}
-                  </Link>
-                  {event.liveQueuePublicId ? (
-                    <Link
-                      href={`/q/${event.liveQueuePublicId}`}
-                      className="rounded-full bg-primary-soft px-3 py-1 text-xs font-black text-primary hover:bg-accent-soft"
+                  {event.description && (
+                    <p
+                      className={`${event.series || event.liveQueuePublicId ? "mt-4" : ""} max-w-3xl text-base leading-7 text-slate-600 sm:text-lg`}
                     >
-                      BunalQ live
-                    </Link>
-                  ) : null}
+                      {event.description}
+                    </p>
+                  )}
+                  {cancelled && (
+                    <p className="mt-5 rounded-2xl bg-red-50 px-5 py-4 text-sm text-red-700">
+                      {event.cancelReason ??
+                        "This event was cancelled by the organizer."}
+                    </p>
+                  )}
                 </div>
-                <h1 className="mt-5 break-words text-3xl font-black uppercase leading-[1.08] tracking-[-0.04em] text-navy sm:text-5xl">
-                  {event.title}
-                </h1>
-                {event.description && (
-                  <p className="mt-5 max-w-3xl text-base leading-7 text-slate-600 sm:text-lg">
-                    {event.description}
-                  </p>
-                )}
-                {cancelled && (
-                  <p className="mt-5 rounded-2xl bg-red-50 px-5 py-4 text-sm text-red-700">
-                    {event.cancelReason ?? "This event was cancelled by the organizer."}
-                  </p>
-                )}
-              </div>
+              ) : null}
             </section>
 
             <section className="order-2 grid min-w-0 gap-4 sm:grid-cols-2 lg:col-span-8">
@@ -398,6 +441,7 @@ function EventAttendeeChip({
 
 const iconProps = { width: 21, height: 21, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, "aria-hidden": true } as const;
 function CalendarIcon() { return <svg {...iconProps}><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 11h18" /></svg>; }
+function ClockIcon() { return <svg {...iconProps}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>; }
 function CourtIcon() { return <svg {...iconProps}><path d="M4 4h16v16H4zM12 4v16M4 12h16" /></svg>; }
 function PlayersIcon() { return <svg {...iconProps}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>; }
 function StatusIcon() { return <svg {...iconProps}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></svg>; }

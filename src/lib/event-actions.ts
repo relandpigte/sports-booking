@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, RedirectType } from "next/navigation";
 import * as z from "zod";
 
 import {
@@ -116,6 +116,14 @@ const CancelEventSchema = z.object({
 
 const DeleteCancelledEventSchema = z.object({
   eventId: z.string().min(1),
+  redirectTo: z
+    .enum([
+      "/dashboard/events",
+      "/dashboard/events?view=today",
+      "/dashboard/events?view=upcoming",
+      "/dashboard/events?view=past",
+    ])
+    .optional(),
 });
 
 const ManageRegistrationSchema = z.object({
@@ -1572,6 +1580,9 @@ export async function deleteCancelledEventAction(
   const partner = { id: workspace.partnerId };
   const parsed = DeleteCancelledEventSchema.safeParse({
     eventId: String(formData.get("eventId") ?? ""),
+    redirectTo: formData.has("redirectTo")
+      ? String(formData.get("redirectTo") ?? "")
+      : undefined,
   });
   if (!parsed.success) return { message: "Event not found." };
 
@@ -1641,6 +1652,9 @@ export async function deleteCancelledEventAction(
     targetId: outcome.event.id,
     metadata: { title: outcome.event.title },
   });
+  if (parsed.data.redirectTo) {
+    redirect(parsed.data.redirectTo, RedirectType.replace);
+  }
   return { success: "Cancelled event deleted." };
 }
 

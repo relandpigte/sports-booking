@@ -1,8 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useActionState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useActionState } from "react";
 
 import {
   deleteCancelledEventAction,
@@ -20,15 +19,10 @@ export function DeleteCancelledEventButton({
   title: string;
   redirectTo?: string;
 }) {
-  const router = useRouter();
   const [state, formAction, pending] = useActionState(
     deleteCancelledEventAction,
     initialState
   );
-
-  useEffect(() => {
-    if (state.success) router.push(redirectTo);
-  }, [redirectTo, router, state.success]);
 
   function confirmDelete(event: FormEvent<HTMLFormElement>) {
     if (
@@ -44,6 +38,7 @@ export function DeleteCancelledEventButton({
     <div className="text-right">
       <form action={formAction} onSubmit={confirmDelete}>
         <input type="hidden" name="eventId" value={eventId} />
+        <input type="hidden" name="redirectTo" value={redirectTo} />
         <button
           type="submit"
           disabled={pending}

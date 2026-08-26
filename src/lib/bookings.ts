@@ -332,7 +332,8 @@ export async function getCourtOccupancy(
 export async function getHubCourtOccupancies(
   hubId: string,
   date: string,
-  knownCourtIds?: string[]
+  knownCourtIds?: string[],
+  excludeBookingId?: string
 ): Promise<CourtOccupancy[]> {
   const courts = knownCourtIds
     ? knownCourtIds.map((id) => ({ id }))
@@ -346,7 +347,19 @@ export async function getHubCourtOccupancies(
     where: {
       courtId: { in: courtIds },
       date,
-      ...holdingHourWhere(new Date()),
+      AND: [
+        ...(excludeBookingId
+          ? [
+              {
+                OR: [
+                  { bookingId: null },
+                  { bookingId: { not: excludeBookingId } },
+                ],
+              },
+            ]
+          : []),
+        holdingHourWhere(new Date()),
+      ],
     },
     select: {
       courtId: true,

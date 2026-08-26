@@ -19,7 +19,8 @@ export type HubAvailabilitySnapshot = {
 export function useHubAvailabilityStream(
   hubId: string,
   date: string,
-  initial: HubAvailabilitySnapshot | null
+  initial: HubAvailabilitySnapshot | null,
+  excludeBookingId?: string
 ): {
   occupancies: Map<string, CourtOccupancySnapshot> | null;
   live: boolean;
@@ -28,8 +29,11 @@ export function useHubAvailabilityStream(
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
+    const exclude = excludeBookingId
+      ? `&exclude=${encodeURIComponent(excludeBookingId)}`
+      : "";
     const source = new EventSource(
-      `/api/hubs/${hubId}/availability/stream?date=${date}`
+      `/api/hubs/${hubId}/availability/stream?date=${date}${exclude}`
     );
     source.onopen = () => setConnected(true);
     source.onmessage = (event) => {
@@ -42,7 +46,7 @@ export function useHubAvailabilityStream(
     };
     source.onerror = () => setConnected(false);
     return () => source.close();
-  }, [hubId, date]);
+  }, [hubId, date, excludeBookingId]);
 
   const current =
     snapshot?.hubId === hubId && snapshot.date === date

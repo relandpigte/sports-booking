@@ -22,6 +22,7 @@ export function CourtAvailabilityBrowser({
   onToggle,
   loading,
   live,
+  selectionHint = "Select any available hours across one or more courts.",
 }: {
   courts: BrowserCourt[];
   activeCourtId: string;
@@ -32,6 +33,7 @@ export function CourtAvailabilityBrowser({
   onToggle: (courtId: string, hour: number) => void;
   loading: boolean;
   live: boolean;
+  selectionHint?: string;
 }) {
   return (
     <div>
@@ -41,7 +43,7 @@ export function CourtAvailabilityBrowser({
             Choose court &amp; time
           </p>
           <p className="mt-1 text-xs text-gray-500">
-            Select any available hours across one or more courts.
+            {selectionHint}
           </p>
         </div>
         <div

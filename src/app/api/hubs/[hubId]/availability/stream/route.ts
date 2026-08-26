@@ -18,6 +18,10 @@ export async function GET(
 ) {
   const { hubId } = await ctx.params;
   const date = request.nextUrl.searchParams.get("date") ?? "";
+  const rawExclude = request.nextUrl.searchParams.get("exclude") ?? "";
+  const excludeBookingId = /^[a-z0-9]{1,64}$/.test(rawExclude)
+    ? rawExclude
+    : undefined;
   const securityContext = securityContextFromHeaders(request.headers);
   if (!(await consumeRateLimit({
     namespace: "hub-availability-stream",
@@ -77,7 +81,8 @@ export async function GET(
           const courts = await getHubCourtOccupancies(
             hubId,
             date,
-            hub.courts.map((court) => court.id)
+            hub.courts.map((court) => court.id),
+            excludeBookingId
           );
           const key = JSON.stringify(courts);
           if (key !== lastKey) {

@@ -273,6 +273,7 @@ export function BookingCard({
           {reschedule && !holding && (
             <RescheduleBookingButton
               bookingId={booking.id}
+              hubId={booking.hub.id}
               courts={reschedule.courts}
               operatingHours={reschedule.operatingHours}
               today={reschedule.today}

@@ -242,6 +242,7 @@ export function PartnerBookingListRow({
           {cancellable && booking.status === "CONFIRMED" && reschedule && (
             <RescheduleBookingButton
               bookingId={booking.id}
+              hubId={booking.hub.id}
               courts={reschedule.courts}
               operatingHours={reschedule.operatingHours}
               today={reschedule.today}

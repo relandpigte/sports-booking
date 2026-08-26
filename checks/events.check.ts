@@ -136,6 +136,37 @@ async function check() {
       )
   );
 
+  const movableBooking = await prisma.booking.create({
+    data: {
+      hubId: hub.id,
+      courtId: courtA.id,
+      userId: players[0].id,
+      date: DATE,
+      startHour: 13,
+      endHour: 14,
+      hours: 1,
+      startsAt: manilaInstant(DATE, 13),
+      endsAt: manilaInstant(DATE, 14),
+      status: "CONFIRMED",
+      slots: {
+        create: { courtId: courtA.id, date: DATE, hour: 13 },
+      },
+    },
+    select: { id: true },
+  });
+  const moveOccupancy = await getHubCourtOccupancies(
+    hub.id,
+    DATE,
+    hub.courts.map((court) => court.id),
+    movableBooking.id
+  );
+  const moveCourtA = moveOccupancy.find((court) => court.courtId === courtA.id);
+  ok(
+    "the reschedule comparison frees only the moving booking's own hours",
+    moveCourtA?.bookedHours.join(",") === "9,10,11" &&
+      moveCourtA.openPlayHours.join(",") === "9,10,11"
+  );
+
   let duplicateBlocked = false;
   try {
     await prisma.bookingSlot.create({

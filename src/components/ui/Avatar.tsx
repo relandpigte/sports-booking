@@ -4,6 +4,7 @@ interface AvatarProps {
   size?: number;
   className?: string;
   shape?: "circle" | "rounded";
+  fit?: "cover" | "contain";
 }
 
 // Round avatar that shows the image when present, otherwise an initial.
@@ -13,6 +14,7 @@ export function Avatar({
   size = 40,
   className = "",
   shape = "circle",
+  fit = "cover",
 }: AvatarProps) {
   const dimension = { width: size, height: size };
   const initial = (name?.trim()?.[0] ?? "?").toUpperCase();
@@ -25,7 +27,7 @@ export function Avatar({
         src={src}
         alt={name ?? "Profile picture"}
         style={dimension}
-        className={`shrink-0 ${shapeClass} object-cover ${className}`}
+        className={`shrink-0 ${shapeClass} ${fit === "contain" ? "object-contain" : "object-cover"} ${className}`}
       />
     );
   }

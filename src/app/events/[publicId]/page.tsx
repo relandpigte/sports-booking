@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/Badge";
 import { getViewer } from "@/lib/dal";
 import { buildEventMetadata } from "@/lib/event-metadata";
 import { getPublicEvent } from "@/lib/events";
+import { qrSvg } from "@/lib/qr";
 import { absoluteUrl } from "@/lib/site";
 import {
   formatManilaDateLong,
@@ -50,6 +51,10 @@ export default async function EventDetailPage({
   const courtNames = event.courts.map((court) => court.name).join(", ");
   const duration = event.endHour - event.startHour;
   const eventUrl = absoluteUrl(`/events/${event.publicId}`);
+  const eventQrSvg = qrSvg(eventUrl, {
+    className: "h-full w-full",
+    title: `QR code for ${event.title}`,
+  });
   const featuredAttendees = event.attendees.slice(0, 4);
   const remainingAttendees = event.attendees.slice(4);
 
@@ -58,12 +63,42 @@ export default async function EventDetailPage({
       <div className="min-w-0 py-6 sm:py-12">
         <div className="grid min-w-0 gap-8 lg:grid-cols-12 lg:gap-12">
             <section className="order-1 min-w-0 lg:col-span-8">
-              <div className="relative flex aspect-video w-full min-w-0 items-center justify-center overflow-hidden rounded-3xl bg-navy sm:aspect-[21/9] sm:min-h-52">
+              <div className="relative min-h-[460px] w-full min-w-0 overflow-hidden rounded-3xl bg-navy sm:aspect-[21/9] sm:min-h-[300px]">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(163,206,60,0.2)_1px,transparent_0)] bg-[size:24px_24px]" />
                 <div className="absolute inset-0 bg-gradient-to-br from-primary/35 via-transparent to-ocean/35" />
-                <p className="relative text-5xl font-black lowercase tracking-[-0.08em] text-white/10 sm:text-7xl">
-                  bunal.club
-                </p>
+                <div className="relative flex min-h-[460px] flex-col items-center justify-center gap-7 px-5 pb-7 pt-20 sm:min-h-[300px] sm:flex-row sm:justify-between sm:gap-8 sm:px-8 sm:pb-8 sm:pt-20 md:px-10">
+                  <div className="flex min-w-0 flex-col items-center gap-5 text-center sm:flex-row sm:text-left">
+                    <Avatar
+                      src={event.hub.logo}
+                      name={event.hub.name}
+                      size={112}
+                      shape="rounded"
+                      fit="contain"
+                      className="border border-white/20 bg-white p-2 text-4xl font-black shadow-2xl shadow-black/20"
+                    />
+                    <div className="min-w-0 text-white">
+                      <p className="text-[11px] font-black uppercase tracking-[0.2em] text-primary-soft">
+                        Hosted by
+                      </p>
+                      <h2 className="mt-2 break-words text-2xl font-black leading-tight tracking-[-0.03em] sm:text-3xl">
+                        {event.hub.name}
+                      </h2>
+                      <p className="mt-3 max-w-xs text-sm leading-6 text-white/70">
+                        Scan to open this event and registration.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 rounded-3xl border border-white/15 bg-white p-3 shadow-2xl shadow-black/20 sm:p-4">
+                    <div
+                      className="h-24 w-24 sm:h-32 sm:w-32"
+                      dangerouslySetInnerHTML={{ __html: eventQrSvg }}
+                    />
+                    <p className="mt-2 text-center text-[10px] font-black uppercase tracking-[0.14em] text-navy">
+                      Event link
+                    </p>
+                  </div>
+                </div>
                 <div className="absolute right-5 top-5">
                   <ShareEventButton title={event.title} url={eventUrl} />
                 </div>

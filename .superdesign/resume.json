@@ -1,6 +1,64 @@
 {
   "schemaVersion": 1,
   "targets": {
+    "/events/[publicId]": {
+      "targetKind": "existing-ui",
+      "projectId": "da7acc5b-7f8f-4b19-8b8c-3f058dfca343",
+      "activeDraftId": "fbf6aa93-05e6-42f7-b81d-428a64bb78ed",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "public-bunal-logo-v2-wordmark.png"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "public-bunal-logo-v2-wordmark.png",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/da7acc5b-7f8f-4b19-8b8c-3f058dfca343/brand-assets/public-bunal-logo-v2-wordmark.png/bunal-logo-v2-wordmark.png",
+          "sourcePath": "public/bunal-logo-v2-wordmark.png"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "src/app/globals.css",
+        "src/app/events/[publicId]/page.tsx",
+        "src/components/PageShell.tsx",
+        "src/components/hubs/PublicTopBar.tsx",
+        "src/components/Logo.tsx",
+        "src/components/events/EventRegistrationPanel.tsx",
+        "src/components/events/ShareEventButton.tsx",
+        "src/components/ui/Avatar.tsx",
+        "src/components/ui/Badge.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "4eefc25ff528d497a043ab0fe763896dbc22438e6314a976a8e49a298ff0f146",
+        ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
+        "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
+        "src/app/events/[publicId]/page.tsx": "325b52a8aaf76d213aed822bd4a79865081506084da15cd1a112496c36a09632",
+        "src/components/PageShell.tsx": "d90c6196ad19565e806d75eb3a54a76c127b839ddbd9cfc6aa2397b2a1888eaf",
+        "src/components/hubs/PublicTopBar.tsx": "d77256e43379e4b37f16be48b1d45838f968ddf49fafac052b93f4e50a6854b7",
+        "src/components/Logo.tsx": "073c062cb0d022c9f5a1f78c79af6570143f03a8d6908c3268f79cb4370d6e2d",
+        "src/components/events/EventRegistrationPanel.tsx": "5ead82d5c738e2dfaf9fc49535d728ba8d3da4fed8552b6131631f92a1a0be1c",
+        "src/components/events/ShareEventButton.tsx": "e528cecc6a245b3b9bd332c330bfe5c1176478123c90785dcbb85696801d8877",
+        "src/components/ui/Avatar.tsx": "d94da873214543817b018dbfd5d48e250f3181cb77285243b417ebed08409b73",
+        "src/components/ui/Badge.tsx": "aaa6074f7e159cb71056bb61ae95cafc3345f353db12af8d399d55e31dc20c88"
+      },
+      "components": [
+        {
+          "name": "PublicTopBar",
+          "id": "64d79ec3-938d-440c-a4eb-06abe4d6dc0b",
+          "sourcePath": "src/components/hubs/PublicTopBar.tsx",
+          "logoAssetKey": "public-bunal-logo-v2-wordmark.png"
+        }
+      ],
+      "drafts": {
+        "fbf6aa93-05e6-42f7-b81d-428a64bb78ed": {
+          "title": "Event Detail — Venue Logo and Event QR",
+          "visualDirection": "current event detail page with the navy watermark hero replaced by a venue identity and scannable event-link QR composition",
+          "currentVersion": 1
+        }
+      },
+      "updatedAt": "2026-08-26T12:44:54+08:00"
+    },
     "/dashboard/admin/trainers": {
       "targetKind": "existing-ui",
       "projectId": "df2fe063-c6da-4978-8695-40c03895ddc6",

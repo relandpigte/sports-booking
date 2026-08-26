@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
 import { HubCard } from "@/components/hubs/HubCard";
@@ -97,8 +97,9 @@ export function HubDirectory({
     )
   );
   const [coordinates, setCoordinates] = useState<Coordinates | null>(null);
-  const [locating, setLocating] = useState(false);
+  const [locating, setLocating] = useState(initial.sort === "distance");
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
+  const automaticLocationRequested = useRef(false);
 
   const activeFilterCount = [
     initial.game,
@@ -126,24 +127,27 @@ export function HubDirectory({
       : [...hubs];
 
     return filtered.sort((a, b) => {
+      if (sort === "distance" && coordinates) {
+        const aDistance =
+          distanceKm(coordinates, a) ?? Number.POSITIVE_INFINITY;
+        const bDistance =
+          distanceKm(coordinates, b) ?? Number.POSITIVE_INFINITY;
+        if (aDistance !== bDistance) return aDistance < bDistance ? -1 : 1;
+      }
       if (a.verified !== b.verified) return a.verified ? -1 : 1;
       if (sort === "price") return startingRate(a) - startingRate(b);
       if (sort === "newest") {
         return Date.parse(b.createdAt) - Date.parse(a.createdAt);
       }
-      if (sort === "distance" && coordinates) {
-        return (
-          (distanceKm(coordinates, a) ?? Number.POSITIVE_INFINITY) -
-          (distanceKm(coordinates, b) ?? Number.POSITIVE_INFINITY)
-        );
-      }
       return a.name.localeCompare(b.name);
     });
   }, [coordinates, hubs, query, sort]);
 
-  const requestLocation = () => {
+  const requestLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setLocationMessage("Location is not supported by this browser.");
+      setSort("name");
+      setLocating(false);
       return;
     }
     setLocating(true);
@@ -161,11 +165,20 @@ export function HubDirectory({
         setLocationMessage(
           "We could not access your location. Check browser permission and try again."
         );
+        setSort("name");
         setLocating(false);
       },
       { enableHighAccuracy: false, timeout: 10_000, maximumAge: 300_000 }
     );
-  };
+  }, []);
+
+  useEffect(() => {
+    if (initial.sort !== "distance" || automaticLocationRequested.current) {
+      return;
+    }
+    automaticLocationRequested.current = true;
+    requestLocation();
+  }, [initial.sort, requestLocation]);
 
   return (
     <div>
@@ -260,13 +273,20 @@ export function HubDirectory({
             <select
               name="sort"
               value={sort}
-              onChange={(event) => setSort(event.target.value as Sort)}
+              onChange={(event) => {
+                const nextSort = event.target.value as Sort;
+                if (nextSort === "distance") {
+                  requestLocation();
+                  return;
+                }
+                setSort(nextSort);
+              }}
               className="min-h-12 w-full appearance-none rounded-xl border border-[#dfe7e2] bg-white px-4 pr-10 text-sm font-bold text-navy focus:border-primary focus:outline-none"
             >
+              <option value="distance">Nearest first</option>
               <option value="name">Name (A–Z)</option>
               <option value="price">Price (low first)</option>
               <option value="newest">Newest first</option>
-              {coordinates && <option value="distance">Nearest first</option>}
             </select>
             <span
               aria-hidden="true"
@@ -377,7 +397,7 @@ export function HubDirectory({
         </div>
 
         {visibleHubs.length > 0 ? (
-          <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-4 lg:gap-5 xl:gap-6">
             {visibleHubs.map((hub) => (
               <HubCard
                 key={hub.id}

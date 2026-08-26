@@ -158,10 +158,7 @@ export default async function HubsDirectoryPage({
           date: selectedDate ?? "",
           from,
           to,
-          sort:
-            isSort(sortValue) && sortValue !== "distance"
-              ? sortValue
-              : "name",
+          sort: isSort(sortValue) ? sortValue : "distance",
         }}
       />
     </PageShell>

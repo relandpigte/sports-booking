@@ -1,6 +1,64 @@
 {
   "schemaVersion": 1,
   "targets": {
+    "/hubs": {
+      "targetKind": "existing-ui",
+      "projectId": "e4c8e4e6-58c1-4931-a0f3-9eae8122ee8e",
+      "baselineDraftId": "fff93abe-b94c-417b-8b46-c3a154158bb0",
+      "activeDraftId": "93f0567c-5f7b-4c4c-a99e-4c13d50974be",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "public/bunal-logo-v2-wordmark.png",
+        "86c97b9a-3008-4003-bf6e-7655e8ee1ded"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "public/bunal-logo-v2-wordmark.png",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/e4c8e4e6-58c1-4931-a0f3-9eae8122ee8e/brand-assets/public-bunal-logo-v2-wordmark.png/bunal-logo-v2-wordmark.png",
+          "sourcePath": "public/bunal-logo-v2-wordmark.png"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "src/app/globals.css",
+        "src/app/hubs/page.tsx",
+        "src/components/hubs/HubDirectory.tsx",
+        "src/components/hubs/HubCard.tsx",
+        "src/components/hubs/HubCoverFallback.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "4eefc25ff528d497a043ab0fe763896dbc22438e6314a976a8e49a298ff0f146",
+        ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
+        "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
+        "src/app/hubs/page.tsx": "53aa479fb6711e27ff3b566d9f06ce6b348e4a5fe90b48c4ec7541bbe123b900",
+        "src/components/hubs/HubDirectory.tsx": "9d93b641fe9bb068c8453861ca3ffd02d8338c68eac569a19cd3d75da0e4adf5",
+        "src/components/hubs/HubCard.tsx": "05ae28a2939ce471bde3c9e7be530f731235d1931265564aef1ae356668f9d25",
+        "src/components/hubs/HubCoverFallback.tsx": "15507a1fc37059a1cae74fdea74c99d1299ccf3424de80b0f040dbb3ad677be1"
+      },
+      "components": [
+        {
+          "name": "PublicTopBar",
+          "id": "2eacea3b-047f-4627-a5fd-6cb5bc357b31",
+          "sourcePath": "src/components/hubs/PublicTopBar.tsx",
+          "logoAssetKey": "public/bunal-logo-v2-wordmark.png"
+        }
+      ],
+      "drafts": {
+        "fff93abe-b94c-417b-8b46-c3a154158bb0": {
+          "title": "Current Bunal.club Hubs Directory",
+          "visualDirection": "faithful current public hubs directory and card-grid baseline",
+          "currentVersion": 1
+        },
+        "93f0567c-5f7b-4c4c-a99e-4c13d50974be": {
+          "title": "Bunal.club Hubs Grid — Availability First",
+          "visualDirection": "compact availability-first hub cards with slim horizontal status bars, retained venue profile images, inline court inventory, a branded sport-aware court blueprint fallback, and a dedicated Google Maps logo action",
+          "parentDraftId": "fff93abe-b94c-417b-8b46-c3a154158bb0",
+          "currentVersion": 3
+        }
+      },
+      "updatedAt": "2026-08-26T16:45:03+08:00"
+    },
     "manual-payment-transfer-panel": {
       "targetKind": "existing-ui",
       "projectId": "e4c8e4e6-58c1-4931-a0f3-9eae8122ee8e",

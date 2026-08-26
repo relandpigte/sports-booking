@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useId, useRef, useState } from "react";
 
 import { HoldCountdown } from "@/components/bookings/HoldCountdown";
 import { ReceiptUpload } from "@/components/partner/ReceiptUpload";
@@ -248,18 +248,10 @@ export function ManualPaymentCheckout({
 
                 {selected && (
                   <div className="mt-6 rounded-2xl border border-navy/10 bg-navy-soft/55 p-5 sm:p-6">
-                    <div className="grid gap-6 md:grid-cols-[220px_minmax(0,1fr)] md:items-start">
+                    <div className="grid gap-6 md:grid-cols-[minmax(280px,360px)_minmax(0,1fr)] md:items-start md:gap-8">
                       {selected.qrImage ? (
-                        <div>
-                          <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={selected.qrImage}
-                              alt={`${selected.label} payment QR`}
-                              className="aspect-square w-full object-cover"
-                            />
-                          </div>
-                          <QrImageDownloadButton
+                        <div className="mx-auto w-full max-w-[360px] md:mx-0">
+                          <QrImageViewer
                             src={selected.qrImage}
                             label={selected.label}
                           />
@@ -401,14 +393,8 @@ function CompactManualPaymentForm({
           </p>
           <div className="mt-4 flex flex-col gap-5 sm:flex-row">
             {selected.qrImage && (
-              <div className="w-full sm:w-48">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={selected.qrImage}
-                  alt={`${selected.label} payment QR`}
-                  className="mx-auto size-48 rounded-2xl border border-slate-200 bg-white object-cover p-2 sm:mx-0"
-                />
-                <QrImageDownloadButton
+              <div className="mx-auto w-full max-w-xs sm:mx-0 sm:w-56">
+                <QrImageViewer
                   src={selected.qrImage}
                   label={selected.label}
                   compact
@@ -545,6 +531,129 @@ function PaymentMethodButton({
         {method.network.replace("_", " ")}
       </span>
     </button>
+  );
+}
+
+function QrImageViewer({
+  src,
+  label,
+  compact = false,
+}: {
+  src: string;
+  label: string;
+  compact?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    if (open && !dialog.open) dialog.showModal();
+    if (!open && dialog.open) dialog.close();
+  }, [open]);
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-haspopup="dialog"
+        aria-label={`View ${label} payment QR in a larger window`}
+        onClick={() => setOpen(true)}
+        className={`group relative block w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+          compact ? "p-2" : "p-3"
+        }`}
+      >
+        {/* Preserve the partner's full upload, including portrait screenshots. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt={`${label} payment QR`}
+          className="h-auto w-full object-contain"
+        />
+        <span
+          aria-hidden="true"
+          className={`absolute flex items-center justify-center gap-2 rounded-xl bg-navy/85 px-4 font-black text-white shadow-lg backdrop-blur-sm transition-colors group-hover:bg-navy ${
+            compact
+              ? "inset-x-6 bottom-4 min-h-11 text-xs"
+              : "inset-x-8 bottom-5 min-h-12 text-sm"
+          }`}
+        >
+          <svg
+            width="17"
+            height="17"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />
+          </svg>
+          View QR
+        </span>
+      </button>
+
+      <dialog
+        ref={dialogRef}
+        aria-labelledby={titleId}
+        onClose={() => setOpen(false)}
+        onClick={(event) => {
+          if (event.target === dialogRef.current) setOpen(false);
+        }}
+        className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-xl overflow-hidden rounded-3xl border border-white/20 bg-white p-0 shadow-2xl backdrop:bg-navy/75 backdrop:backdrop-blur-sm"
+      >
+        <div className="flex max-h-[calc(100dvh-2rem)] flex-col">
+          <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">
+                Payment destination
+              </p>
+              <h2 id={titleId} className="mt-1 font-black text-navy">
+                {label} QR code
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              aria-label="Close QR viewer"
+              className="flex size-10 shrink-0 items-center justify-center rounded-full border border-slate-200 text-navy transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <svg
+                width="19"
+                height="19"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="m18 6-12 12M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="min-h-0 overflow-y-auto bg-slate-50 p-4 sm:p-6">
+            <div className="flex justify-center rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:p-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={src}
+                alt={`${label} payment QR, enlarged`}
+                className="h-auto max-h-[calc(100dvh-13rem)] max-w-full object-contain"
+              />
+            </div>
+            <QrImageDownloadButton src={src} label={label} />
+            <p className="mt-3 text-center text-xs leading-5 text-slate-500">
+              Scan this code from another device, or save it and import it into
+              your payment app.
+            </p>
+          </div>
+        </div>
+      </dialog>
+    </>
   );
 }
 

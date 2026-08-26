@@ -1,6 +1,45 @@
 {
   "schemaVersion": 1,
   "targets": {
+    "manual-payment-transfer-panel": {
+      "targetKind": "existing-ui",
+      "projectId": "e4c8e4e6-58c1-4931-a0f3-9eae8122ee8e",
+      "baselineDraftId": "e439e738-8275-4495-b608-518a9d29222c",
+      "activeDraftId": "e439e738-8275-4495-b608-518a9d29222c",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "d3a1a55c-4437-4b43-a95f-f83c25d57570",
+        "e81322c5-36df-4cd5-9400-c5f400b3df0c"
+      ],
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "src/app/globals.css",
+        "src/components/bookings/ManualPaymentCheckout.tsx:1:370",
+        "src/components/bookings/ManualPaymentCheckout.tsx:520:915",
+        "src/components/partner/ReceiptUpload.tsx",
+        "src/components/bookings/HoldCountdown.tsx",
+        "src/lib/constants.ts"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "4eefc25ff528d497a043ab0fe763896dbc22438e6314a976a8e49a298ff0f146",
+        ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
+        "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
+        "src/components/bookings/ManualPaymentCheckout.tsx": "e15c93f90eff669f2315f1eb05b8ebe5d096f75955d85f2967dbe404038a7445",
+        "src/components/partner/ReceiptUpload.tsx": "e4a02736d0d84f10a1097af7298c11f79756bc0b9cd5f0779c8720549bbd271a",
+        "src/components/bookings/HoldCountdown.tsx": "ad877f6af281478fc1aa34ed921db2812d493f6cc8dd355d61483e280e98b312",
+        "src/lib/constants.ts": "6737257ef6916fb4a5a479e7b63fc50ae42243b07a66fa4bc7cc0faddfd4238a"
+      },
+      "components": [],
+      "drafts": {
+        "e439e738-8275-4495-b608-518a9d29222c": {
+          "title": "Manual Payment Transfer Panel - Natural QR Ratio",
+          "visualDirection": "full uncropped natural-ratio payment image with rearranged transfer details, a dark View QR overlay, and a viewport-safe full-image popup with save action",
+          "currentVersion": 4
+        }
+      },
+      "updatedAt": "2026-08-26T15:36:17+08:00"
+    },
     "/dashboard/bookings#partner-reschedule": {
       "targetKind": "existing-ui",
       "projectId": "7aecef10-b93a-436e-a800-3acb35d937d4",

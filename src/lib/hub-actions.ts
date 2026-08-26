@@ -11,9 +11,11 @@ import { HubSchema } from "@/lib/validation";
 import { firstErrors } from "@/lib/zod-errors";
 import { normalizeAvatar, normalizeCoverPhotos } from "@/lib/avatar";
 import {
-  WEEKDAYS,
-  GAME_VALUES,
   COURT_TYPE_VALUES,
+  DEFAULT_HUB_CLOSE_TIME,
+  DEFAULT_HUB_OPEN_TIME,
+  GAME_VALUES,
+  WEEKDAYS,
   type OperatingHours,
   type Weekday,
 } from "@/lib/constants";
@@ -84,9 +86,13 @@ function parseOperatingHours(formData: FormData): OperatingHours {
   for (const { value } of WEEKDAYS) {
     const d = value as Weekday;
     const closed = formData.get(`day_${d}_closed`) === "on";
-    const open = String(formData.get(`day_${d}_open`) ?? "");
-    const close = String(formData.get(`day_${d}_close`) ?? "");
-    out[d] = { closed, open: closed ? "" : open, close: closed ? "" : close };
+    const open =
+      String(formData.get(`day_${d}_open`) ?? "").trim() ||
+      DEFAULT_HUB_OPEN_TIME;
+    const close =
+      String(formData.get(`day_${d}_close`) ?? "").trim() ||
+      DEFAULT_HUB_CLOSE_TIME;
+    out[d] = { closed, open, close };
   }
   return out;
 }

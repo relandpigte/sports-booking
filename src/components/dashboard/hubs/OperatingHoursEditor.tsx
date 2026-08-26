@@ -2,20 +2,35 @@
 
 import { useState } from "react";
 import {
+  DEFAULT_HUB_CLOSE_TIME,
+  DEFAULT_HUB_OPEN_TIME,
   WEEKDAYS,
   type OperatingHours,
   type Weekday,
   type DayHours,
 } from "@/lib/constants";
+import { formatTime } from "@/lib/hours";
 
 // Default: open 6:00 AM to 12:00 AM (midnight).
-const defaultDay = (): DayHours => ({ closed: false, open: "06:00", close: "00:00" });
+const defaultDay = (): DayHours => ({
+  closed: false,
+  open: DEFAULT_HUB_OPEN_TIME,
+  close: DEFAULT_HUB_CLOSE_TIME,
+});
+
+function normalizeDay(day?: DayHours): DayHours {
+  return {
+    closed: day?.closed ?? false,
+    open: day?.open || DEFAULT_HUB_OPEN_TIME,
+    close: day?.close || DEFAULT_HUB_CLOSE_TIME,
+  };
+}
 
 function buildInitial(initial?: OperatingHours | null): OperatingHours {
   const out = {} as OperatingHours;
   for (const { value } of WEEKDAYS) {
     const d = value as Weekday;
-    out[d] = initial?.[d] ?? defaultDay();
+    out[d] = initial?.[d] ? normalizeDay(initial[d]) : defaultDay();
   }
   return out;
 }
@@ -58,7 +73,23 @@ export function OperatingHoursEditor({
                 />
                 Closed
               </label>
-              {!day.closed && (
+              {day.closed ? (
+                <div className="flex items-center gap-2 text-xs text-gray-400">
+                  <input
+                    type="hidden"
+                    name={`day_${d}_open`}
+                    value={day.open}
+                  />
+                  <input
+                    type="hidden"
+                    name={`day_${d}_close`}
+                    value={day.close}
+                  />
+                  <span>
+                    {formatTime(day.open)}–{formatTime(day.close)} retained
+                  </span>
+                </div>
+              ) : (
                 <div className="flex items-center gap-2">
                   <input
                     type="time"

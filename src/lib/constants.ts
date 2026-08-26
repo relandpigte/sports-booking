@@ -44,6 +44,9 @@ export type Weekday = (typeof WEEKDAYS)[number]["value"];
 export type DayHours = { closed: boolean; open: string; close: string };
 export type OperatingHours = Record<Weekday, DayHours>;
 
+export const DEFAULT_HUB_OPEN_TIME = "06:00";
+export const DEFAULT_HUB_CLOSE_TIME = "00:00";
+
 // Court games a hub can offer (used to categorize hubs in the directory).
 export const GAMES = [
   { value: "pickleball", label: "Pickleball" },

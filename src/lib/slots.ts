@@ -32,8 +32,8 @@ export type Slot = {
  * default hub hours are 06:00–00:00, so reading it as 0 yields zero bookable
  * slots for essentially every hub in the database.
  *
- * Closed days submit empty strings for open/close. Minutes are floored: we
- * only sell whole hours, so a 22:30 close becomes 22.
+ * Legacy closed-day records may contain empty open/close strings. Minutes are
+ * floored: we only sell whole hours, so a 22:30 close becomes 22.
  */
 export function dayWindow(
   day: DayHours | undefined

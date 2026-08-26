@@ -107,11 +107,11 @@ export default async function EventsPage({
             <FeaturedEventCard event={featured} />
 
             {remaining.length > 0 && (
-              <section className="mt-8 min-w-0">
+              <section className="mt-10 min-w-0">
                 <h2 className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
                   More upcoming
                 </h2>
-                <div className="mt-4 grid min-w-0 gap-3 lg:grid-cols-2">
+                <div className="mt-4 grid min-w-0 gap-4 lg:grid-cols-2">
                   {remaining.map((event) => (
                     <CompactEventCard key={event.id} event={event} />
                   ))}

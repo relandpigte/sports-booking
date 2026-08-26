@@ -1,6 +1,71 @@
 {
   "schemaVersion": 1,
   "targets": {
+    "/events": {
+      "targetKind": "existing-ui",
+      "projectId": "da7acc5b-7f8f-4b19-8b8c-3f058dfca343",
+      "baselineDraftId": "2902837c-d814-421e-91c5-a90301ad2dea",
+      "activeDraftId": "2902837c-d814-421e-91c5-a90301ad2dea",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "public-bunal-logo-v2-wordmark.png"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "public-bunal-logo-v2-wordmark.png",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/da7acc5b-7f8f-4b19-8b8c-3f058dfca343/brand-assets/public-bunal-logo-v2-wordmark.png/bunal-logo-v2-wordmark.png",
+          "sourcePath": "public/bunal-logo-v2-wordmark.png"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "src/app/globals.css",
+        "src/app/events/page.tsx",
+        "src/components/events/EventCard.tsx",
+        "src/components/PageShell.tsx",
+        "src/components/hubs/PublicTopBar.tsx",
+        "src/components/Logo.tsx",
+        "src/components/ui/Avatar.tsx",
+        "src/components/ui/Badge.tsx",
+        "src/lib/events.ts:11:60",
+        "src/lib/currency.ts",
+        "src/lib/time.ts",
+        "src/lib/constants.ts"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "4eefc25ff528d497a043ab0fe763896dbc22438e6314a976a8e49a298ff0f146",
+        ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
+        "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
+        "src/app/events/page.tsx": "99726a1628166cef83ac48dbb8dd2c57a358c5811016efb213d5575f68b4a0f0",
+        "src/components/events/EventCard.tsx": "7fc637f9c125309c1609c5b59fa6d17fa96d2552f574398fa600aeed531a9f59",
+        "src/components/PageShell.tsx": "d90c6196ad19565e806d75eb3a54a76c127b839ddbd9cfc6aa2397b2a1888eaf",
+        "src/components/hubs/PublicTopBar.tsx": "d77256e43379e4b37f16be48b1d45838f968ddf49fafac052b93f4e50a6854b7",
+        "src/components/Logo.tsx": "073c062cb0d022c9f5a1f78c79af6570143f03a8d6908c3268f79cb4370d6e2d",
+        "src/components/ui/Avatar.tsx": "d94da873214543817b018dbfd5d48e250f3181cb77285243b417ebed08409b73",
+        "src/components/ui/Badge.tsx": "aaa6074f7e159cb71056bb61ae95cafc3345f353db12af8d399d55e31dc20c88",
+        "src/lib/events.ts": "a6655ac5c6f75dae5b211d677a63d637cfdf6c26adf755bcc5c0fe33752132df",
+        "src/lib/currency.ts": "14403a51f449f116dc7ab302b648f84de2957c0ee2a50407011ecd138670b587",
+        "src/lib/time.ts": "90fcf99803b288bbd3d766542c3a3f7e86ba85d76d7cbf8c1801d78bc5ca0bed",
+        "src/lib/constants.ts": "6737257ef6916fb4a5a479e7b63fc50ae42243b07a66fa4bc7cc0faddfd4238a"
+      },
+      "components": [
+        {
+          "name": "PublicTopBar",
+          "id": "64d79ec3-938d-440c-a4eb-06abe4d6dc0b",
+          "sourcePath": "src/components/hubs/PublicTopBar.tsx",
+          "logoAssetKey": "public-bunal-logo-v2-wordmark.png"
+        }
+      ],
+      "drafts": {
+        "2902837c-d814-421e-91c5-a90301ad2dea": {
+          "title": "Bunal.club Events - Court Emphasized",
+          "visualDirection": "court-first event discovery cards with a prominent venue and court panel on the featured event and dedicated venue and court bands on compact upcoming cards",
+          "currentVersion": 2
+        }
+      },
+      "updatedAt": "2026-08-26T13:35:43+08:00"
+    },
     "/events/[publicId]": {
       "targetKind": "existing-ui",
       "projectId": "da7acc5b-7f8f-4b19-8b8c-3f058dfca343",

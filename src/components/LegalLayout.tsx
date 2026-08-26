@@ -6,7 +6,6 @@ import {
 import Link from "next/link";
 
 import { ClosingCta } from "@/components/ClosingCta";
-import { SiteFooter } from "@/components/SiteFooter";
 
 interface LegalLayoutProps {
   title: string;
@@ -267,7 +266,6 @@ export function LegalLayout({ title, updated, children }: LegalLayoutProps) {
       <div className="bg-white pt-2">
         <ClosingCta />
       </div>
-      <SiteFooter />
     </div>
   );
 }

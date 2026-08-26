@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { PublicTopBar } from "@/components/hubs/PublicTopBar";
 import { AppShell } from "@/components/dashboard/AppShell";
 import { ReservationHoldDock } from "@/components/bookings/ReservationHoldDock";
+import { SiteFooter } from "@/components/SiteFooter";
 import { getAuthenticatedUser, getViewer } from "@/lib/dal";
 import { getActivePartnerImpersonation } from "@/lib/impersonation";
 import {
@@ -28,12 +29,14 @@ export async function PageShell({
   backgroundClass = "bg-white",
   padded = true,
   alwaysPublic = false,
+  showFooter = true,
 }: {
   children: ReactNode;
   maxWidth?: string;
   backgroundClass?: string;
   padded?: boolean;
   alwaysPublic?: boolean;
+  showFooter?: boolean;
 }) {
   const [viewer, actor] = await Promise.all([
     getViewer(),
@@ -66,7 +69,7 @@ export async function PageShell({
   // Assisted access always keeps the authenticated shell visible so the
   // actor/target banner and exit control cannot disappear on a public page.
   if (viewer && (!alwaysPublic || impersonation)) {
-    return (
+    const shell = (
       <AppShell
         user={viewer}
         maxWidth={maxWidth}
@@ -87,16 +90,25 @@ export async function PageShell({
         {children}
       </AppShell>
     );
+
+    if (!showFooter) return shell;
+    return (
+      <>
+        {shell}
+        <SiteFooter />
+      </>
+    );
   }
 
   return (
-    <div className={`min-h-screen ${backgroundClass}`}>
+    <div className={`flex min-h-screen flex-col ${backgroundClass}`}>
       <PublicTopBar signedIn={Boolean(viewer)} />
       <main
-        className={`mx-auto w-full ${maxWidth} ${padded ? "px-4 pb-16 sm:px-6" : ""}`}
+        className={`mx-auto w-full flex-1 ${maxWidth} ${padded ? "px-4 pb-16 sm:px-6" : ""}`}
       >
         {children}
       </main>
+      {showFooter && <SiteFooter />}
       {activeBookingHold && (
         <ReservationHoldDock
           hold={activeBookingHold}

@@ -10,6 +10,10 @@ import { Badge } from "@/components/ui/Badge";
 import { getViewer } from "@/lib/dal";
 import { buildEventMetadata } from "@/lib/event-metadata";
 import { getPublicEvent } from "@/lib/events";
+import {
+  getCurrentGuestReservationId,
+  getGuestReservationAccess,
+} from "@/lib/guest-bookings";
 import { qrSvg } from "@/lib/qr";
 import { absoluteUrl } from "@/lib/site";
 import {
@@ -43,7 +47,17 @@ export default async function EventDetailPage({
 }) {
   const { publicId } = await params;
   const viewer = await getViewer();
-  const event = await getPublicEvent(publicId, viewer?.id);
+  const guestReservationId = viewer
+    ? null
+    : await getCurrentGuestReservationId();
+  const guestAccess = guestReservationId
+    ? await getGuestReservationAccess(guestReservationId)
+    : null;
+  const event = await getPublicEvent(
+    publicId,
+    viewer?.id,
+    guestReservationId
+  );
   if (!event) notFound();
 
   const cancelled = event.status === "CANCELLED";
@@ -227,8 +241,14 @@ export default async function EventDetailPage({
                     fee={event.registrationFee}
                     paymentMode={event.hub.paymentMode}
                     signedIn={Boolean(viewer)}
+                    guestAccess={Boolean(
+                      guestAccess && event.viewerRegistration
+                    )}
                     viewerName={
-                      viewer?.playerName ?? viewer?.name ?? "Player"
+                      viewer?.playerName ??
+                      viewer?.name ??
+                      guestAccess?.name ??
+                      "Player"
                     }
                     viewerRole={viewer?.role}
                     registration={event.viewerRegistration}

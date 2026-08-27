@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { chargeBookingPayment } from "@/lib/booking-payments";
 import { getViewer } from "@/lib/dal";
 import { prisma } from "@/lib/db";
+import { getCurrentGuestReservationId } from "@/lib/guest-bookings";
 
 export type PayEventFormState = {
   message?: string;
@@ -18,8 +19,14 @@ export async function payForEventAction(
   formData: FormData
 ): Promise<PayEventFormState> {
   const viewer = await getViewer();
-  if (!viewer || viewer.role !== "PLAYER") {
-    return { message: "Sign in with a player account to pay." };
+  if (viewer && viewer.role !== "PLAYER") {
+    return { message: "Only player accounts or registered guests can pay." };
+  }
+  const guestReservationId = viewer
+    ? null
+    : await getCurrentGuestReservationId();
+  if (!viewer && !guestReservationId) {
+    return { message: "Open your private event link to continue payment." };
   }
 
   const paymentId = String(formData.get("paymentId") ?? "");
@@ -29,7 +36,9 @@ export async function payForEventAction(
   const payment = await prisma.bookingPayment.findFirst({
     where: {
       id: paymentId,
-      userId: viewer.id,
+      ...(viewer
+        ? { userId: viewer.id }
+        : { guestReservationId: guestReservationId! }),
       OR: [
         { eventRegistration: { event: { publicId } } },
         {
@@ -45,7 +54,9 @@ export async function payForEventAction(
 
   const outcome = await chargeBookingPayment({
     paymentId,
-    userId: viewer.id,
+    ...(viewer
+      ? { userId: viewer.id }
+      : { guestReservationId: guestReservationId! }),
   });
 
   revalidatePath(`/events/${publicId}`);

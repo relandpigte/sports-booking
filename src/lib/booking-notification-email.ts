@@ -33,6 +33,15 @@ export type PlayerBookingDeclinedEmailContentInput = Omit<
   reason: string;
 };
 
+export type GuestEventAccessEmailContentInput = {
+  playerName: string;
+  venueName: string;
+  eventTitle: string;
+  schedule: string;
+  status: "CONFIRMED" | "WAITLISTED" | "PENDING_AUTOMATIC" | "PENDING_MANUAL";
+  actionUrl: string;
+};
+
 export function partnerBookingNotificationEmailContent(
   input: PartnerBookingNotificationEmailContentInput
 ) {
@@ -91,6 +100,40 @@ export function playerBookingConfirmedEmailContent(
     actionLabel: "View booking",
     actionUrl: input.actionUrl,
     note,
+  });
+}
+
+export function guestEventAccessEmailContent(
+  input: GuestEventAccessEmailContentInput
+) {
+  const statusCopy =
+    input.status === "CONFIRMED"
+      ? "Your event registration is confirmed."
+      : input.status === "WAITLISTED"
+        ? "You are on the event waitlist. No payment is required unless a spot becomes available."
+        : input.status === "PENDING_MANUAL"
+          ? "Your spots are being held while you complete the venue's manual payment instructions."
+          : "Your spots are being held while you complete QR Ph payment.";
+  const actionLabel =
+    input.status === "CONFIRMED" || input.status === "WAITLISTED"
+      ? "View event registration"
+      : "Continue payment";
+
+  return transactionalEmailContent({
+    subject: `Your event registration — ${input.eventTitle}`,
+    preheader: statusCopy,
+    eyebrow: "Event registration",
+    heading: statusCopy,
+    recipientName: input.playerName,
+    paragraphs: [
+      `${input.eventTitle} at ${input.venueName}`,
+      input.schedule,
+      "Use the private link below to return to this registration without creating an account.",
+    ],
+    actionLabel,
+    actionUrl: input.actionUrl,
+    note:
+      "Keep this private link secure. It provides access to your registration and payment status.",
   });
 }
 

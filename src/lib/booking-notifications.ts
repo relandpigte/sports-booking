@@ -4,6 +4,7 @@ import {
   emailDeliveryConfigured,
   sendPartnerBookingNotificationEmail,
   sendPlayerBookingConfirmedEmail,
+  sendGuestEventAccessEmail,
   sendPlayerBookingDeclinedEmail,
   sendPlayerManualReceiptReceivedEmail,
 } from "@/lib/email";
@@ -98,6 +99,33 @@ export async function notifyPlayerBookingConfirmed(input: {
     // a confirmed booking appear to have failed.
     console.error(
       "Player booking-confirmation email delivery failed:",
+      error instanceof Error ? error.message : "Unknown provider error"
+    );
+    return "failed";
+  }
+}
+
+export async function notifyGuestEventAccess(input: {
+  to: string;
+  playerName: string;
+  venueName: string;
+  eventTitle: string;
+  schedule: string;
+  status: "CONFIRMED" | "WAITLISTED" | "PENDING_AUTOMATIC" | "PENDING_MANUAL";
+  actionPath: string;
+  idempotencyKey: string;
+}): Promise<"sent" | "not-configured" | "skipped" | "failed"> {
+  if (isReservedTestAddress(input.to)) return "skipped";
+  if (!emailDeliveryConfigured()) return "not-configured";
+  try {
+    await sendGuestEventAccessEmail({
+      ...input,
+      actionUrl: appUrl(input.actionPath),
+    });
+    return "sent";
+  } catch (error) {
+    console.error(
+      "Guest event-access email delivery failed:",
       error instanceof Error ? error.message : "Unknown provider error"
     );
     return "failed";

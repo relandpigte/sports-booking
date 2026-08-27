@@ -44,6 +44,10 @@ export function guestAccessPath(token: string): string {
   return `/bookings/access/${encodeURIComponent(token)}`;
 }
 
+export function eventGuestAccessPath(token: string): string {
+  return `/events/access/${encodeURIComponent(token)}`;
+}
+
 export function guestBookingPath(guestReservationId: string): string {
   return `/bookings/guest/${encodeURIComponent(guestReservationId)}`;
 }

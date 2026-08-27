@@ -18,10 +18,12 @@ import {
 import { newDeviceLoginEmailContent } from "@/lib/security-alert-email";
 import {
   partnerBookingNotificationEmailContent,
+  guestEventAccessEmailContent,
   playerBookingConfirmedEmailContent,
   playerBookingDeclinedEmailContent,
   playerManualReceiptReceivedEmailContent,
   type PartnerBookingNotificationEmailContentInput,
+  type GuestEventAccessEmailContentInput,
   type PlayerBookingConfirmedEmailContentInput,
   type PlayerBookingDeclinedEmailContentInput,
   type PlayerManualReceiptReceivedEmailContentInput,
@@ -81,6 +83,11 @@ type PlayerBookingConfirmedEmailInput =
     to: string;
     idempotencyKey: string;
   };
+
+type GuestEventAccessEmailInput = GuestEventAccessEmailContentInput & {
+  to: string;
+  idempotencyKey: string;
+};
 
 type PlayerManualReceiptReceivedEmailInput =
   PlayerManualReceiptReceivedEmailContentInput & {
@@ -298,6 +305,21 @@ export async function sendPlayerBookingConfirmedEmail(
     idempotencyKey: input.idempotencyKey,
     category: "player-booking-confirmed",
     description: "Player booking-confirmation email delivery",
+  });
+}
+
+export async function sendGuestEventAccessEmail(
+  input: GuestEventAccessEmailInput
+): Promise<void> {
+  const content = guestEventAccessEmailContent(input);
+  await deliverEmail({
+    to: input.to,
+    subject: content.subject,
+    html: content.html,
+    text: content.text,
+    idempotencyKey: input.idempotencyKey,
+    category: "guest-event-access",
+    description: "Guest event-access email delivery",
   });
 }
 

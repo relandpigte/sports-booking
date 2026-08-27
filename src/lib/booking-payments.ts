@@ -37,6 +37,7 @@ import {
 import { notifyPlayerBookingConfirmed } from "@/lib/booking-notifications";
 import { hubPublicPath } from "@/lib/hub-slug";
 import {
+  eventGuestAccessPath,
   guestAccessPath,
   issueGuestAccessToken,
 } from "@/lib/guest-bookings";
@@ -776,7 +777,9 @@ async function notifyPlayerOfPaymentConfirmation(
     bookingTitle,
     schedule,
     actionPath: guestToken
-      ? guestAccessPath(guestToken)
+      ? event
+        ? eventGuestAccessPath(guestToken)
+        : guestAccessPath(guestToken)
       : event
         ? `/dashboard/bookings?q=${encodeURIComponent(event.publicId)}`
         : `/dashboard/bookings?q=${encodeURIComponent(payment.id)}`,
@@ -810,6 +813,7 @@ async function settleBookingPaymentState(
     select: {
       id: true,
       userId: true,
+      guestReservationId: true,
       status: true,
       partnerId: true,
       platformFee: true,
@@ -899,7 +903,9 @@ async function settleBookingPaymentState(
       ]);
       const recovered = await recoverPaidEventRegistration({
         eventId: registration.event.id,
-        userId: payment.userId!,
+        ...(payment.userId
+          ? { userId: payment.userId }
+          : { guestReservationId: payment.guestReservationId! }),
       });
       if (recovered.status === "confirmed") {
         return {
@@ -976,7 +982,9 @@ async function settleBookingPaymentState(
       ]);
       const recovered = await recoverPaidEventRegistration({
         eventId: registration.event.id,
-        userId: payment.userId!,
+        ...(payment.userId
+          ? { userId: payment.userId }
+          : { guestReservationId: payment.guestReservationId! }),
       });
       if (recovered.status === "confirmed") {
         return {
@@ -1213,10 +1221,9 @@ async function occupiedEventSpotCount(
 // hold expired and the automatic refund could not complete. Capacity is
 // re-checked under the same event lock used by ordinary registration, so a
 // paid player is restored only when doing so cannot oversell the event.
-export async function recoverPaidEventRegistration(args: {
-  eventId: string;
-  userId: string;
-}): Promise<PaidEventRecoveryOutcome> {
+export async function recoverPaidEventRegistration(
+  args: { eventId: string } & BookingPaymentOwner
+): Promise<PaidEventRecoveryOutcome> {
   const now = new Date();
   try {
     return await prisma.$transaction(async (tx) => {
@@ -1239,7 +1246,7 @@ export async function recoverPaidEventRegistration(args: {
       const registration = await tx.eventRegistration.findFirst({
         where: {
           eventId: args.eventId,
-          userId: args.userId,
+          ...paymentOwnerWhere(args),
           payment: { status: "SUCCEEDED" },
         },
         select: {

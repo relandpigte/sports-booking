@@ -934,7 +934,11 @@ async function conversationDetailsForViewer(
     );
   } else if (conversation.event) {
     const registrations = await prisma.eventRegistration.findMany({
-      where: { eventId: conversation.event.id, status: "CONFIRMED" },
+      where: {
+        eventId: conversation.event.id,
+        status: "CONFIRMED",
+        userId: { not: null },
+      },
       orderBy: { confirmedAt: "asc" },
       select: {
         user: { select: { id: true, name: true, playerName: true, image: true } },
@@ -948,13 +952,19 @@ async function conversationDetailsForViewer(
       blockedByMe: myBlockedIds.includes(conversation.event.hub.owner.id),
     });
     participants.push(
-      ...registrations.map(({ user }) => ({
-        id: user.id,
-        name: displayName(user),
-        image: user.image,
-        role: "PLAYER" as const,
-        blockedByMe: myBlockedIds.includes(user.id),
-      }))
+      ...registrations.flatMap(({ user }) =>
+        user
+          ? [
+              {
+                id: user.id,
+                name: displayName(user),
+                image: user.image,
+                role: "PLAYER" as const,
+                blockedByMe: myBlockedIds.includes(user.id),
+              },
+            ]
+          : []
+      )
     );
   }
   const otherId =

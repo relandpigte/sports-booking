@@ -140,3 +140,60 @@ export function stubRequestContext(
     });
   }
 }
+
+export function stubPublicGuestRequestContext(options: {
+  currentGuestReservationId?: string | null;
+  onCookieSet?: (guestReservationId: string, expiresAt: Date) => void;
+} = {}): void {
+  const req = createRequire(import.meta.url);
+  const root = process.cwd();
+  const put = (id: string, exports: Record<string, unknown>) => {
+    req.cache[id] = {
+      id,
+      filename: id,
+      path: path.dirname(id),
+      loaded: true,
+      exports,
+      children: [],
+      paths: [],
+    } as unknown as NodeModule;
+  };
+
+  put(req.resolve("next/navigation"), {
+    redirect: () => {
+      throw new Error("expected guest event redirect in a check");
+    },
+    notFound: () => {
+      throw new Error("unexpected notFound() in a check");
+    },
+    RedirectType: { replace: "replace", push: "push" },
+  });
+  put(req.resolve("next/cache"), { revalidatePath: () => undefined });
+  put(path.join(root, "src/lib/dal.ts"), {
+    getViewer: async () => null,
+    getCurrentUser: async () => null,
+    getAuthenticatedUser: async () => null,
+    verifySession: async () => null,
+  });
+  put(path.join(root, "src/lib/rate-limit.ts"), {
+    consumeRateLimit: async () => true,
+  });
+  put(path.join(root, "src/lib/security-context.ts"), {
+    getSecurityRequestContext: async () => ({ ipHash: "guest-event-check-ip" }),
+    hashSecurityToken: (value: string) => value,
+  });
+  put(path.join(root, "src/lib/guest-bookings.ts"), {
+    eventGuestAccessPath: (token: string) => `/events/access/${token}`,
+    guestAccessPath: (token: string) => `/bookings/access/${token}`,
+    getCurrentGuestReservationId: async () =>
+      options.currentGuestReservationId ?? null,
+    issueGuestAccessToken: async () => null,
+    setGuestBookingCookie: async (
+      guestReservationId: string,
+      expiresAt: Date
+    ) => options.onCookieSet?.(guestReservationId, expiresAt),
+  });
+  put(path.join(root, "src/lib/impersonation.ts"), {
+    recordImpersonatedAction: async () => undefined,
+  });
+}

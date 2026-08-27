@@ -92,10 +92,22 @@ function RegistrationRow({
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <Avatar src={registration.player.image} name={name} size={42} />
           <div className="min-w-0">
-            <p className="truncate font-bold text-navy">{name}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="truncate font-bold text-navy">{name}</p>
+              {registration.player.isGuest && (
+                <span className="rounded-full bg-ocean/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-ocean">
+                  Guest checkout
+                </span>
+              )}
+            </div>
             <p className="truncate text-xs text-slate-500">
               {registration.player.email}
             </p>
+            {registration.player.phone && (
+              <p className="truncate text-xs text-slate-500">
+                {registration.player.phone}
+              </p>
+            )}
             {registration.guestNames.length > 0 ? (
               <p className="mt-1 text-xs leading-5 text-slate-500">
                 Guests: {registration.guestNames.join(", ")}

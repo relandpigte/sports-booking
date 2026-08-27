@@ -151,11 +151,14 @@ async function recordEventRegistrationSystemMessageUnsafe(
       confirmedAt: true,
       cancelledAt: true,
       user: { select: { name: true, playerName: true } },
+      guestReservation: { select: { name: true } },
       event: { select: { id: true, publicId: true, title: true } },
     },
   });
   if (!registration) return;
-  const name = displayName(registration.user);
+  const name = registration.user
+    ? displayName(registration.user)
+    : registration.guestReservation?.name ?? "Guest player";
   const timestamp =
     type === "CONFIRMED"
       ? registration.confirmedAt?.getTime() ?? 0

@@ -161,6 +161,9 @@ async function syncRosterRows(tx: Tx, sessionId: string, eventId: string) {
             privateProfile: true,
           },
         },
+        guestReservation: {
+          select: { name: true },
+        },
         guests: {
           where: { status: "CONFIRMED" },
           orderBy: { createdAt: "asc" },
@@ -180,13 +183,14 @@ async function syncRosterRows(tx: Tx, sessionId: string, eventId: string) {
       ...registrations.map((registration) => ({
         sessionId,
         source: "REGISTERED_PLAYER" as const,
-        userId: registration.user.id,
+        userId: registration.user?.id ?? null,
         eventRegistrationId: registration.id,
-        displayName:
-          registration.user.privateProfile
+        displayName: registration.user
+          ? registration.user.privateProfile
             ? "Private player"
-            : registration.user.playerName ?? registration.user.name ?? "Player",
-        skillLevel: registration.user.skillLevel,
+            : registration.user.playerName ?? registration.user.name ?? "Player"
+          : registration.guestReservation?.name ?? "Guest player",
+        skillLevel: registration.user?.skillLevel ?? DEFAULT_SKILL_LEVEL,
       })),
       ...registrations.flatMap((registration) =>
         registration.guests.map((guest) => ({

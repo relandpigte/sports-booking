@@ -30,6 +30,7 @@ import {
   isServiceFeeOverdue,
 } from "@/lib/service-fees";
 import {
+  addDaysTo,
   formatManilaDateLong,
   formatSlotRange,
   isValidDateString,
@@ -39,8 +40,19 @@ import {
 import { firstErrors } from "@/lib/zod-errors";
 import { weeklyEventDates } from "@/lib/event-recurrence";
 import { recordImpersonatedAction } from "@/lib/impersonation";
-import { notifyPartnerTeamOfBooking } from "@/lib/booking-notifications";
+import {
+  notifyGuestEventAccess,
+  notifyPartnerTeamOfBooking,
+} from "@/lib/booking-notifications";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import { GuestBookingContactSchema } from "@/lib/validation";
+import { getSecurityRequestContext } from "@/lib/security-context";
+import {
+  eventGuestAccessPath,
+  getCurrentGuestReservationId,
+  issueGuestAccessToken,
+  setGuestBookingCookie,
+} from "@/lib/guest-bookings";
 import {
   recordEventRegistrationSystemMessage,
   recordEventSystemMessage,
@@ -899,7 +911,7 @@ export async function registerForEventAction(
       });
     }
     return { kind: "payment" as const, paymentId: payment.id };
-  });
+  }, { timeout: 30_000 });
 
   revalidateEventSurfaces(event.publicId, event.hubId);
   if (outcome.kind === "confirmed") {
@@ -971,6 +983,468 @@ export async function registerForEventAction(
           ? "This event no longer has enough spots for your group."
           : `Only ${outcome.available} spot${outcome.available === 1 ? " is" : "s are"} available. Reduce your group and try again.`,
     };
+  }
+  return outcome.kind === "waitlist"
+    ? { success: "You're on the free waitlist. Check back when a spot opens." }
+    : { success: "You're registered for this event." };
+}
+
+export async function registerGuestForEventAction(
+  _previous: EventFormState,
+  formData: FormData
+): Promise<EventFormState> {
+  const viewer = await getViewer();
+  if (viewer) {
+    return {
+      message:
+        viewer.role === "PLAYER"
+          ? "Use your player account to register."
+          : "Only signed-out guests or player accounts can register.",
+    };
+  }
+
+  const contact = GuestBookingContactSchema.safeParse({
+    guestName: String(formData.get("guestLeadName") ?? ""),
+    guestPhone: String(formData.get("guestPhone") ?? ""),
+    guestEmail: String(formData.get("guestEmail") ?? ""),
+  });
+  if (!contact.success) return { errors: firstErrors(contact.error) };
+
+  const requestContext = await getSecurityRequestContext();
+  const allowed = await Promise.all(
+    [
+      `email:${contact.data.guestEmail}`,
+      `ip:${requestContext.ipHash}`,
+    ].map((subject) =>
+      consumeRateLimit({
+        namespace: "guest-event-registration",
+        subject,
+        limit: 20,
+        windowSeconds: 10 * 60,
+      })
+    )
+  );
+  if (allowed.some((value) => !value)) {
+    return {
+      message:
+        "Too many registration attempts. Wait a few minutes and try again.",
+    };
+  }
+
+  const publicId = String(formData.get("publicId") ?? "");
+  if (!publicId) return { message: "Event not found." };
+  const guests = guestNamesFrom(formData);
+  if (!guests.ok) return { message: guests.message };
+  const requestedSpots = 1 + guests.names.length;
+
+  const event = await prisma.event.findUnique({
+    where: { publicId },
+    select: {
+      id: true,
+      publicId: true,
+      hubId: true,
+      title: true,
+      date: true,
+      startHour: true,
+      endHour: true,
+      status: true,
+      startsAt: true,
+      endsAt: true,
+      capacity: true,
+      registrationFee: true,
+      hub: {
+        select: {
+          name: true,
+          ownerId: true,
+          owner: { select: { partnerStatus: true } },
+        },
+      },
+    },
+  });
+  if (
+    !event ||
+    event.status !== "PUBLISHED" ||
+    event.hub.owner.partnerStatus !== "ACTIVE"
+  ) {
+    return { message: "This event is not open for registration." };
+  }
+  if (event.startsAt <= new Date()) {
+    return { message: "Registration has closed for this event." };
+  }
+
+  let guestReservationId = await getCurrentGuestReservationId();
+  let existing = guestReservationId
+    ? await prisma.eventRegistration.findFirst({
+        where: {
+          eventId: event.id,
+          guestReservationId,
+          guestReservation: { email: contact.data.guestEmail },
+        },
+        select: {
+          id: true,
+          status: true,
+          bookingPaymentId: true,
+          payment: {
+            select: {
+              status: true,
+              chargeStartedAt: true,
+              manualSubmittedAt: true,
+            },
+          },
+        },
+      })
+    : null;
+  if (!existing) guestReservationId = null;
+
+  if (existing?.payment?.status === "SUCCEEDED") {
+    const recovered = await recoverPaidEventRegistration({
+      eventId: event.id,
+      guestReservationId: guestReservationId!,
+    });
+    if (recovered.status === "confirmed") {
+      revalidateEventSurfaces(event.publicId, event.hubId);
+      return { success: "Your paid registration is now confirmed." };
+    }
+    if (recovered.status === "full") {
+      return {
+        message:
+          "Your payment was received, but the event is now full. Contact support so your payment can be resolved.",
+      };
+    }
+  }
+
+  const protectedPayment =
+    existing?.payment?.status === "PENDING" &&
+    (existing.payment.chargeStartedAt != null ||
+      existing.payment.manualSubmittedAt != null);
+  if (
+    existing &&
+    existing.status !== "CONFIRMED" &&
+    existing.status !== "WAITLISTED" &&
+    !protectedPayment &&
+    existing.payment?.status !== "SUCCEEDED"
+  ) {
+    await prisma.guestReservation.delete({
+      where: { id: guestReservationId! },
+    });
+    guestReservationId = null;
+    existing = null;
+  }
+
+  const fee = Number(event.registrationFee);
+  const paymentSetup =
+    fee > 0 ? await getPartnerPaymentSetup(event.hub.ownerId) : null;
+  const manualPayment = paymentSetup?.mode === "MANUAL";
+  const overdue = fee > 0 ? await isServiceFeeOverdue(event.hub.ownerId) : false;
+  if (
+    fee > 0 &&
+    (!paymentSetup ||
+      (manualPayment
+        ? !paymentSetup.manualReady
+        : !paymentSetup.automaticReady))
+  ) {
+    return { message: "The organizer's payment account is not available." };
+  }
+  if (overdue) {
+    return {
+      message:
+        "Registration is temporarily unavailable while the organizer updates billing.",
+    };
+  }
+
+  const now = new Date();
+  const holdExpiresAt = new Date(
+    now.getTime() + BOOKING_HOLD_MINUTES * 60_000
+  );
+  const accessExpiresAt = addDaysTo(event.endsAt, 90);
+  const outcome = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw(
+      Prisma.sql`SELECT "id" FROM "Event" WHERE "id" = ${event.id} FOR UPDATE`
+    );
+    await expireEventCapacityHolds(tx, event.id, now);
+
+    let ownerId = guestReservationId;
+    let createdReservation = false;
+    if (!ownerId) {
+      const reservation = await tx.guestReservation.create({
+        data: {
+          name: contact.data.guestName,
+          phone: contact.data.guestPhone,
+          email: contact.data.guestEmail,
+          accessExpiresAt,
+        },
+        select: { id: true },
+      });
+      ownerId = reservation.id;
+      createdReservation = true;
+    }
+
+    const current = await tx.eventRegistration.findUnique({
+      where: { guestReservationId: ownerId },
+      select: {
+        id: true,
+        status: true,
+        holdExpiresAt: true,
+        bookingPaymentId: true,
+        payment: {
+          select: {
+            status: true,
+            chargeStartedAt: true,
+            manualSubmittedAt: true,
+          },
+        },
+      },
+    });
+    if (current?.status === "CONFIRMED") {
+      return {
+        kind: "confirmed" as const,
+        paymentId: null,
+        registrationId: current.id,
+        guestReservationId: ownerId,
+        createdReservation,
+      };
+    }
+    if (
+      current?.status === "PENDING" &&
+      current.holdExpiresAt != null &&
+      current.holdExpiresAt > now &&
+      current.bookingPaymentId
+    ) {
+      return {
+        kind: "payment" as const,
+        paymentId: current.bookingPaymentId,
+        registrationId: current.id,
+        guestReservationId: ownerId,
+        createdReservation,
+      };
+    }
+    if (
+      current?.bookingPaymentId &&
+      current.payment?.status === "PENDING" &&
+      (current.payment.chargeStartedAt != null ||
+        current.payment.manualSubmittedAt != null)
+    ) {
+      return {
+        kind: "payment" as const,
+        paymentId: current.bookingPaymentId,
+        registrationId: current.id,
+        guestReservationId: ownerId,
+        createdReservation,
+      };
+    }
+
+    const occupied = await occupiedEventSpots(tx, event.id, now);
+    const available = Math.max(0, event.capacity - occupied);
+    if (requestedSpots > available) {
+      if (requestedSpots > 1 || available > 0) {
+        return {
+          kind: "insufficient" as const,
+          paymentId: null,
+          registrationId: null,
+          guestReservationId: ownerId,
+          createdReservation,
+          available,
+        };
+      }
+      const registration = await tx.eventRegistration.upsert({
+        where: { guestReservationId: ownerId },
+        create: {
+          eventId: event.id,
+          guestReservationId: ownerId,
+          status: "WAITLISTED",
+        },
+        update: {
+          status: "WAITLISTED",
+          holdExpiresAt: null,
+          bookingPaymentId: null,
+          cancelledAt: null,
+          cancelReason: null,
+        },
+        select: { id: true },
+      });
+      return {
+        kind: "waitlist" as const,
+        paymentId: null,
+        registrationId: registration.id,
+        guestReservationId: ownerId,
+        createdReservation,
+      };
+    }
+
+    if (fee <= 0) {
+      const registration = await tx.eventRegistration.upsert({
+        where: { guestReservationId: ownerId },
+        create: {
+          eventId: event.id,
+          guestReservationId: ownerId,
+          status: "CONFIRMED",
+          confirmedAt: now,
+        },
+        update: {
+          status: "CONFIRMED",
+          holdExpiresAt: null,
+          bookingPaymentId: null,
+          confirmedAt: now,
+          cancelledAt: null,
+          cancelReason: null,
+        },
+        select: { id: true },
+      });
+      if (guests.names.length > 0) {
+        await tx.eventGuestSlot.createMany({
+          data: guests.names.map((name) => ({
+            eventRegistrationId: registration.id,
+            name,
+            status: "CONFIRMED" as const,
+            confirmedAt: now,
+          })),
+        });
+      }
+      return {
+        kind: "confirmed" as const,
+        paymentId: null,
+        registrationId: registration.id,
+        guestReservationId: ownerId,
+        createdReservation,
+      };
+    }
+
+    const venueAmount = fee * requestedSpots;
+    const payment = await tx.bookingPayment.create({
+      data: {
+        partnerId: event.hub.ownerId,
+        gatewayId: manualPayment ? null : paymentSetup!.gateway!.id,
+        guestReservationId: ownerId,
+        hubId: event.hubId,
+        amount: new Prisma.Decimal(
+          manualPayment ? manualGrossFor(venueAmount) : grossFor(venueAmount)
+        ),
+        venueAmount: new Prisma.Decimal(venueAmount),
+        platformFee: new Prisma.Decimal(
+          manualPayment
+            ? manualBookingServiceFeeFor(venueAmount)
+            : bookingServiceFeeFor(venueAmount)
+        ),
+        processingFee: new Prisma.Decimal(0),
+        method: manualPayment ? "MANUAL" : "QRPH",
+        collectionMode: manualPayment ? "MANUAL" : "AUTOMATIC",
+        status: "PENDING",
+        expiresAt: holdExpiresAt,
+        provider: manualPayment ? "manual" : paymentSetup!.gateway!.provider,
+      },
+      select: { id: true },
+    });
+    const registration = await tx.eventRegistration.create({
+      data: {
+        eventId: event.id,
+        guestReservationId: ownerId,
+        status: "PENDING",
+        holdExpiresAt,
+        bookingPaymentId: payment.id,
+      },
+      select: { id: true },
+    });
+    if (guests.names.length > 0) {
+      await tx.eventGuestSlot.createMany({
+        data: guests.names.map((name) => ({
+          eventRegistrationId: registration.id,
+          bookingPaymentId: payment.id,
+          name,
+          status: "PENDING" as const,
+          holdExpiresAt,
+        })),
+      });
+    }
+    return {
+      kind: "payment" as const,
+      paymentId: payment.id,
+      registrationId: registration.id,
+      guestReservationId: ownerId,
+      createdReservation,
+    };
+  }, { timeout: 30_000 });
+
+  if (outcome.kind === "insufficient") {
+    if (outcome.createdReservation) {
+      await prisma.guestReservation.delete({
+        where: { id: outcome.guestReservationId },
+      });
+    }
+    return {
+      message:
+        outcome.available === 0
+          ? "This event no longer has enough spots for your group."
+          : `Only ${outcome.available} spot${outcome.available === 1 ? " is" : "s are"} available. Reduce your group and try again.`,
+    };
+  }
+
+  await setGuestBookingCookie(outcome.guestReservationId, accessExpiresAt);
+  revalidateEventSurfaces(event.publicId, event.hubId);
+  if (outcome.kind === "confirmed") {
+    await recordEventRegistrationSystemMessage(
+      outcome.registrationId,
+      "CONFIRMED"
+    );
+  }
+
+  await notifyPartnerTeamOfBooking({
+    partnerId: event.hub.ownerId,
+    module: "events",
+    playerName: contact.data.guestName,
+    kind: "EVENT",
+    venueName: event.hub.name,
+    bookingTitle: event.title,
+    schedule: `${formatManilaDateLong(event.date)} · ${formatSlotRange(
+      event.startHour,
+      event.endHour
+    )}`,
+    status:
+      outcome.kind === "waitlist"
+        ? "Waitlisted"
+        : outcome.kind === "confirmed"
+          ? "Confirmed"
+          : manualPayment
+            ? "Pending manual payment"
+            : "Pending automatic payment",
+    spots: requestedSpots,
+    actionPath: `/dashboard/events/${event.publicId}`,
+    idempotencyKey: `partner-guest-event-booking-${
+      outcome.paymentId ?? outcome.registrationId
+    }`,
+  });
+
+  const accessToken = await issueGuestAccessToken(outcome.guestReservationId);
+  if (accessToken) {
+    await notifyGuestEventAccess({
+      to: contact.data.guestEmail,
+      playerName: contact.data.guestName,
+      venueName: event.hub.name,
+      eventTitle: event.title,
+      schedule: `${formatManilaDateLong(event.date)} · ${formatSlotRange(
+        event.startHour,
+        event.endHour
+      )}`,
+      status:
+        outcome.kind === "waitlist"
+          ? "WAITLISTED"
+          : outcome.kind === "confirmed"
+            ? "CONFIRMED"
+            : manualPayment
+              ? "PENDING_MANUAL"
+              : "PENDING_AUTOMATIC",
+      actionPath: eventGuestAccessPath(accessToken),
+      idempotencyKey: `guest-event-access-${outcome.registrationId}`,
+    });
+  }
+
+  if (outcome.kind === "payment") {
+    if (!manualPayment) {
+      await chargeBookingPayment({
+        paymentId: outcome.paymentId,
+        guestReservationId: outcome.guestReservationId,
+      });
+    }
+    redirect(`/events/${event.publicId}/pay/${outcome.paymentId}`);
   }
   return outcome.kind === "waitlist"
     ? { success: "You're on the free waitlist. Check back when a spot opens." }

@@ -113,6 +113,8 @@ export type OwnerEventRegistrationView = {
     playerName: string | null;
     image: string | null;
     email: string;
+    phone: string | null;
+    isGuest: boolean;
   };
   payment: {
     id: string;
@@ -283,6 +285,7 @@ const eventSelect = {
     select: {
       id: true,
       userId: true,
+      guestReservationId: true,
       status: true,
       holdExpiresAt: true,
       bookingPaymentId: true,
@@ -313,6 +316,9 @@ const eventSelect = {
           image: true,
           privateProfile: true,
         },
+      },
+      guestReservation: {
+        select: { id: true, name: true },
       },
     },
     orderBy: { createdAt: "asc" },
@@ -466,7 +472,8 @@ export async function listPublicEventSitemapEntries(): Promise<
 
 export async function getPublicEvent(
   publicId: string,
-  viewerId?: string | null
+  viewerId?: string | null,
+  guestReservationId?: string | null
 ): Promise<EventDetailView | null> {
   const row = await prisma.event.findUnique({
     where: { publicId },
@@ -483,7 +490,12 @@ export async function getPublicEvent(
   const mapped = mapPublicEvent(row);
   const viewer = viewerId
     ? row.registrations.find((registration) => registration.userId === viewerId)
-    : null;
+    : guestReservationId
+      ? row.registrations.find(
+          (registration) =>
+            registration.guestReservationId === guestReservationId
+        )
+      : null;
 
   return {
     ...mapped,
@@ -493,27 +505,37 @@ export async function getPublicEvent(
       ...row.registrations
         .filter((registration) => registration.status === "CONFIRMED")
         .flatMap((registration) => {
-          const lead = registration.user.privateProfile
-            ? {
-                id: registration.user.id,
-                name: null,
-                playerName: "Private player",
-                image: null,
-              }
+          const account = registration.user;
+          const guestLead = registration.guestReservation;
+          const lead = account
+            ? account.privateProfile
+              ? {
+                  id: account.id,
+                  name: null,
+                  playerName: "Private player",
+                  image: null,
+                }
+              : {
+                  id: account.id,
+                  name: account.name,
+                  playerName: account.playerName,
+                  image: account.image,
+                }
             : {
-                id: registration.user.id,
-                name: registration.user.name,
-                playerName: registration.user.playerName,
-                image: registration.user.image,
+                id: registration.id,
+                name: guestLead?.name ?? "Guest player",
+                playerName: null,
+                image: null,
               };
-          const leadName =
-            registration.user.playerName ?? registration.user.name ?? "Player";
+          const leadName = account
+            ? account.playerName ?? account.name ?? "Player"
+            : guestLead?.name ?? "Guest player";
           const guests = registration.guests
             .filter((guest) => guest.status === "CONFIRMED")
             .map((guest) => ({
               id: guest.id,
               name: null,
-              playerName: registration.user.privateProfile
+              playerName: account?.privateProfile
                 ? "Guest player"
                 : `Guest of ${leadName}`,
               image: null,
@@ -829,6 +851,14 @@ export async function listOwnerEventRegistrations(
               email: true,
             },
           },
+          guestReservation: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+              email: true,
+            },
+          },
           payment: {
             select: {
               id: true,
@@ -914,7 +944,21 @@ export async function listOwnerEventRegistrations(
             ((guest.holdExpiresAt != null && guest.holdExpiresAt > now) ||
               guest.payment?.manualSubmittedAt != null))
       ).length,
-    player: registration.user,
+    player: registration.user
+      ? {
+          ...registration.user,
+          phone: null,
+          isGuest: false,
+        }
+      : {
+          id: registration.guestReservation!.id,
+          name: registration.guestReservation!.name,
+          playerName: null,
+          image: null,
+          email: registration.guestReservation!.email,
+          phone: registration.guestReservation!.phone,
+          isGuest: true,
+        },
     payment: registration.payment
       ? {
           id: registration.payment.id,
@@ -1029,6 +1073,14 @@ export async function getOwnerEventDetails(
               email: true,
             },
           },
+          guestReservation: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+              email: true,
+            },
+          },
           payment: {
             select: {
               id: true,
@@ -1128,7 +1180,21 @@ export async function getOwnerEventDetails(
               ((guest.holdExpiresAt != null && guest.holdExpiresAt > now) ||
                 guest.payment?.manualSubmittedAt != null))
         ).length,
-      player: registration.user,
+      player: registration.user
+        ? {
+            ...registration.user,
+            phone: null,
+            isGuest: false,
+          }
+        : {
+            id: registration.guestReservation!.id,
+            name: registration.guestReservation!.name,
+            playerName: null,
+            image: null,
+            email: registration.guestReservation!.email,
+            phone: registration.guestReservation!.phone,
+            isGuest: true,
+          },
       payment: registration.payment
         ? {
             id: registration.payment.id,

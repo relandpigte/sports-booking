@@ -12,6 +12,7 @@ import {
 import { formatPHP } from "@/lib/currency";
 import {
   addEventGuestSlotsAction,
+  registerGuestForEventAction,
   registerForEventAction,
   type EventFormState,
 } from "@/lib/event-actions";
@@ -33,6 +34,7 @@ export function EventRegistrationPanel({
   fee,
   paymentMode,
   signedIn,
+  guestAccess,
   viewerName,
   viewerRole,
   registration,
@@ -44,6 +46,7 @@ export function EventRegistrationPanel({
   fee: number;
   paymentMode: "AUTOMATIC" | "MANUAL";
   signedIn: boolean;
+  guestAccess: boolean;
   viewerName: string;
   viewerRole?: "ADMIN" | "PLAYER" | "PARTNER";
   registration: Registration | null;
@@ -57,6 +60,10 @@ export function EventRegistrationPanel({
   );
   const [addState, addAction, addPending] = useActionState(
     addEventGuestSlotsAction,
+    initialState
+  );
+  const [guestState, guestAction, guestPending] = useActionState(
+    registerGuestForEventAction,
     initialState
   );
 
@@ -103,7 +110,13 @@ export function EventRegistrationPanel({
                 </div>
               )}
 
-              {pendingAddOn ? (
+              {guestAccess ? (
+                <p className="rounded-2xl border border-primary/15 bg-primary-soft/40 px-4 py-3 text-sm leading-6 text-slate-600">
+                  Your private access link was emailed to you. Sign in with a
+                  player account to use event chat or manage events from a
+                  dashboard.
+                </p>
+              ) : pendingAddOn ? (
                 <Link
                   href={`/events/${publicId}/pay/${pendingAddOn}`}
                   className="block rounded-2xl bg-primary px-4 py-4 text-center text-sm font-bold text-white transition-colors hover:bg-primary-hover"
@@ -162,7 +175,16 @@ export function EventRegistrationPanel({
               support so your payment can be resolved.
             </StatusBox>
           ) : !signedIn ? (
-            <SignedOutActions publicId={publicId} full={full} />
+            <SignedOutActions
+              publicId={publicId}
+              full={full}
+              fee={fee}
+              paymentMode={paymentMode}
+              remainingSpots={remainingSpots}
+              action={guestAction}
+              state={guestState}
+              pending={guestPending}
+            />
           ) : viewerRole !== "PLAYER" ? (
             <StatusBox tone="neutral">Use a player account to register.</StatusBox>
           ) : full ? (
@@ -213,6 +235,8 @@ function GuestSlotForm({
   paymentMode,
   maxGuests,
   mode,
+  guestCheckout = false,
+  waitlistOnly = false,
 }: {
   action: (payload: FormData) => void;
   state: EventFormState;
@@ -223,6 +247,8 @@ function GuestSlotForm({
   paymentMode: "AUTOMATIC" | "MANUAL";
   maxGuests: number;
   mode: "register" | "add";
+  guestCheckout?: boolean;
+  waitlistOnly?: boolean;
 }) {
   const [guestNames, setGuestNames] = useState<string[]>([]);
   const leadIncluded = mode === "register";
@@ -260,7 +286,85 @@ function GuestSlotForm({
       <ActionMessage state={state} />
 
       <div className="space-y-2">
-        {leadIncluded && (
+        {leadIncluded && guestCheckout && (
+          <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div>
+              <label
+                htmlFor="guest-event-name"
+                className="text-xs font-black uppercase tracking-[0.12em] text-slate-500"
+              >
+                Full name
+              </label>
+              <input
+                id="guest-event-name"
+                name="guestLeadName"
+                required
+                maxLength={100}
+                autoComplete="name"
+                placeholder="Your full name"
+                className="mt-1.5 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-navy outline-none focus:border-primary"
+              />
+              {state.errors?.guestName && (
+                <p className="mt-1 text-xs text-red-600">
+                  {state.errors.guestName}
+                </p>
+              )}
+            </div>
+            <div>
+              <label
+                htmlFor="guest-event-phone"
+                className="text-xs font-black uppercase tracking-[0.12em] text-slate-500"
+              >
+                Phone number
+              </label>
+              <input
+                id="guest-event-phone"
+                name="guestPhone"
+                required
+                maxLength={30}
+                autoComplete="tel"
+                inputMode="tel"
+                placeholder="09XX XXX XXXX"
+                className="mt-1.5 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-navy outline-none focus:border-primary"
+              />
+              {state.errors?.guestPhone && (
+                <p className="mt-1 text-xs text-red-600">
+                  {state.errors.guestPhone}
+                </p>
+              )}
+            </div>
+            <div>
+              <label
+                htmlFor="guest-event-email"
+                className="text-xs font-black uppercase tracking-[0.12em] text-slate-500"
+              >
+                Email
+              </label>
+              <input
+                id="guest-event-email"
+                name="guestEmail"
+                required
+                autoComplete="email"
+                inputMode="email"
+                type="email"
+                placeholder="you@example.com"
+                className="mt-1.5 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-navy outline-none focus:border-primary"
+              />
+              {state.errors?.guestEmail && (
+                <p className="mt-1 text-xs text-red-600">
+                  {state.errors.guestEmail}
+                </p>
+              )}
+            </div>
+            <p className="text-xs leading-5 text-slate-500">
+              We&apos;ll email a private link for your registration and payment
+              status. Your full name appears on the event roster; contact
+              details are shared only with the organizer.
+            </p>
+          </div>
+        )}
+
+        {leadIncluded && !guestCheckout && (
           <div className="flex items-center gap-3 rounded-xl border border-primary/15 bg-primary-soft/40 p-3">
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-xs font-black text-primary">
               You
@@ -301,6 +405,7 @@ function GuestSlotForm({
           </div>
         ))}
 
+        {maxGuests > 0 && (
         <button
           type="button"
           onClick={addGuest}
@@ -310,14 +415,17 @@ function GuestSlotForm({
           <PlusIcon />
           Add guest
         </button>
+        )}
         <p className="text-center text-[10px] font-bold text-primary">
-          {mode === "register"
+          {waitlistOnly
+            ? "Join the waitlist for one spot"
+            : mode === "register"
             ? `${paidSpotCount} of ${maxGuests + 1} available spots selected`
             : `${guestNames.length} of ${maxGuests} available guest spots selected`}
         </p>
       </div>
 
-      {paidSpotCount > 0 && (
+      {paidSpotCount > 0 && !waitlistOnly && (
         <dl className="space-y-3 text-sm">
           <div className="flex justify-between gap-4">
             <dt className="text-slate-500">
@@ -347,7 +455,7 @@ function GuestSlotForm({
         </dl>
       )}
 
-      {fee > 0 && paidSpotCount > 0 && (
+      {fee > 0 && paidSpotCount > 0 && !waitlistOnly && (
         <p className="text-xs leading-5 text-slate-400">
           {paymentMode === "MANUAL"
             ? `Transfer the total, including the ${MANUAL_SERVICE_FEE_PERCENT}% Bunal service fee, and upload a receipt within 15 minutes. The organizer confirms after review; no PayMongo processing fee is added.`
@@ -362,6 +470,8 @@ function GuestSlotForm({
       >
         {pending
           ? "Saving your spots…"
+          : waitlistOnly
+            ? "Join free waitlist"
           : fee <= 0
             ? mode === "add"
               ? `Add ${guestNames.length} guest ${guestNames.length === 1 ? "spot" : "spots"}`
@@ -401,22 +511,52 @@ function ActionMessage({ state }: { state: EventFormState }) {
 function SignedOutActions({
   publicId,
   full,
+  fee,
+  paymentMode,
+  remainingSpots,
+  action,
+  state,
+  pending,
 }: {
   publicId: string;
   full: boolean;
+  fee: number;
+  paymentMode: "AUTOMATIC" | "MANUAL";
+  remainingSpots: number;
+  action: (payload: FormData) => void;
+  state: EventFormState;
+  pending: boolean;
 }) {
   const next = encodeURIComponent(`/events/${publicId}`);
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
+      <GuestSlotForm
+        action={action}
+        state={state}
+        pending={pending}
+        publicId={publicId}
+        viewerName="Guest"
+        fee={fee}
+        paymentMode={paymentMode}
+        maxGuests={full ? 0 : Math.max(0, remainingSpots - 1)}
+        mode="register"
+        guestCheckout
+        waitlistOnly={full}
+      />
+      <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400">
+        <span className="h-px flex-1 bg-slate-200" />
+        Or use an account
+        <span className="h-px flex-1 bg-slate-200" />
+      </div>
       <Link
         href={`/register?next=${next}`}
-        className="block rounded-2xl bg-primary px-4 py-4 text-center text-sm font-bold text-white transition-colors hover:bg-primary-hover"
+        className="block rounded-2xl border border-navy px-4 py-3.5 text-center text-sm font-bold text-navy transition-colors hover:bg-navy-soft"
       >
         {full ? "Create account to join waitlist" : "Create account to register"}
       </Link>
       <Link
         href={`/login?next=${next}`}
-        className="block rounded-2xl border border-navy px-4 py-3.5 text-center text-sm font-bold text-navy transition-colors hover:bg-navy-soft"
+        className="block px-4 py-2 text-center text-sm font-bold text-primary hover:text-primary-hover"
       >
         {full ? "Log in to join waitlist" : "Log in to your account"}
       </Link>

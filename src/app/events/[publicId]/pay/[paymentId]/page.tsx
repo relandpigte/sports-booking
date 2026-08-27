@@ -10,11 +10,16 @@ import { ManualPaymentCheckout } from "@/components/bookings/ManualPaymentChecko
 import { PageShell } from "@/components/PageShell";
 import {
   getBookingPaymentScreen,
+  getGuestBookingPaymentScreen,
   pollBookingPayment,
 } from "@/lib/booking-payments";
 import { BOOKING_HOLD_MINUTES } from "@/lib/constants";
 import { formatPHP } from "@/lib/currency";
 import { getCurrentUser } from "@/lib/dal";
+import {
+  getCurrentGuestReservationId,
+  getGuestReservationAccess,
+} from "@/lib/guest-bookings";
 import { formatManilaDateLong, formatSlotRange } from "@/lib/time";
 
 export const metadata: Metadata = {
@@ -28,9 +33,18 @@ export default async function PayEventRegistrationPage({
 }) {
   const { publicId, paymentId } = await params;
   const user = await getCurrentUser();
-  if (!user || user.role !== "PLAYER") redirect(`/events/${publicId}`);
+  if (user && user.role !== "PLAYER") redirect(`/events/${publicId}`);
+  const guestReservationId = user
+    ? null
+    : await getCurrentGuestReservationId();
+  const guestAccess = guestReservationId
+    ? await getGuestReservationAccess(guestReservationId)
+    : null;
+  if (!user && !guestAccess) redirect(`/events/${publicId}`);
 
-  let screen = await getBookingPaymentScreen(paymentId, user.id);
+  let screen = user
+    ? await getBookingPaymentScreen(paymentId, user.id)
+    : await getGuestBookingPaymentScreen(paymentId, guestReservationId!);
   if (!screen || screen.payment.event?.publicId !== publicId) notFound();
 
   if (
@@ -39,7 +53,9 @@ export default async function PayEventRegistrationPage({
     screen.payment.providerPaymentId
   ) {
     await pollBookingPayment(paymentId);
-    screen = await getBookingPaymentScreen(paymentId, user.id);
+    screen = user
+      ? await getBookingPaymentScreen(paymentId, user.id)
+      : await getGuestBookingPaymentScreen(paymentId, guestReservationId!);
     if (!screen || screen.payment.event?.publicId !== publicId) notFound();
   }
 
@@ -212,6 +228,11 @@ export default async function PayEventRegistrationPage({
                       paymentId={payment.id}
                       initialStatus={payment.status}
                       initialChargeInFlight={payment.chargeInFlight}
+                      statusBasePath={
+                        guestReservationId
+                          ? `/api/guest-bookings/${guestReservationId}/payments`
+                          : undefined
+                      }
                     />
                   </div>
                 ) : (
@@ -222,6 +243,11 @@ export default async function PayEventRegistrationPage({
                     venueName={venueName}
                     expiresAt={payment.expiresAt.toISOString()}
                     initialSeconds={payment.secondsLeft}
+                    statusBasePath={
+                      guestReservationId
+                        ? `/api/guest-bookings/${guestReservationId}/payments`
+                        : undefined
+                    }
                   />
                 )
               ) : (

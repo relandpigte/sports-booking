@@ -27,6 +27,7 @@ import {
   requirePartnerWorkspace,
 } from "@/lib/staffing";
 import {
+  eventGuestAccessPath,
   getCurrentGuestReservationId,
   guestAccessPath,
   issueGuestAccessToken,
@@ -635,7 +636,9 @@ export async function submitManualPaymentProofAction(
             bookingTitle,
             schedule,
             actionPath: guestToken
-              ? guestAccessPath(guestToken)
+              ? event
+                ? eventGuestAccessPath(guestToken)
+                : guestAccessPath(guestToken)
               : event
                 ? `/dashboard/bookings?q=${encodeURIComponent(event.publicId)}`
                 : `/dashboard/bookings?q=${encodeURIComponent(result.payment.id)}`,
@@ -835,7 +838,9 @@ export async function reviewManualPaymentAction(
       ? await issueGuestAccessToken(payment.guestReservation.id)
       : null;
     const actionPath = guestToken
-      ? guestAccessPath(guestToken)
+      ? event
+        ? eventGuestAccessPath(guestToken)
+        : guestAccessPath(guestToken)
       : event
         ? `/dashboard/bookings?q=${encodeURIComponent(event.publicId)}`
         : `/dashboard/bookings?q=${encodeURIComponent(payment.id)}`;

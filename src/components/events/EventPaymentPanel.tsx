@@ -20,6 +20,7 @@ export function EventPaymentPanel({
   venueName,
   expiresAt,
   initialSeconds,
+  statusBasePath,
 }: {
   paymentId: string;
   publicId: string;
@@ -27,6 +28,7 @@ export function EventPaymentPanel({
   venueName: string;
   expiresAt: string;
   initialSeconds: number;
+  statusBasePath?: string;
 }) {
   const [state, formAction, pending] = useActionState(
     payForEventAction,
@@ -46,6 +48,7 @@ export function EventPaymentPanel({
           paymentId={paymentId}
           initialStatus="PENDING"
           initialChargeInFlight
+          statusBasePath={statusBasePath}
         />
       </>
     );

@@ -1002,9 +1002,10 @@ model GuestReservation {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  bookings     Booking[]
-  payment      BookingPayment?
-  accessTokens GuestReservationAccessToken[]
+  bookings          Booking[]
+  payment           BookingPayment?
+  eventRegistration EventRegistration?
+  accessTokens      GuestReservationAccessToken[]
 
   @@index([email, createdAt])
   @@index([accessExpiresAt])
@@ -1788,24 +1789,26 @@ model OpenPlayGamePlayer {
   @@index([participantId])
 }
 
-// A registration always represents the signed-in lead player. Named guests
-// live in EventGuestSlot so a lead can buy more capacity later without
-// replacing or mutating the original successful payment.
+// A registration represents either a signed-in lead player or an anonymous
+// guest checkout. Named companions live in EventGuestSlot so the lead can
+// reserve a group without creating shadow User accounts.
 model EventRegistration {
-  id               String                  @id @default(cuid())
-  eventId          String
-  userId           String
-  status           EventRegistrationStatus @default(PENDING)
-  holdExpiresAt    DateTime?
-  bookingPaymentId String?                 @unique
-  confirmedAt      DateTime?
-  cancelledAt      DateTime?
-  cancelReason     String?                 @db.Text
-  createdAt        DateTime                @default(now())
-  updatedAt        DateTime                @updatedAt
+  id                 String                  @id @default(cuid())
+  eventId            String
+  userId             String?
+  guestReservationId String?                 @unique
+  status             EventRegistrationStatus @default(PENDING)
+  holdExpiresAt      DateTime?
+  bookingPaymentId   String?                 @unique
+  confirmedAt        DateTime?
+  cancelledAt        DateTime?
+  cancelReason       String?                 @db.Text
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
 
   event                Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                 User?                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guestReservation     GuestReservation?     @relation(fields: [guestReservationId], references: [id], onDelete: Cascade)
   payment              BookingPayment?       @relation(fields: [bookingPaymentId], references: [id])
   guests               EventGuestSlot[]
   openPlayParticipants OpenPlayParticipant[]
@@ -1814,6 +1817,7 @@ model EventRegistration {
   @@index([eventId, status, createdAt])
   @@index([userId, createdAt])
   @@index([userId, status, eventId])
+  @@index([guestReservationId, createdAt])
 }
 
 // One capacity spot for a named guest. Initial guests share the lead player's

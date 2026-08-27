@@ -110,7 +110,7 @@ export function HubQrDownloadButton({
       type="button"
       onClick={saveQr}
       disabled={status === "preparing" || status === "saving"}
-      className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-wait disabled:opacity-60"
+      className="inline-flex min-h-11 w-full items-center justify-start gap-2 rounded-xl bg-primary-soft px-3 py-1.5 text-xs font-semibold text-primary ring-1 ring-inset ring-primary/20 transition-colors hover:bg-primary-soft/70 disabled:cursor-wait disabled:opacity-60"
       title={
         status === "error"
           ? "The QR could not be saved. Please try again."
@@ -123,6 +123,7 @@ export function HubQrDownloadButton({
       }
     >
       <svg
+        className="h-4 w-4 shrink-0"
         width="13"
         height="13"
         viewBox="0 0 24 24"

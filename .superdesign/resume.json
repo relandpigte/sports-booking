@@ -1643,6 +1643,83 @@
         }
       },
       "updatedAt": "2026-08-24T16:42:26Z"
+    },
+    "/dashboard/hubs": {
+      "targetKind": "existing-ui",
+      "projectId": "e4c8e4e6-58c1-4931-a0f3-9eae8122ee8e",
+      "baselineDraftId": "3a3f35cc-4764-49bc-9e19-b077886db92b",
+      "activeDraftId": "876a1d67-f444-435c-b2df-486fcbf4981c",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "5c7f521c-e56e-44f3-999a-52b14ca04f7a",
+        "public/bunal-logo-v2-wordmark.png"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "public/bunal-logo-v2-wordmark.png",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/e4c8e4e6-58c1-4931-a0f3-9eae8122ee8e/brand-assets/public-bunal-logo-v2-wordmark.png/bunal-logo-v2-wordmark.png",
+          "sourcePath": "public/bunal-logo-v2-wordmark.png"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "src/app/globals.css",
+        "src/app/(app)/dashboard/hubs/page.tsx",
+        "src/app/(app)/layout.tsx",
+        "src/components/dashboard/AppShell.tsx",
+        "src/components/dashboard/DashboardNav.tsx",
+        "src/components/dashboard/MobileDashboardMenu.tsx",
+        "src/components/dashboard/DashboardIcon.tsx",
+        "src/components/dashboard/DashboardPageHeader.tsx",
+        "src/components/dashboard/hubs/HubQrDownloadButton.tsx",
+        "src/components/dashboard/hubs/DeleteHubButton.tsx",
+        "src/components/ui/Avatar.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "4eefc25ff528d497a043ab0fe763896dbc22438e6314a976a8e49a298ff0f146",
+        ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
+        "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
+        "src/app/(app)/dashboard/hubs/page.tsx": "fa60d5586548ffbf4d5d8fbb50d13931badc0aa999ea2a6811c18327b7650243",
+        "src/app/(app)/layout.tsx": "0096b1d5fcfb256cb7c09954a82f8ceae2f9fef8fae30668585ca1a6d01f0675",
+        "src/components/dashboard/AppShell.tsx": "0b287f061fd17665d82435e441b6e4fbdd7e92583fb658bf5d01107ad26e0777",
+        "src/components/dashboard/DashboardNav.tsx": "dd96d593ab70da912b1ae59769f34550567260afe554b2858b9cf1cfbe7b217a",
+        "src/components/dashboard/MobileDashboardMenu.tsx": "f7b4d344675c1f64e97b58caa058f32eff2477a4fbd35185ceeddd6d1c042640",
+        "src/components/dashboard/DashboardIcon.tsx": "75c39b27fb813cbe5b179f6adb69863211d7ed24c52ecaec9b17f1dfb79eb49d",
+        "src/components/dashboard/DashboardPageHeader.tsx": "fe77a8b2c4f147e439506287277024d83a7e55c6382067a2196a873d198c7e4e",
+        "src/components/dashboard/hubs/HubQrDownloadButton.tsx": "14bf8936c11d51c8a83879dc59a54f783731993bd6bb49bb915213c5250a4563",
+        "src/components/dashboard/hubs/DeleteHubButton.tsx": "d27f26539d213d0f66af5491d0085450b587a3bf9b49265e756de82fb67ade43",
+        "src/components/ui/Avatar.tsx": "d94da873214543817b018dbfd5d48e250f3181cb77285243b417ebed08409b73"
+      },
+      "components": [
+        {
+          "name": "AppShell",
+          "id": "c9d23cf8-513c-4347-baaf-d3592db905c9",
+          "sourcePath": "src/components/dashboard/AppShell.tsx",
+          "logoAssetKey": "public/bunal-logo-v2-wordmark.png",
+          "version": 2
+        }
+      ],
+      "drafts": {
+        "3a3f35cc-4764-49bc-9e19-b077886db92b": {
+          "title": "Partner My Hubs — Mobile QR Fix",
+          "visualDirection": "three-column mobile action grid in two rows so Save QR and every hub management action remains visible and touch-friendly on narrow phones",
+          "currentVersion": 3
+        },
+        "ee0a0fc7-b42a-4c2a-94db-c617536cc8d6": {
+          "title": "Partner My Hubs — Wrapping Actions",
+          "visualDirection": "natural-width mobile action row that wraps left-to-right onto a second line, keeping Save QR first and all controls visible without horizontal overflow",
+          "parentDraftId": "3a3f35cc-4764-49bc-9e19-b077886db92b",
+          "currentVersion": 1
+        },
+        "876a1d67-f444-435c-b2df-486fcbf4981c": {
+          "title": "Partner My Hubs — Under 375px Actions",
+          "visualDirection": "universal two-column hub action panel with icon-leading 44px controls and emphasized Save QR across phone, tablet, and desktop card widths",
+          "parentDraftId": "3a3f35cc-4764-49bc-9e19-b077886db92b",
+          "currentVersion": 1
+        }
+      },
+      "updatedAt": "2026-08-27T08:17:33+08:00"
     }
   }
 }

@@ -17,6 +17,12 @@ export const metadata: Metadata = {
   title: "My Hubs — Bunal.club",
 };
 
+const hubActionClassName =
+  "flex min-h-11 items-center justify-start gap-2 rounded-xl bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600 ring-1 ring-inset ring-gray-200 transition-colors hover:bg-gray-100";
+
+const hubEditActionClassName =
+  "flex min-h-11 items-center justify-start gap-2 rounded-xl bg-gray-50 px-3 py-1.5 text-xs font-semibold text-primary ring-1 ring-inset ring-gray-200 transition-colors hover:bg-primary-soft";
+
 export default async function HubsPage() {
   const workspace = await requirePartnerWorkspace("hubs");
   const canManage = hasStaffAccess(workspace, "hubs", "MANAGE");
@@ -123,7 +129,10 @@ export default async function HubsPage() {
                   </p>
                 </div>
               </div>
-              <div className="flex items-center justify-end gap-1 border-t border-gray-100 px-3 py-2">
+              <div className="grid grid-cols-2 gap-2 border-t border-gray-100 px-4 py-3">
+                <p className="col-span-2 text-[10px] font-bold uppercase tracking-[0.16em] text-gray-400">
+                  Hub actions
+                </p>
                 <HubQrDownloadButton
                   src={`/api/hubs/${hub.id}/qr`}
                   hubName={hub.name}
@@ -131,28 +140,32 @@ export default async function HubsPage() {
                 <Link
                   href={hubPublicPath(hub)}
                   target="_blank"
-                  className="rounded-md px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                  className={hubActionClassName}
                 >
-                  View
+                  <HubActionIcon name="view" />
+                  View hub
                 </Link>
                 <Link
                   href={`/dashboard/hubs/${hub.id}/bookings`}
-                  className="rounded-md px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                  className={hubActionClassName}
                 >
+                  <HubActionIcon name="bookings" />
                   Bookings
                 </Link>
                 <Link
                   href={`/dashboard/hubs/${hub.id}/schedule`}
-                  className="rounded-md px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                  className={hubActionClassName}
                 >
+                  <HubActionIcon name="schedule" />
                   Schedule
                 </Link>
                 {canManage && (
                   <Link
                     href={`/dashboard/hubs/${hub.id}/edit`}
-                    className="rounded-md px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary-soft"
+                    className={hubEditActionClassName}
                   >
-                    Edit
+                    <HubActionIcon name="edit" />
+                    Edit hub
                   </Link>
                 )}
                 {isOwner && <DeleteHubButton hubId={hub.id} name={hub.name} />}
@@ -162,5 +175,47 @@ export default async function HubsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function HubActionIcon({
+  name,
+}: {
+  name: "bookings" | "edit" | "schedule" | "view";
+}) {
+  return (
+    <svg
+      className="h-4 w-4 shrink-0"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {name === "view" ? (
+        <>
+          <path d="M14 3h7v7" />
+          <path d="M10 14 21 3" />
+          <path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5" />
+        </>
+      ) : name === "bookings" ? (
+        <>
+          <rect x="3" y="5" width="18" height="16" rx="2" />
+          <path d="M16 3v4M8 3v4M3 11h18" />
+        </>
+      ) : name === "schedule" ? (
+        <>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v5l3 2" />
+        </>
+      ) : (
+        <>
+          <path d="M12 20h9" />
+          <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z" />
+        </>
+      )}
+    </svg>
   );
 }

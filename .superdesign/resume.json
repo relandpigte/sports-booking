@@ -1,6 +1,63 @@
 {
   "schemaVersion": 1,
   "targets": {
+    "/": {
+      "targetKind": "existing-ui",
+      "projectId": "c9e7cfbd-1593-4e3d-b315-24c1d4f966ef",
+      "baselineDraftId": "dcd4c04f-b7bd-4d05-a02e-db76b5135710",
+      "activeDraftId": "7ad2b01c-3de8-4f7f-937c-a35a6c7d97d3",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "86a7b837-fe53-47a3-8aa2-c821106e5e78",
+        "public-bunal-logo-v2-wordmark.png"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "public-bunal-logo-v2-wordmark.png",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/e4c8e4e6-58c1-4931-a0f3-9eae8122ee8e/brand-assets/public-bunal-logo-v2-wordmark.png/bunal-logo-v2-wordmark.png",
+          "sourcePath": "public/bunal-logo-v2-wordmark.png"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "src/app/globals.css",
+        "src/components/home/HomePage.tsx:1:1284",
+        "src/components/Logo.tsx",
+        "src/components/ClosingCta.tsx",
+        "src/components/SiteFooter.tsx",
+        "src/components/FacebookAnnouncementBanner.tsx",
+        "src/components/pwa/PublicInstallBanner.tsx",
+        "src/lib/constants.ts"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "4eefc25ff528d497a043ab0fe763896dbc22438e6314a976a8e49a298ff0f146",
+        ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
+        "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
+        "src/components/home/HomePage.tsx": "aeaab46112ada8085058beb92a12bdf44393cf7e39510e759fe84f00a1b4f05c",
+        "src/components/Logo.tsx": "073c062cb0d022c9f5a1f78c79af6570143f03a8d6908c3268f79cb4370d6e2d",
+        "src/components/ClosingCta.tsx": "63828006a51d4aaeac09bfbc094feebeb34f9a02c1cc38b81ae1257238c1fd7a",
+        "src/components/SiteFooter.tsx": "b8ec732fdd829b73c5660874a478dee48adb7744f29acedcedcd2990f3a64fd8",
+        "src/components/FacebookAnnouncementBanner.tsx": "479fbbe83367205b479974006e6aed21d62962a658a54c6ac4d53788c2af9f9e",
+        "src/components/pwa/PublicInstallBanner.tsx": "af1f641118ed718ebdcc9ff1f834fda456ff574c1d1c988e82cc7e43ebba52ac",
+        "src/lib/constants.ts": "b990a587c073648ae4e8189a09a0713e188f841128f42e52146cc2f987606df8"
+      },
+      "components": [],
+      "drafts": {
+        "dcd4c04f-b7bd-4d05-a02e-db76b5135710": {
+          "title": "Bunal.club Homepage Reproduction",
+          "visualDirection": "faithful current marketing homepage baseline",
+          "currentVersion": 1
+        },
+        "7ad2b01c-3de8-4f7f-937c-a35a6c7d97d3": {
+          "title": "Bunal.club — Direct-to-Venue How It Works",
+          "visualDirection": "prominent three-step booking path centered on direct-to-venue payment, with a high-contrast trust callout explaining revenue destination and the separate Bunal.club service fee",
+          "parentDraftId": "dcd4c04f-b7bd-4d05-a02e-db76b5135710",
+          "currentVersion": 2
+        }
+      },
+      "updatedAt": "2026-08-27T15:24:01+08:00"
+    },
     "/hubs": {
       "targetKind": "existing-ui",
       "projectId": "e4c8e4e6-58c1-4931-a0f3-9eae8122ee8e",

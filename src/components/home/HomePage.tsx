@@ -504,56 +504,177 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
 
         <section
           id="how-it-works"
-          className="scroll-mt-24 px-5 py-20 sm:px-6 sm:py-24 lg:px-8"
+          className="relative scroll-mt-24 overflow-hidden bg-primary-soft px-5 py-20 sm:px-6 sm:py-24 lg:px-8"
         >
-          <div className="mx-auto max-w-7xl">
-            <SectionHeading
-              eyebrow="For players"
-              title="From “tara, laro” to a confirmed court."
-              description="No Messenger thread, no uncertain slot, no separate payment proof. Bunal.club keeps the whole booking journey clear."
-            />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -left-24 top-1/2 h-72 w-72 -translate-y-1/2 rounded-full border border-primary/10"
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-24 top-1/2 h-64 w-64 -translate-y-1/2 rounded-full border border-primary/10"
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-primary/5"
+          />
 
-            <div className="mt-12 grid gap-5 md:grid-cols-3">
-              {[
-                {
-                  number: "01",
-                  title: "Browse a hub",
-                  copy: "Find volleyball, badminton, pickleball, and tennis courts in the public directory.",
-                  icon: "map" as const,
-                },
-                {
-                  number: "02",
-                  title: "Pick your hours",
-                  copy: `Choose a court, game day, and live available time blocks. Your paid checkout holds them for ${BOOKING_HOLD_MINUTES} minutes.`,
-                  icon: "calendar" as const,
-                },
-                {
-                  number: "03",
-                  title: "Pay and play",
-                  copy: "Scan the PayMongo QR Ph code shown with your booking. Once payment is verified, your booking is confirmed automatically.",
-                  icon: "check" as const,
-                },
-              ].map((step) => (
-                <article
-                  key={step.number}
-                  className="group relative rounded-3xl border border-slate-200 bg-white p-6 transition-all hover:-translate-y-1 hover:border-primary/30 hover:shadow-xl hover:shadow-navy/5 sm:p-7"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-black tracking-[0.16em] text-primary">
-                      {step.number}
-                    </span>
-                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-soft text-primary">
-                      <Icon name={step.icon} />
-                    </span>
-                  </div>
-                  <h3 className="mt-8 text-xl font-black text-navy">
-                    {step.title}
-                  </h3>
-                  <p className="mt-3 text-sm leading-6 text-slate-600">
-                    {step.copy}
+          <div className="relative mx-auto max-w-7xl">
+            <div className="overflow-hidden rounded-[32px] border border-primary/15 bg-white shadow-xl shadow-navy/5">
+              <div className="border-b border-slate-200 px-6 py-8 sm:px-10 sm:py-10 lg:px-12">
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">
+                  How Bunal.club works
+                </p>
+                <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between lg:gap-12">
+                  <h2 className="max-w-2xl text-3xl font-black tracking-[-0.04em] text-navy sm:text-4xl lg:text-5xl">
+                    Book your court. Pay the venue directly.
+                  </h2>
+                  <p className="max-w-xl text-base leading-7 text-slate-600 sm:text-lg">
+                    Bunal.club keeps discovery, live availability, payment
+                    verification, and confirmation together without holding
+                    the venue&apos;s court revenue.
                   </p>
-                </article>
-              ))}
+                </div>
+              </div>
+
+              <div className="px-6 py-9 sm:px-10 sm:py-11 lg:px-12 lg:py-12">
+                <div className="relative">
+                  <div
+                    aria-hidden="true"
+                    className="absolute left-[8.333%] right-[8.333%] top-9 hidden h-px bg-slate-200 md:block"
+                  />
+                  <div className="grid gap-0 md:grid-cols-3 md:gap-8">
+                    {[
+                      {
+                        number: "1",
+                        title: "Browse nearby hubs",
+                        copy: "Compare venue profiles, sports, court details, maps, and live availability.",
+                        icon: "map" as const,
+                        iconClassName: "bg-ocean-soft text-ocean",
+                        numberClassName: "bg-navy ring-slate-200",
+                        emphasized: false,
+                      },
+                      {
+                        number: "2",
+                        title: "Pick your court and hours",
+                        copy: `Choose a game day and one or several open time blocks. Checkout holds them for ${BOOKING_HOLD_MINUTES} minutes.`,
+                        icon: "calendar" as const,
+                        iconClassName: "bg-primary-soft text-primary",
+                        numberClassName: "bg-ocean ring-ocean/20",
+                        emphasized: false,
+                      },
+                      {
+                        number: "3",
+                        title: "Pay the venue directly",
+                        copy: "Pay the venue owner’s connected PayMongo account or listed manual payment account. Your booking is confirmed after verification.",
+                        icon: "check" as const,
+                        iconClassName: "bg-accent-soft text-primary",
+                        numberClassName: "bg-primary ring-primary/20",
+                        emphasized: true,
+                      },
+                    ].map((step, index) => (
+                      <article
+                        key={step.number}
+                        className={`relative flex gap-5 pb-9 md:block md:pb-0 ${
+                          step.emphasized
+                            ? "rounded-2xl bg-primary-soft/60 px-4 pt-4 md:-mx-4 md:-mt-4 md:pb-5"
+                            : ""
+                        }`}
+                      >
+                        {index < 2 && (
+                          <div
+                            aria-hidden="true"
+                            className="absolute bottom-0 left-9 top-[72px] w-px bg-slate-200 md:hidden"
+                          />
+                        )}
+                        <div
+                          className={`relative z-10 flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-full border-4 border-white text-2xl font-black text-white shadow-sm ring-1 ${step.numberClassName}`}
+                        >
+                          {step.number}
+                        </div>
+                        <div className="pt-1 md:pt-0">
+                          <span
+                            className={`flex h-11 w-11 items-center justify-center rounded-xl md:mt-7 ${step.iconClassName}`}
+                          >
+                            <Icon name={step.icon} className="h-5 w-5" />
+                          </span>
+                          <h3 className="mt-4 text-xl font-black tracking-[-0.02em] text-navy">
+                            {step.title}
+                          </h3>
+                          <p className="mt-3 max-w-sm text-sm leading-6 text-slate-600">
+                            {step.copy}
+                          </p>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+
+                <aside className="mt-10 overflow-hidden rounded-3xl bg-navy text-white shadow-xl shadow-navy/10">
+                  <div className="grid gap-7 px-6 py-7 sm:px-8 sm:py-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center lg:px-10">
+                    <div>
+                      <span className="inline-flex rounded-full bg-accent px-3 py-1.5 text-xs font-black text-navy">
+                        Direct to venue
+                      </span>
+                      <h3 className="mt-4 text-xl font-black tracking-[-0.02em] text-white sm:text-2xl">
+                        Your court payment goes to the venue owner.
+                      </h3>
+                      <p className="mt-2 max-w-2xl text-sm leading-6 text-white/70">
+                        Bunal.club does not hold the venue&apos;s court revenue.
+                        Our separate 3% service fee is shown clearly and
+                        recorded for settlement.
+                      </p>
+                    </div>
+
+                    <div
+                      aria-label="Payment moves from the player to the venue owner"
+                      className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-4"
+                    >
+                      <div className="text-center">
+                        <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-white">
+                          <Icon name="users" className="h-5 w-5" />
+                        </span>
+                        <p className="mt-2 text-xs font-bold text-white/65">
+                          Player pays
+                        </p>
+                      </div>
+                      <span
+                        aria-hidden="true"
+                        className="text-2xl font-black text-accent"
+                      >
+                        →
+                      </span>
+                      <div className="text-center">
+                        <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-accent text-navy">
+                          <Icon name="court" className="h-5 w-5" />
+                        </span>
+                        <p className="mt-2 text-xs font-bold text-white">
+                          Venue receives
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </aside>
+
+                <div className="mt-7 flex flex-col gap-3 border-t border-slate-200 pt-7 sm:flex-row sm:items-center">
+                  <Link
+                    href="/hubs"
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-bold text-white shadow-sm shadow-primary/20 transition-all hover:-translate-y-0.5 hover:bg-primary-hover"
+                  >
+                    Browse courts
+                    <span aria-hidden="true">→</span>
+                  </Link>
+                  <Link
+                    href="/register/partner"
+                    className="inline-flex min-h-12 items-center justify-center px-4 py-3 text-sm font-bold text-navy transition-colors hover:text-primary"
+                  >
+                    List your venue
+                    <span aria-hidden="true" className="ml-1">
+                      ↗
+                    </span>
+                  </Link>
+                </div>
+              </div>
             </div>
           </div>
         </section>

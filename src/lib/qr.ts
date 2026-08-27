@@ -80,44 +80,28 @@ export function qrSvg(
   ].join("");
 }
 
-// A self-contained, print-ready hub QR card. The logo stays outside the code
-// so branding never obscures modules; H-level correction and a four-module
-// quiet zone make it resilient on posters, counters, and social graphics.
+// A self-contained, print-ready hub QR. H-level correction allows the small
+// centered venue logo while the four-module quiet zone keeps the square easy
+// for scanners to locate on screens and in print.
 export function hubQrSvg(
   data: string,
-  opts: { hubName: string; logoDataUrl: string; renderText?: boolean }
+  opts: { hubName: string; logoDataUrl: string }
 ): string {
   const quiet = 4;
   const { size, path } = qrDrawing(data, "H", quiet);
-  const width = size + 20;
-  const qrY = 28;
-  const height = qrY + size + 24;
-  const displayName =
-    opts.hubName.length > 34
-      ? `${opts.hubName.slice(0, 33).trimEnd()}…`
-      : opts.hubName;
-  const renderText = opts.renderText !== false;
+  const center = size / 2;
+  const logoSize = size * 0.16;
+  const logoInset = (size - logoSize) / 2;
+  const backingRadius = size * 0.09;
 
   return [
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}"`,
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}"`,
     ` role="img" aria-label="${escapeMarkup(`QR code for ${opts.hubName}`)}">`,
-    `<rect width="${width}" height="${height}" rx="4" fill="#f5faf7"/>`,
-    `<rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="3" fill="#ffffff" stroke="#dfe7e2" stroke-width="0.5"/>`,
-    `<rect x="3" y="3" width="${width - 6}" height="14" rx="3" fill="#10243a"/>`,
-    `<image href="${escapeMarkup(opts.logoDataUrl)}" x="${(width - 20) / 2}" y="3" width="20" height="14" preserveAspectRatio="xMidYMid meet"/>`,
-    renderText
-      ? `<text x="${width / 2}" y="22" text-anchor="middle" fill="#10243a" font-family="Arial, sans-serif" font-size="3.4" font-weight="700">${escapeMarkup(displayName)}</text>`
-      : "",
-    `<g transform="translate(10 ${qrY})" shape-rendering="crispEdges">`,
     `<rect width="${size}" height="${size}" fill="#ffffff"/>`,
-    `<path d="${path}" fill="#10243a"/>`,
-    `</g>`,
-    renderText
-      ? `<text x="${width / 2}" y="${qrY + size + 8}" text-anchor="middle" fill="#0b8643" font-family="Arial, sans-serif" font-size="3.2" font-weight="700">Scan to view &amp; book courts</text>`
-      : "",
-    renderText
-      ? `<text x="${width / 2}" y="${qrY + size + 14}" text-anchor="middle" fill="#64748b" font-family="Arial, sans-serif" font-size="2.6">www.bunal.club</text>`
-      : "",
+    `<path d="${path}" fill="#000000" shape-rendering="crispEdges"/>`,
+    `<defs><clipPath id="hub-logo-clip"><circle cx="${center}" cy="${center}" r="${logoSize / 2}"/></clipPath></defs>`,
+    `<circle cx="${center}" cy="${center}" r="${backingRadius}" fill="#ffffff"/>`,
+    `<image href="${escapeMarkup(opts.logoDataUrl)}" x="${logoInset}" y="${logoInset}" width="${logoSize}" height="${logoSize}" preserveAspectRatio="xMidYMid meet" clip-path="url(#hub-logo-clip)"/>`,
     `</svg>`,
   ].join("");
 }

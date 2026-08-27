@@ -41,18 +41,18 @@ export function HubQrDownloadButton({
         if (!response.ok) throw new Error("Hub QR image could not be loaded");
 
         const blob = await response.blob();
-        if (blob.type !== "image/jpeg") {
-          throw new Error("Hub QR download was not a JPEG image");
+        if (blob.type !== "image/png") {
+          throw new Error("Hub QR download was not a PNG image");
         }
 
         const disposition = response.headers.get("content-disposition");
         const filename =
           disposition?.match(/filename="([^"]+)"/)?.[1] ??
-          "bunal-hub-qr.jpg";
+          "bunal-hub-qr.png";
         if (!active) return;
         setPrepared({
           blob,
-          file: new File([blob], filename, { type: "image/jpeg" }),
+          file: new File([blob], filename, { type: "image/png" }),
           filename,
         });
         setStatus("idle");
@@ -114,7 +114,7 @@ export function HubQrDownloadButton({
       title={
         status === "error"
           ? "The QR could not be saved. Please try again."
-          : `Save a branded JPEG QR code for ${hubName}`
+          : `Save the QR code for ${hubName}`
       }
       aria-label={
         status === "error"

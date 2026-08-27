@@ -11,7 +11,7 @@ import qrcode from "qrcode-generator";
 import sharp from "sharp";
 
 import { ok, run } from "./harness";
-import { HUB_QR_JPEG_WIDTH, hubQrJpeg } from "@/lib/hub-qr-image";
+import { HUB_QR_PNG_WIDTH, hubQrPng } from "@/lib/hub-qr-image";
 import { hubQrSvg, qrSvg } from "@/lib/qr";
 
 const QUIET = 2;
@@ -106,33 +106,36 @@ async function check() {
     !titled.includes("<b>")
   );
 
-  const logoDataUrl = "data:image/png;base64,aHVicXItbG9nbw==";
+  const logoDataUrl =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADklEQVQImWP4DwUMMAYAj4IP8cvlVgcAAAAASUVORK5CYII=";
   const branded = hubQrSvg("https://www.bunal.club/hubs/bunal-test", {
     hubName: 'Bunal Test & "Play"',
     logoDataUrl,
   });
   ok(
-    "a hub download is a self-contained branded SVG",
+    "a hub download is a self-contained square SVG",
     branded.startsWith("<svg") &&
       branded.includes(logoDataUrl) &&
-      branded.includes("www.bunal.club")
+      /viewBox="0 0 (\d+) \1"/.test(branded)
   );
   ok(
-    "the hub name is escaped in both its label and artwork",
+    "the hub name is escaped in its accessible label",
     branded.includes("Bunal Test &amp; &quot;Play&quot;") &&
       !branded.includes('Bunal Test & "Play"')
   );
-  const rasterArtwork = hubQrSvg(
-    "https://www.bunal.club/hubs/bunal-test",
-    {
-      hubName: "Bunal Test Hub",
-      logoDataUrl,
-      renderText: false,
-    }
+  ok(
+    "the simplified artwork has no captions or decorative card",
+    !branded.includes("<text") &&
+      !branded.includes("www.bunal.club") &&
+      !branded.includes("Scan to view") &&
+      branded.includes('fill="#000000"')
   );
   ok(
-    "the JPEG artwork can omit system-font-dependent SVG text",
-    !rasterArtwork.includes("<text")
+    "the hub logo is centered on a white backing",
+    branded.includes('id="hub-logo-clip"') &&
+      /<circle cx="[\d.]+" cy="[\d.]+" r="[\d.]+" fill="#ffffff"\/>/.test(
+        branded
+      )
   );
 
   const brandedReference = qrcode(0, "H");
@@ -149,41 +152,80 @@ async function check() {
     }
   }
   ok(
-    "the branded download still contains the exact high-correction QR matrix",
+    "the branded download retains the exact high-correction QR matrix",
     brandedMismatches === 0
   );
 
-  const jpeg = await hubQrJpeg("https://www.bunal.club/hubs/bunal-test", {
+  const testLogo = await sharp({
+    create: {
+      width: 32,
+      height: 32,
+      channels: 3,
+      background: "#d02020",
+    },
+  })
+    .webp()
+    .toBuffer();
+  const webpLogoDataUrl = `data:image/webp;base64,${testLogo.toString("base64")}`;
+  const png = await hubQrPng("https://www.bunal.club/hubs/bunal-test", {
     hubName: "Bunal Test Hub",
-    logoDataUrl,
+    logoDataUrl: webpLogoDataUrl,
   });
-  const metadata = await sharp(jpeg).metadata();
+  const metadata = await sharp(png).metadata();
   ok(
-    "the hub download is encoded as a high-resolution JPEG",
-    jpeg[0] === 0xff &&
-      jpeg[1] === 0xd8 &&
-      jpeg[2] === 0xff &&
-      metadata.format === "jpeg" &&
-      metadata.width === HUB_QR_JPEG_WIDTH &&
-      Boolean(metadata.height)
+    "the hub download is encoded as a high-resolution square PNG",
+    png[0] === 0x89 &&
+      png[1] === 0x50 &&
+      png[2] === 0x4e &&
+      png[3] === 0x47 &&
+      metadata.format === "png" &&
+      metadata.width === HUB_QR_PNG_WIDTH &&
+      metadata.height === HUB_QR_PNG_WIDTH
   );
   ok(
-    "the JPEG is flattened without an alpha channel",
+    "the PNG is flattened without an alpha channel",
     metadata.hasAlpha === false
   );
 
-  const raster = await sharp(jpeg)
+  const raster = await sharp(png)
     .removeAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
   const brandedSize = brandedCount + 8;
-  const brandedWidth = brandedSize + 20;
-  const scale = raster.info.width / brandedWidth;
-  let jpegMismatches = 0;
+  const scale = raster.info.width / brandedSize;
+  const logoBacking = branded.match(
+    /<circle cx="([\d.]+)" cy="([\d.]+)" r="([\d.]+)" fill="#ffffff"\/>/
+  );
+  if (!logoBacking) throw new Error("Hub logo backing was not rendered");
+  const logoCenterX = Number(logoBacking[1]);
+  const logoCenterY = Number(logoBacking[2]);
+  const logoRadius = Number(logoBacking[3]);
+  const centerOffset =
+    (Math.floor(raster.info.height / 2) * raster.info.width +
+      Math.floor(raster.info.width / 2)) *
+    raster.info.channels;
+  ok(
+    "an uploaded WebP hub logo remains visible in the PNG",
+    raster.data[centerOffset] > 180 &&
+      raster.data[centerOffset + 1] < 80 &&
+      raster.data[centerOffset + 2] < 80
+  );
+  let pngMismatches = 0;
+  let checkedModules = 0;
   for (let row = 0; row < brandedCount; row++) {
     for (let col = 0; col < brandedCount; col++) {
-      const x = Math.floor((10 + 4 + col + 0.5) * scale);
-      const y = Math.floor((28 + 4 + row + 0.5) * scale);
+      const moduleX = 4 + col + 0.5;
+      const moduleY = 4 + row + 0.5;
+      if (
+        Math.hypot(moduleX - logoCenterX, moduleY - logoCenterY) <=
+        logoRadius
+      ) {
+        continue;
+      }
+
+      checkedModules++;
+      const x = Math.floor(moduleX * scale);
+      const y = Math.floor(moduleY * scale);
       const offset = (y * raster.info.width + x) * raster.info.channels;
       const luminance =
         (raster.data[offset] +
@@ -191,13 +233,17 @@ async function check() {
           raster.data[offset + 2]) /
         3;
       if ((luminance < 128) !== brandedReference.isDark(row, col)) {
-        jpegMismatches++;
+        pngMismatches++;
       }
     }
   }
   ok(
-    "JPEG compression preserves every QR module at its center",
-    jpegMismatches === 0
+    "the centered logo stays within the high-correction allowance",
+    Math.PI * logoRadius * logoRadius < brandedSize * brandedSize * 0.03
+  );
+  ok(
+    "the PNG preserves every unobscured QR module at its center",
+    checkedModules > 0 && pngMismatches === 0
   );
 }
 

@@ -5,12 +5,14 @@ import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader"
 import { DeleteHubButton } from "@/components/dashboard/hubs/DeleteHubButton";
 import { HubQrDownloadButton } from "@/components/dashboard/hubs/HubQrDownloadButton";
 import { HubCoverFallback } from "@/components/hubs/HubCoverFallback";
+import { ShareButton } from "@/components/ShareButton";
 import { listMyHubs } from "@/lib/hubs";
 import {
   getPartnerPaymentSetup,
   isPartnerPaymentReady,
 } from "@/lib/manual-payments";
 import { hubPublicPath } from "@/lib/hub-slug";
+import { absoluteUrl } from "@/lib/site";
 import { hasStaffAccess, requirePartnerWorkspace } from "@/lib/staffing";
 
 export const metadata: Metadata = {
@@ -105,6 +107,14 @@ export default async function HubsPage() {
                 ) : (
                   <HubCoverFallback hubName={hub.name} />
                 )}
+                <div className="absolute right-3 top-3 z-20">
+                  <ShareButton
+                    title={hub.name}
+                    url={absoluteUrl(hubPublicPath(hub))}
+                    subject="hub"
+                    variant="media"
+                  />
+                </div>
               </div>
               <div className="flex items-start gap-3 p-4">
                 <Avatar src={hub.logo} name={hub.name} size={44} />

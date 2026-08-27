@@ -1472,6 +1472,7 @@
         "src/components/PageShell.tsx",
         "src/components/hubs/PublicTopBar.tsx",
         "src/components/Logo.tsx",
+        "src/components/ShareButton.tsx",
         "src/components/ui/Button.tsx",
         "src/app/hubs/[id]/page.tsx:295:678"
       ],
@@ -1486,8 +1487,9 @@
         "src/components/PageShell.tsx": "4e5187c7dc6c73947b63ef01df6103aeddcb0e725c450e1827495b00b73f9e2b",
         "src/components/hubs/PublicTopBar.tsx": "d77256e43379e4b37f16be48b1d45838f968ddf49fafac052b93f4e50a6854b7",
         "src/components/Logo.tsx": "073c062cb0d022c9f5a1f78c79af6570143f03a8d6908c3268f79cb4370d6e2d",
+        "src/components/ShareButton.tsx": "b85cc7ddef150d86621ce3b95648a740caaeb868a9e58e930f7dafbcf2361994",
         "src/components/ui/Button.tsx": "d811d012bf62c684fa4dff3e20615fb17c998a862250aba27f15f14ec1f4513a",
-        "src/app/hubs/[id]/page.tsx": "35fb164a032d47b9013ed9b9539146c8858ab25dd81ae331820754f3c31d8746"
+        "src/app/hubs/[id]/page.tsx": "30f3e19b431f65ab0a1852a930495aeef709dc0c0302c827bf725b4678b747cc"
       },
       "components": [],
       "drafts": {
@@ -1503,7 +1505,7 @@
           "currentVersion": 2
         }
       },
-      "updatedAt": "2026-08-25T08:20:00+08:00"
+      "updatedAt": "2026-08-27T12:53:25+08:00"
     },
     "authenticated-app-shell": {
       "targetKind": "existing-ui",
@@ -1674,13 +1676,14 @@
         "src/components/dashboard/DashboardPageHeader.tsx",
         "src/components/dashboard/hubs/HubQrDownloadButton.tsx",
         "src/components/dashboard/hubs/DeleteHubButton.tsx",
+        "src/components/ShareButton.tsx",
         "src/components/ui/Avatar.tsx"
       ],
       "fingerprints": {
         ".superdesign/design-system.md": "4eefc25ff528d497a043ab0fe763896dbc22438e6314a976a8e49a298ff0f146",
         ".superdesign/init/theme.md": "6d6f583d65021a0cd9c848b4d1133d659c0f7fff4e4356af2c2f6a7ff4e1937b",
         "src/app/globals.css": "0e3cd412be0be2798b8f3dd9fa31dd9524a9e30bad3a125d47327ed8097c9273",
-        "src/app/(app)/dashboard/hubs/page.tsx": "fa60d5586548ffbf4d5d8fbb50d13931badc0aa999ea2a6811c18327b7650243",
+        "src/app/(app)/dashboard/hubs/page.tsx": "b16673035f4630a1cdc40af1e3b050b6b5a0a150d223f3ffc839a5b4ac7fde47",
         "src/app/(app)/layout.tsx": "0096b1d5fcfb256cb7c09954a82f8ceae2f9fef8fae30668585ca1a6d01f0675",
         "src/components/dashboard/AppShell.tsx": "0b287f061fd17665d82435e441b6e4fbdd7e92583fb658bf5d01107ad26e0777",
         "src/components/dashboard/DashboardNav.tsx": "dd96d593ab70da912b1ae59769f34550567260afe554b2858b9cf1cfbe7b217a",
@@ -1689,6 +1692,7 @@
         "src/components/dashboard/DashboardPageHeader.tsx": "fe77a8b2c4f147e439506287277024d83a7e55c6382067a2196a873d198c7e4e",
         "src/components/dashboard/hubs/HubQrDownloadButton.tsx": "14bf8936c11d51c8a83879dc59a54f783731993bd6bb49bb915213c5250a4563",
         "src/components/dashboard/hubs/DeleteHubButton.tsx": "d27f26539d213d0f66af5491d0085450b587a3bf9b49265e756de82fb67ade43",
+        "src/components/ShareButton.tsx": "b85cc7ddef150d86621ce3b95648a740caaeb868a9e58e930f7dafbcf2361994",
         "src/components/ui/Avatar.tsx": "d94da873214543817b018dbfd5d48e250f3181cb77285243b417ebed08409b73"
       },
       "components": [
@@ -1714,12 +1718,12 @@
         },
         "876a1d67-f444-435c-b2df-486fcbf4981c": {
           "title": "Partner My Hubs — Under 375px Actions",
-          "visualDirection": "universal two-column hub action panel with icon-leading 44px controls and emphasized Save QR across phone, tablet, and desktop card widths",
+          "visualDirection": "universal two-column hub action panel with icon-leading 44px controls, emphasized Save QR, and a circular share control over each venue cover",
           "parentDraftId": "3a3f35cc-4764-49bc-9e19-b077886db92b",
-          "currentVersion": 1
+          "currentVersion": 2
         }
       },
-      "updatedAt": "2026-08-27T08:17:33+08:00"
+      "updatedAt": "2026-08-27T12:53:25+08:00"
     }
   }
 }

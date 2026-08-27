@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { JsonLd } from "@/components/JsonLd";
 import { PageShell } from "@/components/PageShell";
+import { ShareButton } from "@/components/ShareButton";
 import { BookCourtPanel } from "@/components/hubs/BookCourtPanel";
 import { HubPhotoGallery } from "@/components/hubs/HubPhotoGallery";
 import { VerifiedBadge } from "@/components/hubs/HubCard";
@@ -369,18 +370,26 @@ export default async function PublicHubPage({
             )}
           </div>
 
-          {hub.bookable ? (
-            <a
-              href="#booking"
-              className="flex min-h-12 w-full shrink-0 items-center justify-center rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-primary/20 transition-colors hover:bg-primary-hover md:w-auto"
-            >
-              Book now
-            </a>
-          ) : hub.comingSoon ? (
-            <span className="inline-flex min-h-12 w-full shrink-0 items-center justify-center rounded-xl bg-navy-soft px-6 py-3 text-sm font-bold text-navy md:w-auto">
-              Bookings open soon
-            </span>
-          ) : null}
+          <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row">
+            <ShareButton
+              title={hub.name}
+              url={canonicalUrl}
+              subject="hub"
+              className="min-h-12 w-full justify-center sm:w-auto"
+            />
+            {hub.bookable ? (
+              <a
+                href="#booking"
+                className="flex min-h-12 w-full shrink-0 items-center justify-center rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-primary/20 transition-colors hover:bg-primary-hover sm:w-auto"
+              >
+                Book now
+              </a>
+            ) : hub.comingSoon ? (
+              <span className="inline-flex min-h-12 w-full shrink-0 items-center justify-center rounded-xl bg-navy-soft px-6 py-3 text-sm font-bold text-navy sm:w-auto">
+                Bookings open soon
+              </span>
+            ) : null}
+          </div>
         </div>
         {todayClosureNotices.length > 0 && (
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-900 shadow-sm">

@@ -13,8 +13,8 @@ import { cleanupStaleOpenPlaySessions } from "@/lib/open-play-maintenance";
 import { sendTrainerSessionReminders, sweepTrainerSessions } from "@/lib/trainers";
 
 // Tidies up expired holds: deletes the slot rows nothing is holding any more,
-// flips PENDING bookings to EXPIRED, and closes out payments whose window has
-// passed.
+// removes abandoned provisional bookings and closes out unpaid ledgers whose
+// window has passed.
 //
 // Vercel invokes GET hourly using CRON_SECRET. Operators may also invoke POST:
 //   curl -X POST -H "Authorization: Bearer $BOOKING_SWEEP_SECRET" .../api/bookings/sweep

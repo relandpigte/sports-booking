@@ -660,8 +660,8 @@ export type SettleOutcome =
   | { status: "already"; confirmationEmail?: ConfirmationEmailDelivery }
   | { status: "not-paid" }
   | { status: "missing" }
-  // Paid, but the hold lapsed and the hours went to someone else. The bookings
-  // are marked EXPIRED and the payment is refunded before this returns.
+  // Paid, but the hold lapsed and the hours went to someone else. The attempt
+  // is retained as cancelled and the payment is refunded before this returns.
   | { status: "lost"; refunded: boolean };
 
 type ConfirmationEmailDelivery =
@@ -1152,7 +1152,13 @@ async function settleBookingPaymentState(
       prisma.bookingSlot.deleteMany({ where: { bookingId: { in: ids } } }),
       prisma.booking.updateMany({
         where: { id: { in: ids }, status: "PENDING" },
-        data: { status: "EXPIRED", holdExpiresAt: null },
+        data: {
+          status: "CANCELLED",
+          holdExpiresAt: null,
+          cancelledAt: new Date(),
+          cancelReason:
+            "Payment was refunded because the court hold was no longer available.",
+        },
       }),
     ]);
 
@@ -1834,9 +1840,8 @@ export async function cancelAutomaticBookingHold(
     await tx.bookingSlot.deleteMany({
       where: { bookingId: { in: bookingIds } },
     });
-    await tx.booking.updateMany({
+    await tx.booking.deleteMany({
       where: { id: { in: bookingIds }, status: "PENDING" },
-      data: { status: "EXPIRED", holdExpiresAt: null },
     });
     const updated = await tx.bookingPayment.updateMany({
       where: {
@@ -2015,11 +2020,9 @@ export async function markBookingPaymentRefunded(args: {
 // ---------------------------------------------------------------------------
 
 // Hygiene ONLY. Every read is already time-based (see liveBookingWhere and the
-// slot predicate in bookings.ts), so an expired hold stops blocking the grid
-// the instant it lapses whether or not this ever runs. What this does is tidy
-// the rows: delete slots nothing is holding, flip PENDING to EXPIRED so the
-// player's History reads correctly without a per-row clock comparison, and
-// close out payments whose window has passed.
+// slot predicate in bookings.ts), so an abandoned hold stops blocking the grid
+// the instant it lapses whether or not this ever runs. Cleanup removes those
+// provisional booking rows entirely and closes their unpaid payment ledgers.
 export async function expireBookingHolds(now: Date = new Date()): Promise<{
   bookings: number;
   eventRegistrations: number;
@@ -2029,7 +2032,15 @@ export async function expireBookingHolds(now: Date = new Date()): Promise<{
 }> {
   const swept = await prisma.$transaction(async (tx) => {
     const candidates = await tx.booking.findMany({
-      where: { status: "PENDING", holdExpiresAt: { lte: now } },
+      where: {
+        status: "PENDING",
+        holdExpiresAt: { lte: now },
+        bookingPayment: {
+          status: "PENDING",
+          chargeStartedAt: null,
+          manualSubmittedAt: null,
+        },
+      },
       select: { id: true },
     });
     if (candidates.length === 0) return { slots: 0, bookings: 0 };
@@ -2055,6 +2066,11 @@ export async function expireBookingHolds(now: Date = new Date()): Promise<{
         id: { in: candidateIds },
         status: "PENDING",
         holdExpiresAt: { lte: now },
+        bookingPayment: {
+          status: "PENDING",
+          chargeStartedAt: null,
+          manualSubmittedAt: null,
+        },
       },
       select: { id: true },
     });
@@ -2064,25 +2080,38 @@ export async function expireBookingHolds(now: Date = new Date()): Promise<{
     const deleted = await tx.bookingSlot.deleteMany({
       where: { bookingId: { in: ids } },
     });
-    const expired = await tx.booking.updateMany({
+    const removed = await tx.booking.deleteMany({
       where: {
         id: { in: ids },
         status: "PENDING",
         holdExpiresAt: { lte: now },
       },
-      data: { status: "EXPIRED", holdExpiresAt: null },
     });
 
-    return { slots: deleted.count, bookings: expired.count };
+    return { slots: deleted.count, bookings: removed.count };
   });
 
-  const eventRegistrations = await prisma.eventRegistration.updateMany({
-    where: { status: "PENDING", holdExpiresAt: { lte: now } },
-    data: { status: "EXPIRED", holdExpiresAt: null },
+  const eventGuestSlots = await prisma.eventGuestSlot.deleteMany({
+    where: {
+      status: "PENDING",
+      holdExpiresAt: { lte: now },
+      payment: {
+        status: "PENDING",
+        chargeStartedAt: null,
+        manualSubmittedAt: null,
+      },
+    },
   });
-  const eventGuestSlots = await prisma.eventGuestSlot.updateMany({
-    where: { status: "PENDING", holdExpiresAt: { lte: now } },
-    data: { status: "EXPIRED", holdExpiresAt: null },
+  const eventRegistrations = await prisma.eventRegistration.deleteMany({
+    where: {
+      status: "PENDING",
+      holdExpiresAt: { lte: now },
+      payment: {
+        status: "PENDING",
+        chargeStartedAt: null,
+        manualSubmittedAt: null,
+      },
+    },
   });
 
   // A payment whose hold is gone can never be settled, so it's terminal now.

@@ -265,9 +265,7 @@ async function check() {
       })) === 0 &&
       cancelledPayment?.status === "FAILED" &&
       cancelledPayment.failureCode === "player_cancelled" &&
-      cancelledPayment.bookings.every(
-        (booking) => booking.status === "EXPIRED"
-      ) &&
+      cancelledPayment.bookings.length === 0 &&
       paymongo.intents.get(cancelledPayment.providerPaymentId ?? "")?.status ===
         "cancelled"
   );
@@ -336,10 +334,10 @@ async function check() {
     include: { bookings: true },
   });
   ok(
-    "release closes both the payment and its bookings",
+    "release closes the payment without recording abandoned bookings",
     releasedPayment?.status === "FAILED" &&
       releasedPayment.failureCode === "player_released" &&
-      releasedPayment.bookings.every((booking) => booking.status === "EXPIRED")
+      releasedPayment.bookings.length === 0
   );
   ok(
     "a released hold stays dismissed after refresh",

@@ -195,7 +195,6 @@ export function PlayerBookingsView({
               { value: "CONFIRMED", label: "Confirmed" },
               { value: "WAITLISTED", label: "Waitlisted" },
               { value: "CANCELLED", label: "Cancelled" },
-              { value: "EXPIRED", label: "Expired" },
               { value: "REFUNDED", label: "Refunded" },
             ]}
           />

@@ -850,15 +850,31 @@ export async function reviewManualPaymentAction(
       }),
       prisma.booking.updateMany({
         where: { bookingPaymentId: payment.id, status: "PENDING" },
-        data: { status: "EXPIRED", holdExpiresAt: null },
+        data: {
+          status: "CANCELLED",
+          holdExpiresAt: null,
+          cancelledAt: new Date(),
+          cancelReason:
+            note || "The venue declined the submitted payment proof.",
+        },
       }),
       prisma.eventRegistration.updateMany({
         where: { bookingPaymentId: payment.id, status: "PENDING" },
-        data: { status: "EXPIRED", holdExpiresAt: null, cancelReason: note || null },
+        data: {
+          status: "CANCELLED",
+          holdExpiresAt: null,
+          cancelledAt: new Date(),
+          cancelReason:
+            note || "The venue declined the submitted payment proof.",
+        },
       }),
       prisma.eventGuestSlot.updateMany({
         where: { bookingPaymentId: payment.id, status: "PENDING" },
-        data: { status: "EXPIRED", holdExpiresAt: null },
+        data: {
+          status: "CANCELLED",
+          holdExpiresAt: null,
+          cancelledAt: new Date(),
+        },
       }),
       prisma.bookingPayment.update({
         where: { id: payment.id },

@@ -201,7 +201,7 @@ async function main() {
   ok("lost hold detected", r3.status === "lost");
   ok("lost hold auto-refunds", r3.status === "lost" && r3.refunded);
   const cBooking = await prisma.booking.findUnique({ where: { id: c.booking.id } });
-  ok("lost booking is EXPIRED", cBooking!.status === "EXPIRED");
+  ok("refunded lost hold is retained as a cancellation", cBooking?.status === "CANCELLED");
   ok(
     "lost booking releases its slots",
     (await prisma.bookingSlot.count({ where: { bookingId: c.booking.id } })) === 0
@@ -240,11 +240,10 @@ async function main() {
   const swept = await expireBookingHolds();
   const after = await bookedHours(court.id);
   ok("sweep changes nothing visible", JSON.stringify(before) === JSON.stringify(after));
-  ok("sweep expired the dead booking", swept.bookings >= 1);
+  ok("sweep removed the abandoned booking", swept.bookings >= 1);
   ok(
-    "dead booking now reads EXPIRED",
-    (await prisma.booking.findUnique({ where: { id: dead.booking.id } }))!.status ===
-      "EXPIRED"
+    "abandoned booking is not recorded in history",
+    (await prisma.booking.findUnique({ where: { id: dead.booking.id } })) === null
   );
   ok(
     "dead booking's slots are gone",

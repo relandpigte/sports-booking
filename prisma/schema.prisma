@@ -1302,17 +1302,15 @@ model CourtSlotRule {
 // PENDING   — holding its hours until holdExpiresAt while payment settles.
 // CONFIRMED — paid, OR a venue with no gateway connected (the original
 //             behaviour: confirm now, settle at the venue).
-// CANCELLED — the venue cancelled it.
-// EXPIRED   — the hold lapsed unpaid. Terminal, slots deleted.
+// CANCELLED — a confirmed booking was cancelled, or a paid attempt had to be
+//             refunded after its court hold was lost.
 //
-// EXPIRED is separate from CANCELLED on purpose: a partner's cancellation list
-// must not fill with bookings that were never real, and the player needs to
-// read "payment wasn't completed", not "cancelled by the venue".
+// Abandoned unpaid holds are provisional and are deleted instead of becoming
+// booking-history records.
 enum BookingStatus {
   PENDING
   CONFIRMED
   CANCELLED
-  EXPIRED
 }
 
 enum CancelledBy {

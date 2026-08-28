@@ -342,7 +342,6 @@ const statusOptions = [
   { value: "CONFIRMED", label: "Confirmed" },
   { value: "PENDING", label: "Awaiting payment" },
   { value: "CANCELLED", label: "Cancelled" },
-  { value: "EXPIRED", label: "Expired" },
 ];
 
 const paymentOptions = [

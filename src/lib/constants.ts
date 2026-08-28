@@ -104,17 +104,12 @@ export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
   PENDING: "Awaiting payment",
   CONFIRMED: "Confirmed",
   CANCELLED: "Cancelled",
-  EXPIRED: "Expired",
 };
 
-// EXPIRED is neutral, not red: nothing went wrong and nobody was charged — the
-// player simply didn't finish paying. Red is reserved for a booking the venue
-// took away.
 export const BOOKING_STATUS_TONES: Record<BookingStatus, BadgeTone> = {
   PENDING: "warn",
   CONFIRMED: "primary",
   CANCELLED: "danger",
-  EXPIRED: "neutral",
 };
 
 // --- Reports ----------------------------------------------------------------

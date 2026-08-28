@@ -225,9 +225,8 @@ export async function releaseBookingHoldAction(
     await tx.bookingSlot.deleteMany({
       where: { bookingId: { in: bookingIds } },
     });
-    await tx.booking.updateMany({
+    await tx.booking.deleteMany({
       where: { id: { in: bookingIds }, status: "PENDING" },
-      data: { status: "EXPIRED", holdExpiresAt: null },
     });
     const closed = await tx.bookingPayment.updateMany({
       where: {

@@ -3,6 +3,8 @@
 //
 //   npm run check:guest-events
 import crypto from "node:crypto";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 
 import { PrismaClient } from "@prisma/client";
 
@@ -25,6 +27,19 @@ async function cleanup() {
 }
 
 async function check() {
+  const paymentPageSource = await readFile(
+    path.join(
+      process.cwd(),
+      "src/app/events/[publicId]/pay/[paymentId]/page.tsx"
+    ),
+    "utf8"
+  );
+  ok(
+    "guest event checkout uses nullable public viewer access instead of forcing login",
+    paymentPageSource.includes('import { getViewer } from "@/lib/dal";') &&
+      !paymentPageSource.includes("getCurrentUser")
+  );
+
   await cleanup();
   const partner = await prisma.user.create({
     data: {
@@ -189,6 +204,57 @@ async function check() {
     "the guest-owned payment screen resolves its event without an account",
     paymentScreen?.payment.event?.publicId === event.publicId &&
       paymentScreen.payment.event.spotCount === 2
+  );
+
+  const abandonedGuest = await prisma.guestReservation.create({
+    data: {
+      name: "Abandoned Guest Event Player",
+      phone: "+639170000000",
+      email: GUEST_EMAIL,
+      accessExpiresAt,
+    },
+  });
+  const abandonedPayment = await prisma.bookingPayment.create({
+    data: {
+      partnerId: partner.id,
+      guestReservationId: abandonedGuest.id,
+      hubId: hub.id,
+      amount: 515,
+      venueAmount: 500,
+      platformFee: 15,
+      processingFee: 0,
+      method: "QRPH",
+      collectionMode: "AUTOMATIC",
+      status: "PENDING",
+      provider: "paymongo",
+      providerPaymentId: "pi_expired_guest_event_check",
+      failureCode: "payment_intent_expired",
+      failureMessage: "The QR payment expired without a charge.",
+      expiresAt: new Date(Date.now() - 60_000),
+      eventRegistration: {
+        create: {
+          eventId: event.id,
+          guestReservationId: abandonedGuest.id,
+          status: "PENDING",
+          holdExpiresAt: new Date(Date.now() - 60_000),
+        },
+      },
+    },
+    select: { id: true },
+  });
+  const { expireBookingHolds } = await import("@/lib/booking-payments");
+  await expireBookingHolds();
+  ok(
+    "an unpaid expired guest event hold is removed instead of recorded",
+    (await prisma.eventRegistration.findUnique({
+      where: { guestReservationId: abandonedGuest.id },
+    })) === null
+  );
+  ok(
+    "the abandoned event payment remains as a failed audit ledger",
+    (await prisma.bookingPayment.findUnique({
+      where: { id: abandonedPayment.id },
+    }))?.status === "FAILED"
   );
 
   const { getPublicEvent, listOwnerEventRegistrations } = await import(

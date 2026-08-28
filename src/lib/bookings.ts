@@ -142,22 +142,6 @@ const bookingSelect = {
 
 type BookingRow = Prisma.BookingGetPayload<{ select: typeof bookingSelect }>;
 
-// The status a booking really has right now. A lapsed hold is EXPIRED even
-// though the column still says PENDING, because the sweep is hygiene and may
-// not have run — same reasoning as the availability predicate above.
-function effectiveStatus(row: {
-  status: BookingStatus;
-  holdExpiresAt: Date | null;
-  bookingPayment: { manualSubmittedAt: Date | null } | null;
-}): BookingStatus {
-  return row.status === "PENDING" &&
-    row.holdExpiresAt != null &&
-    row.holdExpiresAt <= new Date() &&
-    row.bookingPayment?.manualSubmittedAt == null
-    ? "EXPIRED"
-    : row.status;
-}
-
 // Prisma.Decimal isn't serializable across the RSC boundary — same reason
 // mapCourt exists in hubs.ts.
 function mapBooking(row: BookingRow): BookingView {
@@ -188,9 +172,7 @@ function mapBooking(row: BookingRow): BookingView {
 
   return {
     ...rest,
-    // A PENDING booking whose hold has lapsed IS expired, whether or not the
-    // sweep has run. Every renderer reads this, never the stored column.
-    status: effectiveStatus(row),
+    status: row.status,
     hourlyRate: hourlyRate ? hourlyRate.toNumber() : null,
     totalPrice: totalPrice ? totalPrice.toNumber() : null,
     movedFrom: moved
@@ -270,19 +252,22 @@ export function liveBookingWhere(
   };
 }
 
-// Bookings that belong in a "history" list: finished, cancelled, expired, or a
-// hold that lapsed but hasn't been swept yet.
+// Abandoned holds are not booking history. The sweep deletes them, and this
+// predicate also hides them immediately if cleanup has not run yet.
 export function endedBookingWhere(
   now: Date = new Date()
 ): Prisma.BookingWhereInput {
   return {
-    OR: [
-      { endsAt: { lt: now } },
-      { status: { in: ["CANCELLED", "EXPIRED"] } },
+    AND: [
       {
-        status: "PENDING",
-        holdExpiresAt: { lte: now },
-        bookingPayment: { manualSubmittedAt: null },
+        NOT: {
+          status: "PENDING",
+          holdExpiresAt: { lte: now },
+          bookingPayment: { manualSubmittedAt: null },
+        },
+      },
+      {
+        OR: [{ endsAt: { lt: now } }, { status: "CANCELLED" }],
       },
     ],
   };
@@ -706,14 +691,6 @@ function partnerBookingStatusWhere(
 ): Prisma.BookingWhereInput {
   if (status === "PENDING") {
     return { status: "PENDING", holdExpiresAt: { gt: now } };
-  }
-  if (status === "EXPIRED") {
-    return {
-      OR: [
-        { status: "EXPIRED" },
-        { status: "PENDING", holdExpiresAt: { lte: now } },
-      ],
-    };
   }
   return { status };
 }

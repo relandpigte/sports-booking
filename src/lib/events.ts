@@ -693,11 +693,23 @@ export async function listMyEventRegistrations(): Promise<{
   if (!viewer) return { upcoming: [], past: [] };
 
   const now = new Date();
+  const visibleRegistrationWhere: Prisma.EventRegistrationWhereInput = {
+    OR: [
+      { status: { in: ["CONFIRMED", "WAITLISTED"] } },
+      {
+        status: "PENDING",
+        OR: [
+          { holdExpiresAt: { gt: now } },
+          { payment: { manualSubmittedAt: { not: null } } },
+        ],
+      },
+    ],
+  };
   const [upcoming, past] = await Promise.all([
     prisma.eventRegistration.findMany({
       where: {
         userId: viewer.id,
-        status: { not: "CANCELLED" },
+        ...visibleRegistrationWhere,
         event: { endsAt: { gte: now }, status: { not: "CANCELLED" } },
       },
       orderBy: { event: { startsAt: "asc" } },
@@ -706,10 +718,22 @@ export async function listMyEventRegistrations(): Promise<{
     prisma.eventRegistration.findMany({
       where: {
         userId: viewer.id,
-        OR: [
-          { status: "CANCELLED" },
-          { event: { endsAt: { lt: now } } },
-          { event: { status: "CANCELLED" } },
+        status: { not: "EXPIRED" },
+        AND: [
+          {
+            OR: [
+              { status: { not: "PENDING" } },
+              { holdExpiresAt: { gt: now } },
+              { payment: { manualSubmittedAt: { not: null } } },
+            ],
+          },
+          {
+            OR: [
+              { status: "CANCELLED" },
+              { event: { endsAt: { lt: now } } },
+              { event: { status: "CANCELLED" } },
+            ],
+          },
         ],
       },
       orderBy: { event: { startsAt: "desc" } },
@@ -909,15 +933,19 @@ export async function listOwnerEventRegistrations(
   });
   if (!event) return null;
   const now = new Date();
-  return event.registrations.map((registration) => ({
+  const visibleRegistrations = event.registrations.filter(
+    (registration) =>
+      registration.status !== "EXPIRED" &&
+      !(
+        registration.status === "PENDING" &&
+        registration.holdExpiresAt != null &&
+        registration.holdExpiresAt <= now &&
+        registration.payment?.manualSubmittedAt == null
+      )
+  );
+  return visibleRegistrations.map((registration) => ({
     id: registration.id,
-    status:
-      registration.status === "PENDING" &&
-      registration.holdExpiresAt != null &&
-      registration.holdExpiresAt <= now &&
-      registration.payment?.manualSubmittedAt == null
-        ? "EXPIRED"
-        : registration.status,
+    status: registration.status,
     createdAt: registration.createdAt,
     guestNames: registration.guests
       .filter((guest) => guest.status === "CONFIRMED")
@@ -1144,16 +1172,20 @@ export async function getOwnerEventDetails(
   if (!row) return null;
 
   const now = new Date();
-  const registrations: OwnerEventRegistrationView[] = row.registrations.map(
-    (registration) => ({
+  const registrations: OwnerEventRegistrationView[] = row.registrations
+    .filter(
+      (registration) =>
+        registration.status !== "EXPIRED" &&
+        !(
+          registration.status === "PENDING" &&
+          registration.holdExpiresAt != null &&
+          registration.holdExpiresAt <= now &&
+          registration.payment?.manualSubmittedAt == null
+        )
+    )
+    .map((registration) => ({
       id: registration.id,
-      status:
-        registration.status === "PENDING" &&
-        registration.holdExpiresAt != null &&
-        registration.holdExpiresAt <= now &&
-        registration.payment?.manualSubmittedAt == null
-          ? "EXPIRED"
-          : registration.status,
+      status: registration.status,
       createdAt: registration.createdAt,
       guestNames: registration.guests
         .filter((guest) => guest.status === "CONFIRMED")
@@ -1236,8 +1268,7 @@ export async function getOwnerEventDetails(
         manualSubmittedAt: payment.manualSubmittedAt,
         manualReviewNote: payment.manualReviewNote,
       })),
-    })
-  );
+    }));
   const organizerGuests: OwnerEventOrganizerGuestView[] =
     row.organizerGuests.map((guest) => ({
       id: guest.id,

@@ -50,8 +50,8 @@ export function BookingCard({
   };
 }) {
   const cancelled = booking.status === "CANCELLED";
-  // status is the EFFECTIVE one, so a lapsed hold is already EXPIRED here and
-  // never offers a dead "Complete payment" link.
+  // Abandoned holds are filtered before rendering, so a dead checkout never
+  // offers a "Complete payment" link here.
   const holding = booking.status === "PENDING";
   const paid = booking.payment?.status === "SUCCEEDED";
   const refunded = booking.payment?.status === "REFUNDED";

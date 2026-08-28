@@ -42,7 +42,6 @@ const partnerBookingStatuses: BookingStatus[] = [
   "PENDING",
   "CONFIRMED",
   "CANCELLED",
-  "EXPIRED",
 ];
 const partnerPaymentFilters: PartnerBookingPaymentFilter[] = [
   "paid",
@@ -63,7 +62,6 @@ type PlayerBookingStatus =
   | "CONFIRMED"
   | "WAITLISTED"
   | "CANCELLED"
-  | "EXPIRED"
   | "REFUNDED";
 
 type PlayerBookingFilters = {
@@ -81,7 +79,6 @@ const playerBookingStatuses: PlayerBookingStatus[] = [
   "CONFIRMED",
   "WAITLISTED",
   "CANCELLED",
-  "EXPIRED",
   "REFUNDED",
 ];
 
@@ -421,15 +418,18 @@ export default async function BookingsPage({
     filters.type === "courts" || filters.type === "trainers"
       ? []
       : filterPlayerEventRegistrations(selectedEventRegistrations, filters);
-  const filteredTrainerSessions = trainerSessions.filter((session) => {
+  const visibleTrainerSessions = trainerSessions.filter(
+    (session) => session.status !== "EXPIRED"
+  );
+  const filteredTrainerSessions = visibleTrainerSessions.filter((session) => {
     const inSection = section === "upcoming"
       ? session.startsAt >= new Date() && !["COMPLETED", "CANCELLED", "DECLINED", "EXPIRED", "REFUNDED"].includes(session.status)
       : session.startsAt < new Date() || ["COMPLETED", "CANCELLED", "DECLINED", "EXPIRED", "REFUNDED"].includes(session.status);
     const statusMatches = !filters.status || session.status === filters.status;
     return filters.type !== "courts" && filters.type !== "events" && inSection && statusMatches && matchesPlayerDate(session.date, filters.from, filters.to) && matchesPlayerQuery([session.id, session.trainer.user.name, session.trainer.user.playerName, session.trainer.area], filters.query ?? "");
   });
-  const trainerUpcomingCount = trainerSessions.filter((session) => session.startsAt >= new Date() && !["COMPLETED", "CANCELLED", "DECLINED", "EXPIRED", "REFUNDED"].includes(session.status)).length;
-  const trainerHistoryCount = trainerSessions.length - trainerUpcomingCount;
+  const trainerUpcomingCount = visibleTrainerSessions.filter((session) => session.startsAt >= new Date() && !["COMPLETED", "CANCELLED", "DECLINED", "REFUNDED"].includes(session.status)).length;
+  const trainerHistoryCount = visibleTrainerSessions.length - trainerUpcomingCount;
   const upcomingCount =
     courtBookings.upcoming.length + eventRegistrations.upcoming.length + trainerUpcomingCount;
   const historyCount = courtBookings.past.length + eventRegistrations.past.length + trainerHistoryCount;

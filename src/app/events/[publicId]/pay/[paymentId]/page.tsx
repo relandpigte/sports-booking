@@ -15,7 +15,7 @@ import {
 } from "@/lib/booking-payments";
 import { BOOKING_HOLD_MINUTES } from "@/lib/constants";
 import { formatPHP } from "@/lib/currency";
-import { getCurrentUser } from "@/lib/dal";
+import { getViewer } from "@/lib/dal";
 import {
   getCurrentGuestReservationId,
   getGuestReservationAccess,
@@ -32,18 +32,18 @@ export default async function PayEventRegistrationPage({
   params: Promise<{ publicId: string; paymentId: string }>;
 }) {
   const { publicId, paymentId } = await params;
-  const user = await getCurrentUser();
-  if (user && user.role !== "PLAYER") redirect(`/events/${publicId}`);
-  const guestReservationId = user
+  const viewer = await getViewer();
+  if (viewer && viewer.role !== "PLAYER") redirect(`/events/${publicId}`);
+  const guestReservationId = viewer
     ? null
     : await getCurrentGuestReservationId();
   const guestAccess = guestReservationId
     ? await getGuestReservationAccess(guestReservationId)
     : null;
-  if (!user && !guestAccess) redirect(`/events/${publicId}`);
+  if (!viewer && !guestAccess) redirect(`/events/${publicId}`);
 
-  let screen = user
-    ? await getBookingPaymentScreen(paymentId, user.id)
+  let screen = viewer
+    ? await getBookingPaymentScreen(paymentId, viewer.id)
     : await getGuestBookingPaymentScreen(paymentId, guestReservationId!);
   if (!screen || screen.payment.event?.publicId !== publicId) notFound();
 
@@ -53,8 +53,8 @@ export default async function PayEventRegistrationPage({
     screen.payment.providerPaymentId
   ) {
     await pollBookingPayment(paymentId);
-    screen = user
-      ? await getBookingPaymentScreen(paymentId, user.id)
+    screen = viewer
+      ? await getBookingPaymentScreen(paymentId, viewer.id)
       : await getGuestBookingPaymentScreen(paymentId, guestReservationId!);
     if (!screen || screen.payment.event?.publicId !== publicId) notFound();
   }

@@ -206,24 +206,59 @@ async function expireEventCapacityHolds(
   eventId: string,
   now: Date
 ) {
-  await Promise.all([
-    tx.eventRegistration.updateMany({
-      where: {
-        eventId,
-        status: "PENDING",
-        holdExpiresAt: { lte: now },
-      },
-      data: { status: "EXPIRED", holdExpiresAt: null },
-    }),
-    tx.eventGuestSlot.updateMany({
-      where: {
-        registration: { eventId },
-        status: "PENDING",
-        holdExpiresAt: { lte: now },
-      },
-      data: { status: "EXPIRED", holdExpiresAt: null },
-    }),
-  ]);
+  const abandonedPayments = await tx.bookingPayment.findMany({
+    where: {
+      status: "PENDING",
+      chargeStartedAt: null,
+      manualSubmittedAt: null,
+      OR: [
+        {
+          eventRegistration: {
+            eventId,
+            status: "PENDING",
+            holdExpiresAt: { lte: now },
+          },
+        },
+        {
+          eventGuestSlots: {
+            some: {
+              registration: { eventId },
+              status: "PENDING",
+              holdExpiresAt: { lte: now },
+            },
+          },
+        },
+      ],
+    },
+    select: { id: true },
+  });
+  const paymentIds = abandonedPayments.map((payment) => payment.id);
+  if (paymentIds.length === 0) return;
+
+  await tx.eventRegistration.deleteMany({
+    where: {
+      eventId,
+      status: "PENDING",
+      holdExpiresAt: { lte: now },
+      bookingPaymentId: { in: paymentIds },
+    },
+  });
+  await tx.eventGuestSlot.deleteMany({
+    where: {
+      registration: { eventId },
+      status: "PENDING",
+      holdExpiresAt: { lte: now },
+      bookingPaymentId: { in: paymentIds },
+    },
+  });
+  await tx.bookingPayment.updateMany({
+    where: { id: { in: paymentIds }, status: "PENDING" },
+    data: {
+      status: "FAILED",
+      failureCode: "hold_expired",
+      failureMessage: "The event registration hold expired before payment was completed.",
+    },
+  });
 }
 
 async function occupiedEventSpots(

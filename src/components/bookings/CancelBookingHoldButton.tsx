@@ -14,9 +14,12 @@ const initialState: HeldBookingActionState = {};
 export function CancelBookingHoldButton({
   paymentId,
   label = "Cancel reservation and free slots",
+  confirmation =
+    "Cancel this reservation? The selected court slots will immediately become available to other players.",
 }: {
   paymentId: string;
   label?: string;
+  confirmation?: string;
 }) {
   const router = useRouter();
   const { isOnline } = usePwa();
@@ -42,11 +45,7 @@ export function CancelBookingHoldButton({
       <form
         action={action}
         onSubmit={(event) => {
-          if (
-            !window.confirm(
-              "Cancel this reservation? The selected court slots will immediately become available to other players."
-            )
-          ) {
+          if (!window.confirm(confirmation)) {
             event.preventDefault();
           }
         }}

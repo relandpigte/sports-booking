@@ -159,7 +159,7 @@ export function EventRegistrationPanel({
               href={`/events/${publicId}/pay/${registration.paymentId}`}
               className="block rounded-2xl bg-primary px-4 py-4 text-center text-sm font-bold text-white transition-colors hover:bg-primary-hover"
             >
-              Continue QR Ph payment
+              Continue to payment
             </Link>
           ) : registration?.status === "WAITLISTED" && full ? (
             <StatusBox tone="success">

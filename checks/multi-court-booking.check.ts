@@ -12,7 +12,7 @@ import {
   WEEKDAYS,
   type OperatingHours,
 } from "@/lib/constants";
-import { addDays, manilaToday } from "@/lib/time";
+import { addDays, manilaInstant, manilaToday } from "@/lib/time";
 
 const prisma = new PrismaClient();
 const PARTNER_EMAIL = "check-multi-court-partner@example.test";
@@ -141,7 +141,11 @@ async function check() {
 
   const { continueHeldBookingPaymentAction, releaseBookingHoldAction } =
     await import("@/lib/booking-payment-actions");
-  const { getActiveBookingHoldForHub, getActiveBookingHoldForUser } =
+  const {
+    chargeBookingPayment,
+    getActiveBookingHoldForHub,
+    getActiveBookingHoldForUser,
+  } =
     await import("@/lib/booking-payments");
   const restoredHold = await getActiveBookingHoldForHub({
     userId: player.id,
@@ -345,6 +349,72 @@ async function check() {
       userId: player.id,
       hubId: hub.id,
     })) === null
+  );
+
+  const eventDate = addDays(manilaToday(), 10);
+  const event = await prisma.event.create({
+    data: {
+      publicId: `cancel-event-${crypto.randomBytes(8).toString("hex")}`,
+      hubId: hub.id,
+      title: "Automatic event cancellation check",
+      sport: "pickleball",
+      date: eventDate,
+      startHour: 18,
+      endHour: 20,
+      startsAt: manilaInstant(eventDate, 18),
+      endsAt: manilaInstant(eventDate, 20),
+      capacity: 4,
+      registrationFee: 300,
+      status: "PUBLISHED",
+      publishedAt: new Date(),
+    },
+    select: { id: true },
+  });
+  const eventHoldExpiresAt = new Date(Date.now() + 15 * 60_000);
+  const eventPayment = await prisma.bookingPayment.create({
+    data: {
+      partnerId: partner.id,
+      gatewayId: gateway.id,
+      userId: player.id,
+      hubId: hub.id,
+      amount: 309,
+      venueAmount: 300,
+      platformFee: 9,
+      method: "QRPH",
+      provider: "paymongo",
+      expiresAt: eventHoldExpiresAt,
+      eventRegistration: {
+        create: {
+          eventId: event.id,
+          userId: player.id,
+          status: "PENDING",
+          holdExpiresAt: eventHoldExpiresAt,
+        },
+      },
+    },
+    select: { id: true },
+  });
+  const eventCharge = await chargeBookingPayment({
+    paymentId: eventPayment.id,
+    userId: player.id,
+  });
+  const eventCancelForm = new FormData();
+  eventCancelForm.set("paymentId", eventPayment.id);
+  const eventCancel = await releaseBookingHoldAction({}, eventCancelForm);
+  const cancelledEventPayment = await prisma.bookingPayment.findUnique({
+    where: { id: eventPayment.id },
+    include: { eventRegistration: true },
+  });
+  ok(
+    "cancelling an event checkout safely closes its active QR intent and releases the spot",
+    eventCharge.status === "action" &&
+      eventCancel.released === true &&
+      cancelledEventPayment?.status === "FAILED" &&
+      cancelledEventPayment.failureCode === "player_cancelled" &&
+      cancelledEventPayment.eventRegistration?.status === "CANCELLED" &&
+      paymongo.intents.get(
+        cancelledEventPayment.providerPaymentId ?? ""
+      )?.status === "cancelled"
   );
 }
 

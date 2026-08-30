@@ -306,6 +306,87 @@ async function check() {
     eventSummary.count === 1 &&
       eventSummary.next?.event.publicId === event.publicId
   );
+
+  const manualReleaseEvent = await prisma.event.create({
+    data: {
+      publicId: `check-release-${crypto.randomBytes(8).toString("hex")}`,
+      hubId: hub.id,
+      title: "Manual spot release check",
+      sport: "pickleball",
+      date: DATE,
+      startHour: 18,
+      endHour: 20,
+      startsAt: manilaInstant(DATE, 18),
+      endsAt: manilaInstant(DATE, 20),
+      capacity: 3,
+      registrationFee: 150,
+      status: "PUBLISHED",
+      publishedAt: new Date(),
+    },
+    select: { id: true, publicId: true },
+  });
+  const manualReleaseExpiresAt = new Date(Date.now() + 15 * 60_000);
+  const manualReleasePayment = await prisma.bookingPayment.create({
+    data: {
+      partnerId: partner.id,
+      userId: players[0].id,
+      hubId: hub.id,
+      amount: 300,
+      venueAmount: 300,
+      platformFee: 0,
+      method: "MANUAL",
+      collectionMode: "MANUAL",
+      provider: "manual",
+      expiresAt: manualReleaseExpiresAt,
+      eventRegistration: {
+        create: {
+          eventId: manualReleaseEvent.id,
+          userId: players[0].id,
+          status: "PENDING",
+          holdExpiresAt: manualReleaseExpiresAt,
+        },
+      },
+    },
+    select: { id: true },
+  });
+  const manualReleaseRegistration = await prisma.eventRegistration.findUniqueOrThrow({
+    where: { bookingPaymentId: manualReleasePayment.id },
+    select: { id: true },
+  });
+  await prisma.eventGuestSlot.create({
+    data: {
+      eventRegistrationId: manualReleaseRegistration.id,
+      bookingPaymentId: manualReleasePayment.id,
+      name: "Release Check Guest",
+      status: "PENDING",
+      holdExpiresAt: manualReleaseExpiresAt,
+    },
+  });
+  const { releaseBookingHoldAction } = await import(
+    "@/lib/booking-payment-actions"
+  );
+  const manualReleaseForm = new FormData();
+  manualReleaseForm.set("paymentId", manualReleasePayment.id);
+  const manualRelease = await releaseBookingHoldAction({}, manualReleaseForm);
+  const [releasedManualPayment, releasedManualEvent] = await Promise.all([
+    prisma.bookingPayment.findUnique({
+      where: { id: manualReleasePayment.id },
+      include: { eventRegistration: true, eventGuestSlots: true },
+    }),
+    getPublicEvent(manualReleaseEvent.publicId, players[0].id),
+  ]);
+  ok(
+    "a player can cancel a manual event checkout and immediately release every held spot",
+    manualRelease.released === true &&
+      releasedManualPayment?.status === "FAILED" &&
+      releasedManualPayment.failureCode === "player_released" &&
+      releasedManualPayment.eventRegistration?.status === "CANCELLED" &&
+      releasedManualPayment.eventGuestSlots.every(
+        (guest) => guest.status === "CANCELLED"
+      ) &&
+      releasedManualEvent?.remainingSpots === 3 &&
+      releasedManualEvent.viewerRegistration?.status === "CANCELLED"
+  );
   stubRequestContext(partner);
 
   const ownerDetails = await getOwnerEventDetails(event.publicId, partner.id);

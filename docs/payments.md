@@ -62,12 +62,15 @@ For every manual checkout:
 2. The player chooses one of the partner's destinations, transfers the venue
    or event's advertised amount, uploads a receipt image, and may add a
    transaction reference. No Bunal.club or PayMongo fee is added.
-3. No upload by the deadline releases the court hours or event capacity.
-4. A valid on-time upload freezes the reservation as **Pending booking** with
+3. Before submitting proof, the player may cancel a court or event checkout to
+   release the held hours or event spots immediately. An active automatic QR
+   intent is cancelled at PayMongo before local capacity is reopened.
+4. No upload by the deadline releases the court hours or event capacity.
+5. A valid on-time upload freezes the reservation as **Pending booking** with
    no second review deadline.
-5. The partner opens the existing booking or event-payment detail, reviews the
+6. The partner opens the existing booking or event-payment detail, reviews the
    snapshotted payment instructions and receipt, then approves or declines.
-6. Approval confirms all linked court bookings or named event spots. Decline
+7. Approval confirms all linked court bookings or named event spots. Decline
    immediately releases them and may include an optional reason.
 
 Manual refunds happen outside Bunal.club through the original network. After

@@ -1720,11 +1720,16 @@ export async function pollBookingPayment(
 }
 
 export type CancelAutomaticBookingHoldOutcome =
-  | { status: "cancelled"; hubId: string }
-  | { status: "already-paid"; hubId: string }
-  | { status: "closed"; hubId: string }
+  | { status: "cancelled"; hubId: string; eventPublicId: string | null }
+  | { status: "already-paid"; hubId: string; eventPublicId: string | null }
+  | { status: "closed"; hubId: string; eventPublicId: string | null }
   | { status: "missing" }
-  | { status: "unavailable"; hubId: string; message: string };
+  | {
+      status: "unavailable";
+      hubId: string;
+      eventPublicId: string | null;
+      message: string;
+    };
 
 // Cancels the remote QR intent before releasing local inventory. That order is
 // the safety invariant: if money wins the race, the provider reports success
@@ -1743,25 +1748,43 @@ export async function cancelAutomaticBookingHold(
       gatewayId: true,
       providerPaymentId: true,
       bookings: { select: { id: true } },
+      eventRegistration: {
+        select: { id: true, event: { select: { publicId: true } } },
+      },
+      eventGuestSlots: {
+        select: {
+          id: true,
+          registration: {
+            select: { event: { select: { publicId: true } } },
+          },
+        },
+      },
     },
   });
   if (!payment) return { status: "missing" };
+  const eventPublicId =
+    payment.eventRegistration?.event.publicId ??
+    payment.eventGuestSlots[0]?.registration.event.publicId ??
+    null;
   if (payment.status === "SUCCEEDED" || payment.status === "REFUNDED") {
-    return { status: "already-paid", hubId: payment.hubId };
+    return { status: "already-paid", hubId: payment.hubId, eventPublicId };
   }
   if (payment.status !== "PENDING") {
-    return { status: "closed", hubId: payment.hubId };
+    return { status: "closed", hubId: payment.hubId, eventPublicId };
   }
   if (
     payment.collectionMode !== "AUTOMATIC" ||
     !payment.gatewayId ||
     !payment.providerPaymentId ||
     !payment.providerPaymentId.startsWith("pi_") ||
-    payment.bookings.length === 0
+    (payment.bookings.length === 0 &&
+      !payment.eventRegistration &&
+      payment.eventGuestSlots.length === 0)
   ) {
     return {
       status: "unavailable",
       hubId: payment.hubId,
+      eventPublicId,
       message:
         "This payment cannot be cancelled safely here. Complete it or let the hold expire.",
     };
@@ -1779,12 +1802,13 @@ export async function cancelAutomaticBookingHold(
       raw: cancelled.raw,
     });
     await settleBookingPayment(payment.id);
-    return { status: "already-paid", hubId: payment.hubId };
+    return { status: "already-paid", hubId: payment.hubId, eventPublicId };
   }
   if (cancelled.status === "failed") {
     return {
       status: "unavailable",
       hubId: payment.hubId,
+      eventPublicId,
       message: cancelled.message,
     };
   }
@@ -1812,15 +1836,24 @@ export async function cancelAutomaticBookingHold(
     `);
     if (!current) return { status: "missing" as const };
     if (current.status === "SUCCEEDED" || current.status === "REFUNDED") {
-      return { status: "already-paid" as const, hubId: current.hubId };
+      return {
+        status: "already-paid" as const,
+        hubId: current.hubId,
+        eventPublicId,
+      };
     }
     if (current.status !== "PENDING") {
-      return { status: "closed" as const, hubId: current.hubId };
+      return {
+        status: "closed" as const,
+        hubId: current.hubId,
+        eventPublicId,
+      };
     }
     if (current.providerPaymentId !== payment.providerPaymentId) {
       return {
         status: "unavailable" as const,
         hubId: current.hubId,
+        eventPublicId,
         message: "The payment changed while it was being cancelled. Try again.",
       };
     }
@@ -1833,16 +1866,64 @@ export async function cancelAutomaticBookingHold(
       },
       select: { id: true },
     });
-    if (bookings.length === 0) {
-      return { status: "closed" as const, hubId: current.hubId };
+    const eventRegistration = await tx.eventRegistration.findFirst({
+      where: {
+        bookingPaymentId: payment.id,
+        status: "PENDING",
+      },
+      select: { id: true },
+    });
+    const eventGuestSlots = await tx.eventGuestSlot.findMany({
+      where: {
+        bookingPaymentId: payment.id,
+        status: "PENDING",
+      },
+      select: { id: true },
+    });
+    if (
+      bookings.length === 0 &&
+      !eventRegistration &&
+      eventGuestSlots.length === 0
+    ) {
+      return {
+        status: "closed" as const,
+        hubId: current.hubId,
+        eventPublicId,
+      };
     }
     const bookingIds = bookings.map((booking) => booking.id);
-    await tx.bookingSlot.deleteMany({
-      where: { bookingId: { in: bookingIds } },
-    });
-    await tx.booking.deleteMany({
-      where: { id: { in: bookingIds }, status: "PENDING" },
-    });
+    if (bookingIds.length > 0) {
+      await tx.bookingSlot.deleteMany({
+        where: { bookingId: { in: bookingIds } },
+      });
+      await tx.booking.deleteMany({
+        where: { id: { in: bookingIds }, status: "PENDING" },
+      });
+    }
+    if (eventGuestSlots.length > 0) {
+      await tx.eventGuestSlot.updateMany({
+        where: {
+          id: { in: eventGuestSlots.map((guest) => guest.id) },
+          status: "PENDING",
+        },
+        data: {
+          status: "CANCELLED",
+          holdExpiresAt: null,
+          cancelledAt: new Date(),
+        },
+      });
+    }
+    if (eventRegistration) {
+      await tx.eventRegistration.updateMany({
+        where: { id: eventRegistration.id, status: "PENDING" },
+        data: {
+          status: "CANCELLED",
+          holdExpiresAt: null,
+          cancelledAt: new Date(),
+          cancelReason: "Cancelled by the player before payment.",
+        },
+      });
+    }
     const updated = await tx.bookingPayment.updateMany({
       where: {
         id: payment.id,
@@ -1854,13 +1935,17 @@ export async function cancelAutomaticBookingHold(
         chargeStartedAt: null,
         failureCode: "player_cancelled",
         failureMessage:
-          "The player cancelled the QR Ph payment and released the reserved slots.",
+          "The player cancelled the QR Ph payment and released the reservation.",
       },
     });
     if (updated.count !== 1) {
       throw new Error("Booking payment changed while it was being cancelled.");
     }
-    return { status: "cancelled" as const, hubId: current.hubId };
+    return {
+      status: "cancelled" as const,
+      hubId: current.hubId,
+      eventPublicId,
+    };
   });
 
   return closed;

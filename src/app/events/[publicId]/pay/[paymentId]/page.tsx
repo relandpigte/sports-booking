@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { CancelBookingHoldButton } from "@/components/bookings/CancelBookingHoldButton";
 import { HoldCountdown } from "@/components/bookings/HoldCountdown";
 import { PayMongoCheckout } from "@/components/bookings/PayMongoCheckout";
 import { PaymentStatusPoller } from "@/components/bookings/PaymentStatusPoller";
@@ -63,6 +64,9 @@ export default async function PayEventRegistrationPage({
   const event = payment.event!;
   const registrationConfirmed = event.registrationStatus === "CONFIRMED";
   const holdLive = payment.status === "PENDING" && payment.secondsLeft > 0;
+  const playerCancelled =
+    payment.failureCode === "player_cancelled" ||
+    payment.failureCode === "player_released";
   const refundedAmount =
     payment.refundedAmount ?? payment.venueAmount + payment.processingFee;
   const activeCheckoutUrl =
@@ -93,8 +97,10 @@ export default async function PayEventRegistrationPage({
                       : payment.manualSubmittedAt
                         ? "Pending registration"
                         : holdLive
-                        ? "Complete payment"
-                        : "Registration hold expired"}
+                          ? "Complete payment"
+                          : playerCancelled
+                            ? "Registration cancelled"
+                            : "Registration hold expired"}
                 </h1>
               </div>
               {holdLive && payment.collectionMode === "AUTOMATIC" && (
@@ -158,6 +164,22 @@ export default async function PayEventRegistrationPage({
             )}
 
             <div className="mt-7">
+              {holdLive && !payment.manualSubmittedAt && (
+                <div className="mb-4">
+                  <CancelBookingHoldButton
+                    paymentId={payment.id}
+                    label={
+                      event.addOn
+                        ? "Cancel guest spots"
+                        : event.spotCount > 1
+                          ? "Cancel registration and free spots"
+                          : "Cancel spot"
+                    }
+                    confirmation="Cancel this event registration? Its reserved spots will immediately become available to other players."
+                  />
+                </div>
+              )}
+
               {payment.status === "SUCCEEDED" && registrationConfirmed ? (
                 <div className="space-y-4">
                   <p className="rounded-2xl bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">
@@ -252,6 +274,16 @@ export default async function PayEventRegistrationPage({
                     }
                   />
                 )
+              ) : playerCancelled ? (
+                <div className="space-y-4">
+                  <p className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
+                    You cancelled this registration. The reserved event spots
+                    are available to other players again.
+                  </p>
+                  <Link href={`/events/${publicId}`} className="block rounded-2xl bg-primary px-4 py-3.5 text-center text-sm font-bold text-white hover:bg-primary-hover">
+                    Return to event
+                  </Link>
+                </div>
               ) : (
                 <div className="space-y-4">
                   <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">

@@ -38,13 +38,21 @@ export type HeldBookingActionState = {
   released?: boolean;
 };
 
-function revalidateHeldBookingPaths(paymentId: string, hubId?: string) {
+function revalidateHeldBookingPaths(
+  paymentId: string,
+  hubId?: string,
+  eventPublicId?: string | null
+) {
   revalidatePath(`/dashboard/bookings/pay/${paymentId}`);
   revalidatePath("/dashboard/bookings");
   revalidatePath("/dashboard");
   if (hubId) {
     revalidatePath(`/hubs/${hubId}`);
     revalidatePath(`/dashboard/hubs/${hubId}/bookings`);
+  }
+  if (eventPublicId) {
+    revalidatePath(`/events/${eventPublicId}`);
+    revalidatePath(`/events/${eventPublicId}/pay/${paymentId}`);
   }
 }
 
@@ -140,10 +148,10 @@ export async function continueHeldBookingPaymentAction(
   }
 }
 
-// Before payment begins, the local hold can be released immediately. Once a
-// direct QR intent exists, cancelAutomaticBookingHold cancels it at PayMongo
-// first and frees inventory only after the provider confirms no late payment
-// can arrive.
+// Before payment begins, a court or event hold can be released immediately.
+// Once a direct QR intent exists, cancelAutomaticBookingHold cancels it at
+// PayMongo first and frees inventory only after the provider confirms no late
+// payment can arrive.
 export async function releaseBookingHoldAction(
   _prev: HeldBookingActionState,
   formData: FormData
@@ -195,18 +203,53 @@ export async function releaseBookingHoldAction(
       FOR UPDATE
     `);
     if (!payment) return { kind: "missing" as const };
+    const eventRegistration = await tx.eventRegistration.findFirst({
+      where: {
+        bookingPaymentId: payment.id,
+        status: "PENDING",
+      },
+      select: { id: true, event: { select: { publicId: true } } },
+    });
+    const eventGuestSlots = await tx.eventGuestSlot.findMany({
+      where: {
+        bookingPaymentId: payment.id,
+        status: "PENDING",
+      },
+      select: {
+        id: true,
+        registration: {
+          select: { event: { select: { publicId: true } } },
+        },
+      },
+    });
+    const eventPublicId =
+      eventRegistration?.event.publicId ??
+      eventGuestSlots[0]?.registration.event.publicId ??
+      null;
     if (payment.status !== "PENDING") {
-      return { kind: "closed" as const, hubId: payment.hubId };
+      return {
+        kind: "closed" as const,
+        hubId: payment.hubId,
+        eventPublicId,
+      };
     }
     if (payment.expiresAt <= now) {
-      return { kind: "expired" as const, hubId: payment.hubId };
+      return {
+        kind: "expired" as const,
+        hubId: payment.hubId,
+        eventPublicId,
+      };
     }
     if (
       payment.chargeStartedAt ||
       payment.providerPaymentId ||
       payment.manualSubmittedAt
     ) {
-      return { kind: "started" as const, hubId: payment.hubId };
+      return {
+        kind: "started" as const,
+        hubId: payment.hubId,
+        eventPublicId,
+      };
     }
 
     const bookings = await tx.booking.findMany({
@@ -217,17 +260,51 @@ export async function releaseBookingHoldAction(
       },
       select: { id: true },
     });
-    if (bookings.length === 0) {
-      return { kind: "closed" as const, hubId: payment.hubId };
+    if (
+      bookings.length === 0 &&
+      !eventRegistration &&
+      eventGuestSlots.length === 0
+    ) {
+      return {
+        kind: "closed" as const,
+        hubId: payment.hubId,
+        eventPublicId,
+      };
     }
     const bookingIds = bookings.map((booking) => booking.id);
 
-    await tx.bookingSlot.deleteMany({
-      where: { bookingId: { in: bookingIds } },
-    });
-    await tx.booking.deleteMany({
-      where: { id: { in: bookingIds }, status: "PENDING" },
-    });
+    if (bookingIds.length > 0) {
+      await tx.bookingSlot.deleteMany({
+        where: { bookingId: { in: bookingIds } },
+      });
+      await tx.booking.deleteMany({
+        where: { id: { in: bookingIds }, status: "PENDING" },
+      });
+    }
+    if (eventGuestSlots.length > 0) {
+      await tx.eventGuestSlot.updateMany({
+        where: {
+          id: { in: eventGuestSlots.map((guest) => guest.id) },
+          status: "PENDING",
+        },
+        data: {
+          status: "CANCELLED",
+          holdExpiresAt: null,
+          cancelledAt: now,
+        },
+      });
+    }
+    if (eventRegistration) {
+      await tx.eventRegistration.updateMany({
+        where: { id: eventRegistration.id, status: "PENDING" },
+        data: {
+          status: "CANCELLED",
+          holdExpiresAt: null,
+          cancelledAt: now,
+          cancelReason: "Cancelled by the player before payment.",
+        },
+      });
+    }
     const closed = await tx.bookingPayment.updateMany({
       where: {
         id: payment.id,
@@ -239,17 +316,26 @@ export async function releaseBookingHoldAction(
       data: {
         status: "FAILED",
         failureCode: "player_released",
-        failureMessage: "The player released these slots before payment began.",
+        failureMessage:
+          "The player released this reservation before payment began.",
       },
     });
     if (closed.count !== 1) {
       throw new Error("Booking hold changed while it was being released.");
     }
 
-    return { kind: "released" as const, hubId: payment.hubId };
+    return {
+      kind: "released" as const,
+      hubId: payment.hubId,
+      eventPublicId,
+    };
   });
 
-  revalidateHeldBookingPaths(parsed.data.paymentId, result.hubId);
+  revalidateHeldBookingPaths(
+    parsed.data.paymentId,
+    "hubId" in result ? result.hubId : undefined,
+    "eventPublicId" in result ? result.eventPublicId : undefined
+  );
   switch (result.kind) {
     case "released":
       return { released: true };
@@ -260,29 +346,32 @@ export async function releaseBookingHoldAction(
       });
       revalidateHeldBookingPaths(
         parsed.data.paymentId,
-        "hubId" in cancelled ? cancelled.hubId : result.hubId
+        "hubId" in cancelled ? cancelled.hubId : result.hubId,
+        "eventPublicId" in cancelled
+          ? cancelled.eventPublicId
+          : result.eventPublicId
       );
       if (cancelled.status === "cancelled") return { released: true };
       if (cancelled.status === "already-paid") {
         return {
           message:
-            "Payment completed before cancellation. Your booking is confirmed.",
+            "Payment completed before cancellation. Your reservation is confirmed.",
         };
       }
       if (cancelled.status === "closed") {
-        return { message: "This booking hold is already closed." };
+        return { message: "This reservation hold is already closed." };
       }
       if (cancelled.status === "unavailable") {
         return { message: cancelled.message };
       }
-      return { message: "We couldn't find that booking hold." };
+      return { message: "We couldn't find that reservation hold." };
     }
     case "expired":
       return { released: true };
     case "closed":
-      return { message: "This booking hold is already closed." };
+      return { message: "This reservation hold is already closed." };
     default:
-      return { message: "We couldn't find that booking hold." };
+      return { message: "We couldn't find that reservation hold." };
   }
 }
 

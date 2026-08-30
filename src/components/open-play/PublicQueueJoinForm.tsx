@@ -1,9 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
-
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
+import { useBunalQActionState } from "@/hooks/useBunalQActionState";
 import { SKILL_LEVELS } from "@/lib/constants";
 import { joinPublicQueueAction } from "@/lib/open-play-actions";
 
@@ -14,7 +13,7 @@ export function PublicQueueJoinForm({
   publicId: string;
   approvalRequired: boolean;
 }) {
-  const [state, action, pending] = useActionState(joinPublicQueueAction, {});
+  const [state, action, pending] = useBunalQActionState(joinPublicQueueAction);
   return (
     <form action={action} className="rounded-2xl bg-accent p-5 text-navy shadow-sm">
       <input type="hidden" name="publicId" value={publicId} />
@@ -32,6 +31,7 @@ export function PublicQueueJoinForm({
       <div className="mt-3"><Select name="skillLevel" label="Skill level" options={[...SKILL_LEVELS]} defaultValue="intermediate" /></div>
       <Button variant="navy" className="mt-4" disabled={pending}>{pending ? "Joining…" : approvalRequired ? "Request to join" : "Join queue"}</Button>
       {state.message || state.success ? <p role="status" className={`mt-3 text-xs font-black ${state.success ? "text-primary-hover" : "text-red-800"}`}>{state.success ?? state.message}</p> : null}
+      {state.reloadRequired ? <button type="button" onClick={() => window.location.reload()} className="mt-3 min-h-10 rounded-xl border border-red-800/20 bg-white px-4 text-xs font-black text-red-800">Reload page</button> : null}
     </form>
   );
 }

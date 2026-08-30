@@ -1,5 +1,5 @@
 const CACHE_PREFIX = "bunal-pwa-";
-const CACHE_NAME = `${CACHE_PREFIX}v3`;
+const CACHE_NAME = `${CACHE_PREFIX}v4`;
 const OFFLINE_URL = "/offline.html";
 const OFFLINE_ASSETS = [
   OFFLINE_URL,
@@ -34,6 +34,10 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  // Never intercept form submissions or Next.js Server Action POSTs. A failed
+  // mutation must remain on the current page instead of becoming an offline
+  // navigation inside the installed app.
+  if (request.method !== "GET") return;
 
   if (OFFLINE_ASSETS.includes(url.pathname)) {
     event.respondWith(

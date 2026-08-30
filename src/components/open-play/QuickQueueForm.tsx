@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/Button";
+import { useBunalQActionState } from "@/hooks/useBunalQActionState";
 import { createQuickQueueAction } from "@/lib/open-play-actions";
 import {
   OPEN_PLAY_MODE_DESCRIPTIONS,
@@ -13,7 +14,7 @@ import {
 type HubOption = { id: string; name: string; courts: { id: string; name: string }[] };
 
 export function QuickQueueForm({ hubs }: { hubs: HubOption[] }) {
-  const [state, action, pending] = useActionState(createQuickQueueAction, {});
+  const [state, action, pending] = useBunalQActionState(createQuickQueueAction);
   const [hubId, setHubId] = useState(hubs[0]?.id ?? "");
   const [mode, setMode] = useState("BALANCED");
   const courts = useMemo(() => hubs.find((hub) => hub.id === hubId)?.courts ?? [], [hubId, hubs]);
@@ -44,6 +45,7 @@ export function QuickQueueForm({ hubs }: { hubs: HubOption[] }) {
         </div>
       </section>
       {state.message ? <p role="alert" className="text-sm font-bold text-red-600">{state.message}</p> : null}
+      {state.reloadRequired ? <button type="button" onClick={() => window.location.reload()} className="min-h-10 rounded-xl border border-red-200 bg-white px-4 text-sm font-black text-red-700">Reload page</button> : null}
       <Button disabled={pending || courts.length === 0}>{pending ? "Starting BunalQ…" : "Start Quick Queue"}</Button>
     </form>
   );

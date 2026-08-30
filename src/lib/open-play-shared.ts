@@ -36,6 +36,7 @@ export type OpenPlayActionState = {
   message?: string;
   success?: string;
   errors?: Record<string, string>;
+  reloadRequired?: boolean;
 };
 
 export type OpenPlaySnapshot = {

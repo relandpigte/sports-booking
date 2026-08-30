@@ -43,23 +43,33 @@ import {
   type OpenPlaySnapshot,
 } from "@/lib/open-play-shared";
 import { SKILL_LEVELS } from "@/lib/constants";
-
-type Action = (
-  previous: OpenPlayActionState,
-  formData: FormData
-) => Promise<OpenPlayActionState>;
+import {
+  runBunalQActionSafely,
+  useBunalQActionState,
+  type BunalQAction,
+} from "@/hooks/useBunalQActionState";
 
 function Feedback({ state }: { state: OpenPlayActionState }) {
   if (!state.message && !state.success) return null;
   return (
-    <p
-      role="status"
-      className={`mt-2 text-xs font-bold ${
-        state.success ? "text-emerald-700" : "text-red-600"
-      }`}
-    >
-      {state.success ?? state.message}
-    </p>
+    <div className="mt-2" role="status">
+      <p
+        className={`text-xs font-bold ${
+          state.success ? "text-emerald-700" : "text-red-600"
+        }`}
+      >
+        {state.success ?? state.message}
+      </p>
+      {state.reloadRequired ? (
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="mt-2 min-h-9 rounded-lg border border-red-200 bg-white px-3 text-xs font-black text-red-700"
+        >
+          Reload page
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -71,14 +81,14 @@ function ActionForm({
   tone = "default",
   confirm,
 }: {
-  action: Action;
+  action: BunalQAction;
   values: Record<string, string | number | boolean>;
   label: string;
   className?: string;
   tone?: "default" | "danger" | "quiet";
   confirm?: string;
 }) {
-  const [state, formAction, pending] = useActionState(action, {});
+  const [state, formAction, pending] = useBunalQActionState(action);
   return (
     <form
       action={formAction}
@@ -108,7 +118,7 @@ function ActionForm({
 }
 
 export function PrepareOpenPlay({ publicId }: { publicId: string }) {
-  const [state, action, pending] = useActionState(prepareOpenPlayAction, {});
+  const [state, action, pending] = useBunalQActionState(prepareOpenPlayAction);
   return (
     <form action={action} className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
       <input type="hidden" name="publicId" value={publicId} />
@@ -126,7 +136,7 @@ export function PrepareOpenPlay({ publicId }: { publicId: string }) {
 }
 
 function ModeForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
-  const [state, action, pending] = useActionState(changeOpenPlayModeAction, {});
+  const [state, action, pending] = useBunalQActionState(changeOpenPlayModeAction);
   const [selected, setSelected] = useState(snapshot.matchingMode);
   return (
     <form action={action} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
@@ -173,7 +183,7 @@ function ModeForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
 }
 
 function WalkInForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
-  const [state, action, pending] = useActionState(addOpenPlayWalkInAction, {});
+  const [state, action, pending] = useBunalQActionState(addOpenPlayWalkInAction);
   return (
     <form action={action} className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
       <input type="hidden" name="sessionId" value={snapshot.id} />
@@ -196,7 +206,7 @@ function WalkInForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
 }
 
 function AdmissionForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
-  const [state, action, pending] = useActionState(changeQueueAdmissionModeAction, {});
+  const [state, action, pending] = useBunalQActionState(changeQueueAdmissionModeAction);
   if (snapshot.queue.kind !== "QUICK") return null;
   return (
     <form action={action} className="rounded-2xl border border-ocean/20 bg-ocean-soft p-4 sm:p-5">
@@ -223,7 +233,7 @@ function AdmissionForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
 }
 
 function PairForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
-  const [state, action, pending] = useActionState(pairOpenPlayParticipantsAction, {});
+  const [state, action, pending] = useBunalQActionState(pairOpenPlayParticipantsAction);
   const eligible = snapshot.participants.filter((participant) =>
     ["NOT_CHECKED_IN", "QUEUED", "PAUSED", "CHECKED_OUT"].includes(participant.status)
   );
@@ -241,7 +251,7 @@ function PairForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
 }
 
 function StagedMatchEditor({ snapshot, game }: { snapshot: OpenPlaySnapshot; game: OpenPlaySnapshot["games"][number] }) {
-  const [state, action, pending] = useActionState(editStagedOpenPlayMatchAction, {});
+  const [state, action, pending] = useBunalQActionState(editStagedOpenPlayMatchAction);
   const currentIds = new Set(game.players.map((player) => player.participantId));
   const options = snapshot.participants
     .filter((participant) => participant.status === "QUEUED" || (participant.status === "STAGED" && currentIds.has(participant.id)))
@@ -432,7 +442,13 @@ function ParticipantMoreActions({
   );
 }
 
-function ParticipantRoster({ snapshot }: { snapshot: OpenPlaySnapshot }) {
+function ParticipantRoster({
+  snapshot,
+  readOnly = false,
+}: {
+  snapshot: OpenPlaySnapshot;
+  readOnly?: boolean;
+}) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<RosterFilter>("ACTIVE");
   const [bulkNotice, setBulkNotice] = useState<OpenPlayActionState>({});
@@ -446,7 +462,11 @@ function ParticipantRoster({ snapshot }: { snapshot: OpenPlaySnapshot }) {
   };
   const [, bulkCheckInAction, checkInPending] = useActionState(
     async (previous: OpenPlayActionState, formData: FormData) => {
-      const result = await bulkCheckInOpenPlayParticipantsAction(previous, formData);
+      const result = await runBunalQActionSafely(
+        bulkCheckInOpenPlayParticipantsAction,
+        previous,
+        formData
+      );
       setBulkNotice(result);
       if (result.success) clearSubmittedSelection(formData);
       return result;
@@ -455,7 +475,11 @@ function ParticipantRoster({ snapshot }: { snapshot: OpenPlaySnapshot }) {
   );
   const [, bulkPauseAction, pausePending] = useActionState(
     async (previous: OpenPlayActionState, formData: FormData) => {
-      const result = await bulkPauseOpenPlayParticipantsAction(previous, formData);
+      const result = await runBunalQActionSafely(
+        bulkPauseOpenPlayParticipantsAction,
+        previous,
+        formData
+      );
       setBulkNotice(result);
       if (result.success) clearSubmittedSelection(formData);
       return result;
@@ -464,7 +488,11 @@ function ParticipantRoster({ snapshot }: { snapshot: OpenPlaySnapshot }) {
   );
   const [, bulkRemoveAction, removePending] = useActionState(
     async (previous: OpenPlayActionState, formData: FormData) => {
-      const result = await bulkRemoveOpenPlayParticipantsAction(previous, formData);
+      const result = await runBunalQActionSafely(
+        bulkRemoveOpenPlayParticipantsAction,
+        previous,
+        formData
+      );
       setBulkNotice(result);
       if (result.success) clearSubmittedSelection(formData);
       return result;
@@ -480,13 +508,21 @@ function ParticipantRoster({ snapshot }: { snapshot: OpenPlaySnapshot }) {
   const visibleParticipants = filter === "ACTIVE"
     ? sortedParticipants.filter((player) => player.status !== "REMOVED")
     : sortedParticipants.filter((player) => player.status === filter);
-  const selectable = visibleParticipants.filter((player) =>
-    ["NOT_CHECKED_IN", "CHECKED_OUT", "QUEUED", "PAUSED"].includes(player.status)
-  );
+  const selectable = readOnly
+    ? []
+    : visibleParticipants.filter((player) =>
+        ["NOT_CHECKED_IN", "CHECKED_OUT", "QUEUED", "PAUSED"].includes(
+          player.status
+        )
+      );
   const selectableIds = new Set(
     snapshot.participants
-      .filter((player) =>
-        ["NOT_CHECKED_IN", "CHECKED_OUT", "QUEUED", "PAUSED"].includes(player.status)
+      .filter(
+        (player) =>
+          !readOnly &&
+          ["NOT_CHECKED_IN", "CHECKED_OUT", "QUEUED", "PAUSED"].includes(
+            player.status
+          )
       )
       .map((player) => player.id)
   );
@@ -528,7 +564,7 @@ function ParticipantRoster({ snapshot }: { snapshot: OpenPlaySnapshot }) {
           <h2 className="text-xs font-black uppercase tracking-[0.16em] text-navy">Active roster</h2>
           <p className="mt-1 text-xs text-slate-500">{activeCount} active records · Updates live</p>
         </div>
-        {snapshot.queue.kind === "EVENT" ? <ActionForm action={syncOpenPlayRosterAction} values={{ sessionId: snapshot.id }} label="Refresh" tone="quiet" /> : null}
+        {!readOnly && snapshot.queue.kind === "EVENT" ? <ActionForm action={syncOpenPlayRosterAction} values={{ sessionId: snapshot.id }} label="Refresh" tone="quiet" /> : null}
       </div>
       <div className="border-b border-slate-100 px-4 py-3 sm:px-5">
         <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Filter roster">
@@ -566,8 +602,9 @@ function ParticipantRoster({ snapshot }: { snapshot: OpenPlaySnapshot }) {
           const groupLabel = GROUPS.find(([status]) => status === player.status)?.[1] ?? player.status;
           const isEligible = ["NOT_CHECKED_IN", "CHECKED_OUT", "QUEUED", "PAUSED"].includes(player.status);
           const hasActions =
-            hasParticipantPrimaryAction(player.status) ||
-            hasParticipantMoreActions(player.status);
+            !readOnly &&
+            (hasParticipantPrimaryAction(player.status) ||
+              hasParticipantMoreActions(player.status));
           const queueNumber = player.queuePosition
             ? snapshot.participants.filter(
                 (item) => item.status === "QUEUED" && (item.queuePosition ?? 0) <= player.queuePosition!
@@ -720,7 +757,7 @@ function ParticipantRoster({ snapshot }: { snapshot: OpenPlaySnapshot }) {
 }
 
 function EditParticipantForm({ snapshot, participant }: { snapshot: OpenPlaySnapshot; participant: OpenPlaySnapshot["participants"][number] }) {
-  const [state, action, pending] = useActionState(editOpenPlayParticipantAction, {});
+  const [state, action, pending] = useBunalQActionState(editOpenPlayParticipantAction);
   return (
     <form action={action} className="mt-2 grid gap-2 rounded-lg bg-white p-2 sm:grid-cols-2">
       <input type="hidden" name="sessionId" value={snapshot.id} />
@@ -772,17 +809,28 @@ export function OpenPlayConsole({ snapshot, canManage }: { snapshot: OpenPlaySna
             {snapshot.status === "ENDED" ? <ActionForm action={startNewOpenPlayRunAction} values={{ sessionId: snapshot.id }} label="Start new run" confirm="Create a fresh run and reset copied players to not checked in?" /> : null}
           </div>
         </div>
-        <ModeForm snapshot={snapshot} />
-        <PairForm snapshot={snapshot} />
-        {pairs.size > 0 ? <div className="flex flex-wrap gap-2">{[...pairs.entries()].map(([pairId, names]) => <div key={pairId} className="flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900"><span>{names.join(" + ")}</span><ActionForm action={unpairOpenPlayParticipantsAction} values={{ sessionId: snapshot.id, pairId }} label="Unpair" tone="quiet" /></div>)}</div> : null}
-        <div className="space-y-6">
-          <div>{snapshot.status === "ACTIVE" ? <MatchControls snapshot={snapshot} /> : <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">Start the run to stage matches.</p>}</div>
-          <div className={snapshot.queue.kind === "QUICK" ? "grid gap-4 lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.7fr)]" : ""}>
-            <AdmissionForm snapshot={snapshot} />
-            <WalkInForm snapshot={snapshot} />
+        {snapshot.status !== "ENDED" ? (
+          <>
+            <ModeForm snapshot={snapshot} />
+            <PairForm snapshot={snapshot} />
+            {pairs.size > 0 ? <div className="flex flex-wrap gap-2">{[...pairs.entries()].map(([pairId, names]) => <div key={pairId} className="flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900"><span>{names.join(" + ")}</span><ActionForm action={unpairOpenPlayParticipantsAction} values={{ sessionId: snapshot.id, pairId }} label="Unpair" tone="quiet" /></div>)}</div> : null}
+            <div className="space-y-6">
+              <div>{snapshot.status === "ACTIVE" ? <MatchControls snapshot={snapshot} /> : <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">Start the run to stage matches.</p>}</div>
+              <div className={snapshot.queue.kind === "QUICK" ? "grid gap-4 lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.7fr)]" : ""}>
+                <AdmissionForm snapshot={snapshot} />
+                <WalkInForm snapshot={snapshot} />
+              </div>
+              <ParticipantRoster snapshot={snapshot} />
+            </div>
+          </>
+        ) : (
+          <div className="space-y-4">
+            <p className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              This run is archived. Its roster and results are read-only.
+            </p>
+            <ParticipantRoster snapshot={snapshot} readOnly />
           </div>
-          <ParticipantRoster snapshot={snapshot} />
-        </div>
+        )}
       </> : null}
       <section className="border-t border-slate-200 pt-8 sm:pt-10">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3">

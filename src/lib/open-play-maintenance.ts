@@ -77,9 +77,15 @@ async function closeStaleSession(
     await tx.openPlayParticipant.updateMany({
       where: {
         sessionId,
-        status: { notIn: ["CHECKED_OUT", "REMOVED"] },
+        status: {
+          notIn: ["CHECKED_OUT", "REMOVED", "PENDING_APPROVAL"],
+        },
       },
       data: { status: "CHECKED_OUT", queuePosition: null, queuedAt: null },
+    });
+    await tx.openPlayParticipant.updateMany({
+      where: { sessionId, status: "PENDING_APPROVAL" },
+      data: { status: "REMOVED", queuePosition: null, queuedAt: null },
     });
     await tx.openPlaySession.update({
       where: { id: sessionId },

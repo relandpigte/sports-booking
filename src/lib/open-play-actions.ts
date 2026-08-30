@@ -370,15 +370,14 @@ export async function syncOpenPlayRosterAction(
   const sessionId = String(formData.get("sessionId") ?? "");
   const owned = await ownedSession(sessionId, workspace);
   if (!owned) return { message: "BunalQ run not found." };
-  await bunalQTransaction(async (tx) => {
+  const synced = await bunalQTransaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
-    if (!session || session.status === "ENDED") throw new Error("SESSION_ENDED");
-    if (!session.queue.event) throw new Error("EVENT_REQUIRED");
+    if (!session || session.status === "ENDED") return false;
+    if (!session.queue.event) return false;
     await syncRosterRows(tx, session.id, session.queue.event.id);
-  }).catch((error) => {
-    if (error instanceof Error && error.message === "SESSION_ENDED") return;
-    throw error;
+    return true;
   });
+  if (!synced) return { message: "This Event run has ended." };
   refresh(owned.queue.publicId, owned.queue.event?.publicId);
   return { success: "Roster refreshed." };
 }
@@ -580,7 +579,12 @@ export async function pairOpenPlayParticipantsAction(
     });
     if (
       participants.length !== 2 ||
-      participants.some((participant) => ["STAGED", "PLAYING"].includes(participant.status))
+      participants.some(
+        (participant) =>
+          !["NOT_CHECKED_IN", "QUEUED", "PAUSED", "CHECKED_OUT"].includes(
+            participant.status
+          )
+      )
     ) return false;
     const oldPairIds = participants.flatMap((participant) => participant.pairId ? [participant.pairId] : []);
     await tx.openPlayParticipant.updateMany({
@@ -611,13 +615,16 @@ export async function unpairOpenPlayParticipantsAction(
   const pairId = String(formData.get("pairId") ?? "");
   const owned = await ownedSession(sessionId, workspace);
   if (!owned) return { message: "BunalQ run not found." };
-  await bunalQTransaction(async (tx) => {
-    await lockSession(tx, sessionId);
+  const removed = await bunalQTransaction(async (tx) => {
+    const session = await lockSession(tx, sessionId);
+    if (!session || session.status === "ENDED") return false;
     const pair = await tx.openPlayPair.findFirst({ where: { id: pairId, sessionId } });
-    if (!pair) return;
+    if (!pair) return false;
     await tx.openPlayParticipant.updateMany({ where: { sessionId, pairId }, data: { pairId: null } });
     await tx.openPlayPair.delete({ where: { id: pairId } });
+    return true;
   });
+  if (!removed) return { message: "That pair cannot be removed." };
   refresh(owned.queue.publicId, owned.queue.event?.publicId);
   return { success: "Pair removed." };
 }
@@ -990,8 +997,17 @@ export async function endOpenPlaySessionAction(
       data: { status: "CANCELLED", cancelledAt: new Date() },
     });
     await tx.openPlayParticipant.updateMany({
-      where: { sessionId, status: { not: "CHECKED_OUT" } },
+      where: {
+        sessionId,
+        status: {
+          notIn: ["CHECKED_OUT", "REMOVED", "PENDING_APPROVAL"],
+        },
+      },
       data: { status: "CHECKED_OUT", queuePosition: null, queuedAt: null },
+    });
+    await tx.openPlayParticipant.updateMany({
+      where: { sessionId, status: "PENDING_APPROVAL" },
+      data: { status: "REMOVED", queuePosition: null, queuedAt: null },
     });
     await tx.openPlaySession.update({
       where: { id: session.id },
@@ -1080,15 +1096,20 @@ export async function changeQueueAdmissionModeAction(
   }
   const owned = await ownedSession(sessionId, workspace);
   if (!owned) return { message: "BunalQ run not found." };
-  const updated = await prisma.openPlayQueue.updateMany({
-    where: {
-      publicId: owned.queue.publicId,
-      kind: "QUICK",
-      hub: { ownerId: workspace.partnerId },
-    },
-    data: { admissionMode },
+  const updated = await bunalQTransaction(async (tx) => {
+    const session = await lockSession(tx, sessionId);
+    if (!session || session.queue.kind !== "QUICK") return 0;
+    const result = await tx.openPlayQueue.updateMany({
+      where: {
+        id: session.queueId,
+        kind: "QUICK",
+        hub: { ownerId: workspace.partnerId },
+      },
+      data: { admissionMode },
+    });
+    return result.count;
   });
-  if (updated.count !== 1) {
+  if (updated !== 1) {
     return { message: "Guest self-join is available only for Quick Queues." };
   }
   await audit(workspace, "BUNALQ_ADMISSION_CHANGED", sessionId, { admissionMode });
@@ -1135,27 +1156,37 @@ export async function joinPublicQueueAction(
     if (!queue || queue.kind !== "QUICK" || !current || current.status !== "ACTIVE") {
       return { kind: "closed" as const };
     }
-    await lockSession(tx, current.id);
+    const session = await lockSession(tx, current.id);
+    if (
+      !session ||
+      session.status !== "ACTIVE" ||
+      session.queue.kind !== "QUICK"
+    ) {
+      return { kind: "closed" as const };
+    }
     const rosterCount = await tx.openPlayParticipant.count({
-      where: { sessionId: current.id, status: { not: "REMOVED" } },
+      where: { sessionId: session.id, status: { not: "REMOVED" } },
     });
     if (rosterCount >= 100) return { kind: "full" as const };
     let queuePosition: number | null = null;
-    if (queue.admissionMode === "INSTANT") {
-      const session = await tx.openPlaySession.update({
-        where: { id: current.id },
+    if (session.queue.admissionMode === "INSTANT") {
+      const positionedSession = await tx.openPlaySession.update({
+        where: { id: session.id },
         data: { nextQueuePosition: { increment: 1 } },
         select: { nextQueuePosition: true },
       });
-      queuePosition = session.nextQueuePosition;
+      queuePosition = positionedSession.nextQueuePosition;
     }
     const participant = await tx.openPlayParticipant.create({
       data: {
-        sessionId: current.id,
+        sessionId: session.id,
         source: "PUBLIC_GUEST",
         displayName: parsed.data.displayName,
         skillLevel: parsed.data.skillLevel,
-        status: queue.admissionMode === "INSTANT" ? "QUEUED" : "PENDING_APPROVAL",
+        status:
+          session.queue.admissionMode === "INSTANT"
+            ? "QUEUED"
+            : "PENDING_APPROVAL",
         queuePosition,
         checkedInAt: queuePosition ? new Date() : null,
         queuedAt: queuePosition ? new Date() : null,
@@ -1169,10 +1200,13 @@ export async function joinPublicQueueAction(
         action: "BUNALQ_PUBLIC_GUEST_SUBMITTED",
         targetType: "OpenPlayParticipant",
         targetId: participant.id,
-        metadata: { admissionMode: queue.admissionMode },
+        metadata: { admissionMode: session.queue.admissionMode },
       },
     });
-    return { kind: "joined" as const, admissionMode: queue.admissionMode };
+    return {
+      kind: "joined" as const,
+      admissionMode: session.queue.admissionMode,
+    };
   });
   if (result.kind === "closed") return { message: "This Quick Queue is not accepting players." };
   if (result.kind === "full") return { message: "This Quick Queue has reached its roster limit." };
@@ -1264,6 +1298,7 @@ export async function editOpenPlayParticipantAction(
       id: parsed.data.participantId,
       sessionId: parsed.data.sessionId,
       status: { not: "REMOVED" },
+      session: { status: { not: "ENDED" } },
     },
     data: {
       displayName: parsed.data.displayName,
@@ -1293,6 +1328,7 @@ export async function removeOpenPlayParticipantAction(
       id: participantId,
       sessionId,
       status: { notIn: ["STAGED", "PLAYING", "REMOVED"] },
+      session: { status: { not: "ENDED" } },
     },
     data: {
       status: "REMOVED",
@@ -1473,7 +1509,14 @@ export async function startNewOpenPlayRunAction(
         orderBy: { position: "asc" },
       }),
       tx.openPlayParticipant.findMany({
-        where: { sessionId, status: { not: "REMOVED" } },
+        where: {
+          sessionId,
+          status: { notIn: ["REMOVED", "PENDING_APPROVAL"] },
+          NOT: {
+            source: "PUBLIC_GUEST",
+            checkedInAt: null,
+          },
+        },
         orderBy: { createdAt: "asc" },
       }),
     ]);

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import vm from "node:vm";
 
 import nextConfig from "../next.config";
 import manifest from "../src/app/manifest";
@@ -33,8 +34,64 @@ async function main() {
 
   const worker = await readFile(path.join(root, "public", "sw.js"), "utf8");
   assert.match(worker, /OFFLINE_ASSETS/);
+  assert.match(worker, /request\.method !== "GET"/);
   assert.match(worker, /request\.mode !== "navigate"/);
   assert.doesNotMatch(worker, /cache\.put/);
+
+  const workerListeners = new Map<string, (event: unknown) => void>();
+  vm.runInNewContext(worker, {
+    URL,
+    Response,
+    caches: {
+      keys: async () => [],
+      open: async () => ({ addAll: async () => undefined }),
+      match: async () => undefined,
+      delete: async () => true,
+    },
+    fetch: async () => new Response("ok"),
+    self: {
+      location: { origin: "https://www.bunal.club" },
+      addEventListener: (name: string, listener: (event: unknown) => void) =>
+        workerListeners.set(name, listener),
+      skipWaiting: () => undefined,
+      clients: { claim: async () => undefined },
+    },
+  });
+  const fetchListener = workerListeners.get("fetch");
+  assert(fetchListener);
+  let postIntercepted = false;
+  fetchListener({
+    request: {
+      url: "https://www.bunal.club/dashboard/bunalq/example",
+      method: "POST",
+      mode: "navigate",
+    },
+    respondWith: () => {
+      postIntercepted = true;
+    },
+  });
+  assert.equal(postIntercepted, false);
+
+  let navigationIntercepted = false;
+  fetchListener({
+    request: {
+      url: "https://www.bunal.club/dashboard/bunalq/example",
+      method: "GET",
+      mode: "navigate",
+    },
+    respondWith: () => {
+      navigationIntercepted = true;
+    },
+  });
+  assert.equal(navigationIntercepted, true);
+
+  const bunalQActionState = await readFile(
+    path.join(root, "src", "hooks", "useBunalQActionState.ts"),
+    "utf8"
+  );
+  assert.match(bunalQActionState, /try \{/);
+  assert.match(bunalQActionState, /reloadRequired: true/);
+  assert.match(bunalQActionState, /Reload this page/);
 
   const installBanner = await readFile(
     path.join(root, "src", "components", "pwa", "PublicInstallBanner.tsx"),

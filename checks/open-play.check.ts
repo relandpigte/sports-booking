@@ -278,6 +278,20 @@ async function check() {
   const end = new FormData();
   end.set("sessionId", session.id);
   ok("an active run can be archived", Boolean((await actions.endOpenPlaySessionAction({}, end)).success));
+  ok(
+    "ending a run preserves removed players as removed",
+    (await prisma.openPlayParticipant.findUniqueOrThrow({
+      where: { id: removableQueued.id },
+    })).status === "REMOVED"
+  );
+  const endedRosterRefresh = new FormData();
+  endedRosterRefresh.set("sessionId", session.id);
+  ok(
+    "an ended Event run cannot report a successful roster refresh",
+    Boolean(
+      (await actions.syncOpenPlayRosterAction({}, endedRosterRefresh)).message
+    )
+  );
   const nextRun = new FormData();
   nextRun.set("sessionId", session.id);
   ok("an ended run can create a fresh run", Boolean((await actions.startNewOpenPlayRunAction({}, nextRun)).success));
@@ -288,8 +302,8 @@ async function check() {
   });
   ok("run history is preserved", runs.length === 2 && runs[0].status === "ENDED" && runs[1].runNumber === 2);
   ok(
-    "the new run copies players with reset attendance",
-    runs[1].participants.length === session.participants.length &&
+    "the new run excludes removed players and resets retained attendance",
+    runs[1].participants.length === session.participants.length - 1 &&
       runs[1].participants.every((participant) => participant.status === "NOT_CHECKED_IN")
   );
 
@@ -312,6 +326,14 @@ async function check() {
           status: "REMOVED",
         },
       })) === 2
+  );
+  const invalidPair = new FormData();
+  invalidPair.set("sessionId", runs[1].id);
+  invalidPair.set("firstId", runs[1].participants[0].id);
+  invalidPair.set("secondId", runs[1].participants[1].id);
+  ok(
+    "removed players cannot be assigned as fixed partners",
+    Boolean((await actions.pairOpenPlayParticipantsAction({}, invalidPair)).message)
   );
 
   const editPlayer = new FormData();
@@ -349,6 +371,18 @@ async function check() {
       cleanedEventRun.participants.every((participant) =>
         ["CHECKED_OUT", "REMOVED"].includes(participant.status)
       )
+  );
+  const endedEdit = new FormData();
+  endedEdit.set("sessionId", runs[1].id);
+  endedEdit.set("participantId", runs[1].participants[0].id);
+  endedEdit.set("displayName", "Should not change");
+  endedEdit.set("skillLevel", "beginner");
+  ok(
+    "ended run history cannot be edited by a stale form",
+    Boolean((await actions.editOpenPlayParticipantAction({}, endedEdit)).message) &&
+      (await prisma.openPlayParticipant.findUniqueOrThrow({
+        where: { id: runs[1].participants[0].id },
+      })).displayName === "Edited for this run"
   );
   ok(
     "Event cleanup is idempotent",
@@ -396,6 +430,17 @@ async function check() {
   approveGuest.set("participantId", pendingGuest.id);
   ok("staff can approve and check in a pending guest", Boolean((await actions.approvePublicQueueGuestAction({}, approveGuest)).success));
   ok("approved guests appear in the public queue", (await domain.getPublicOpenPlaySnapshot(quickPublicId))?.participants.length === 1);
+  publicJoin.set("displayName", "Still Pending Guest");
+  ok(
+    "a second public request can remain pending until the run closes",
+    Boolean((await actions.joinPublicQueueAction({}, publicJoin)).success)
+  );
+  const stillPendingGuest = await prisma.openPlayParticipant.findFirstOrThrow({
+    where: {
+      sessionId: quickSession.id,
+      displayName: "Still Pending Guest",
+    },
+  });
   const quickGraceResult = await maintenance.cleanupStaleOpenPlaySessions({
     now: new Date(quickSession.startedAt!.getTime() + maintenance.QUICK_QUEUE_INACTIVITY_MS - 60_000),
     sessionIds: [quickSession.id],
@@ -413,7 +458,33 @@ async function check() {
     "inactive standalone BunalQ runs auto-end",
     quickCleanup.quickQueues === 1 &&
       cleanedQuickRun.status === "ENDED" &&
-      cleanedQuickRun.participants.every((participant) => participant.status === "CHECKED_OUT")
+      cleanedQuickRun.participants.every((participant) =>
+        ["CHECKED_OUT", "REMOVED"].includes(participant.status)
+      ) &&
+      cleanedQuickRun.participants.find(
+        (participant) => participant.id === stillPendingGuest.id
+      )?.status === "REMOVED"
+  );
+  const nextQuickRun = new FormData();
+  nextQuickRun.set("sessionId", quickSession.id);
+  ok(
+    "an ended Quick Queue can create another run",
+    Boolean((await actions.startNewOpenPlayRunAction({}, nextQuickRun)).success)
+  );
+  ok(
+    "unapproved public requests do not carry into a new run",
+    (await prisma.openPlayParticipant.count({
+      where: {
+        session: { queue: { publicId: quickPublicId }, runNumber: 2 },
+        displayName: "Still Pending Guest",
+      },
+    })) === 0 &&
+      (await prisma.openPlayParticipant.count({
+        where: {
+          session: { queue: { publicId: quickPublicId }, runNumber: 2 },
+          source: "PUBLIC_GUEST",
+        },
+      })) === 1
   );
 
   const eventPublicJoin = new FormData();

@@ -64,9 +64,9 @@ const FEATURES: {
   },
   {
     icon: "shield",
-    title: "Protected payments",
+    title: "Flexible payments",
     description:
-      "Secure PayMongo checkout, automatic verification, and duplicate-charge protection make every booking easier.",
+      "Choose automatic PayMongo QR Ph or fee-free manual collection with receipt review.",
   },
   {
     icon: "message",
@@ -105,7 +105,7 @@ const FAQS = [
   {
     question: "Where does the player's court payment go?",
     answer:
-      "The venue connects its own PayMongo account, so the booking proceeds are deposited to that partner. The venue retains its advertised court rate.",
+      "Manual payments go directly to the venue's listed account with no added fee. Automatic booking proceeds go to the venue's connected PayMongo account, and the venue retains its advertised court rate.",
   },
   {
     question: "Which payment methods can players use?",
@@ -308,13 +308,13 @@ function BookingPreview() {
 
           <div className="mt-5 flex items-end justify-between gap-4 border-t border-slate-100 pt-5">
             <div>
-              <p className="text-xs text-slate-500">Service fee</p>
-              <p className="mt-0.5 text-sm font-bold text-navy">3%</p>
+              <p className="text-xs text-slate-500">Manual Bunal fee</p>
+              <p className="mt-0.5 text-sm font-bold text-primary">0%</p>
             </div>
             <div className="text-right">
-              <p className="text-xs text-slate-500">Pay securely with</p>
-              <p className="mt-0.5 text-sm font-bold text-primary">
-                PayMongo checkout
+              <p className="text-xs text-slate-500">Automatic Bunal fee</p>
+              <p className="mt-0.5 text-sm font-bold text-navy">
+                3% via PayMongo
               </p>
             </div>
           </div>
@@ -420,8 +420,8 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
               </h1>
               <p className="mt-6 max-w-xl text-base leading-7 text-white/70 sm:text-lg sm:leading-8">
                 Discover local hubs, choose live available hours, and complete
-                your booking through secure PayMongo checkout—without the
-                back-and-forth.
+                your booking through automatic QR Ph or the venue&apos;s listed
+                manual payment account.
               </p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -443,6 +443,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
               <div className="mt-9 flex flex-wrap gap-x-5 gap-y-2 text-sm text-white/65">
                 {[
                   "No monthly partner fee",
+                  "0% Bunal fee on manual payments",
                   "Live availability",
                   "Secure PayMongo QR Ph",
                 ].map((item) => (
@@ -474,12 +475,12 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
               {
                 icon: "card" as const,
                 title: "Easy payments",
-                copy: "Secure QR Ph checkout.",
+                copy: "0%-fee manual or QR Ph.",
               },
               {
                 icon: "check" as const,
-                title: "Fast confirmation",
-                copy: "Automatic payment verification.",
+                title: "Clear confirmation",
+                copy: "Automatic or receipt-reviewed.",
               },
             ].map((benefit) => (
               <div
@@ -686,29 +687,36 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
           <div className="mx-auto max-w-7xl">
             <div className="mx-auto max-w-4xl text-center">
               <p className="text-xs font-bold uppercase tracking-[0.22em] text-primary">
-                Payment gateway
+                Two payment modes
               </p>
               <h2 className="mt-4 text-3xl font-black tracking-[-0.04em] text-navy sm:text-5xl">
-                Pay securely. Get confirmed in seconds.
+                Automatic QR Ph or 0%-fee manual payments.
               </h2>
               <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-slate-600 sm:text-lg">
-                Scan PayMongo&apos;s exact-amount QR Ph code directly on your
-                booking. Bunal.club verifies successful payment automatically
-                and confirms it without receipt screenshots or manual follow-up.
+                Each venue chooses how it collects payments. Manual checkout
+                charges only the advertised venue or event amount, with no
+                Bunal.club or PayMongo fee. Automatic PayMongo QR Ph adds the
+                displayed service and processing fees, then confirms payment
+                automatically.
               </p>
             </div>
 
-            <div className="mt-12 grid gap-4 md:grid-cols-3">
+            <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {[
+                {
+                  icon: "card" as const,
+                  label: "0% manual fee",
+                  copy: "Players transfer only the advertised amount to the venue's listed account.",
+                },
+                {
+                  icon: "users" as const,
+                  label: "Venue receipt review",
+                  copy: "Manual GCash, Maya, bank, or custom payments confirm after the venue reviews proof.",
+                },
                 {
                   icon: "check" as const,
                   label: "Automatic verification",
                   copy: "Signed payment updates remove the need to send a receipt screenshot.",
-                },
-                {
-                  icon: "calendar" as const,
-                  label: "Fast confirmation",
-                  copy: "Successful payment confirms the held booking automatically.",
                 },
                 {
                   icon: "shield" as const,
@@ -738,10 +746,10 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.18em] text-ocean">
-                      Pay with
+                      Automatic payment
                     </p>
                     <h3 className="mt-2 text-2xl font-black text-navy">
-                      One checkout. QR Ph only.
+                      PayMongo checkout uses QR Ph.
                     </h3>
                   </div>
                   <p className="max-w-xs text-sm leading-6 text-slate-500">
@@ -770,26 +778,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                     </div>
                   ))}
                 </div>
-              </div>
 
-              <aside className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-7">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-soft text-xs font-black text-primary">
-                    QR
-                  </span>
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">
-                      QR Ph
-                    </p>
-                    <h3 className="font-black text-navy">
-                      Scan from your preferred app
-                    </h3>
-                  </div>
-                </div>
-                <p className="mt-4 text-sm leading-6 text-slate-500">
-                  One dynamic QR can be paid through participating Philippine
-                  banking and e-wallet apps.
-                </p>
                 <div className="mt-5 flex flex-wrap gap-2">
                   {QR_PH_APPS.map((app) => (
                     <span
@@ -800,10 +789,39 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                     </span>
                   ))}
                 </div>
-                <p className="mt-4 text-xs leading-5 text-slate-400">
-                  App availability is determined by PayMongo and each
-                  participating institution.
+              </div>
+
+              <aside className="rounded-3xl border border-primary/20 bg-primary-soft p-5 sm:p-7">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-xs font-black text-white">
+                    0%
+                  </span>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">
+                      Manual payment
+                    </p>
+                    <h3 className="font-black text-navy">
+                      No Bunal.club or PayMongo fee
+                    </h3>
+                  </div>
+                </div>
+                <p className="mt-4 text-sm leading-6 text-slate-600">
+                  Transfer the exact advertised amount through the venue&apos;s
+                  listed GCash, Maya, bank-transfer, or custom payment account,
+                  then upload your receipt for review.
                 </p>
+                <div className="mt-5 rounded-2xl border border-primary/15 bg-white/75 p-4">
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
+                    Player pays
+                  </p>
+                  <p className="mt-2 text-2xl font-black text-navy">
+                    Advertised amount only
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    The partner also pays no Bunal.club fee for that manual
+                    booking or event registration.
+                  </p>
+                </div>
               </aside>
             </div>
 
@@ -818,14 +836,12 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                     For venue partners
                   </p>
                   <h3 className="mt-3 text-3xl font-black tracking-[-0.035em] text-white">
-                    Booking proceeds go straight to your connected PayMongo
-                    account.
+                    Choose automatic checkout or fee-free manual collection.
                   </h3>
                   <p className="mt-4 text-sm leading-6 text-white/65 sm:text-base sm:leading-7">
-                    Bunal.club does not hold your court revenue. You receive the
-                    booking subtotal in your own PayMongo account, keep your
-                    advertised court rate, and see the fixed Bunal.club service
-                    fee clearly for later settlement.
+                    Manual payments go to your listed account with no Bunal.club
+                    fee. Automatic booking proceeds go to your connected
+                    PayMongo account with the service fee shown separately.
                   </p>
                 </div>
 
@@ -833,18 +849,18 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                   {[
                     {
                       number: "01",
-                      title: "Player pays",
-                      copy: "Court rate and service fee appear in one checkout.",
+                      title: "Choose a mode",
+                      copy: "Use manual collection or automatic PayMongo QR Ph.",
                     },
                     {
                       number: "02",
-                      title: "PayMongo verifies",
-                      copy: "The signed payment update confirms the booking.",
+                      title: "Player pays",
+                      copy: "Manual checkout charges the advertised amount only.",
                     },
                     {
                       number: "03",
-                      title: "You receive it",
-                      copy: "The booking subtotal lands in your PayMongo account.",
+                      title: "You confirm",
+                      copy: "Review manual proof or let PayMongo verify automatically.",
                     },
                   ].map((step) => (
                     <li
@@ -874,7 +890,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
               </p>
               <p className="inline-flex items-center gap-2">
                 <Icon name="card" className="h-4 w-4 text-primary" />
-                PayMongo&apos;s QR Ph processing fee is shown before you pay —{" "}
+                Automatic PayMongo processing fees are shown before you pay —{" "}
                 <a href="#partners" className="font-bold text-primary hover:underline">
                   see current rates
                 </a>
@@ -1084,14 +1100,15 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
             <div>
               <SectionHeading
                 eyebrow="For venue partners"
-                title="Your courts. Your PayMongo. Your court revenue."
-                description="Create polished hub profiles, publish bookable courts, and receive player booking proceeds through your own connected PayMongo account."
+                title="Your courts. Your payment mode. Your revenue."
+                description="Collect through fee-free manual accounts or automatic PayMongo QR Ph while keeping your advertised venue and event rates."
               />
 
               <div className="mt-8 grid gap-3 sm:grid-cols-2">
                 {[
                   "No plan or subscription",
                   "No monthly platform charge",
+                  "0% Bunal fee on manual payments",
                   "Publish a Coming soon hub before PayMongo",
                   "Reports and booking breakdown",
                 ].map((item) => (
@@ -1127,29 +1144,34 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                   Simple partner economics
                 </p>
                 <h3 className="mt-2 text-2xl font-black text-navy">
-                  Keep your advertised court rate.
+                  Keep your advertised venue and event rate.
                 </h3>
                 <p className="mt-3 text-sm leading-6 text-slate-600">
-                  Player booking proceeds go to your PayMongo account.
-                  Bunal.club&apos;s 3% service fee is recorded clearly for
-                  settlement.
+                  Manual payments have no Bunal.club or PayMongo fee. Automatic
+                  payments use your connected PayMongo account with the 3%
+                  Bunal.club fee shown clearly.
                 </p>
               </div>
 
-              <div className="grid gap-7 p-6 sm:p-7 xl:grid-cols-[0.72fr_1.28fr]">
-                <div>
+              <div className="grid gap-4 p-6 sm:grid-cols-2 sm:p-7">
+                <div className="rounded-2xl border border-primary/20 bg-primary-soft p-5">
                   <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">
-                    Bunal.club fee
+                    Manual collection
                   </p>
-                  <p className="mt-3 text-4xl font-black text-primary">3%</p>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    of the court booking total
+                  <p className="mt-3 text-4xl font-black text-primary">0%</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-600">
+                    No Bunal.club or PayMongo fee. The player pays the
+                    advertised amount directly to your listed account.
                   </p>
                 </div>
 
-                <div className="border-t border-slate-100 pt-6 xl:border-l xl:border-t-0 xl:pl-7 xl:pt-0">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
                   <p className="text-xs font-bold uppercase tracking-[0.16em] text-ocean">
-                    PayMongo processing
+                    Automatic PayMongo
+                  </p>
+                  <p className="mt-3 text-4xl font-black text-navy">3%</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Bunal.club service fee, plus PayMongo QR Ph processing.
                   </p>
                   <dl className="mt-4 space-y-2.5">
                     {PAYMONGO_PROCESSING_RATES.map((item) => (
@@ -1168,11 +1190,10 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                   </dl>
                 </div>
 
-                <p className="text-[11px] leading-5 text-slate-400 xl:col-span-2">
-                  PayMongo&apos;s published standard rates are exclusive of VAT
-                  and may change. Connected-account or custom pricing can
-                  differ. Processing charges are separate from Bunal.club&apos;s
-                  service fee.{" "}
+                <p className="text-[11px] leading-5 text-slate-400 sm:col-span-2">
+                  The PayMongo rate applies only to automatic checkout.
+                  Published standard rates are exclusive of VAT and may change;
+                  connected-account or custom pricing can differ.{" "}
                   <a
                     href="https://www.paymongo.com/pricing"
                     target="_blank"
@@ -1202,7 +1223,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                 {
                   eyebrow: "Players",
                   title: "Book with confidence",
-                  copy: "Browse hubs, see live hours, pay online, and manage your upcoming games.",
+                  copy: "Browse hubs, see live hours, choose the venue's payment mode, and manage upcoming games.",
                   href: "/register",
                   cta: "Create player account",
                   icon: "users" as const,
@@ -1210,7 +1231,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                 {
                   eyebrow: "Partners",
                   title: "Run your venue clearly",
-                  copy: "Manage courts, bookings, PayMongo connection, reports, and service fees.",
+                  copy: "Manage courts, bookings, fee-free manual payments, optional PayMongo, and reports.",
                   href: "/register/partner",
                   cta: "Apply as partner",
                   icon: "court" as const,

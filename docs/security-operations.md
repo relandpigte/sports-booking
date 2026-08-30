@@ -2,9 +2,9 @@
 
 ## Required deployment configuration
 
-- Set `AUTH_SECRET`, `ENCRYPTION_KEY`, `BOOKING_SWEEP_SECRET`, and an HTTPS
-  canonical `APP_URL`. `/api/health/security` returns HTTP 503 when an essential
-  value is absent.
+- Set `AUTH_SECRET`, `ENCRYPTION_KEY`, `BOOKING_SWEEP_SECRET`, `CRON_SECRET`,
+  and an HTTPS canonical `APP_URL`. `/api/health/security` returns HTTP 503
+  when an essential value is absent.
 - Leave `PARTNER_MFA_REQUIRED_AFTER` blank while partner MFA is optional. To
   require it, set an ISO cutover timestamp; after that timestamp, partner
   sign-in fails closed until authenticator MFA is enrolled. Partners who opt in

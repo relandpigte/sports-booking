@@ -28,10 +28,12 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql://bunal:bunal-check@localhost:5432/bunal_check?schema=public
+      CHECK_DATABASE_URL: postgresql://bunal:bunal-check@localhost:5432/bunal_check?schema=public
       AUTH_SECRET: ci-auth-secret-that-is-not-used-in-production
       ENCRYPTION_KEY: ci:Q0lDSUNJQ0lDSUNJQ0lDSUNJQ0lDSUNJQ0lDSUNJQ0k=
       APP_URL: http://localhost:3000
       BOOKING_SWEEP_SECRET: ci-sweep-secret
+      CRON_SECRET: ci-cron-secret
       PARTNER_MFA_REQUIRED_AFTER: "2000-01-01T00:00:00.000Z"
     steps:
       - uses: actions/checkout@v7

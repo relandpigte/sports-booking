@@ -4,7 +4,7 @@
 //   npm run check:security
 import nextConfig from "../next.config";
 
-import { ok, report } from "./harness";
+import { assertNotProduction, ok, report } from "./harness";
 import { sanitizeImageDataUrl } from "@/lib/avatar";
 import { roleRequiresMfa } from "@/lib/mfa-policy";
 import { RegisterSchema } from "@/lib/validation";
@@ -13,6 +13,53 @@ const VALID_PNG_DATA_URL =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADklEQVQImWP4DwUMMAYAj4IP8cvlVgcAAAAASUVORK5CYII=";
 
 async function check() {
+  const previousDatabaseUrl = process.env.DATABASE_URL;
+  const previousCheckDatabaseUrl = process.env.CHECK_DATABASE_URL;
+
+  try {
+    process.env.DATABASE_URL = "postgresql://localhost/bunal_check";
+    delete process.env.CHECK_DATABASE_URL;
+    let missingConfirmationRejected = false;
+    try {
+      assertNotProduction();
+    } catch {
+      missingConfirmationRejected = true;
+    }
+    ok(
+      "database checks reject a target without explicit confirmation",
+      missingConfirmationRejected
+    );
+
+    process.env.CHECK_DATABASE_URL = "postgresql://localhost/another_database";
+    let mismatchedConfirmationRejected = false;
+    try {
+      assertNotProduction();
+    } catch {
+      mismatchedConfirmationRejected = true;
+    }
+    ok(
+      "database checks reject mismatched confirmation",
+      mismatchedConfirmationRejected
+    );
+
+    process.env.CHECK_DATABASE_URL = process.env.DATABASE_URL;
+    let confirmedTargetAccepted = true;
+    try {
+      assertNotProduction();
+    } catch {
+      confirmedTargetAccepted = false;
+    }
+    ok(
+      "database checks accept an explicitly confirmed non-production target",
+      confirmedTargetAccepted
+    );
+  } finally {
+    if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previousDatabaseUrl;
+    if (previousCheckDatabaseUrl === undefined) delete process.env.CHECK_DATABASE_URL;
+    else process.env.CHECK_DATABASE_URL = previousCheckDatabaseUrl;
+  }
+
   const previousCutover = process.env.PARTNER_MFA_REQUIRED_AFTER;
   delete process.env.PARTNER_MFA_REQUIRED_AFTER;
   ok(

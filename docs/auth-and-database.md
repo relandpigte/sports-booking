@@ -10,6 +10,7 @@ Copy `.env.example` to `.env` and fill in:
 | Variable         | What it is                                                            |
 | ---------------- | --------------------------------------------------------------------- |
 | `DATABASE_URL`   | Postgres connection string (Neon, Supabase, RDS, or local Postgres).  |
+| `CHECK_DATABASE_URL` | Explicit confirmation of the disposable database used by checks. It must exactly match `DATABASE_URL`. |
 | `AUTH_SECRET`    | Secret used to sign session JWTs. Generate with the command below.   |
 | `AUTH_GOOGLE_ID` | Google OAuth Web application client ID.                              |
 | `AUTH_GOOGLE_SECRET` | Google OAuth Web application client secret.                      |
@@ -51,6 +52,11 @@ npm run db:migrate     # creates a migration under prisma/migrations
 
 The Prisma client is generated automatically on `npm install` (via the
 `postinstall` script) and after schema changes (`npm run db:generate`).
+
+Database-backed checks create and remove fixtures in the configured database.
+Before running them, point both `DATABASE_URL` and `CHECK_DATABASE_URL` at the
+same disposable development or test database. Never set
+`CHECK_DATABASE_URL` to the production connection string.
 
 ## 3. Run
 

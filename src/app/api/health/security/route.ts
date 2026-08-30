@@ -11,6 +11,7 @@ export async function GET() {
   if (!process.env.BOOKING_SWEEP_SECRET?.trim()) {
     missing.push("BOOKING_SWEEP_SECRET");
   }
+  if (!process.env.CRON_SECRET?.trim()) missing.push("CRON_SECRET");
   try {
     appOrigin();
   } catch {

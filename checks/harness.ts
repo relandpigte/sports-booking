@@ -27,8 +27,20 @@ export function assertNotProduction(): void {
       "Checks seed fixtures and must never run against production."
     );
   }
-  const url = process.env.DATABASE_URL ?? "";
-  if (!url) throw new Error("DATABASE_URL is not set.");
+  const databaseUrl = process.env.DATABASE_URL?.trim() ?? "";
+  if (!databaseUrl) throw new Error("DATABASE_URL is not set.");
+
+  const checkDatabaseUrl = process.env.CHECK_DATABASE_URL?.trim() ?? "";
+  if (!checkDatabaseUrl) {
+    throw new Error(
+      "CHECK_DATABASE_URL is not set. Point it and DATABASE_URL at the same dedicated non-production database before running checks."
+    );
+  }
+  if (checkDatabaseUrl !== databaseUrl) {
+    throw new Error(
+      "DATABASE_URL does not match CHECK_DATABASE_URL. Refusing to run database checks."
+    );
+  }
 }
 
 export function report(): void {
@@ -43,14 +55,18 @@ export async function run(
   check: () => Promise<void>,
   cleanup?: () => Promise<void>
 ): Promise<void> {
+  let databaseTargetAccepted = false;
   try {
     assertNotProduction();
+    databaseTargetAccepted = true;
     await check();
   } catch (error) {
     console.error(error);
     process.exitCode = 1;
   } finally {
-    if (cleanup) await cleanup();
+    // Cleanup also mutates the database, so a rejected target must never
+    // reach it—even when the check itself did not create any fixtures.
+    if (databaseTargetAccepted && cleanup) await cleanup();
     report();
   }
 }

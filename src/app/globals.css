@@ -129,3 +129,30 @@ body {
   border-color: var(--color-primary);
   outline: none;
 }
+
+/* Keep every native single-value dropdown visually consistent while retaining
+   the platform's accessible select behavior. The global right padding prevents
+   labels from colliding with the chevron at every control density. */
+select:not([multiple]) {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  padding-right: 2.75rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.875rem center;
+  background-size: 1rem 1rem;
+}
+
+select:not([multiple]):disabled {
+  cursor: not-allowed;
+}
+
+@media (forced-colors: active) {
+  select:not([multiple]) {
+    appearance: auto;
+    -webkit-appearance: menulist;
+    padding-right: 0.75rem;
+    background-image: none;
+  }
+}

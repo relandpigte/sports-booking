@@ -281,19 +281,13 @@ export function HubDirectory({
                 }
                 setSort(nextSort);
               }}
-              className="min-h-12 w-full appearance-none rounded-xl border border-[#dfe7e2] bg-white px-4 pr-10 text-sm font-bold text-navy focus:border-primary focus:outline-none"
+              className="min-h-12 w-full rounded-xl border border-[#dfe7e2] bg-white px-4 text-sm font-bold text-navy focus:border-primary focus:outline-none"
             >
               <option value="distance">Nearest first</option>
               <option value="name">Name (A–Z)</option>
               <option value="price">Price (low first)</option>
               <option value="newest">Newest first</option>
             </select>
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400"
-            >
-              ↓
-            </span>
           </label>
         </div>
 

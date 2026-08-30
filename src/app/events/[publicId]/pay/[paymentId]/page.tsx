@@ -122,12 +122,14 @@ export default async function PayEventRegistrationPage({
                 </dt>
                 <dd className="font-semibold text-navy">{formatPHP(payment.venueAmount)}</dd>
               </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-slate-500">
-                  Bunal service fee (non-refundable)
-                </dt>
-                <dd className="font-semibold text-navy">{formatPHP(payment.platformFee)}</dd>
-              </div>
+              {payment.platformFee > 0 && (
+                <div className="flex justify-between gap-4">
+                  <dt className="text-slate-500">
+                    Bunal service fee (non-refundable)
+                  </dt>
+                  <dd className="font-semibold text-navy">{formatPHP(payment.platformFee)}</dd>
+                </div>
+              )}
               {payment.processingFee > 0 && (
                 <div className="flex justify-between gap-4">
                   <dt className="text-slate-500">PayMongo processing fee</dt>

@@ -487,7 +487,10 @@ function EmptyDirectoryState() {
             </p>
 
             <ol className="mt-8 space-y-5">
-              <PartnerStep number="1" text="Connect your PayMongo account" />
+              <PartnerStep
+                number="1"
+                text="Choose PayMongo or manual transfers"
+              />
               <PartnerStep number="2" text="Add your hub, courts, and rates" />
               <PartnerStep
                 number="3"
@@ -502,8 +505,8 @@ function EmptyDirectoryState() {
               List your venue
             </Link>
             <p className="mt-4 text-xs text-white/45">
-              No monthly subscription. Bunal.club charges a 3% service fee on
-              every paid booking, whether automatic or manual.
+              No monthly subscription. Automatic PayMongo bookings carry a 3%
+              Bunal.club fee; manual venue payments are fee-free.
             </p>
           </div>
         </aside>

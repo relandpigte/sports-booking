@@ -15,7 +15,6 @@ import {
 import type { ManualPaymentMethodView } from "@/lib/manual-payments";
 import type { GatewayView } from "@/lib/partner-gateway";
 import {
-  MANUAL_SERVICE_FEE_PERCENT,
   SERVICE_FEE_PERCENT,
 } from "@/lib/constants";
 
@@ -618,7 +617,7 @@ export function CheckoutModeSettings({
         <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500">
           {selectedMode === "AUTOMATIC"
             ? `${SERVICE_FEE_PERCENT}% Bunal fee plus PayMongo processing. Successful payments confirm automatically.`
-            : `Players upload a receipt in 15 minutes. A ${MANUAL_SERVICE_FEE_PERCENT}% Bunal fee applies with no PayMongo processing fee.`}
+            : "Players transfer only your advertised price and upload a receipt in 15 minutes. No Bunal or PayMongo fee applies."}
         </p>
       </section>
 

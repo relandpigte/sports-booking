@@ -39,8 +39,6 @@ import {
   BOOKING_WINDOW_DAYS,
   bookingServiceFeeFor,
   grossFor,
-  manualBookingServiceFeeFor,
-  manualGrossFor,
   paymongoQrPhProcessingFeeFor,
 } from "@/lib/constants";
 import {
@@ -405,14 +403,10 @@ export async function createBookingAction(
             userId: viewer?.id ?? null,
             guestReservationId,
             hubId: hub.id,
-            amount: new Prisma.Decimal(
-              manualPayment ? manualGrossFor(total) : grossFor(total)
-            ),
+            amount: new Prisma.Decimal(manualPayment ? total : grossFor(total)),
             venueAmount: new Prisma.Decimal(total),
             platformFee: new Prisma.Decimal(
-              manualPayment
-                ? manualBookingServiceFeeFor(total)
-                : bookingServiceFeeFor(total)
+              manualPayment ? 0 : bookingServiceFeeFor(total)
             ),
             processingFee: new Prisma.Decimal(0),
             method: manualPayment ? "MANUAL" : "QRPH",
@@ -569,7 +563,7 @@ export async function createBookingAction(
         expiresAt: holdExpiresAt!.toISOString(),
         initialSeconds: BOOKING_HOLD_MINUTES * 60,
         amount: manualPayment
-          ? manualGrossFor(total)
+          ? total
           : grossFor(total) + paymongoQrPhProcessingFeeFor(grossFor(total)),
         venueName: hub.name,
         date,

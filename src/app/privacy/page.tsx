@@ -109,10 +109,11 @@ export default function PrivacyPage() {
             account. For manual checkout, Bunal.club stores the receipt image,
             optional transaction reference, and a snapshot of the venue&apos;s
             displayed payment instructions so the venue or trainer can review
-            the booking. Trainer-session payments similarly go to the
-            trainer&apos;s selected PayMongo or manual destination, and the 3%
-            service fee is tracked for remittance. Bunal.club never holds
-            player funds in transit.
+            the booking. Manual venue and event payments have no Bunal.club
+            service fee. Trainer-session payments similarly go to the
+            trainer&apos;s selected PayMongo or manual destination; trainer
+            service fees are tracked separately for remittance. Bunal.club
+            never holds player funds in transit.
           </p>
         </LegalSection>
 

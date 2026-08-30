@@ -172,6 +172,7 @@ export type OwnerEventDetailView = EventEditorView & {
     id: string;
     name: string;
     address: string | null;
+    paymentMode: "AUTOMATIC" | "MANUAL";
   };
   courts: EventCourtView[];
   registrations: OwnerEventRegistrationView[];
@@ -1071,6 +1072,7 @@ export async function getOwnerEventDetails(
           id: true,
           name: true,
           address: true,
+          owner: { select: { partnerPaymentMode: true } },
         },
       },
       courts: {
@@ -1351,7 +1353,12 @@ export async function getOwnerEventDetails(
       0,
       row.capacity - confirmedCount - pendingCount
     ),
-    hub: row.hub,
+    hub: {
+      id: row.hub.id,
+      name: row.hub.name,
+      address: row.hub.address,
+      paymentMode: row.hub.owner.partnerPaymentMode,
+    },
     courts: row.courts.map(({ court }) => court),
     registrations,
     organizerGuests,

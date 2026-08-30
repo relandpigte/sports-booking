@@ -241,7 +241,7 @@ export function ManualPaymentReview({
                           value={formatPHP(payment.venueAmount)}
                         />
                       )}
-                      {payment.platformFee != null && (
+                      {payment.platformFee != null && payment.platformFee > 0 && (
                         <ReceiptDetail
                           label="Bunal.club fee"
                           value={formatPHP(payment.platformFee)}

@@ -35,15 +35,15 @@ plus VAT. `PAYMONGO_QRPH_PROCESSING_RATE` can override the VAT-inclusive rate
 for negotiated merchant pricing. For example, a ₱257.50 booking subtotal adds
 ₱3.92 and generates a ₱261.42 QR.
 
-In manual mode, the player pays `venueAmount` plus a 3% service fee;
-`processingFee` remains zero because PayMongo is not involved. The service fee
-is added to the ledger only after the partner approves the receipt and the
-booking or event capacity is confirmed.
+In manual mode, the player pays only `venueAmount`. Both `platformFee` and
+`processingFee` are zero, so neither the player nor the partner owes a
+Bunal.club fee for that transaction. The partner reviews the receipt before
+the booking or event capacity is confirmed.
 
 For open play and other paid events, the registration fee is per person. A
 lead player may include named guests in the first checkout, so a ₱100 event
-with two guests charges `₱100 × 3`, plus the active mode's 3% service fee.
-Automatic checkout also adds PayMongo's QR processing fee. The entire group is
+with two guests charges `₱100 × 3`. Automatic checkout adds the 3% service fee
+and PayMongo's QR processing fee; manual checkout adds neither. The entire group is
 capacity-checked under one
 event lock and is held only when every requested spot is available. Confirmed
 players can add more named guests later through an incremental payment; an
@@ -60,8 +60,8 @@ For every manual checkout:
 
 1. The requested court hours or event capacity are held for 15 minutes.
 2. The player chooses one of the partner's destinations, transfers the venue
-   amount plus the displayed 3% service fee, uploads a receipt image, and may
-   add a transaction reference.
+   or event's advertised amount, uploads a receipt image, and may add a
+   transaction reference. No Bunal.club or PayMongo fee is added.
 3. No upload by the deadline releases the court hours or event capacity.
 4. A valid on-time upload freezes the reservation as **Pending booking** with
    no second review deadline.
@@ -72,14 +72,16 @@ For every manual checkout:
 
 Manual refunds happen outside Bunal.club through the original network. After
 returning the venue amount, the partner records the refund and optional
-reference on the booking or event payment. The 3% service fee remains in the
-settlement ledger and is non-refundable.
+reference on the booking or event payment. Because manual payments are
+fee-free, the venue amount is the full checkout amount.
 
 Venue partners may also add named complimentary guests from the event player
-list. These organizer-managed spots confirm immediately, count against event
-capacity, and are intentionally excluded from PayMongo, service-fee, and refund
-ledgers. They are labeled separately from player-paid registrations and can be
-removed by the organizer to release capacity.
+list. These organizer-managed spots confirm immediately and count against event
+capacity. Manual-mode events add no service fee. Automatic-mode paid events
+record the usual per-player service fee in the partner ledger even though the
+guest's registration fee is waived. They are labeled separately from
+player-paid registrations and can be removed by the organizer to release
+capacity and reverse that fee.
 
 ## Partner gateway setup
 
@@ -146,8 +148,9 @@ The partner's PayMongo account receives the complete booking subtotal after
 PayMongo deducts the separately charged QR Ph processing fee. That processing
 fee is grossed up from the complete booking subtotal—venue amount plus Bunal's
 service fee—so the partner still receives both ledger amounts in full. After a
-successful automatic booking or an approved manual booking is confirmed, an
-immutable `ServiceFeeEntry` records the snapshotted 3% fee owed to Bunal.club.
+successful automatic booking is confirmed, an immutable `ServiceFeeEntry`
+records the snapshotted 3% fee owed to Bunal.club. Manual partner payments do
+not create service-fee entries.
 That service fee is non-refundable: a refund returns the venue amount and, for
 automatic checkout,
 the separately charged PayMongo processing fee, retains the service fee, and

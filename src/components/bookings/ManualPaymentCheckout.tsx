@@ -8,7 +8,6 @@ import {
   submitManualPaymentProofAction,
   type ManualPaymentFormState,
 } from "@/lib/manual-payment-actions";
-import { MANUAL_SERVICE_FEE_PERCENT } from "@/lib/constants";
 import { focusQrImageBlob } from "@/lib/image";
 import type { ManualPaymentMethodView } from "@/lib/manual-payments";
 
@@ -297,10 +296,8 @@ export function ManualPaymentCheckout({
                           </div>
                         )}
                         <p className="border-t border-navy/10 pt-4 text-xs leading-5 text-slate-500">
-                          The total includes Bunal.club&apos;s{" "}
-                          {MANUAL_SERVICE_FEE_PERCENT}%
-                          non-refundable service fee. No PayMongo processing
-                          fee is added.
+                          Transfer only the advertised venue amount. No
+                          Bunal.club or PayMongo fee is added.
                         </p>
                       </dl>
                     </div>
@@ -426,8 +423,8 @@ function CompactManualPaymentForm({
             </dl>
           </div>
           <p className="mt-4 text-xs leading-5 text-slate-500">
-            The total includes Bunal.club&apos;s {MANUAL_SERVICE_FEE_PERCENT}%
-            non-refundable service fee. No PayMongo processing fee is added.
+            Transfer only the advertised venue amount. No Bunal.club or
+            PayMongo fee is added.
           </p>
         </section>
       )}
@@ -985,10 +982,7 @@ function ImportantNotes() {
             After submission, the booking remains Pending until the venue
             approves or declines the proof.
           </li>
-          <li>
-            The {MANUAL_SERVICE_FEE_PERCENT}% Bunal.club service fee is
-            non-refundable.
-          </li>
+          <li>No Bunal.club or PayMongo fee is added to manual payments.</li>
         </ul>
       </div>
     </section>

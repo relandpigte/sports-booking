@@ -507,6 +507,7 @@ export default async function PartnerEventDetailsPage({
                 eventId={event.id}
                 remainingSpots={event.remainingSpots}
                 registrationFee={event.registrationFee}
+                paymentMode={event.hub.paymentMode}
               />
             ) : (
               <span className="text-sm font-bold text-slate-500">

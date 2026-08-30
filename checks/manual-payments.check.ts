@@ -1,14 +1,10 @@
-// Manual collection: 3% fee ledgers, frozen review holds, event capacity,
-// approval settlement, and venue-only external-refund recording.
+// Fee-free manual collection: frozen review holds, event capacity, approval
+// settlement, and venue-only external-refund recording.
 //
 //   npm run check:manual-payments
 import { PrismaClient } from "@prisma/client";
 
 import { ok, run, stubRequestContext } from "./harness";
-import {
-  manualBookingServiceFeeFor,
-  manualGrossFor,
-} from "@/lib/constants";
 import {
   isPartnerPaymentReady,
   type PartnerPaymentSetup,
@@ -126,9 +122,9 @@ async function check() {
       gatewayId: null,
       userId: player.id,
       hubId: hub.id,
-      amount: manualGrossFor(500),
+      amount: 500,
       venueAmount: 500,
-      platformFee: manualBookingServiceFeeFor(500),
+      platformFee: 0,
       processingFee: 0,
       method: "MANUAL",
       collectionMode: "MANUAL",
@@ -204,9 +200,9 @@ async function check() {
       partnerId: partner.id,
       userId: player.id,
       hubId: hub.id,
-      amount: manualGrossFor(100),
+      amount: 100,
       venueAmount: 100,
-      platformFee: manualBookingServiceFeeFor(100),
+      platformFee: 0,
       processingFee: 0,
       method: "MANUAL",
       collectionMode: "MANUAL",
@@ -254,24 +250,22 @@ async function check() {
       (await prisma.booking.count({ where: { bookingPaymentId: courtPayment.id, status: "CONFIRMED" } })) === 1
   );
   ok(
-    "manual approval accrues the 3% service fee without a gateway processing fee",
+    "manual approval charges only the advertised amount and accrues no service fee",
     (await prisma.bookingPayment.count({
       where: {
         id: courtPayment.id,
         gatewayId: null,
-        amount: 515,
+        amount: 500,
         venueAmount: 500,
-        platformFee: 15,
+        platformFee: 0,
         processingFee: 0,
       },
     })) === 1 &&
       (await prisma.serviceFeeEntry.count({
         where: {
           bookingPaymentId: courtPayment.id,
-          type: "CHARGE",
-          amount: 15,
         },
-      })) === 1
+      })) === 0
   );
 
   const duplicateProof = new FormData();
@@ -316,9 +310,9 @@ async function check() {
       partnerId: partner.id,
       userId: player.id,
       hubId: hub.id,
-      amount: manualGrossFor(300),
+      amount: 300,
       venueAmount: 300,
-      platformFee: manualBookingServiceFeeFor(300),
+      platformFee: 0,
       processingFee: 0,
       method: "GCASH",
       collectionMode: "MANUAL",
@@ -390,14 +384,12 @@ async function check() {
       (await prisma.eventGuestSlot.count({ where: { bookingPaymentId: eventPayment.id, status: "CONFIRMED" } })) === 2
   );
   ok(
-    "a three-person manual event accrues one 3% service-fee charge",
+    "a three-person manual event accrues no service-fee charge",
     (await prisma.serviceFeeEntry.count({
       where: {
         bookingPaymentId: eventPayment.id,
-        type: "CHARGE",
-        amount: 9,
       },
-    })) === 1
+    })) === 0
   );
 
   await markBookingPaymentRefunded({
@@ -412,17 +404,15 @@ async function check() {
     select: { status: true, refundedAmount: true, refundRef: true },
   });
   ok(
-    "manual refund records only the venue amount and retains the service fee",
+    "manual refund returns the complete fee-free checkout amount",
     refunded?.status === "REFUNDED" &&
       Number(refunded.refundedAmount) === 300 &&
       refunded.refundRef === "manual-refund-check" &&
       (await prisma.serviceFeeEntry.count({
         where: {
           bookingPaymentId: eventPayment.id,
-          type: "CHARGE",
-          amount: 9,
         },
-      })) === 1
+      })) === 0
   );
 
   const { getPublicHub } = await import("@/lib/hubs");
@@ -433,16 +423,6 @@ async function check() {
       readyHub.comingSoon === false &&
       readyHub.blockedBy === null &&
       readyHub.paymentMode === "MANUAL"
-  );
-
-  await prisma.serviceFeeEntry.updateMany({
-    where: { bookingPaymentId: courtPayment.id, type: "CHARGE" },
-    data: { createdAt: new Date("2000-01-01T00:00:00.000Z") },
-  });
-  const blockedHub = await getPublicHub(`manual-payments-${partner.id}`);
-  ok(
-    "an overdue manual service-fee balance blocks new paid bookings",
-    blockedHub?.bookable === false && blockedHub.blockedBy === "settlement"
   );
 
   const fallbackMethod = await prisma.partnerManualPaymentMethod.create({

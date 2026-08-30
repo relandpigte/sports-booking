@@ -15,10 +15,12 @@ export function OrganizerGuestPanel({
   eventId,
   remainingSpots,
   registrationFee,
+  paymentMode,
 }: {
   eventId: string;
   remainingSpots: number;
   registrationFee: number;
+  paymentMode: "AUTOMATIC" | "MANUAL";
 }) {
   const nextRowId = useRef(2);
   const [open, setOpen] = useState(false);
@@ -35,7 +37,8 @@ export function OrganizerGuestPanel({
     initialState
   );
   const maxGuests = Math.min(50, remainingSpots);
-  const serviceFeePerPlayer = bookingServiceFeeFor(registrationFee);
+  const serviceFeePerPlayer =
+    paymentMode === "MANUAL" ? 0 : bookingServiceFeeFor(registrationFee);
   const serviceFeeTotal = serviceFeePerPlayer * rows.length;
 
   useEffect(() => {
@@ -176,6 +179,8 @@ export function OrganizerGuestPanel({
                       {rows.length > 1 ? ` (${formatPHP(serviceFeeTotal)} total)` : ""}.
                       Removing the player reverses this fee.
                     </>
+                  ) : paymentMode === "MANUAL" ? (
+                    "Manual-mode events have no Bunal service fee. Players consume capacity immediately."
                   ) : (
                     "This event is free, so no service fee is added. Players consume capacity immediately."
                   )}

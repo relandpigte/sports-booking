@@ -39,9 +39,6 @@ import {
   BOOKING_HOLD_MINUTES,
   bookingServiceFeeFor,
   grossFor,
-  MANUAL_SERVICE_FEE_PERCENT,
-  manualBookingServiceFeeFor,
-  manualGrossFor,
   SERVICE_FEE_PERCENT,
   type OperatingHours,
 } from "@/lib/constants";
@@ -178,13 +175,9 @@ export function BookCourtPanel({
   );
   const requiresOnlinePayment = paymentRequired && pricedTotal > 0;
   const serviceFee =
-    paymentMode === "MANUAL"
-      ? manualBookingServiceFeeFor(pricedTotal)
-      : bookingServiceFeeFor(pricedTotal);
+    paymentMode === "MANUAL" ? 0 : bookingServiceFeeFor(pricedTotal);
   const bookingSubtotal =
-    paymentMode === "MANUAL"
-      ? manualGrossFor(pricedTotal)
-      : grossFor(pricedTotal);
+    paymentMode === "MANUAL" ? pricedTotal : grossFor(pricedTotal);
 
   // Court headers only focus a column/list. They never clear another court's
   // hours: the comparison view is also a multi-court cart.
@@ -428,13 +421,10 @@ export function BookCourtPanel({
                       with the venue.
                     </p>
                   )}
-                  {requiresOnlinePayment && (
+                  {requiresOnlinePayment && serviceFee > 0 && (
                     <div className="flex items-center justify-between gap-3 text-navy/65">
                       <span>
-                        Service fee ({paymentMode === "MANUAL"
-                          ? MANUAL_SERVICE_FEE_PERCENT
-                          : SERVICE_FEE_PERCENT}
-                        %, non-refundable)
+                        Service fee ({SERVICE_FEE_PERCENT}%, non-refundable)
                       </span>
                       <span className="shrink-0 font-semibold text-navy">
                         {formatPHP(serviceFee)}

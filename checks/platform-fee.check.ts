@@ -10,14 +10,10 @@ import { PrismaClient } from "@prisma/client";
 
 import { ok, run, stubRequestContext } from "./harness";
 import {
-  MANUAL_SERVICE_FEE_PERCENT,
-  MANUAL_SERVICE_FEE_RATE,
   SERVICE_FEE_PERCENT,
   SERVICE_FEE_RATE,
   bookingServiceFeeFor,
   grossFor,
-  manualBookingServiceFeeFor,
-  manualGrossFor,
   paymongoQrPhProcessingFeeFor,
   paymongoQrPhTotalFor,
 } from "@/lib/constants";
@@ -36,8 +32,6 @@ async function check() {
   // --- 1. The arithmetic ----------------------------------------------------
   ok("the service-fee rate is 3%", SERVICE_FEE_RATE === 0.03);
   ok("the display percentage is 3", SERVICE_FEE_PERCENT === 3);
-  ok("the manual service-fee rate is 3%", MANUAL_SERVICE_FEE_RATE === 0.03);
-  ok("the manual display percentage is 3", MANUAL_SERVICE_FEE_PERCENT === 3);
   ok("an empty court total has no fee", bookingServiceFeeFor(0) === 0);
   ok("a ₱250 court total carries a ₱7.50 fee", bookingServiceFeeFor(250) === 7.5);
   ok("a ₱500 court total carries a ₱15 fee", bookingServiceFeeFor(500) === 15);
@@ -47,15 +41,6 @@ async function check() {
   );
   ok("a ₱250 booking grosses ₱257.50", grossFor(250) === 257.5);
   ok("a ₱500 booking grosses ₱515", grossFor(500) === 515);
-  ok(
-    "a ₱300 manual event carries a ₱9 fee",
-    manualBookingServiceFeeFor(300) === 9
-  );
-  ok("a ₱500 manual booking grosses ₱515", manualGrossFor(500) === 515);
-  ok(
-    "manual half-cent percentage results round to the nearest centavo",
-    manualBookingServiceFeeFor(33.4) === 1
-  );
   ok(
     "a ₱257.50 subtotal carries the approved ₱3.92 QR Ph fee",
     paymongoQrPhProcessingFeeFor(257.5) === 3.92
@@ -84,21 +69,6 @@ async function check() {
     "court + 3% fee === gross across booking totals",
     drifted.length === 0
   );
-  const manualDrifted: number[] = [];
-  for (let peso = 1; peso <= 5000; peso++) {
-    if (
-      Math.abs(
-        peso + manualBookingServiceFeeFor(peso) - manualGrossFor(peso)
-      ) > 1e-9
-    ) {
-      manualDrifted.push(peso);
-    }
-  }
-  ok(
-    "court + 3% fee === manual gross across booking totals",
-    manualDrifted.length === 0
-  );
-
   // --- 2. The ledger --------------------------------------------------------
   const court = await prisma.court.findFirst({
     select: { id: true, hubId: true },

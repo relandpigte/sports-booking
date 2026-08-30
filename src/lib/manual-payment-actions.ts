@@ -958,6 +958,7 @@ export async function recordManualRefundAction(
       id: true,
       hubId: true,
       venueAmount: true,
+      platformFee: true,
       eventRegistration: { select: { event: { select: { publicId: true } } } },
       eventGuestSlots: {
         take: 1,
@@ -1005,6 +1006,8 @@ export async function recordManualRefundAction(
   });
   return {
     success:
-      "Manual refund recorded. The venue amount was returned and the service fee remains non-refundable.",
+      Number(payment.platformFee) > 0
+        ? "Manual refund recorded. The venue amount was returned and the historical service fee remains non-refundable."
+        : "Manual refund recorded. The full manual payment amount was returned.",
   };
 }

@@ -15,8 +15,6 @@ import {
 } from "@/lib/event-recurrence";
 import {
   bookingServiceFeeFor,
-  MANUAL_SERVICE_FEE_PERCENT,
-  manualBookingServiceFeeFor,
   SERVICE_FEE_PERCENT,
 } from "@/lib/constants";
 
@@ -57,9 +55,7 @@ export function EventForm({
     [hubId, hubs]
   );
   const serviceFee =
-    hub?.paymentMode === "MANUAL"
-      ? manualBookingServiceFeeFor(fee)
-      : bookingServiceFeeFor(fee);
+    hub?.paymentMode === "MANUAL" ? 0 : bookingServiceFeeFor(fee);
   const checkoutTotal = Math.round((fee + serviceFee) * 100) / 100;
   const locked = event?.status === "CANCELLED";
   const recurrenceDates = repeatWeekly
@@ -285,7 +281,7 @@ export function EventForm({
         {state.errors?.courtIds && <p className="mt-2 text-sm font-medium text-red-600">{state.errors.courtIds}</p>}
       </FormSection>
 
-      <FormSection number="04" title="Capacity & price" description={hub?.paymentMode === "MANUAL" ? `Players transfer the registration fee plus Bunal's ${MANUAL_SERVICE_FEE_PERCENT}% service fee and upload a receipt for review.` : `Players pay the registration fee plus Bunal's ${SERVICE_FEE_PERCENT}% service fee. PayMongo processing is handled separately.`}>
+      <FormSection number="04" title="Capacity & price" description={hub?.paymentMode === "MANUAL" ? "Players transfer only the advertised registration fee and upload a receipt for review. No Bunal or PayMongo fee applies." : `Players pay the registration fee plus Bunal's ${SERVICE_FEE_PERCENT}% service fee. PayMongo processing is handled separately.`}>
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Player capacity" error={state.errors?.capacity}>
             <input name="capacity" type="number" min={2} max={500} defaultValue={event?.capacity ?? 16} disabled={locked} className={inputClass} />
@@ -299,7 +295,7 @@ export function EventForm({
         </div>
         <div className="mt-5 rounded-2xl bg-navy p-5 text-white">
           <div className="flex items-center justify-between text-sm"><span className="text-white/60">Registration fee</span><strong>₱{fee.toFixed(2)}</strong></div>
-          <div className="mt-2 flex items-center justify-between text-sm"><span className="text-white/60">Bunal service fee ({hub?.paymentMode === "MANUAL" ? MANUAL_SERVICE_FEE_PERCENT : SERVICE_FEE_PERCENT}%)</span><strong>₱{serviceFee.toFixed(2)}</strong></div>
+          {serviceFee > 0 && <div className="mt-2 flex items-center justify-between text-sm"><span className="text-white/60">Bunal service fee ({SERVICE_FEE_PERCENT}%)</span><strong>₱{serviceFee.toFixed(2)}</strong></div>}
           <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-4"><span className="font-bold">Player checkout total</span><strong className="text-xl text-accent">₱{checkoutTotal.toFixed(2)}</strong></div>
           <p className="mt-2 text-xs text-white/45">{hub?.paymentMode === "MANUAL" ? "Manual payments stay pending until you approve the player's receipt." : "The registration fee is paid directly to your connected venue account."}</p>
         </div>

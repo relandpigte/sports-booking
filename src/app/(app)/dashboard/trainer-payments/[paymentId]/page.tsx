@@ -64,6 +64,8 @@ export default async function TrainerPaymentPage({
           trainerAmount: Number(payment.trainerAmount),
           platformFee: Number(payment.platformFee),
           processingFee: Number(payment.processingFee),
+          processingFeeResponsibility:
+            payment.processingFeeResponsibility,
           expiresAt: payment.expiresAt.toISOString(),
           initialSeconds: secondsLeft,
           chargeInFlight:

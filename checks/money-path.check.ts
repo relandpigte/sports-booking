@@ -22,6 +22,7 @@ import {
   PAYMENT_COMPLETION_GRACE_MINUTES,
   bookingServiceFeeFor,
   grossFor,
+  paymongoQrPhProcessingCostFor,
   paymongoQrPhProcessingFeeFor,
   paymongoQrPhTotalFor,
 } from "@/lib/constants";
@@ -108,6 +109,7 @@ async function check() {
         amount: grossFor(venueAmount),
         venueAmount,
         platformFee: bookingServiceFeeFor(venueAmount),
+        processingFeeResponsibility: "BUNAL",
         method: "QRPH",
         status: "PENDING",
         expiresAt,
@@ -180,7 +182,7 @@ async function check() {
   );
   const attrs = (created!.body as { data: { attributes: Record<string, unknown> } })
     .data.attributes;
-  ok("the grossed-up total is sent in centavos", attrs.amount === 52285);
+  ok("only the all-inclusive subtotal is sent", attrs.amount === 51500);
   ok(
     "offering QR Ph only",
     JSON.stringify(attrs.payment_method_allowed) ===
@@ -203,8 +205,9 @@ async function check() {
       Number(methodAttrs.expiry_seconds) <= 900
   );
   ok(
-    "the processing fee is grossed up using the configured rate",
-    paymongoQrPhProcessingFeeFor(515) === 7.85 &&
+    "legacy gross-up and the absorbed-cost estimate remain distinct",
+    paymongoQrPhProcessingCostFor(515) === 7.73 &&
+      paymongoQrPhProcessingFeeFor(515) === 7.85 &&
       paymongoQrPhTotalFor(515) === 522.85
   );
 
@@ -213,7 +216,7 @@ async function check() {
   });
   ok("the Payment Intent id is stored", row!.providerPaymentId?.startsWith("pi_") === true);
   ok("the exact QR image is stored", row!.qrImageUrl?.startsWith("data:image/") === true);
-  ok("the processing fee is snapshotted", Number(row!.processingFee) === 7.85);
+  ok("Bunal's absorbed processing cost is snapshotted", Number(row!.processingFee) === 7.73);
   ok("the row stays PENDING until they pay", row!.status === "PENDING");
   ok("the claim is held while they're away", row!.chargeStartedAt !== null);
   const heldBooking = await prisma.booking.findUnique({
@@ -249,7 +252,7 @@ async function check() {
   // --- 2. The webhook settles it -------------------------------------------
   const intentId = row!.providerPaymentId!;
   const payId = payMockIntent(mock, intentId);
-  const body = mockPaymentPaidEvent(intentId, payId, 52285);
+  const body = mockPaymentPaidEvent(intentId, payId, 51500, 773);
   const creds = {
     provider: "paymongo" as const,
     publicKey: "pk_test_abcdefgh",
@@ -285,6 +288,21 @@ async function check() {
     (await prisma.serviceFeeEntry.count({
       where: { bookingPaymentId: one.payment.id, type: "CHARGE" },
     })) === 1
+  );
+  ok(
+    "and one exact processing credit for Bunal",
+    Number(
+      (
+        await prisma.serviceFeeEntry.findUnique({
+          where: {
+            bookingPaymentId_type: {
+              bookingPaymentId: one.payment.id,
+              type: "PROCESSING_CREDIT",
+            },
+          },
+        })
+      )?.amount
+    ) === -7.73
   );
   ok(
     "the hold is released on every slot",
@@ -383,8 +401,8 @@ async function check() {
   });
   ok("recorded as REFUNDED", refunded!.status === "REFUNDED");
   ok(
-    "the venue and processing amounts are refunded without the service fee",
-    Number(refunded!.refundedAmount) === 507.85
+    "only the venue amount is refunded because processing was included",
+    Number(refunded!.refundedAmount) === 500
   );
   const refundRequest = mock.requests.find(
     (request) =>
@@ -396,7 +414,7 @@ async function check() {
       refundRequest!.body as {
         data: { attributes: { amount: number } };
       }
-    ).data.attributes.amount === 50_785
+    ).data.attributes.amount === 50_000
   );
   ok(
     "the non-refundable service fee remains charged",
@@ -411,6 +429,44 @@ async function check() {
     "and refunding twice does not refund twice",
     (await refundBookingPayment({ paymentId: one.payment.id })).ok === true &&
       mock.refunds.filter((r) => r === payId).length === 1
+  );
+
+  const playerPaidProcessing = await prisma.bookingPayment.create({
+    data: {
+      partnerId: a.userId,
+      gatewayId: a.gatewayId,
+      userId: player.id,
+      hubId: court.hubId,
+      amount: 257.5,
+      venueAmount: 250,
+      platformFee: 7.5,
+      processingFee: 3.92,
+      processingFeeResponsibility: "PLAYER",
+      method: "QRPH",
+      status: "SUCCEEDED",
+      expiresAt: new Date(),
+      provider: "paymongo",
+      providerPaymentId: "pay_legacy_player_fee",
+      paidAt: new Date(),
+    },
+  });
+  ok(
+    "historical player-paid processing remains refundable",
+    (await refundBookingPayment({ paymentId: playerPaidProcessing.id })).ok
+  );
+  const legacyRefundRequest = mock.requests
+    .filter(
+      (request) =>
+        request.method === "POST" && request.url.endsWith("/refunds")
+    )
+    .at(-1);
+  ok(
+    "the historical refund still includes the old processing snapshot",
+    (
+      legacyRefundRequest!.body as {
+        data: { attributes: { amount: number } };
+      }
+    ).data.attributes.amount === 25_392
   );
 
   // --- 6. Money taken through a gateway that no longer exists --------------

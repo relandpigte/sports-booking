@@ -901,6 +901,7 @@ export async function registerForEventAction(
           manualPayment ? 0 : bookingServiceFeeFor(venueAmount)
         ),
         processingFee: new Prisma.Decimal(0),
+        processingFeeResponsibility: manualPayment ? "PLAYER" : "BUNAL",
         method: manualPayment ? "MANUAL" : "QRPH",
         collectionMode: manualPayment ? "MANUAL" : "AUTOMATIC",
         status: "PENDING",
@@ -1355,6 +1356,7 @@ export async function registerGuestForEventAction(
           manualPayment ? 0 : bookingServiceFeeFor(venueAmount)
         ),
         processingFee: new Prisma.Decimal(0),
+        processingFeeResponsibility: manualPayment ? "PLAYER" : "BUNAL",
         method: manualPayment ? "MANUAL" : "QRPH",
         collectionMode: manualPayment ? "MANUAL" : "AUTOMATIC",
         status: "PENDING",
@@ -1683,6 +1685,7 @@ export async function addEventGuestSlotsAction(
           manualPayment ? 0 : bookingServiceFeeFor(venueAmount)
         ),
         processingFee: new Prisma.Decimal(0),
+        processingFeeResponsibility: manualPayment ? "PLAYER" : "BUNAL",
         method: manualPayment ? "MANUAL" : "QRPH",
         collectionMode: manualPayment ? "MANUAL" : "AUTOMATIC",
         status: "PENDING",

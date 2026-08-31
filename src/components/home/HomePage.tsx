@@ -100,7 +100,7 @@ const FAQS = [
   {
     question: "How much is the booking service fee?",
     answer:
-      "The Bunal.club service fee is 3% for automatic PayMongo checkout. Partner-reviewed manual payments have no Bunal service fee.",
+      "Automatic PayMongo checkout has one all-inclusive 3% Bunal.club service fee with no additional processing fee. Partner-reviewed manual payments have no Bunal service fee.",
   },
   {
     question: "Where does the player's court payment go?",
@@ -121,10 +121,6 @@ const PAYMENT_METHODS = [
     mark: "QR",
     markClassName: "bg-accent-soft text-primary",
   },
-];
-
-const PAYMONGO_PROCESSING_RATES = [
-  { method: "QR Ph online", rate: "1.34%" },
 ];
 
 const QR_PH_APPS = [
@@ -890,11 +886,8 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
               </p>
               <p className="inline-flex items-center gap-2">
                 <Icon name="card" className="h-4 w-4 text-primary" />
-                Automatic PayMongo processing fees are shown before you pay —{" "}
-                <a href="#partners" className="font-bold text-primary hover:underline">
-                  see current rates
-                </a>
-                .
+                Automatic checkout has one all-inclusive 3% Bunal.club fee
+                with no additional processing fee.
               </p>
             </div>
           </div>
@@ -1171,37 +1164,17 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                   </p>
                   <p className="mt-3 text-4xl font-black text-navy">3%</p>
                   <p className="mt-1 text-xs leading-5 text-slate-500">
-                    Bunal.club service fee, plus PayMongo QR Ph processing.
+                    One all-inclusive Bunal.club service fee. PayMongo QR Ph
+                    processing is included at no additional charge.
                   </p>
-                  <dl className="mt-4 space-y-2.5">
-                    {PAYMONGO_PROCESSING_RATES.map((item) => (
-                      <div
-                        key={item.method}
-                        className="flex items-start justify-between gap-4 text-xs"
-                      >
-                        <dt className="leading-5 text-slate-600">
-                          {item.method}
-                        </dt>
-                        <dd className="shrink-0 text-right font-black leading-5 text-navy">
-                          {item.rate}
-                        </dd>
-                      </div>
-                    ))}
-                  </dl>
+                  <p className="mt-4 rounded-xl bg-white px-3 py-2.5 text-xs font-bold leading-5 text-primary">
+                    Players see the complete total before opening QR Ph.
+                  </p>
                 </div>
 
                 <p className="text-[11px] leading-5 text-slate-400 sm:col-span-2">
-                  The PayMongo rate applies only to automatic checkout.
-                  Published standard rates are exclusive of VAT and may change;
-                  connected-account or custom pricing can differ.{" "}
-                  <a
-                    href="https://www.paymongo.com/pricing"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="font-bold text-ocean hover:underline"
-                  >
-                    View current PayMongo pricing ↗
-                  </a>
+                  Bunal.club absorbs automatic checkout processing from its
+                  service fee. Venues keep their complete advertised rate.
                 </p>
               </div>
 

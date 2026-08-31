@@ -79,10 +79,10 @@ export function ServiceFeePanel({
             Bunal.club service-fee settlement
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-gray-500">
-            Automatic and approved manual bookings, plus complimentary players
-            added by event staff, accrue their displayed service fee here.
-            Remit the combined balance; after settlement, you retain exactly
-            your advertised court and registration rates.
+            Automatic payments accrue the displayed 3% fee less the PayMongo
+            processing absorbed by Bunal.club. Complimentary players added by
+            event staff accrue their displayed fee without a processing cost.
+            Remit the net balance; you retain exactly your advertised rates.
           </p>
         </div>
         {balance.blocked ? (
@@ -170,9 +170,9 @@ export function ServiceFeePanel({
                   Pay {formatPHP(balance.amountDue)} securely with QR Ph
                 </h3>
                 <p className="mt-1 max-w-xl text-xs leading-5 text-slate-600">
-                  Pay the exact amount through PayMongo. A successful transfer
-                  is confirmed automatically, so no receipt or review
-                  submission is needed.
+                  Pay the exact amount through PayMongo with no additional
+                  processing charge. A successful transfer is confirmed
+                  automatically, so no receipt or review is needed.
                 </p>
                 {checkoutState.success && (
                   <p

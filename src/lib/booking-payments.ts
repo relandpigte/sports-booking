@@ -6,11 +6,13 @@ import {
   type PaymentCollectionMode,
   type PaymentMethodType,
   type PaymentStatus,
+  type ProcessingFeeResponsibility,
 } from "@prisma/client";
 
 import {
   BOOKING_HOLD_MINUTES,
   PAYMENT_COMPLETION_GRACE_MINUTES,
+  paymongoQrPhProcessingCostFor,
   paymongoQrPhProcessingFeeFor,
 } from "@/lib/constants";
 import { prisma } from "@/lib/db";
@@ -102,6 +104,7 @@ export type BookingPaymentView = {
   venueAmount: number;
   platformFee: number;
   processingFee: number;
+  processingFeeResponsibility: ProcessingFeeResponsibility;
   payableAmount: number;
   currency: string;
   expiresAt: Date;
@@ -168,6 +171,7 @@ async function getActiveBookingHoldForOwner(
       hubId: true,
       amount: true,
       processingFee: true,
+      processingFeeResponsibility: true,
       collectionMode: true,
       expiresAt: true,
       chargeStartedAt: true,
@@ -193,7 +197,8 @@ async function getActiveBookingHoldForOwner(
 
   const subtotal = Number(payment.amount);
   const processingFee =
-    payment.collectionMode === "AUTOMATIC"
+    payment.collectionMode === "AUTOMATIC" &&
+    payment.processingFeeResponsibility === "PLAYER"
       ? Number(payment.processingFee) || paymongoQrPhProcessingFeeFor(subtotal)
       : 0;
   const lines = payment.bookings.map((booking) => ({
@@ -267,6 +272,7 @@ const paymentSelect = {
   venueAmount: true,
   platformFee: true,
   processingFee: true,
+  processingFeeResponsibility: true,
   currency: true,
   expiresAt: true,
   attempt: true,
@@ -355,7 +361,12 @@ export function mapBookingPayment(row: PaymentRow): BookingPaymentView {
     venueAmount: Number(row.venueAmount),
     platformFee: Number(row.platformFee),
     processingFee: Number(row.processingFee),
-    payableAmount: Number(row.amount) + Number(row.processingFee),
+    processingFeeResponsibility: row.processingFeeResponsibility,
+    payableAmount:
+      Number(row.amount) +
+      (row.processingFeeResponsibility === "PLAYER"
+        ? Number(row.processingFee)
+        : 0),
     currency: row.currency,
     expiresAt: row.expiresAt,
     secondsLeft: Math.max(
@@ -583,6 +594,9 @@ export async function recordBookingChargeResult(
         providerPaymentId: result.paymentId,
         providerRef: result.reference,
         paidAt: new Date(),
+        ...(result.feeCentavos != null
+          ? { processingFee: new Prisma.Decimal(result.feeCentavos / 100) }
+          : {}),
         failureCode: null,
         failureMessage: null,
         redirectUrl: null,
@@ -1562,7 +1576,11 @@ export async function chargeBookingPayment(
   const processingFee =
     Number(payment.processingFee) > 0
       ? Number(payment.processingFee)
-      : paymongoQrPhProcessingFeeFor(Number(payment.amount));
+      : payment.processingFeeResponsibility === "PLAYER"
+        ? paymongoQrPhProcessingFeeFor(Number(payment.amount))
+        : paymongoQrPhProcessingCostFor(Number(payment.amount));
+  const playerProcessingFee =
+    payment.processingFeeResponsibility === "PLAYER" ? processingFee : 0;
   const claim = await prisma.$transaction(async (tx) => {
     const claimed = await tx.bookingPayment.updateMany({
       where: {
@@ -1631,7 +1649,7 @@ export async function chargeBookingPayment(
     const creds = await loadGatewayCredentialsForCharge(payment.gatewayId);
     result = await getVenueGateway(creds).charge({
       amount: {
-        amount: Number(payment.amount) + processingFee,
+        amount: Number(payment.amount) + playerProcessingFee,
         currency: "PHP",
       },
       description: event
@@ -1988,6 +2006,7 @@ export async function refundBookingPayment(args: {
       amount: true,
       platformFee: true,
       processingFee: true,
+      processingFeeResponsibility: true,
       collectionMode: true,
       gatewayId: true,
       providerPaymentId: true,
@@ -2010,9 +2029,17 @@ export async function refundBookingPayment(args: {
   }
 
   // The Bunal.club service fee is earned when payment settles and remains
-  // non-refundable. Return the venue amount and the checkout processing fee.
+  // non-refundable. Historical PLAYER rows return the processing fee the
+  // player paid; BUNAL rows return only the advertised venue amount.
   const amount = Number(
-    payment.amount.minus(payment.platformFee).plus(payment.processingFee).toFixed(2)
+    payment.amount
+      .minus(payment.platformFee)
+      .plus(
+        payment.processingFeeResponsibility === "PLAYER"
+          ? payment.processingFee
+          : 0
+      )
+      .toFixed(2)
   );
   if (!payment.gatewayId) {
     return { ok: false, message: "That automatic payment has no gateway." };

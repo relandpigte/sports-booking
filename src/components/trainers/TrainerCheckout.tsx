@@ -23,6 +23,7 @@ type TrainerCheckoutPayment = {
   trainerAmount: number;
   platformFee: number;
   processingFee: number;
+  processingFeeResponsibility: "PLAYER" | "BUNAL";
   expiresAt: string;
   initialSeconds: number;
   chargeInFlight: boolean;
@@ -448,12 +449,13 @@ function SessionSummary({
             amount={payment.trainerAmount}
           />
           <SummaryLine label="Bunal fee (3%)" amount={payment.platformFee} />
-          {payment.processingFee > 0 && (
+          {payment.processingFeeResponsibility === "PLAYER" &&
+            payment.processingFee > 0 && (
             <SummaryLine
               label="PayMongo processing fee"
               amount={payment.processingFee}
             />
-          )}
+            )}
           <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-100 pt-3 font-black text-navy">
             <dt>Total</dt>
             <dd>{formatPHP(payment.amount)}</dd>

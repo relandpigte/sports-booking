@@ -282,20 +282,32 @@ export async function marketplaceRevenue(
 ): Promise<MarketplaceSeries> {
   await requireAdmin();
 
-  const rows = await prisma.bookingPayment.findMany({
-    where: {
-      status: { in: ["SUCCEEDED", "REFUNDED"] },
-      ...ledgerWhere(range),
-    },
-    select: {
-      amount: true,
-      venueAmount: true,
-      platformFee: true,
-      paidAt: true,
-      refundedAt: true,
-      refundedAmount: true,
-    },
-  });
+  const [rows, settlementCosts] = await Promise.all([
+    prisma.bookingPayment.findMany({
+      where: {
+        status: { in: ["SUCCEEDED", "REFUNDED"] },
+        ...ledgerWhere(range),
+      },
+      select: {
+        amount: true,
+        venueAmount: true,
+        platformFee: true,
+        processingFee: true,
+        processingFeeResponsibility: true,
+        paidAt: true,
+        refundedAt: true,
+        refundedAmount: true,
+      },
+    }),
+    prisma.serviceFeeSettlement.aggregate({
+      where: {
+        status: "PAID",
+        provider: "paymongo",
+        reviewedAt: windowOf(range),
+      },
+      _sum: { processingFee: true },
+    }),
+  ]);
 
   const series = buildSeries(
     rows.map((r) => ({
@@ -314,7 +326,16 @@ export async function marketplaceRevenue(
   const keptByVenues = paid.filter((r) => !r.refundedAt);
   return {
     ...series,
-    serviceFees: paid.reduce((sum, r) => sum + Number(r.platformFee), 0),
+    serviceFees:
+      paid.reduce(
+        (sum, r) =>
+          sum +
+          Number(r.platformFee) -
+          (r.processingFeeResponsibility === "BUNAL"
+            ? Number(r.processingFee)
+            : 0),
+        0
+      ) - Number(settlementCosts._sum.processingFee ?? 0),
     venueShare: keptByVenues.reduce(
       (sum, r) => sum + Number(r.venueAmount),
       0

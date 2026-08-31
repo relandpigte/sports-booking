@@ -139,7 +139,7 @@ async function check() {
     "the exact ₱25 balance is sent in centavos",
     (attributes.line_items as { amount: number }[])[0].amount === 2500
   );
-  ok("PayMongo processing fees pass through", attributes.pass_on_fees === true);
+  ok("Bunal absorbs settlement processing", attributes.pass_on_fees === false);
 
   const awaiting = await prisma.serviceFeeSettlement.findFirst({
     where: { partnerId: partner.id, status: "AWAITING_PAYMENT" },
@@ -177,6 +177,17 @@ async function check() {
     "the paid settlement clears the balance",
     (await calculateServiceFeeBalance(prisma, partner.id)).amountDue === 0
   );
+  ok(
+    "the return leg records Bunal's settlement processing cost",
+    Number(
+      (
+        await prisma.serviceFeeSettlement.findUnique({
+          where: { id: awaiting!.id },
+          select: { processingFee: true },
+        })
+      )?.processingFee
+    ) === 0.38
+  );
 
   await accrue(15);
   await startServiceFeeCheckout({
@@ -211,14 +222,18 @@ async function check() {
     "a replay is harmless",
     !replay.applied && replay.reason === "duplicate"
   );
+  const webhookSettlement = await prisma.serviceFeeSettlement.findUnique({
+    where: { id: second!.id },
+    select: {
+      status: true,
+      paymentReference: true,
+      processingFee: true,
+    },
+  });
   ok(
-    "the webhook stores the PayMongo payment reference",
-    (
-      await prisma.serviceFeeSettlement.findUnique({
-        where: { id: second!.id },
-        select: { status: true, paymentReference: true },
-      })
-    )?.paymentReference === paymentId
+    "the webhook stores the PayMongo payment reference and processing cost",
+    webhookSettlement?.paymentReference === paymentId &&
+      Number(webhookSettlement.processingFee) === 0.23
   );
 
   await accrue(15);
@@ -431,6 +446,17 @@ async function check() {
     (
       await calculateTrainerServiceFeeBalance(prisma, trainer.id)
     ).amountDue === 0
+  );
+  ok(
+    "the trainer settlement records Bunal's collection cost",
+    Number(
+      (
+        await prisma.trainerServiceFeeSettlement.findUnique({
+          where: { id: trainerSettlement.id },
+          select: { processingFee: true },
+        })
+      )?.processingFee
+    ) === 0.18
   );
 
   const webhookTrainerSession = await prisma.trainerSession.create({

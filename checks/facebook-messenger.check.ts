@@ -132,7 +132,8 @@ function check() {
     pricingReply.category === "pricing" &&
       pricingReply.text.includes("Creating and listing your venue") &&
       pricingReply.text.includes("no setup or subscription fee") &&
-      pricingReply.text.includes("fees are shown clearly before payment")
+      pricingReply.text.includes("all-inclusive 3%") &&
+      pricingReply.text.includes("no additional processing fee")
   );
   const bookingManagementReply = facebookReplyForMessage(
     {

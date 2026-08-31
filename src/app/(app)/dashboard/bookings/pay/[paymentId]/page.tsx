@@ -66,7 +66,11 @@ export default async function PayBookingPage({
     (payment.failureCode === "player_cancelled" ||
       payment.failureCode === "player_released");
   const refundedAmount =
-    payment.refundedAmount ?? payment.venueAmount + payment.processingFee;
+    payment.refundedAmount ??
+    payment.venueAmount +
+      (payment.processingFeeResponsibility === "PLAYER"
+        ? payment.processingFee
+        : 0);
   // Existing hosted sessions and current direct QR intents both remain bound
   // to the same claimed payment row while the hold is live.
   const activeCheckoutUrl =
@@ -89,7 +93,11 @@ export default async function PayBookingPage({
         lines={payment.lines}
         venueAmount={payment.venueAmount}
         platformFee={payment.platformFee}
-        processingFee={payment.processingFee}
+        processingFee={
+          payment.processingFeeResponsibility === "PLAYER"
+            ? payment.processingFee
+            : 0
+        }
         payableAmount={payment.payableAmount}
       />
     );
@@ -185,14 +193,15 @@ export default async function PayBookingPage({
               <dd className="text-gray-900">{formatPHP(payment.platformFee)}</dd>
             </div>
           )}
-          {payment.processingFee > 0 && (
+          {payment.processingFeeResponsibility === "PLAYER" &&
+            payment.processingFee > 0 && (
             <div className="flex items-center justify-between">
               <dt className="text-gray-500">PayMongo processing fee</dt>
               <dd className="text-gray-900">
                 {formatPHP(payment.processingFee)}
               </dd>
             </div>
-          )}
+            )}
           <div className="flex items-center justify-between border-t border-gray-100 pt-2">
             <dt className="font-medium text-gray-900">Total to pay</dt>
             <dd className="text-base font-semibold text-gray-900">

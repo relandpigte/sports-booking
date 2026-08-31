@@ -7,6 +7,7 @@ export type ChargeResult =
       status: "succeeded";
       paymentId: string;
       reference: string | null;
+      feeCentavos?: number;
       raw: unknown;
     }
   | {
@@ -59,6 +60,8 @@ export type ProviderWebhookEvent = {
   failureMessage: string | null;
   // Present when PayMongo includes the collected amount in the signed event.
   amountCentavos?: number;
+  // The exact processor deduction, when PayMongo includes it.
+  feeCentavos?: number;
   // How they actually paid, when PayMongo includes the source.
   methodType?: "QRPH" | "CARD" | "GCASH" | "MAYA";
   raw: unknown;

@@ -68,7 +68,11 @@ export default async function PayEventRegistrationPage({
     payment.failureCode === "player_cancelled" ||
     payment.failureCode === "player_released";
   const refundedAmount =
-    payment.refundedAmount ?? payment.venueAmount + payment.processingFee;
+    payment.refundedAmount ??
+    payment.venueAmount +
+      (payment.processingFeeResponsibility === "PLAYER"
+        ? payment.processingFee
+        : 0);
   const activeCheckoutUrl =
     holdLive && payment.chargeInFlight ? payment.redirectUrl : null;
   const activeQrImageUrl =
@@ -136,14 +140,15 @@ export default async function PayEventRegistrationPage({
                   <dd className="font-semibold text-navy">{formatPHP(payment.platformFee)}</dd>
                 </div>
               )}
-              {payment.processingFee > 0 && (
+              {payment.processingFeeResponsibility === "PLAYER" &&
+                payment.processingFee > 0 && (
                 <div className="flex justify-between gap-4">
                   <dt className="text-slate-500">PayMongo processing fee</dt>
                   <dd className="font-semibold text-navy">
                     {formatPHP(payment.processingFee)}
                   </dd>
                 </div>
-              )}
+                )}
               <div className="flex items-center justify-between gap-4 border-t border-slate-100 pt-3">
                 <dt className="font-black uppercase text-navy">Total to pay</dt>
                 <dd className="text-xl font-black text-navy">{formatPHP(payment.payableAmount)}</dd>

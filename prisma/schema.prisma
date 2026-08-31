@@ -330,44 +330,45 @@ model TrainerAvailabilityException {
 }
 
 model TrainerSession {
-  id               String               @id @default(cuid())
-  publicId         String               @unique
-  trainerProfileId String
-  playerId         String
-  date             String
-  startHour        Int
-  endHour          Int
-  hours            Int
-  startsAt         DateTime
-  endsAt           DateTime
-  status           TrainerSessionStatus @default(REQUESTED)
-  notes            String?              @db.Text
-  hourlyRate       Decimal              @db.Decimal(10, 2)
-  trainerAmount    Decimal              @db.Decimal(10, 2)
-  platformFee      Decimal              @db.Decimal(10, 2)
-  processingFee    Decimal              @default(0) @db.Decimal(10, 2)
-  totalAmount      Decimal              @db.Decimal(10, 2)
-  requestExpiresAt DateTime
-  paymentExpiresAt DateTime?
-  acceptedAt       DateTime?
-  declinedAt       DateTime?
-  declineReason    String?              @db.Text
-  confirmedAt      DateTime?
-  cancelledAt      DateTime?
-  cancelledBy      CancelledBy?
-  cancelReason     String?              @db.Text
-  refundedAt       DateTime?
-  completedAt      DateTime?
-  reminderSentAt   DateTime?
-  prevDate         String?
-  prevStartHour    Int?
-  prevEndHour      Int?
-  rescheduledAt    DateTime?
-  rescheduledById  String?
-  rescheduleReason String?              @db.Text
-  rescheduleCount  Int                  @default(0)
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
+  id                          String                      @id @default(cuid())
+  publicId                    String                      @unique
+  trainerProfileId            String
+  playerId                    String
+  date                        String
+  startHour                   Int
+  endHour                     Int
+  hours                       Int
+  startsAt                    DateTime
+  endsAt                      DateTime
+  status                      TrainerSessionStatus        @default(REQUESTED)
+  notes                       String?                     @db.Text
+  hourlyRate                  Decimal                     @db.Decimal(10, 2)
+  trainerAmount               Decimal                     @db.Decimal(10, 2)
+  platformFee                 Decimal                     @db.Decimal(10, 2)
+  processingFee               Decimal                     @default(0) @db.Decimal(10, 2)
+  processingFeeResponsibility ProcessingFeeResponsibility @default(PLAYER)
+  totalAmount                 Decimal                     @db.Decimal(10, 2)
+  requestExpiresAt            DateTime
+  paymentExpiresAt            DateTime?
+  acceptedAt                  DateTime?
+  declinedAt                  DateTime?
+  declineReason               String?                     @db.Text
+  confirmedAt                 DateTime?
+  cancelledAt                 DateTime?
+  cancelledBy                 CancelledBy?
+  cancelReason                String?                     @db.Text
+  refundedAt                  DateTime?
+  completedAt                 DateTime?
+  reminderSentAt              DateTime?
+  prevDate                    String?
+  prevStartHour               Int?
+  prevEndHour                 Int?
+  rescheduledAt               DateTime?
+  rescheduledById             String?
+  rescheduleReason            String?                     @db.Text
+  rescheduleCount             Int                         @default(0)
+  createdAt                   DateTime                    @default(now())
+  updatedAt                   DateTime                    @updatedAt
 
   trainer      TrainerProfile       @relation(fields: [trainerProfileId], references: [id], onDelete: Cascade)
   player       User                 @relation("TrainerSessionPlayer", fields: [playerId], references: [id], onDelete: Cascade)
@@ -437,54 +438,55 @@ model TrainerManualPaymentMethod {
 }
 
 model TrainerPayment {
-  id                    String                @id @default(cuid())
-  trainerSessionId      String                @unique
-  trainerId             String
-  playerId              String
-  gatewayId             String?
-  manualPaymentMethodId String?
-  amount                Decimal               @db.Decimal(10, 2)
-  trainerAmount         Decimal               @db.Decimal(10, 2)
-  platformFee           Decimal               @db.Decimal(10, 2)
-  processingFee         Decimal               @default(0) @db.Decimal(10, 2)
-  currency              String                @default("PHP")
-  method                PaymentMethodType
-  collectionMode        PaymentCollectionMode @default(AUTOMATIC)
-  status                PaymentStatus         @default(PENDING)
-  expiresAt             DateTime
-  chargeStartedAt       DateTime?
-  attempt               Int                   @default(0)
-  provider              String
-  providerPaymentId     String?
-  providerClientKey     String?
-  redirectUrl           String?               @db.Text
-  qrImageUrl            String?               @db.Text
-  providerRef           String?
-  failureCode           String?
-  failureMessage        String?               @db.Text
-  raw                   Json?
-  manualMethodLabel     String?
-  manualAccountName     String?
-  manualAccountDetails  String?               @db.Text
-  manualInstructions    String?               @db.Text
-  manualQrImage         String?               @db.Text
-  manualReceiptImage    String?               @db.Text
-  manualPaymentRef      String?
-  manualSubmittedAt     DateTime?
-  manualReviewedAt      DateTime?
-  manualReviewedById    String?
-  manualReviewNote      String?               @db.Text
-  paidAt                DateTime?
-  refundedAt            DateTime?
-  refundedAmount        Decimal?              @db.Decimal(10, 2)
-  refundRef             String?
-  refundReason          String?               @db.Text
-  refundedById          String?
-  refundRequestedAt     DateTime?
-  refundRequestedById   String?
-  refundStartedAt       DateTime?
-  createdAt             DateTime              @default(now())
-  updatedAt             DateTime              @updatedAt
+  id                          String                      @id @default(cuid())
+  trainerSessionId            String                      @unique
+  trainerId                   String
+  playerId                    String
+  gatewayId                   String?
+  manualPaymentMethodId       String?
+  amount                      Decimal                     @db.Decimal(10, 2)
+  trainerAmount               Decimal                     @db.Decimal(10, 2)
+  platformFee                 Decimal                     @db.Decimal(10, 2)
+  processingFee               Decimal                     @default(0) @db.Decimal(10, 2)
+  processingFeeResponsibility ProcessingFeeResponsibility @default(PLAYER)
+  currency                    String                      @default("PHP")
+  method                      PaymentMethodType
+  collectionMode              PaymentCollectionMode       @default(AUTOMATIC)
+  status                      PaymentStatus               @default(PENDING)
+  expiresAt                   DateTime
+  chargeStartedAt             DateTime?
+  attempt                     Int                         @default(0)
+  provider                    String
+  providerPaymentId           String?
+  providerClientKey           String?
+  redirectUrl                 String?                     @db.Text
+  qrImageUrl                  String?                     @db.Text
+  providerRef                 String?
+  failureCode                 String?
+  failureMessage              String?                     @db.Text
+  raw                         Json?
+  manualMethodLabel           String?
+  manualAccountName           String?
+  manualAccountDetails        String?                     @db.Text
+  manualInstructions          String?                     @db.Text
+  manualQrImage               String?                     @db.Text
+  manualReceiptImage          String?                     @db.Text
+  manualPaymentRef            String?
+  manualSubmittedAt           DateTime?
+  manualReviewedAt            DateTime?
+  manualReviewedById          String?
+  manualReviewNote            String?                     @db.Text
+  paidAt                      DateTime?
+  refundedAt                  DateTime?
+  refundedAmount              Decimal?                    @db.Decimal(10, 2)
+  refundRef                   String?
+  refundReason                String?                     @db.Text
+  refundedById                String?
+  refundRequestedAt           DateTime?
+  refundRequestedById         String?
+  refundStartedAt             DateTime?
+  createdAt                   DateTime                    @default(now())
+  updatedAt                   DateTime                    @updatedAt
 
   session             TrainerSession              @relation(fields: [trainerSessionId], references: [id], onDelete: Cascade)
   trainer             User                        @relation("TrainerPaymentTrainer", fields: [trainerId], references: [id], onDelete: Cascade)
@@ -515,15 +517,17 @@ model TrainerServiceFeeEntry {
 }
 
 model TrainerServiceFeeSettlement {
-  id               String                     @id @default(cuid())
-  trainerId        String
-  periodStart      DateTime
-  periodEnd        DateTime
-  amount           Decimal                    @db.Decimal(10, 2)
-  currency         String                     @default("PHP")
-  status           ServiceFeeSettlementStatus @default(SUBMITTED)
-  paymentReference String?
-  receiptImage     String?                    @db.Text
+  id                          String                      @id @default(cuid())
+  trainerId                   String
+  periodStart                 DateTime
+  periodEnd                   DateTime
+  amount                      Decimal                     @db.Decimal(10, 2)
+  processingFee               Decimal                     @default(0) @db.Decimal(10, 2)
+  processingFeeResponsibility ProcessingFeeResponsibility @default(PLAYER)
+  currency                    String                      @default("PHP")
+  status                      ServiceFeeSettlementStatus  @default(SUBMITTED)
+  paymentReference            String?
+  receiptImage                String?                     @db.Text
 
   // Present for platform PayMongo QR Ph settlements. Manual proof
   // submissions leave these null and continue through admin review.
@@ -794,7 +798,13 @@ enum PaymentStatus {
 
 enum ServiceFeeEntryType {
   CHARGE
+  PROCESSING_CREDIT
   REFUND
+}
+
+enum ProcessingFeeResponsibility {
+  PLAYER
+  BUNAL
 }
 
 enum ServiceFeeSettlementStatus {
@@ -909,21 +919,22 @@ model BookingPayment {
   hubId              String
 
   // The booking subtotal: court time plus the Bunal.club service fee.
-  amount         Decimal               @db.Decimal(10, 2)
+  amount                      Decimal                     @db.Decimal(10, 2)
   // The venue's share — the court time they advertised.
-  venueAmount    Decimal               @default(0) @db.Decimal(10, 2)
+  venueAmount                 Decimal                     @default(0) @db.Decimal(10, 2)
   // Bunal.club's per-booking service fee.
   //
   // All three are stored rather than derived on purpose: the fee schedule can
   // change, and an older payment must keep the fee quoted at checkout.
-  platformFee    Decimal               @default(0) @db.Decimal(10, 2)
-  // The QR Ph processing fee grossed up onto the direct Payment Intent so the
-  // partner receives the complete booking subtotal.
-  processingFee  Decimal               @default(0) @db.Decimal(10, 2)
-  currency       String                @default("PHP")
-  method         PaymentMethodType
-  collectionMode PaymentCollectionMode @default(AUTOMATIC)
-  status         PaymentStatus         @default(PENDING)
+  platformFee                 Decimal                     @default(0) @db.Decimal(10, 2)
+  // The snapshotted QR Ph processing fee. Historical PLAYER rows added this
+  // to checkout; new BUNAL rows deduct it from the platform fee ledger.
+  processingFee               Decimal                     @default(0) @db.Decimal(10, 2)
+  processingFeeResponsibility ProcessingFeeResponsibility @default(PLAYER)
+  currency                    String                      @default("PHP")
+  method                      PaymentMethodType
+  collectionMode              PaymentCollectionMode       @default(AUTOMATIC)
+  status                      PaymentStatus               @default(PENDING)
 
   // The hold this payment is racing — a snapshot of the bookings'
   // holdExpiresAt, so the checkout page can render a countdown from one read.
@@ -1051,15 +1062,17 @@ model ServiceFeeEntry {
 // A partner's remittance of accumulated service fees to Bunal.club. The amount
 // is snapshotted before either a PayMongo checkout or manual proof submission.
 model ServiceFeeSettlement {
-  id               String                     @id @default(cuid())
-  partnerId        String
-  periodStart      DateTime
-  periodEnd        DateTime
-  amount           Decimal                    @db.Decimal(10, 2)
-  currency         String                     @default("PHP")
-  status           ServiceFeeSettlementStatus @default(SUBMITTED)
-  paymentReference String?
-  receiptImage     String?                    @db.Text
+  id                          String                      @id @default(cuid())
+  partnerId                   String
+  periodStart                 DateTime
+  periodEnd                   DateTime
+  amount                      Decimal                     @db.Decimal(10, 2)
+  processingFee               Decimal                     @default(0) @db.Decimal(10, 2)
+  processingFeeResponsibility ProcessingFeeResponsibility @default(PLAYER)
+  currency                    String                      @default("PHP")
+  status                      ServiceFeeSettlementStatus  @default(SUBMITTED)
+  paymentReference            String?
+  receiptImage                String?                     @db.Text
 
   // Present for PayMongo QR Ph settlements. Manual proof submissions leave
   // these null and continue through admin review.

@@ -155,6 +155,7 @@ export function paymongoVenueGateway(creds: GatewayCredentials): VenueGateway {
             status: "succeeded",
             paymentId: intent.id,
             reference: paid.id,
+            feeCentavos: paid.attributes?.fee,
             raw: intent.attributes,
           };
         }
@@ -210,6 +211,7 @@ export function paymongoVenueGateway(creds: GatewayCredentials): VenueGateway {
               status: "succeeded",
               paymentId: providerPaymentId,
               reference: paid.id,
+              feeCentavos: paid.attributes?.fee,
               raw: intent,
             };
           }
@@ -250,6 +252,7 @@ export function paymongoVenueGateway(creds: GatewayCredentials): VenueGateway {
             paymentId: providerPaymentId,
             // The pay_… id, which is what a refund needs.
             reference: paid.id,
+            feeCentavos: paid.attributes?.fee,
             raw: session,
           };
         }
@@ -384,7 +387,7 @@ export function paymongoVenueGateway(creds: GatewayCredentials): VenueGateway {
 
       if (event.type === "checkout_session.payment.paid") {
         const session = event.attributes as {
-          payments?: { id?: string; attributes?: { status?: string; source?: { type?: string } } }[];
+          payments?: { id?: string; attributes?: { amount?: number; fee?: number; status?: string; source?: { type?: string } } }[];
           payment_method_used?: string | null;
         };
         const paid = paidPayment(session);
@@ -401,6 +404,7 @@ export function paymongoVenueGateway(creds: GatewayCredentials): VenueGateway {
             paid?.attributes?.source?.type ?? session.payment_method_used
           ),
           amountCentavos: paid?.attributes?.amount,
+          feeCentavos: paid?.attributes?.fee,
           raw: JSON.parse(rawBody),
         };
       }
@@ -408,6 +412,7 @@ export function paymongoVenueGateway(creds: GatewayCredentials): VenueGateway {
       if (event.type === "payment.paid") {
         const payment = event.attributes as {
           amount?: number;
+          fee?: number;
           payment_intent_id?: string;
           source?: { type?: string };
         };
@@ -420,6 +425,7 @@ export function paymongoVenueGateway(creds: GatewayCredentials): VenueGateway {
           failureCode: null,
           failureMessage: null,
           amountCentavos: payment.amount,
+          feeCentavos: payment.fee,
           methodType: methodTypeOf(payment.source?.type),
           raw: JSON.parse(rawBody),
         };

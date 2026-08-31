@@ -140,11 +140,10 @@ export const BOOKING_HOLD_MINUTES = 15;
 // session is claimed and never shortens the main hold.
 export const PAYMENT_COMPLETION_GRACE_MINUTES = 5;
 
-// PayMongo's published QR Ph rate is 1.34% before 12% VAT. Direct Payment
-// Intents do not support Checkout V2's pass_on_fees flag, so the charge is
-// grossed up to leave the booking subtotal after PayMongo deducts this rate.
-// Deployments with negotiated merchant pricing can override the VAT-inclusive
-// decimal rate (for example, 0.015008) without rewriting historical payments.
+// PayMongo's published QR Ph rate is 1.34% before 12% VAT. New all-inclusive
+// payments use this as the processing-cost estimate until PayMongo reports the
+// exact deduction. Historical player-paid rows still use the gross-up helpers.
+// Negotiated pricing can override the VAT-inclusive decimal rate.
 export const DEFAULT_PAYMONGO_QRPH_PROCESSING_RATE = 0.0134 * 1.12;
 
 export function paymongoQrPhProcessingRate(): number {
@@ -162,6 +161,14 @@ export function paymongoQrPhProcessingFeeFor(subtotal: number): number {
     subtotalCentavos / (1 - paymongoQrPhProcessingRate())
   );
   return (chargeCentavos - subtotalCentavos) / 100;
+}
+
+// The deduction from a receiver-paid QR Ph charge. Unlike the historical
+// gross-up helper above, this does not charge a fee on top of the fee itself.
+export function paymongoQrPhProcessingCostFor(chargeAmount: number): number {
+  const chargeCentavos = Math.round(chargeAmount * 100);
+  if (chargeCentavos <= 0) return 0;
+  return Math.round(chargeCentavos * paymongoQrPhProcessingRate()) / 100;
 }
 
 export function paymongoQrPhTotalFor(subtotal: number): number {

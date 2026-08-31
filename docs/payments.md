@@ -16,7 +16,7 @@ the hub and opens online bookings.
 
 ## Pricing
 
-In automatic mode, the player pays the venue's court rate plus a 3% service fee. The fee is
+In automatic mode, the player pays the venue's court rate plus one all-inclusive 3% service fee. The fee is
 calculated from the complete court total and charged once across the player's
 whole selection, including selections that contain gaps and create separate
 booking sessions. Each `BookingPayment`
@@ -25,15 +25,20 @@ snapshots:
 - `venueAmount` — the advertised court total.
 - `platformFee` — the service fee quoted for this booking.
 - `amount` — the court amount plus the service fee (the booking subtotal).
-- `processingFee` — the PayMongo QR Ph fee grossed up at charge time.
+- `processingFee` — the PayMongo QR Ph fee absorbed from Bunal.club's service fee.
 
-These values are stored so historical reports and refunds do not change when
-either fee schedule changes. Player payments use direct PayMongo Payment
-Intents. Because Payment Intents do not support Checkout V2 `pass_on_fees`, the
-app grosses up the exact QR amount using PayMongo's published 1.34% QR Ph rate
-plus VAT. `PAYMONGO_QRPH_PROCESSING_RATE` can override the VAT-inclusive rate
-for negotiated merchant pricing. For example, a ₱257.50 booking subtotal adds
-₱3.92 and generates a ₱261.42 QR.
+These values and the processing-fee responsibility are stored so historical
+reports and refunds do not change when either fee schedule changes. New player
+payments use direct PayMongo Payment Intents for exactly the venue amount plus
+the 3% fee. PayMongo deducts its exact reported fee from the partner account;
+Bunal.club records an equal processing credit against the partner's service-fee
+balance. `PAYMONGO_QRPH_PROCESSING_RATE` remains the VAT-inclusive fallback when
+PayMongo does not report the exact fee.
+
+The migration marks every pre-existing booking, event, and trainer payment as
+`PLAYER` responsibility. That keeps pending checkouts, completed-payment
+reports, refunds, and existing settlement balances on their original rules.
+Only automatic payments created after deployment use `BUNAL` responsibility.
 
 In manual mode, the player pays only `venueAmount`. Both `platformFee` and
 `processingFee` are zero, so neither the player nor the partner owes a
@@ -42,8 +47,9 @@ the booking or event capacity is confirmed.
 
 For open play and other paid events, the registration fee is per person. A
 lead player may include named guests in the first checkout, so a ₱100 event
-with two guests charges `₱100 × 3`. Automatic checkout adds the 3% service fee
-and PayMongo's QR processing fee; manual checkout adds neither. The entire group is
+with two guests charges `₱100 × 3`. Automatic checkout adds only the
+all-inclusive 3% service fee; manual checkout adds neither a service nor
+processing fee. The entire group is
 capacity-checked under one
 event lock and is held only when every requested spot is available. Confirmed
 players can add more named guests later through an incremental payment; an
@@ -147,25 +153,29 @@ Cloudflare Tunnel or ngrok for local webhook testing.
 
 ## Service-fee remittance
 
-The partner's PayMongo account receives the complete booking subtotal after
-PayMongo deducts the separately charged QR Ph processing fee. That processing
-fee is grossed up from the complete booking subtotal—venue amount plus Bunal's
-service fee—so the partner still receives both ledger amounts in full. After a
-successful automatic booking is confirmed, an immutable `ServiceFeeEntry`
-records the snapshotted 3% fee owed to Bunal.club. Manual partner payments do
+The partner's PayMongo account receives the booking subtotal and PayMongo
+deducts its processing fee. After a successful automatic booking is confirmed,
+`ServiceFeeEntry` rows record both the snapshotted 3% charge and an
+equal negative processing credit. The partner therefore remits only Bunal's net
+fee and keeps the complete advertised venue amount. Manual partner payments do
 not create service-fee entries.
-That service fee is non-refundable: a refund returns the venue amount and, for
-automatic checkout,
-the separately charged PayMongo processing fee, retains the service fee, and
-does not create a negative ledger entry.
+That service fee is non-refundable: an automatic-checkout refund returns the
+venue amount, retains the service fee, and does not create a negative ledger
+entry. There is no separately charged processing fee to refund.
 Partners remit the outstanding balance from `/dashboard/payments`. The primary
 flow opens an exact-amount QR Ph-only PayMongo hosted checkout in Bunal.club's
 own account. A signed
 `checkout_session.payment.paid` webhook marks the settlement paid
-automatically; the browser return leg also checks PayMongo in case it arrives
-before the webhook. Manual transfer reference and receipt submission remains
-available as a fallback, with admins reviewing those submissions in
-`/dashboard/admin/settlements`.
+automatically. The partner pays exactly the displayed settlement balance and
+Bunal.club absorbs that checkout's processing fee; the browser return leg also
+checks PayMongo in case it arrives before the webhook. Manual transfer
+reference and receipt submission remains available as a fallback, with admins
+reviewing those submissions in `/dashboard/admin/settlements`.
+The exact fee PayMongo deducts from an automatic partner or trainer settlement
+is stored on that settlement for margin auditing and reconciliation.
+An already-open hosted settlement keeps the provider settings and amount it was
+created with; the no-additional-fee rule applies when a new settlement checkout
+is created.
 
 An admin connects Bunal.club's collection account under
 `/dashboard/admin/payments`. The action validates the secret key, registers the

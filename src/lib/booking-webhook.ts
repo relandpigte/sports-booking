@@ -66,6 +66,7 @@ export async function handleVenueEvent(args: {
       status: true,
       amount: true,
       processingFee: true,
+      processingFeeResponsibility: true,
       providerPaymentId: true,
     },
   });
@@ -73,7 +74,11 @@ export async function handleVenueEvent(args: {
 
   if (event.type === "payment.succeeded") {
     const expectedCentavos = Math.round(
-      (Number(payment.amount) + Number(payment.processingFee)) * 100
+      (Number(payment.amount) +
+        (payment.processingFeeResponsibility === "PLAYER"
+          ? Number(payment.processingFee)
+          : 0)) *
+        100
     );
     if (
       payment.providerPaymentId?.startsWith("pi_") &&
@@ -83,6 +88,12 @@ export async function handleVenueEvent(args: {
       return { applied: false, reason: "amount mismatch" };
     }
     if (payment.status === "SUCCEEDED") {
+      if (event.feeCentavos != null) {
+        await prisma.bookingPayment.update({
+          where: { id: payment.id },
+          data: { processingFee: new Prisma.Decimal(event.feeCentavos / 100) },
+        });
+      }
       // The browser's return leg beat the webhook. Settling again is safe and
       // covers the case where it got as far as paying but not as far as
       // confirming.
@@ -106,6 +117,7 @@ export async function handleVenueEvent(args: {
       status: "succeeded",
       paymentId: event.providerPaymentId,
       reference: event.reference,
+      feeCentavos: event.feeCentavos,
       raw: event.raw,
     });
     const settled = await settleBookingPayment(payment.id);
@@ -142,7 +154,10 @@ export async function handleVenueEvent(args: {
     amount:
       event.amountCentavos != null
         ? event.amountCentavos / 100
-        : Number(payment.amount) + Number(payment.processingFee),
+        : Number(payment.amount) +
+          (payment.processingFeeResponsibility === "PLAYER"
+            ? Number(payment.processingFee)
+            : 0),
     refundRef: event.reference,
     reason: "Refunded from the payment provider.",
   });

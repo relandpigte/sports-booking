@@ -118,6 +118,8 @@ export type PayMongoPayment = {
   id?: string;
   attributes?: {
     amount?: number;
+    fee?: number;
+    net_amount?: number;
     status?: string;
     source?: { type?: string };
     payment_intent_id?: string;
@@ -185,9 +187,8 @@ export async function createCheckoutSession(
           success_url: input.returnUrl,
           cancel_url: input.returnUrl,
           send_email_receipt: false,
-          // The hub must receive the complete court amount plus the service fee
-          // it later remits. PayMongo adds its method-specific processing fee
-          // to the player's checkout total instead of deducting it here.
+          // Callers choose whether PayMongo adds the method fee to the payer or
+          // deducts it from the receiving account.
           pass_on_fees: input.passOnFees ?? true,
         },
       },

@@ -11,7 +11,7 @@ import {
   TRAINER_MIN_LEAD_HOURS,
   TRAINER_PAYMENT_HOLD_MINUTES,
   TRAINER_REQUEST_HOLD_HOURS,
-  paymongoQrPhProcessingFeeFor,
+  paymongoQrPhProcessingCostFor,
 } from "@/lib/constants";
 import { getViewer } from "@/lib/dal";
 import { prisma } from "@/lib/db";
@@ -556,9 +556,9 @@ export async function decideTrainerSessionAction(
   const paymentExpiresAt = new Date(Date.now() + TRAINER_PAYMENT_HOLD_MINUTES * 60_000);
   const automatic = session.trainer.paymentMode === "AUTOMATIC";
   const processingFee = automatic
-    ? paymongoQrPhProcessingFeeFor(Number(session.totalAmount))
+    ? paymongoQrPhProcessingCostFor(Number(session.totalAmount))
     : 0;
-  const amount = Math.round((Number(session.totalAmount) + processingFee) * 100) / 100;
+  const amount = Number(session.totalAmount);
   const manual = session.trainer.user.trainerManualMethods[0] ?? null;
   const payment = await prisma.$transaction(async (tx) => {
     const updated = await tx.trainerSession.updateMany({
@@ -568,6 +568,7 @@ export async function decideTrainerSessionAction(
         acceptedAt: new Date(),
         paymentExpiresAt,
         processingFee: new Prisma.Decimal(processingFee),
+        processingFeeResponsibility: automatic ? "BUNAL" : "PLAYER",
         totalAmount: new Prisma.Decimal(amount),
       },
     });
@@ -583,6 +584,7 @@ export async function decideTrainerSessionAction(
         trainerAmount: session.trainerAmount,
         platformFee: session.platformFee,
         processingFee: new Prisma.Decimal(processingFee),
+        processingFeeResponsibility: automatic ? "BUNAL" : "PLAYER",
         method: automatic ? "QRPH" : (manual?.network ?? "MANUAL"),
         collectionMode: automatic ? "AUTOMATIC" : "MANUAL",
         expiresAt: paymentExpiresAt,

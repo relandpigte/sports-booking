@@ -281,7 +281,7 @@ export function EventForm({
         {state.errors?.courtIds && <p className="mt-2 text-sm font-medium text-red-600">{state.errors.courtIds}</p>}
       </FormSection>
 
-      <FormSection number="04" title="Capacity & price" description={hub?.paymentMode === "MANUAL" ? "Players transfer only the advertised registration fee and upload a receipt for review. No Bunal or PayMongo fee applies." : `Players pay the registration fee plus Bunal's ${SERVICE_FEE_PERCENT}% service fee. PayMongo processing is handled separately.`}>
+      <FormSection number="04" title="Capacity & price" description={hub?.paymentMode === "MANUAL" ? "Players transfer only the advertised registration fee and upload a receipt for review. No Bunal or PayMongo fee applies." : `Players pay the registration fee plus Bunal's all-inclusive ${SERVICE_FEE_PERCENT}% service fee. No additional processing fee is added.`}>
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Player capacity" error={state.errors?.capacity}>
             <input name="capacity" type="number" min={2} max={500} defaultValue={event?.capacity ?? 16} disabled={locked} className={inputClass} />

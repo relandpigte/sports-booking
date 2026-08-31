@@ -664,14 +664,16 @@ function PriceBreakdownCard({
             </dd>
           </div>
         )}
-        {payment && payment.processingFee > 0 && (
+        {payment &&
+          payment.processingFeeResponsibility === "PLAYER" &&
+          payment.processingFee > 0 && (
           <div className="flex justify-between gap-4">
             <dt className="text-slate-500">Processing fee</dt>
             <dd className="font-bold text-navy">
               {formatPHP(payment.processingFee)}
             </dd>
           </div>
-        )}
+          )}
         <div className="flex justify-between gap-4 border-t border-slate-100 pt-3">
           <dt className="font-black text-navy">
             {payment?.manualSubmittedAt ? "Total submitted" : "Total"}

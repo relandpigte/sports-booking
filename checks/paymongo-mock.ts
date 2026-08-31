@@ -243,6 +243,7 @@ export function installPaymongoMock(): MockState {
                     id: found.paymentId,
                     attributes: {
                       amount: found.amount,
+                      fee: Math.round(found.amount * 0.015008),
                       status: "paid",
                       source: { type: "qrph" },
                     },
@@ -325,6 +326,10 @@ export function installPaymongoMock(): MockState {
                     id: found.paymentId,
                     attributes: {
                       amount: found.amount,
+                      fee:
+                        found.amount == null
+                          ? undefined
+                          : Math.round(found.amount * 0.015008),
                       status: "paid",
                       source: { type: "qrph" },
                     },
@@ -401,6 +406,7 @@ export function mockPaidEvent(
                 id: paymentId,
                 attributes: {
                   amount,
+                  fee: amount == null ? undefined : Math.round(amount * 0.015008),
                   status: "paid",
                   source: { type: "qrph" },
                 },
@@ -416,7 +422,8 @@ export function mockPaidEvent(
 export function mockPaymentPaidEvent(
   intentId: string,
   paymentId: string,
-  amount: number
+  amount: number,
+  fee = Math.round(amount * 0.015008)
 ): string {
   return JSON.stringify({
     data: {
@@ -428,6 +435,7 @@ export function mockPaymentPaidEvent(
           type: "payment",
           attributes: {
             amount,
+            fee,
             status: "paid",
             payment_intent_id: intentId,
             source: { type: "qrph" },

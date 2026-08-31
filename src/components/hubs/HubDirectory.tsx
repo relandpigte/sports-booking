@@ -500,7 +500,8 @@ function EmptyDirectoryState() {
             </Link>
             <p className="mt-4 text-xs text-white/45">
               No monthly subscription. Automatic PayMongo bookings carry a 3%
-              Bunal.club fee; manual venue payments are fee-free.
+              all-inclusive Bunal.club fee with no additional processing fee;
+              manual venue payments are fee-free.
             </p>
           </div>
         </aside>

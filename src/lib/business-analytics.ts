@@ -244,6 +244,8 @@ async function venuePayments(
       amount: true,
       venueAmount: true,
       platformFee: true,
+      processingFee: true,
+      processingFeeResponsibility: true,
       collectionMode: true,
       paidAt: true,
       refundedAt: true,
@@ -327,13 +329,18 @@ async function venuePayments(
     }
 
     const recipientShare = money(payment.venueAmount) * ratio;
-    const serviceFee = money(payment.platformFee) * ratio;
+    const grossServiceFee = money(payment.platformFee) * ratio;
+    const absorbedProcessingFee =
+      payment.processingFeeResponsibility === "BUNAL"
+        ? money(payment.processingFee) * ratio
+        : 0;
+    const serviceFee = grossServiceFee - absorbedProcessingFee;
     out.push({
       id: payment.id,
       source,
       paidAt: payment.paidAt,
       refundedAt: payment.refundedAt,
-      gross: recipientShare + serviceFee,
+      gross: recipientShare + grossServiceFee,
       recipientShare,
       serviceFee,
       grossRefund: payment.refundedAt ? recipientShare : 0,
@@ -384,6 +391,8 @@ async function trainerPayments(
       amount: true,
       trainerAmount: true,
       platformFee: true,
+      processingFee: true,
+      processingFeeResponsibility: true,
       collectionMode: true,
       paidAt: true,
       refundedAt: true,
@@ -401,7 +410,11 @@ async function trainerPayments(
             refundedAt: payment.refundedAt,
             gross: money(payment.amount),
             recipientShare: money(payment.trainerAmount),
-            serviceFee: money(payment.platformFee),
+            serviceFee:
+              money(payment.platformFee) -
+              (payment.processingFeeResponsibility === "BUNAL"
+                ? money(payment.processingFee)
+                : 0),
             grossRefund: payment.refundedAt ? money(payment.amount) : 0,
             recipientRefund: payment.refundedAt
               ? money(payment.trainerAmount)

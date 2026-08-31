@@ -83,7 +83,7 @@ function TrainerBalanceTable({
           <tr>
             <th scope="col" className="px-4 py-2.5">Trainer</th>
             <th scope="col" className="px-3 py-2.5">Status</th>
-            <th scope="col" className="px-3 py-2.5 text-right">Transactions</th>
+            <th scope="col" className="px-3 py-2.5 text-right">Ledger entries</th>
             <th scope="col" className="px-3 py-2.5 text-right">Accrued</th>
             <th scope="col" className="px-3 py-2.5 text-right">Settled</th>
             <th scope="col" className="px-3 py-2.5 text-right">Waived</th>
@@ -367,7 +367,11 @@ function TrainerTransactionList({
                 <p className="text-[11px] text-gray-500">{transaction.paymentStatus.toLowerCase()}</p>
               </td>
               <td className="px-3 py-2">
-                <Badge tone={transaction.type === "REFUND" ? "neutral" : "primary"}>{transaction.type}</Badge>
+                <Badge tone={transaction.type === "CHARGE" ? "primary" : "neutral"}>
+                  {transaction.type === "PROCESSING_CREDIT"
+                    ? "PROCESSING CREDIT"
+                    : transaction.type}
+                </Badge>
               </td>
               <td className={`px-3 py-2 text-right font-semibold tabular-nums ${transaction.amount < 0 ? "text-red-600" : "text-navy"}`}>
                 {formatPHP(transaction.amount)}
@@ -445,7 +449,10 @@ export function TrainerServiceFeeSettlements({
     (waiver) => waiver.reversedAt === null
   ).length;
   const chargeCount = transactions.filter((transaction) => transaction.type === "CHARGE").length;
-  const refundCount = transactions.length - chargeCount;
+  const processingCreditCount = transactions.filter(
+    (transaction) => transaction.type === "PROCESSING_CREDIT"
+  ).length;
+  const refundCount = transactions.filter((transaction) => transaction.type === "REFUND").length;
   const transactionTotal = transactions.reduce((total, transaction) => total + transaction.amount, 0);
   const paidHistoryCount = history.filter((settlement) => settlement.status === "PAID").length;
   const rejectedHistoryCount = history.length - paidHistoryCount;
@@ -455,7 +462,8 @@ export function TrainerServiceFeeSettlements({
       <section className="mt-5">
         <h2 className="text-sm font-semibold text-navy">Trainer fee status</h2>
         <p className="mt-0.5 max-w-3xl text-xs text-gray-500">
-          Paid training sessions accrue a 3% Bunal.club fee before remittance.
+          Paid training sessions accrue a 3% Bunal.club fee less processing
+          absorbed by the platform before remittance.
         </p>
         <dl className="mt-3 grid grid-cols-2 overflow-hidden rounded-xl border border-gray-200 bg-white lg:grid-cols-6">
           <div className="border-b border-r border-gray-200 px-4 py-3 lg:border-b-0">
@@ -502,7 +510,7 @@ export function TrainerServiceFeeSettlements({
         <SettlementDisclosure
           title="Recent fee transactions"
           count={transactions.length}
-          description={`${chargeCount} charges · ${refundCount} refunds · ${formatPHP(transactionTotal)} net fees`}
+          description={`${chargeCount} charges · ${processingCreditCount} processing credits · ${refundCount} refunds · ${formatPHP(transactionTotal)} net fees`}
           label="transactions"
         >
           <TrainerTransactionList transactions={transactions} />

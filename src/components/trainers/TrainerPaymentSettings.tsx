@@ -250,7 +250,7 @@ function TrainerCheckoutConfiguration({
         </div>
         <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500">
           {selectedMode === "AUTOMATIC"
-            ? "3% Bunal fee plus PayMongo processing. Successful payments confirm automatically."
+            ? "3% all-inclusive Bunal fee with no additional processing fee. Successful payments confirm automatically."
             : "Players upload a receipt for your review. A 3% Bunal fee applies with no PayMongo processing fee."}
         </p>
       </section>
@@ -1019,8 +1019,8 @@ function TrainerSettlementPanel({
             Bunal.club service-fee settlement
           </h2>
           <p className="mt-1 text-sm leading-6 text-slate-500">
-            The 3% added to paid sessions is collected in your account and
-            remitted here.
+            The displayed 3% less PayMongo processing absorbed by Bunal.club
+            is remitted here. You keep your full advertised trainer rate.
           </p>
         </div>
         <span
@@ -1081,9 +1081,9 @@ function TrainerSettlementPanel({
                   Pay {formatPHP(serviceFees.due)} securely with QR Ph
                 </h3>
                 <p className="mt-1 max-w-xl text-xs leading-5 text-slate-600">
-                  Pay the exact amount through PayMongo. A successful transfer
-                  is confirmed automatically, so no receipt or review
-                  submission is needed.
+                  Pay the exact amount through PayMongo with no additional
+                  processing charge. A successful transfer is confirmed
+                  automatically, so no receipt or review is needed.
                 </p>
                 <Result state={checkoutState} />
               </div>

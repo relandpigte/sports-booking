@@ -60,6 +60,14 @@ export async function ensureServiceFeeCharge(
 ): Promise<void> {
   if (Number(payment.platformFee) <= 0) return;
 
+  const feeSnapshot = await tx.bookingPayment.findUnique({
+    where: { id: payment.id },
+    select: {
+      processingFee: true,
+      processingFeeResponsibility: true,
+    },
+  });
+
   await tx.serviceFeeEntry.upsert({
     where: {
       bookingPaymentId_type: {
@@ -76,6 +84,30 @@ export async function ensureServiceFeeCharge(
     },
     update: {},
   });
+
+  if (
+    feeSnapshot?.processingFeeResponsibility === "BUNAL" &&
+    Number(feeSnapshot.processingFee) > 0
+  ) {
+    await tx.serviceFeeEntry.upsert({
+      where: {
+        bookingPaymentId_type: {
+          bookingPaymentId: payment.id,
+          type: "PROCESSING_CREDIT",
+        },
+      },
+      create: {
+        partnerId: payment.partnerId,
+        bookingPaymentId: payment.id,
+        type: "PROCESSING_CREDIT",
+        amount: feeSnapshot.processingFee.negated(),
+        createdAt: payment.paidAt ?? undefined,
+      },
+      // A status poll can settle with the configured estimate milliseconds
+      // before the signed webhook supplies PayMongo's exact fee.
+      update: { amount: feeSnapshot.processingFee.negated() },
+    });
+  }
 }
 
 export async function ensureOrganizerGuestServiceFeeCharge(

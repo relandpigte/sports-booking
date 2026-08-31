@@ -53,7 +53,9 @@ export function PartnerBookingListRow({
   const refundableAmount = booking.payment
     ? booking.payment.amount -
       booking.payment.platformFee +
-      booking.payment.processingFee
+      (booking.payment.processingFeeResponsibility === "PLAYER"
+        ? booking.payment.processingFee
+        : 0)
     : null;
   const playerName =
     booking.player.playerName ?? booking.player.name ?? "Player";

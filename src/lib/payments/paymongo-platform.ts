@@ -65,9 +65,9 @@ async function createPlatformServiceFeeCheckout(
     // QR Ph is the single online payment rail across player payments and
     // partner and trainer service-fee settlements.
     paymentMethodTypes: ["qrph"],
-    // The admin receives the complete service-fee balance. PayMongo shows its
-    // processing fee separately to the paying account.
-    passOnFees: true,
+    // Partners and trainers pay exactly the displayed balance. Bunal.club
+    // absorbs this collection fee as part of the all-inclusive 3% policy.
+    passOnFees: false,
     idempotencyKey:
       input.accountType === "partner"
         ? `service-fee:${input.settlementId}`
@@ -152,6 +152,7 @@ export async function verifyPlatformPaymongoWebhook(
         id?: string;
         attributes?: {
           amount?: number;
+          fee?: number;
           status?: string;
           source?: { type?: string };
         };
@@ -166,6 +167,7 @@ export async function verifyPlatformPaymongoWebhook(
       failureCode: null,
       failureMessage: null,
       amountCentavos: paid?.attributes?.amount,
+      feeCentavos: paid?.attributes?.fee,
       raw: JSON.parse(rawBody),
     };
   }

@@ -62,7 +62,9 @@ export function BookingCard({
   const refundableAmount = booking.payment
     ? booking.payment.amount -
       booking.payment.platformFee +
-      booking.payment.processingFee
+      (booking.payment.processingFeeResponsibility === "PLAYER"
+        ? booking.payment.processingFee
+        : 0)
     : null;
 
   return (
@@ -131,8 +133,8 @@ export function BookingCard({
         </div>
         {booking.payment && (paid || refunded) && (
           <>
-            {/* The booking subtotal excludes the separately snapshotted
-                PayMongo QR Ph processing fee shown on the payment screen. */}
+            {/* Historical payments may have a separate player-paid processing
+                fee; current automatic payments include processing in 3%. */}
             {booking.payment.platformFee > 0 && (
               <div className="flex items-center justify-between gap-3">
                 <dt className="text-gray-500">

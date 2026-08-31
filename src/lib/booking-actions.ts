@@ -39,7 +39,6 @@ import {
   BOOKING_WINDOW_DAYS,
   bookingServiceFeeFor,
   grossFor,
-  paymongoQrPhProcessingFeeFor,
 } from "@/lib/constants";
 import {
   addDays,
@@ -409,6 +408,7 @@ export async function createBookingAction(
               manualPayment ? 0 : bookingServiceFeeFor(total)
             ),
             processingFee: new Prisma.Decimal(0),
+            processingFeeResponsibility: manualPayment ? "PLAYER" : "BUNAL",
             method: manualPayment ? "MANUAL" : "QRPH",
             collectionMode: manualPayment ? "MANUAL" : "AUTOMATIC",
             status: "PENDING",
@@ -564,7 +564,7 @@ export async function createBookingAction(
         initialSeconds: BOOKING_HOLD_MINUTES * 60,
         amount: manualPayment
           ? total
-          : grossFor(total) + paymongoQrPhProcessingFeeFor(grossFor(total)),
+          : grossFor(total),
         venueName: hub.name,
         date,
         paymentMode: manualPayment ? "MANUAL" : "AUTOMATIC",

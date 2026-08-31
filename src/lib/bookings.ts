@@ -55,11 +55,12 @@ export type BookingView = {
   payment: {
     id: string;
     status: PaymentStatus;
-    // The booking subtotal and our share of it. The separately snapshotted
-    // PayMongo processing fee is only needed on payment and refund surfaces.
+    // The booking subtotal and our share of it. The processing snapshot and
+    // responsibility preserve historical totals and refund behavior.
     amount: number;
     platformFee: number;
     processingFee: number;
+    processingFeeResponsibility: "PLAYER" | "BUNAL";
     refundedAmount: number | null;
     collectionMode: "AUTOMATIC" | "MANUAL";
     manualReceiptImage: string | null;
@@ -118,6 +119,7 @@ const bookingSelect = {
       amount: true,
       platformFee: true,
       processingFee: true,
+      processingFeeResponsibility: true,
       refundedAmount: true,
       collectionMode: true,
       manualReceiptImage: true,
@@ -194,6 +196,8 @@ function mapBooking(row: BookingRow): BookingView {
           amount: Number(bookingPayment.amount),
           platformFee: Number(bookingPayment.platformFee),
           processingFee: Number(bookingPayment.processingFee),
+          processingFeeResponsibility:
+            bookingPayment.processingFeeResponsibility,
           refundedAmount:
             bookingPayment.refundedAmount == null
               ? null

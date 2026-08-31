@@ -72,6 +72,7 @@ export async function startServiceFeeCheckout(args: {
             periodStart: balance.oldestEntryAt ?? new Date(),
             periodEnd: new Date(),
             amount: new Prisma.Decimal(balance.amountDue),
+            processingFeeResponsibility: "BUNAL",
             status: "AWAITING_PAYMENT",
             provider: "paymongo",
           },
@@ -150,14 +151,31 @@ async function markServiceFeeSettlementPaid(args: {
   reference: string | null;
   raw: unknown;
   amountCentavos?: number;
+  feeCentavos?: number;
 }): Promise<{ applied: boolean; reason?: string }> {
   return prisma.$transaction(async (tx) => {
     const settlement = await tx.serviceFeeSettlement.findUnique({
       where: { providerPaymentId: args.providerPaymentId },
-      select: { id: true, status: true, amount: true },
+      select: {
+        id: true,
+        status: true,
+        amount: true,
+        processingFeeResponsibility: true,
+      },
     });
     if (!settlement) return { applied: false, reason: "unknown settlement" };
     if (settlement.status === "PAID") {
+      if (
+        settlement.processingFeeResponsibility === "BUNAL" &&
+        args.feeCentavos != null
+      ) {
+        await tx.serviceFeeSettlement.update({
+          where: { id: settlement.id },
+          data: {
+            processingFee: new Prisma.Decimal(args.feeCentavos / 100),
+          },
+        });
+      }
       return { applied: false, reason: "already paid" };
     }
     if (settlement.status !== "AWAITING_PAYMENT") {
@@ -176,6 +194,10 @@ async function markServiceFeeSettlementPaid(args: {
         status: "PAID",
         paymentReference: args.reference ?? args.providerPaymentId,
         providerRef: args.reference,
+        ...(settlement.processingFeeResponsibility === "BUNAL" &&
+        args.feeCentavos != null
+          ? { processingFee: new Prisma.Decimal(args.feeCentavos / 100) }
+          : {}),
         reviewedAt: new Date(),
         reviewNote: "Paid automatically through PayMongo.",
         raw: args.raw as Prisma.InputJsonValue,
@@ -221,6 +243,7 @@ export async function pollServiceFeeCheckout(args: {
         providerPaymentId: settlement.providerPaymentId,
         reference: paid.id,
         amountCentavos: paid.attributes?.amount,
+        feeCentavos: paid.attributes?.fee,
         raw: session,
       });
       return { status: "paid" };
@@ -380,6 +403,7 @@ export async function handleServiceFeeProviderEvent(
       providerPaymentId: event.providerPaymentId,
       reference: event.reference,
       amountCentavos: event.amountCentavos,
+      feeCentavos: event.feeCentavos,
       raw: event.raw,
     });
     if (partnerResult.reason !== "unknown settlement") return partnerResult;
@@ -387,6 +411,7 @@ export async function handleServiceFeeProviderEvent(
       providerPaymentId: event.providerPaymentId,
       reference: event.reference,
       amountCentavos: event.amountCentavos,
+      feeCentavos: event.feeCentavos,
       raw: event.raw,
     });
   }

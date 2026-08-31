@@ -76,6 +76,53 @@ async function sendLifecycle(input: Parameters<typeof sendTrainerLifecycleEmail>
   }
 }
 
+async function ensureTrainerFeeEntries(
+  tx: Prisma.TransactionClient,
+  payment: {
+    id: string;
+    trainerId: string;
+    platformFee: Prisma.Decimal;
+    processingFee: Prisma.Decimal;
+    processingFeeResponsibility: "PLAYER" | "BUNAL";
+  }
+) {
+  await tx.trainerServiceFeeEntry.upsert({
+    where: {
+      trainerPaymentId_type: {
+        trainerPaymentId: payment.id,
+        type: "CHARGE",
+      },
+    },
+    create: {
+      trainerId: payment.trainerId,
+      trainerPaymentId: payment.id,
+      type: "CHARGE",
+      amount: payment.platformFee,
+    },
+    update: {},
+  });
+  if (
+    payment.processingFeeResponsibility === "BUNAL" &&
+    Number(payment.processingFee) > 0
+  ) {
+    await tx.trainerServiceFeeEntry.upsert({
+      where: {
+        trainerPaymentId_type: {
+          trainerPaymentId: payment.id,
+          type: "PROCESSING_CREDIT",
+        },
+      },
+      create: {
+        trainerId: payment.trainerId,
+        trainerPaymentId: payment.id,
+        type: "PROCESSING_CREDIT",
+        amount: payment.processingFee.negated(),
+      },
+      update: { amount: payment.processingFee.negated() },
+    });
+  }
+}
+
 export async function connectTrainerGatewayAction(
   _previous: TrainerPaymentState,
   formData: FormData
@@ -328,7 +375,10 @@ async function confirmTrainerPayment(
       },
     });
     if (!payment) return null;
-    if (payment.status === "SUCCEEDED") return payment;
+    if (payment.status === "SUCCEEDED") {
+      await ensureTrainerFeeEntries(tx, payment);
+      return payment;
+    }
     if (payment.status !== "PENDING") return null;
     if (!["AWAITING_PAYMENT", "PAYMENT_REVIEW"].includes(payment.session.status)) return null;
     await tx.trainerPayment.update({
@@ -350,11 +400,7 @@ async function confirmTrainerPayment(
       where: { id: payment.trainerSessionId },
       data: { status: "CONFIRMED", confirmedAt: now },
     });
-    await tx.trainerServiceFeeEntry.upsert({
-      where: { trainerPaymentId_type: { trainerPaymentId: payment.id, type: "CHARGE" } },
-      create: { trainerId: payment.trainerId, trainerPaymentId: payment.id, type: "CHARGE", amount: payment.platformFee },
-      update: {},
-    });
+    await ensureTrainerFeeEntries(tx, payment);
     await tx.chatConversation.upsert({
       where: { trainerSessionId: payment.trainerSessionId },
       create: { kind: "TRAINER_SESSION", trainerSessionId: payment.trainerSessionId },
@@ -425,7 +471,16 @@ export async function payTrainerSessionAction(
     metadata: { trainerPaymentId: payment.id, trainerSessionId: payment.session.id },
   });
   if (result.status === "succeeded") {
-    await prisma.trainerPayment.update({ where: { id: payment.id }, data: { providerPaymentId: result.paymentId, raw: result.raw as Prisma.InputJsonValue } });
+    await prisma.trainerPayment.update({
+      where: { id: payment.id },
+      data: {
+        providerPaymentId: result.paymentId,
+        ...(result.feeCentavos != null
+          ? { processingFee: new Prisma.Decimal(result.feeCentavos / 100) }
+          : {}),
+        raw: result.raw as Prisma.InputJsonValue,
+      },
+    });
     const confirmed = await confirmTrainerPayment(payment.id, result.reference);
     return confirmed
       ? { success: "Paid. Your trainer session is confirmed." }
@@ -592,6 +647,12 @@ export async function handleTrainerPaymentEvent(args: {
     if (event.amountCentavos != null && event.amountCentavos !== expected) {
       return { handled: false, reason: "amount_mismatch" };
     }
+    if (event.feeCentavos != null) {
+      await prisma.trainerPayment.update({
+        where: { id: payment.id },
+        data: { processingFee: new Prisma.Decimal(event.feeCentavos / 100) },
+      });
+    }
     await confirmTrainerPayment(payment.id, event.reference);
     return { handled: true };
   }
@@ -627,7 +688,16 @@ export async function pollTrainerPayment(paymentId: string) {
   const gateway = getVenueGateway(await loadTrainerGatewayCredentials(payment.gatewayId));
   const result = await gateway.getCharge(payment.providerPaymentId);
   if (result.status === "succeeded") {
-    await prisma.trainerPayment.update({ where: { id: payment.id }, data: { providerRef: result.reference, raw: result.raw as Prisma.InputJsonValue } });
+    await prisma.trainerPayment.update({
+      where: { id: payment.id },
+      data: {
+        providerRef: result.reference,
+        ...(result.feeCentavos != null
+          ? { processingFee: new Prisma.Decimal(result.feeCentavos / 100) }
+          : {}),
+        raw: result.raw as Prisma.InputJsonValue,
+      },
+    });
     await confirmTrainerPayment(payment.id, result.reference);
   } else if (result.status === "failed") {
     await prisma.trainerPayment.update({ where: { id: payment.id }, data: { failureCode: result.code, failureMessage: result.message, chargeStartedAt: null, raw: result.raw as Prisma.InputJsonValue } });

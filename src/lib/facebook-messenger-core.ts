@@ -277,7 +277,7 @@ export function facebookReplyForMessage(
     return {
       category: "pricing",
       text:
-        "Creating and listing your venue on Bunal.club is free—there is no setup or subscription fee. Court and event prices are set by each venue, and any applicable booking service or payment-processing fees are shown clearly before payment.",
+        "Creating and listing your venue on Bunal.club is free—there is no setup or subscription fee. Automatic PayMongo checkout has one all-inclusive 3% Bunal.club service fee with no additional processing fee; manual venue payments are fee-free.",
     };
   }
   if (

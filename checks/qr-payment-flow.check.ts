@@ -159,7 +159,8 @@ async function check() {
       registration.payment.redirectUrl?.startsWith(
         "https://test.paymongo.com/qrph/"
       ) === true &&
-      Number(registration.payment.processingFee) === 23.54 &&
+      Number(registration.payment.processingFee) === 23.19 &&
+      registration.payment.processingFeeResponsibility === "BUNAL" &&
       registration.holdExpiresAt != null &&
       registration.holdExpiresAt.getTime() >=
         startedAfter + BOOKING_HOLD_MINUTES * 60_000 &&

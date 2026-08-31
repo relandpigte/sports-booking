@@ -452,7 +452,7 @@ function GuestSlotForm({
         <p className="text-xs leading-5 text-slate-400">
           {paymentMode === "MANUAL"
             ? "Transfer the advertised registration total and upload a receipt within 15 minutes. Manual payments have no Bunal or PayMongo fee; the organizer confirms after review."
-            : "Pay securely with QR Ph through PayMongo. Any processing fee is shown before you complete payment."}
+            : "Pay securely with QR Ph through PayMongo. The 3% Bunal service fee is all-inclusive, with no additional processing fee."}
         </p>
       )}
 

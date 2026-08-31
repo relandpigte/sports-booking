@@ -302,8 +302,8 @@ async function check() {
   });
   ok("run history is preserved", runs.length === 2 && runs[0].status === "ENDED" && runs[1].runNumber === 2);
   ok(
-    "the new run excludes removed players and resets retained attendance",
-    runs[1].participants.length === session.participants.length - 1 &&
+    "the new Event run re-seeds the confirmed roster with reset attendance",
+    runs[1].participants.length === session.participants.length &&
       runs[1].participants.every((participant) => participant.status === "NOT_CHECKED_IN")
   );
 

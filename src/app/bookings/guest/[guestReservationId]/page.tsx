@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { PageShell } from "@/components/PageShell";
 import { ManualPaymentCheckout } from "@/components/bookings/ManualPaymentCheckout";
@@ -39,7 +39,23 @@ export default async function GuestBookingPage({
     select: {
       id: true,
       createdAt: true,
-      payment: { select: { id: true } },
+      payment: {
+        select: {
+          id: true,
+          hubId: true,
+          eventRegistration: {
+            select: { event: { select: { publicId: true } } },
+          },
+          eventGuestSlots: {
+            take: 1,
+            select: {
+              registration: {
+                select: { event: { select: { publicId: true } } },
+              },
+            },
+          },
+        },
+      },
       bookings: {
         orderBy: { startsAt: "asc" },
         select: {
@@ -64,7 +80,19 @@ export default async function GuestBookingPage({
       },
     },
   });
-  if (!reservation || reservation.bookings.length === 0) notFound();
+  if (!reservation) notFound();
+  if (reservation.bookings.length === 0) {
+    const eventPublicId =
+      reservation.payment?.eventRegistration?.event.publicId ??
+      reservation.payment?.eventGuestSlots[0]?.registration.event.publicId;
+    redirect(
+      eventPublicId
+        ? `/events/${encodeURIComponent(eventPublicId)}`
+        : reservation.payment?.hubId
+          ? `/hubs/${encodeURIComponent(reservation.payment.hubId)}`
+          : "/hubs"
+    );
+  }
 
   let screen = reservation.payment
     ? await getGuestBookingPaymentScreen(

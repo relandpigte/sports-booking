@@ -67,8 +67,12 @@ export function ReservationHoldDock({
     closureHandled.current = true;
     setClosed(true);
     onClosed?.();
+    if (releaseState.redirectTo) {
+      router.replace(releaseState.redirectTo);
+      return;
+    }
     router.refresh();
-  }, [onClosed, releaseState.released, router]);
+  }, [onClosed, releaseState.redirectTo, releaseState.released, router]);
 
   useEffect(() => {
     if (secondsLeft !== 0 || closureHandled.current) return;

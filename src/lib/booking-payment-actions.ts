@@ -36,7 +36,20 @@ export type PayBookingFormState = {
 export type HeldBookingActionState = {
   message?: string;
   released?: boolean;
+  redirectTo?: string;
 };
+
+function releasedBookingDestination(
+  guestReservationId: string | null,
+  hubId?: string,
+  eventPublicId?: string | null
+): string {
+  if (!guestReservationId) return "/dashboard/bookings";
+  if (eventPublicId) {
+    return `/events/${encodeURIComponent(eventPublicId)}`;
+  }
+  return hubId ? `/hubs/${encodeURIComponent(hubId)}` : "/hubs";
+}
 
 function revalidateHeldBookingPaths(
   paymentId: string,
@@ -338,7 +351,14 @@ export async function releaseBookingHoldAction(
   );
   switch (result.kind) {
     case "released":
-      return { released: true };
+      return {
+        released: true,
+        redirectTo: releasedBookingDestination(
+          access.guestReservationId,
+          result.hubId,
+          result.eventPublicId
+        ),
+      };
     case "started": {
       const cancelled = await cancelAutomaticBookingHold({
         paymentId: parsed.data.paymentId,
@@ -351,7 +371,16 @@ export async function releaseBookingHoldAction(
           ? cancelled.eventPublicId
           : result.eventPublicId
       );
-      if (cancelled.status === "cancelled") return { released: true };
+      if (cancelled.status === "cancelled") {
+        return {
+          released: true,
+          redirectTo: releasedBookingDestination(
+            access.guestReservationId,
+            cancelled.hubId,
+            cancelled.eventPublicId
+          ),
+        };
+      }
       if (cancelled.status === "already-paid") {
         return {
           message:
@@ -367,7 +396,14 @@ export async function releaseBookingHoldAction(
       return { message: "We couldn't find that reservation hold." };
     }
     case "expired":
-      return { released: true };
+      return {
+        released: true,
+        redirectTo: releasedBookingDestination(
+          access.guestReservationId,
+          result.hubId,
+          result.eventPublicId
+        ),
+      };
     case "closed":
       return { message: "This reservation hold is already closed." };
     default:

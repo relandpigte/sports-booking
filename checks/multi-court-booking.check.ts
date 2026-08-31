@@ -264,6 +264,7 @@ async function check() {
   ok(
     "cancelling an active QR intent releases every reserved slot",
     startedRelease.released === true &&
+      startedRelease.redirectTo === "/dashboard/bookings" &&
       (await prisma.bookingSlot.count({
         where: { date, hour: 9, courtId: { in: [courtOne.id, courtTwo.id] } },
       })) === 0 &&
@@ -326,7 +327,11 @@ async function check() {
   const releaseForm = new FormData();
   releaseForm.set("paymentId", releasableResult.hold!.paymentId);
   const released = await releaseBookingHoldAction({}, releaseForm);
-  ok("the player can explicitly release an unpaid hold", released.released === true);
+  ok(
+    "the player can explicitly release an unpaid hold and return to bookings",
+    released.released === true &&
+      released.redirectTo === "/dashboard/bookings"
+  );
   ok(
     "releasing removes the court-hour immediately",
     (await prisma.bookingSlot.count({
@@ -409,6 +414,7 @@ async function check() {
     "cancelling an event checkout safely closes its active QR intent and releases the spot",
     eventCharge.status === "action" &&
       eventCancel.released === true &&
+      eventCancel.redirectTo === "/dashboard/bookings" &&
       cancelledEventPayment?.status === "FAILED" &&
       cancelledEventPayment.failureCode === "player_cancelled" &&
       cancelledEventPayment.eventRegistration?.status === "CANCELLED" &&

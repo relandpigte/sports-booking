@@ -29,8 +29,13 @@ export function CancelBookingHoldButton({
   );
 
   useEffect(() => {
-    if (state.released) router.refresh();
-  }, [router, state.released]);
+    if (!state.released) return;
+    if (state.redirectTo) {
+      router.replace(state.redirectTo);
+      return;
+    }
+    router.refresh();
+  }, [router, state.redirectTo, state.released]);
 
   return (
     <div className="space-y-2">

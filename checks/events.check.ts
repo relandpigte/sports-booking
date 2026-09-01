@@ -530,19 +530,25 @@ async function check() {
     orderBy: { createdAt: "asc" },
     select: { id: true, name: true, status: true },
   });
+  const organizerEventAfterAdd = await getOwnerEventDetails(
+    organizerEvent.publicId,
+    partner.id
+  );
   ok(
-    "the event owner can add named complimentary players without a booking payment",
+    "the event owner can add named complimentary players without payment or fees",
     organizerGuestsAdded.success?.includes("2 complimentary players") === true &&
       organizerGuestRows.length === 2 &&
       organizerGuestRows.every((guest) => guest.status === "CONFIRMED") &&
       (await prisma.bookingPayment.count()) === paymentsBeforeOrganizerGuests &&
+      organizerEventAfterAdd?.finance.platformFees === 0 &&
+      organizerEventAfterAdd.organizerGuests.every(
+        (guest) => guest.serviceFeeCharged === 0
+      ) &&
       (await prisma.serviceFeeEntry.count({
         where: {
           eventOrganizerGuestId: { in: organizerGuestRows.map((guest) => guest.id) },
-          type: "CHARGE",
-          amount: 15,
         },
-      })) === 2
+      })) === 0
   );
 
   const overCapacityForm = new FormData();
@@ -567,6 +573,16 @@ async function check() {
       )
   );
 
+  await prisma.serviceFeeEntry.createMany({
+    data: organizerGuestRows.map((guest) => ({
+      partnerId: partner.id,
+      eventOrganizerGuestId: guest.id,
+      type: "CHARGE" as const,
+      amount: 15,
+      createdAt: new Date("2020-01-01T00:00:00Z"),
+    })),
+  });
+
   const removeOrganizerGuestForm = new FormData();
   removeOrganizerGuestForm.set("guestId", organizerGuestRows[0].id);
   const organizerGuestRemoved = await removeOrganizerEventGuestAction(
@@ -578,7 +594,7 @@ async function check() {
     partner.id
   );
   ok(
-    "removing a complimentary player releases capacity and reverses its fee",
+    "removing a complimentary player releases capacity and reverses a historical fee",
     organizerGuestRemoved.success?.includes("removed") === true &&
       organizerEventAfterRemoval?.confirmedCount === 1 &&
       organizerEventAfterRemoval.remainingSpots === 1 &&
@@ -601,7 +617,7 @@ async function check() {
     removeOrganizerGuestForm
   );
   ok(
-    "organizer-player fee reversal is idempotent",
+    "historical organizer-player fee reversal is idempotent",
     removeOrganizerGuestAgain.message?.includes("already been removed") === true &&
       (await prisma.serviceFeeEntry.count({
         where: {
@@ -624,7 +640,7 @@ async function check() {
     partner.id
   );
   ok(
-    "event cancellation reverses every remaining organizer-player fee",
+    "event cancellation reverses every remaining historical organizer-player fee",
     Boolean(organizerEventCancelled.success) &&
       organizerEventAfterCancellation?.finance.platformFees === 0 &&
       (await prisma.serviceFeeEntry.count({
@@ -736,11 +752,19 @@ async function check() {
     {},
     blockedOrganizerPlayerForm
   );
+  const overdueOrganizerGuest = await prisma.eventOrganizerGuest.findFirst({
+    where: { eventId: blockedOrganizerEvent.id },
+    select: { id: true },
+  });
   ok(
-    "an overdue service-fee balance blocks organizer-added event players",
-    blockedOrganizerPlayer.message?.includes("overdue") === true &&
+    "an overdue service-fee balance does not block fee-free organizer-added players",
+    Boolean(blockedOrganizerPlayer.success) &&
       (await prisma.eventOrganizerGuest.count({
         where: { eventId: blockedOrganizerEvent.id },
+      })) === 1 &&
+      overdueOrganizerGuest != null &&
+      (await prisma.serviceFeeEntry.count({
+        where: { eventOrganizerGuestId: overdueOrganizerGuest.id },
       })) === 0
   );
 

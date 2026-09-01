@@ -85,12 +85,13 @@ reference on the booking or event payment. Because manual payments are
 fee-free, the venue amount is the full checkout amount.
 
 Venue partners may also add named complimentary guests from the event player
-list. These organizer-managed spots confirm immediately and count against event
-capacity. Manual-mode events add no service fee. Automatic-mode paid events
-record the usual per-player service fee in the partner ledger even though the
-guest's registration fee is waived. They are labeled separately from
-player-paid registrations and can be removed by the organizer to release
-capacity and reverse that fee.
+list. These organizer-managed spots confirm immediately, count against event
+capacity, and have no registration or Bunal service fee in either collection
+mode. Organizers may add players up to the event's remaining capacity in batches
+of at most 50 names. They are labeled separately from player-paid registrations
+and can be removed by the organizer to release capacity. Historical organizer-
+player service-fee entries remain auditable and reverse normally when an
+associated player is removed or the event is cancelled.
 
 ## Partner gateway setup
 

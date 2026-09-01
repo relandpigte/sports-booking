@@ -1035,11 +1035,11 @@ model GuestReservationAccessToken {
   @@index([expiresAt])
 }
 
-// Immutable service-fee ledger. Successful bookings and organizer-added event
-// players add positive charges. Booking refunds retain their charge, while
-// removing an organizer-added player records an explicit negative REFUND. A
-// database check requires exactly one source, and source/type keys keep retries
-// and concurrent action races idempotent.
+// Immutable service-fee ledger. Successful bookings add positive charges.
+// Historical organizer-added player charges remain linked here and receive an
+// explicit negative REFUND when the player is removed. A database check requires
+// exactly one source, and source/type keys keep retries and concurrent action
+// races idempotent.
 model ServiceFeeEntry {
   id                    String              @id @default(cuid())
   partnerId             String
@@ -1857,8 +1857,8 @@ model EventGuestSlot {
 
 // A complimentary capacity spot created manually by the venue partner. It is
 // deliberately separate from EventRegistration and EventGuestSlot: there is
-// no player account, payment, or checkout associated with this spot. Paid
-// events accrue a partner service-fee charge that is reversed on removal.
+// no player account, payment, checkout, or service fee associated with this
+// spot. Historical service-fee entries remain related for audit and reversal.
 model EventOrganizerGuest {
   id          String                  @id @default(cuid())
   eventId     String

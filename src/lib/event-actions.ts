@@ -23,7 +23,6 @@ import {
   settleBookingPayment,
 } from "@/lib/booking-payments";
 import {
-  ensureOrganizerGuestServiceFeeCharge,
   ensureOrganizerGuestServiceFeeRefund,
   isServiceFeeOverdue,
 } from "@/lib/service-fees";
@@ -1745,12 +1744,6 @@ export async function addOrganizerEventGuestsAction(
   if (guests.names.length === 0) {
     return { message: "Add at least one guest name." };
   }
-  if (await isServiceFeeOverdue(partner.id)) {
-    return {
-      message:
-        "Players cannot be added while the partner's service-fee balance is overdue.",
-    };
-  }
 
   const now = new Date();
   const outcome = await prisma.$transaction(async (tx) => {
@@ -1767,12 +1760,6 @@ export async function addOrganizerEventGuestsAction(
         status: true,
         startsAt: true,
         capacity: true,
-        registrationFee: true,
-        hub: {
-          select: {
-            owner: { select: { partnerPaymentMode: true } },
-          },
-        },
       },
     });
     if (!event) return { kind: "missing" as const };
@@ -1787,12 +1774,8 @@ export async function addOrganizerEventGuestsAction(
       return { kind: "insufficient" as const, event, available };
     }
 
-    const serviceFeePerPlayer =
-      event.hub.owner.partnerPaymentMode === "MANUAL"
-        ? 0
-        : bookingServiceFeeFor(Number(event.registrationFee));
     for (const name of guests.names) {
-      const guest = await tx.eventOrganizerGuest.create({
+      await tx.eventOrganizerGuest.create({
         data: {
           eventId: event.id,
           createdById: workspace.actorId,
@@ -1800,19 +1783,11 @@ export async function addOrganizerEventGuestsAction(
           status: "CONFIRMED",
           confirmedAt: now,
         },
-        select: { id: true },
-      });
-      await ensureOrganizerGuestServiceFeeCharge(tx, {
-        eventOrganizerGuestId: guest.id,
-        partnerId: partner.id,
-        amount: serviceFeePerPlayer,
-        createdAt: now,
       });
     }
     return {
       kind: "created" as const,
       event,
-      serviceFee: serviceFeePerPlayer * guests.names.length,
     };
   });
 
@@ -1836,7 +1811,6 @@ export async function addOrganizerEventGuestsAction(
     targetId: outcome.event.id,
     metadata: {
       guestCount: guests.names.length,
-      serviceFee: outcome.serviceFee,
     },
   });
   await recordPartnerActivity({
@@ -1846,7 +1820,6 @@ export async function addOrganizerEventGuestsAction(
     targetId: outcome.event.id,
     metadata: {
       guestCount: guests.names.length,
-      serviceFee: outcome.serviceFee,
     },
   });
   return {

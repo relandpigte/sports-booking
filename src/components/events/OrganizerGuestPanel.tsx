@@ -6,21 +6,15 @@ import {
   addOrganizerEventGuestsAction,
   type EventFormState,
 } from "@/lib/event-actions";
-import { bookingServiceFeeFor } from "@/lib/constants";
-import { formatPHP } from "@/lib/currency";
 
 const initialState: EventFormState = {};
 
 export function OrganizerGuestPanel({
   eventId,
   remainingSpots,
-  registrationFee,
-  paymentMode,
 }: {
   eventId: string;
   remainingSpots: number;
-  registrationFee: number;
-  paymentMode: "AUTOMATIC" | "MANUAL";
 }) {
   const nextRowId = useRef(2);
   const [open, setOpen] = useState(false);
@@ -37,9 +31,6 @@ export function OrganizerGuestPanel({
     initialState
   );
   const maxGuests = Math.min(50, remainingSpots);
-  const serviceFeePerPlayer =
-    paymentMode === "MANUAL" ? 0 : bookingServiceFeeFor(registrationFee);
-  const serviceFeeTotal = serviceFeePerPlayer * rows.length;
 
   useEffect(() => {
     if (!open) return;
@@ -172,18 +163,8 @@ export function OrganizerGuestPanel({
                   Complimentary registration
                 </p>
                 <p className="mt-1 text-xs leading-5 text-primary-hover">
-                  {serviceFeePerPlayer > 0 ? (
-                    <>
-                      The registration fee is waived. Bunal.club adds a {formatPHP(serviceFeePerPlayer)}
-                      {" "}service fee per player to the partner balance
-                      {rows.length > 1 ? ` (${formatPHP(serviceFeeTotal)} total)` : ""}.
-                      Removing the player reverses this fee.
-                    </>
-                  ) : paymentMode === "MANUAL" ? (
-                    "Manual-mode events have no Bunal service fee. Players consume capacity immediately."
-                  ) : (
-                    "This event is free, so no service fee is added. Players consume capacity immediately."
-                  )}
+                  No registration or Bunal service fee is charged. Players consume
+                  capacity immediately.
                 </p>
               </div>
 

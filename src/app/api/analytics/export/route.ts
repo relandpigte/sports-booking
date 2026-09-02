@@ -72,8 +72,22 @@ export async function GET(request: Request) {
     csvRow(["Court", "Hub", "Sport", "Booked hours", "Available hours", "Utilization (%)", "Estimated"]),
     ...data.utilization.map((row) => csvRow([row.court, row.hub, row.sport, row.bookedHours, row.availableHours, row.utilizationRate.toFixed(2), row.estimated ? "Yes" : "No"])),
     "",
-    csvRow(["Event", "Hub", "Date", "Transactions", "Revenue", "Service fees"]),
-    ...data.events.map((row) => csvRow([row.title, row.hub, row.date, row.transactions, row.revenue, row.serviceFees])),
+    ...(audience === "owner"
+      ? [
+          csvRow(["Event", "Hub", "Date", "Transactions", "Paid spots", "Player checkout", "Venue revenue", "Gross payment fees", "PayMongo deductions", "Net Bunal revenue"]),
+          ...data.events.map((row) => csvRow([row.title, row.hub, row.date, row.transactions, row.paidSpots, row.checkoutTotal, row.revenue, row.grossPaymentFees, row.processingFees, row.serviceFees])),
+          "",
+          csvRow(["Event payment breakdown", "Hub", "Payment reference", "Paid at", "Status", "Mode", "Spots", "Player checkout", "Venue revenue", "Gross payment fees", "PayMongo deduction", "Net Bunal revenue"]),
+          ...data.events.flatMap((row) =>
+            row.payments.map((payment) =>
+              csvRow([row.title, row.hub, payment.reference, payment.paidAt, payment.status, payment.collectionMode, payment.spots, payment.checkoutTotal, payment.venueRevenue, payment.grossPaymentFees, payment.processingFees, payment.netBunalRevenue])
+            )
+          ),
+        ]
+      : [
+          csvRow(["Event", "Hub", "Date", "Transactions", "Revenue", "Service fees"]),
+          ...data.events.map((row) => csvRow([row.title, row.hub, row.date, row.transactions, row.revenue, row.serviceFees])),
+        ]),
   ];
   if (audience === "owner") {
     lines.push(

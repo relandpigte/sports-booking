@@ -69,9 +69,28 @@ export type EventPerformanceRow = {
   title: string;
   hub: string;
   date: string;
+  paidSpots: number;
+  checkoutTotal: number;
   revenue: number;
+  grossPaymentFees: number;
+  processingFees: number;
   serviceFees: number;
   transactions: number;
+  payments: EventPaymentBreakdownRow[];
+};
+
+export type EventPaymentBreakdownRow = {
+  paymentId: string;
+  reference: string;
+  paidAt: string;
+  status: "SUCCEEDED" | "REFUNDED";
+  collectionMode: "AUTOMATIC" | "MANUAL";
+  spots: number;
+  checkoutTotal: number;
+  venueRevenue: number;
+  grossPaymentFees: number;
+  processingFees: number;
+  netBunalRevenue: number;
 };
 
 export type TrainerPerformanceRow = {
@@ -135,6 +154,12 @@ type NormalizedPayment = {
   serviceFeeRefund: number;
   userId: string;
   collectionMode: "AUTOMATIC" | "MANUAL";
+  paymentStatus?: "SUCCEEDED" | "REFUNDED";
+  paymentReference?: string;
+  checkoutTotal?: number;
+  grossServiceFee?: number;
+  absorbedProcessingFee?: number;
+  spotCount?: number;
   eventId?: string;
   eventTitle?: string;
   eventDate?: string;
@@ -247,6 +272,8 @@ async function venuePayments(
       processingFee: true,
       processingFeeResponsibility: true,
       collectionMode: true,
+      status: true,
+      providerRef: true,
       paidAt: true,
       refundedAt: true,
       bookings: {
@@ -289,6 +316,7 @@ async function venuePayments(
           },
         },
       },
+      _count: { select: { eventGuestSlots: true } },
     },
   });
 
@@ -351,6 +379,19 @@ async function venuePayments(
       collectionMode: payment.collectionMode,
       ...(event
         ? {
+            paymentStatus:
+              payment.status === "REFUNDED" ? "REFUNDED" : "SUCCEEDED",
+            paymentReference: payment.providerRef ?? payment.id,
+            checkoutTotal:
+              money(payment.amount) +
+              (payment.processingFeeResponsibility === "PLAYER"
+                ? money(payment.processingFee)
+                : 0),
+            grossServiceFee,
+            absorbedProcessingFee,
+            spotCount:
+              (payment.eventRegistration ? 1 : 0) +
+              payment._count.eventGuestSlots,
             eventId: event.id,
             eventTitle: event.title,
             eventDate: event.date,
@@ -801,12 +842,35 @@ function eventPerformance(
       title: payment.eventTitle ?? "Event",
       hub: payment.hubName ?? "Venue",
       date: payment.eventDate ?? "",
+      paidSpots: 0,
+      checkoutTotal: 0,
       revenue: 0,
+      grossPaymentFees: 0,
+      processingFees: 0,
       serviceFees: 0,
       transactions: 0,
+      payments: [],
     };
+    const paidInRange = isInRange(payment.paidAt, from, to);
+    const refundedInRange = isInRange(payment.refundedAt, from, to);
+    const venueRevenue =
+      (paidInRange ? payment.recipientShare : 0) -
+      (refundedInRange ? payment.recipientRefund : 0);
+    const grossPaymentFees = paidInRange
+      ? (payment.grossServiceFee ?? 0)
+      : 0;
+    const processingFees = paidInRange
+      ? (payment.absorbedProcessingFee ?? 0)
+      : 0;
+    const netBunalRevenue =
+      (paidInRange ? payment.serviceFee : 0) -
+      (refundedInRange ? payment.serviceFeeRefund : 0);
     if (isInRange(payment.paidAt, from, to)) {
+      row.paidSpots += payment.spotCount ?? 0;
+      row.checkoutTotal += payment.checkoutTotal ?? payment.gross;
       row.revenue += payment.recipientShare;
+      row.grossPaymentFees += payment.grossServiceFee ?? 0;
+      row.processingFees += payment.absorbedProcessingFee ?? 0;
       row.serviceFees += payment.serviceFee;
       row.transactions += 1;
     }
@@ -814,6 +878,21 @@ function eventPerformance(
       row.revenue -= payment.recipientRefund;
       row.serviceFees -= payment.serviceFeeRefund;
     }
+    row.payments.push({
+      paymentId: payment.id,
+      reference: payment.paymentReference ?? payment.id,
+      paidAt: payment.paidAt.toISOString(),
+      status: payment.paymentStatus ?? "SUCCEEDED",
+      collectionMode: payment.collectionMode,
+      spots: payment.spotCount ?? 0,
+      checkoutTotal: paidInRange
+        ? (payment.checkoutTotal ?? payment.gross)
+        : 0,
+      venueRevenue,
+      grossPaymentFees,
+      processingFees,
+      netBunalRevenue,
+    });
     rows.set(payment.eventId, row);
   }
   for (const fee of fees) {
@@ -823,14 +902,27 @@ function eventPerformance(
       title: fee.eventTitle,
       hub: fee.hubName,
       date: fee.eventDate,
+      paidSpots: 0,
+      checkoutTotal: 0,
       revenue: 0,
+      grossPaymentFees: 0,
+      processingFees: 0,
       serviceFees: 0,
       transactions: 0,
+      payments: [],
     };
+    row.grossPaymentFees += fee.amount;
     row.serviceFees += fee.amount;
     rows.set(fee.eventId, row);
   }
-  return [...rows.values()].sort((a, b) => b.revenue - a.revenue);
+  return [...rows.values()]
+    .map((row) => ({
+      ...row,
+      payments: row.payments.sort((a, b) =>
+        b.paidAt.localeCompare(a.paidAt)
+      ),
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
 }
 
 function trainerPerformance(payments: NormalizedPayment[], from: string, to: string) {

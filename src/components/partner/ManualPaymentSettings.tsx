@@ -616,7 +616,7 @@ export function CheckoutModeSettings({
         </div>
         <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500">
           {selectedMode === "AUTOMATIC"
-            ? `${SERVICE_FEE_PERCENT}% all-inclusive Bunal fee with no additional processing fee. Successful payments confirm automatically.`
+            ? `${SERVICE_FEE_PERCENT}% for court bookings and ₱5 per event player, with no additional processing fee. Successful payments confirm automatically.`
             : "Players transfer only your advertised price and upload a receipt in 15 minutes. No Bunal or PayMongo fee applies."}
         </p>
       </section>

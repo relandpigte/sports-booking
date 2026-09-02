@@ -457,7 +457,7 @@ export default async function PartnerEventDetailsPage({
                   strong
                 />
                 <MoneyRow
-                  label="Bunal.club service fees"
+                  label="Payment fees"
                   value={formatPHP(event.finance.platformFees)}
                 />
                 <MoneyRow
@@ -575,7 +575,7 @@ export default async function PartnerEventDetailsPage({
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3 text-right">Checkout</th>
                     <th className="px-4 py-3 text-right">Venue revenue</th>
-                    <th className="px-4 py-3 text-right">Bunal fee</th>
+                    <th className="px-4 py-3 text-right">Payment fee</th>
                     <th className="px-6 py-3">Reference</th>
                   </tr>
                 </thead>
@@ -675,7 +675,7 @@ export default async function PartnerEventDetailsPage({
               <h2 className="text-lg font-black text-navy">Event controls</h2>
               <p className="mb-5 mt-1 text-sm text-slate-500">
                 Cancellation releases every selected court-hour and can refund
-                successful player payments. Bunal.club service fees remain
+                successful player payments. Payment fees remain
                 non-refundable.
               </p>
               <CancelEventPanel eventId={event.id} />

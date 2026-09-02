@@ -10,10 +10,14 @@ import { PrismaClient } from "@prisma/client";
 
 import { ok, run, stubRequestContext } from "./harness";
 import {
+  EVENT_PAYMENT_FEE_PER_PLAYER,
   SERVICE_FEE_PERCENT,
   SERVICE_FEE_RATE,
   bookingServiceFeeFor,
+  eventGrossFor,
+  eventPaymentFeeFor,
   grossFor,
+  paymongoQrPhProcessingCostFor,
   paymongoQrPhProcessingFeeFor,
   paymongoQrPhTotalFor,
 } from "@/lib/constants";
@@ -35,6 +39,31 @@ async function check() {
   ok("an empty court total has no fee", bookingServiceFeeFor(0) === 0);
   ok("a ₱250 court total carries a ₱7.50 fee", bookingServiceFeeFor(250) === 7.5);
   ok("a ₱500 court total carries a ₱15 fee", bookingServiceFeeFor(500) === 15);
+  ok("the event payment fee is ₱5 per player", EVENT_PAYMENT_FEE_PER_PLAYER === 5);
+  ok("free events have no payment fee", eventPaymentFeeFor(0) === 0);
+  ok("one paid event spot carries a ₱5 fee", eventPaymentFeeFor(1) === 5);
+  ok("three paid event spots carry a ₱15 fee", eventPaymentFeeFor(3) === 15);
+  ok("a one-player ₱80 event checkout totals ₱85", eventGrossFor(80, 1) === 85);
+  ok("a one-player ₱100 event checkout totals ₱105", eventGrossFor(100, 1) === 105);
+  ok("a one-player ₱150 event checkout totals ₱155", eventGrossFor(150, 1) === 155);
+  ok(
+    "the ₱80 event leaves ₱3.72 after PayMongo processing",
+    Math.abs(
+      eventPaymentFeeFor(1) - paymongoQrPhProcessingCostFor(85) - 3.72
+    ) < 1e-9
+  );
+  ok(
+    "the ₱100 event leaves ₱3.42 after PayMongo processing",
+    Math.abs(
+      eventPaymentFeeFor(1) - paymongoQrPhProcessingCostFor(105) - 3.42
+    ) < 1e-9
+  );
+  ok(
+    "the ₱150 event leaves ₱2.67 after PayMongo processing",
+    Math.abs(
+      eventPaymentFeeFor(1) - paymongoQrPhProcessingCostFor(155) - 2.67
+    ) < 1e-9
+  );
   ok(
     "half-cent percentage results round to the nearest centavo",
     bookingServiceFeeFor(33.5) === 1.01

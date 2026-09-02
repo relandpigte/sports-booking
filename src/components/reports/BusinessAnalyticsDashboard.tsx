@@ -1,6 +1,9 @@
 import type { RevenuePoint } from "@/lib/analytics";
 import type { AnalyticsUtilizationView } from "@/lib/analytics-query";
-import type { BusinessAnalyticsData } from "@/lib/business-analytics";
+import type {
+  BusinessAnalyticsData,
+  EventPerformanceRow,
+} from "@/lib/business-analytics";
 import { formatPHP } from "@/lib/currency";
 
 import { RevenueChart } from "./RevenueChart";
@@ -43,6 +46,87 @@ function SectionHeading({ eyebrow, title, description }: { eyebrow: string; titl
       <p className="text-[11px] font-black uppercase tracking-[0.16em] text-primary">{eyebrow}</p>
       <h2 className="mt-1 text-lg font-black text-navy">{title}</h2>
       <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
+    </div>
+  );
+}
+
+function paymentDate(value: string) {
+  return new Intl.DateTimeFormat("en-PH", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Manila",
+  }).format(new Date(value));
+}
+
+function paymentReference(value: string) {
+  return value.length > 18 ? `…${value.slice(-14)}` : value;
+}
+
+function deduction(value: number) {
+  return value > 0 ? `−${formatPHP(value)}` : formatPHP(0);
+}
+
+function EventFinancialPerformance({
+  audience,
+  rows,
+}: {
+  audience: "partner" | "owner";
+  rows: EventPerformanceRow[];
+}) {
+  if (rows.length === 0) {
+    return (
+      <div className="mt-5 rounded-xl border border-dashed border-slate-300 py-10 text-center text-sm text-slate-500">
+        No paid events match these filters.
+      </div>
+    );
+  }
+
+  if (audience === "partner") {
+    return (
+      <div className="mt-5 overflow-x-auto">
+        <table className="w-full min-w-[680px] text-sm">
+          <thead><tr className="border-b border-slate-200 text-left text-[11px] font-black uppercase tracking-[0.12em] text-slate-400"><th className="pb-3">Event</th><th className="pb-3">Hub</th><th className="pb-3">Date</th><th className="pb-3 text-right">Transactions</th><th className="pb-3 text-right">Revenue</th><th className="pb-3 text-right">Service fees</th></tr></thead>
+          <tbody className="divide-y divide-slate-100">{rows.map((row) => <tr key={row.eventId}><td className="py-3 font-bold text-navy">{row.title}</td><td className="py-3 text-slate-500">{row.hub}</td><td className="py-3 text-slate-500">{row.date}</td><td className="py-3 text-right tabular-nums">{row.transactions}</td><td className="py-3 text-right font-bold tabular-nums text-navy">{formatPHP(row.revenue)}</td><td className="py-3 text-right tabular-nums text-primary">{formatPHP(row.serviceFees)}</td></tr>)}</tbody>
+        </table>
+      </div>
+    );
+  }
+
+  const summaryColumns =
+    "grid min-w-[1120px] grid-cols-[minmax(230px,1.5fr)_90px_repeat(5,minmax(120px,0.7fr))] items-center gap-4";
+
+  return (
+    <div className="mt-5 overflow-x-auto">
+      <div className="min-w-[1120px]">
+        <div className={`${summaryColumns} border-b border-slate-200 px-4 pb-3 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400`}>
+          <span>Event</span><span className="text-right">Payments / spots</span><span className="text-right">Player checkout</span><span className="text-right">Venue revenue</span><span className="text-right">Gross fees</span><span className="text-right">PayMongo</span><span className="text-right">Net Bunal</span>
+        </div>
+        <div className="divide-y divide-slate-100">
+          {rows.map((row) => (
+            <details key={row.eventId} className="group">
+              <summary className={`${summaryColumns} cursor-pointer list-none rounded-xl px-4 py-4 transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden`}>
+                <span className="min-w-0"><span className="flex items-center gap-2 font-bold text-navy"><span className="text-primary transition group-open:rotate-45">+</span><span className="truncate">{row.title}</span></span><span className="ml-5 mt-1 block truncate text-xs text-slate-500">{row.hub} · {row.date}</span></span>
+                <span className="text-right tabular-nums text-slate-600">{row.transactions} / {row.paidSpots}</span>
+                <span className="text-right font-semibold tabular-nums text-navy">{formatPHP(row.checkoutTotal)}</span>
+                <span className="text-right font-semibold tabular-nums text-navy">{formatPHP(row.revenue)}</span>
+                <span className="text-right tabular-nums text-slate-600">{formatPHP(row.grossPaymentFees)}</span>
+                <span className="text-right tabular-nums text-red-600">{deduction(row.processingFees)}</span>
+                <span className={`text-right font-black tabular-nums ${row.serviceFees < 0 ? "text-red-600" : "text-primary"}`}>{formatPHP(row.serviceFees)}</span>
+              </summary>
+              <div className="mb-4 ml-5 border-l-2 border-primary/15 pl-5">
+                {row.payments.length > 0 ? (
+                  <table className="w-full text-xs">
+                    <thead><tr className="border-b border-slate-100 text-left text-[10px] font-black uppercase tracking-[0.1em] text-slate-400"><th className="py-2">Payment</th><th className="py-2">Status</th><th className="py-2 text-right">Spots</th><th className="py-2 text-right">Player checkout</th><th className="py-2 text-right">Venue revenue</th><th className="py-2 text-right">Gross fees</th><th className="py-2 text-right">PayMongo</th><th className="py-2 text-right">Net Bunal</th></tr></thead>
+                    <tbody className="divide-y divide-slate-100">{row.payments.map((payment) => <tr key={payment.paymentId}><td className="py-3"><span className="block font-mono font-semibold text-navy" title={payment.reference}>{paymentReference(payment.reference)}</span><span className="mt-0.5 block text-slate-400">{paymentDate(payment.paidAt)}</span></td><td className="py-3"><span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-bold ${payment.status === "REFUNDED" ? "bg-red-50 text-red-600" : "bg-primary-soft text-primary"}`}>{payment.status}</span><span className="ml-1 text-[10px] text-slate-400">{payment.collectionMode}</span></td><td className="py-3 text-right tabular-nums">{payment.spots}</td><td className="py-3 text-right font-semibold tabular-nums text-navy">{formatPHP(payment.checkoutTotal)}</td><td className="py-3 text-right tabular-nums">{formatPHP(payment.venueRevenue)}</td><td className="py-3 text-right tabular-nums">{formatPHP(payment.grossPaymentFees)}</td><td className="py-3 text-right tabular-nums text-red-600">{deduction(payment.processingFees)}</td><td className={`py-3 text-right font-bold tabular-nums ${payment.netBunalRevenue < 0 ? "text-red-600" : "text-primary"}`}>{formatPHP(payment.netBunalRevenue)}</td></tr>)}</tbody>
+                  </table>
+                ) : (
+                  <p className="py-4 text-xs text-slate-500">This event contains historical organizer fee adjustments without a checkout transaction.</p>
+                )}
+              </div>
+            </details>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -149,8 +233,8 @@ export function BusinessAnalyticsDashboard({
       </section>
 
       <section id="events" className="scroll-mt-24 rounded-2xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5">
-        <SectionHeading eyebrow="Event financial performance" title="Event revenue and service fees" description="Revenue and net Bunal fees after player-checkout processing. Settlement collection and other expenses are not allocated to individual events." />
-        <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[680px] text-sm"><thead><tr className="border-b border-slate-200 text-left text-[11px] font-black uppercase tracking-[0.12em] text-slate-400"><th className="pb-3">Event</th><th className="pb-3">Hub</th><th className="pb-3">Date</th><th className="pb-3 text-right">Transactions</th><th className="pb-3 text-right">Revenue</th><th className="pb-3 text-right">Service fees</th></tr></thead><tbody className="divide-y divide-slate-100">{data.events.map((row) => <tr key={row.eventId}><td className="py-3 font-bold text-navy">{row.title}</td><td className="py-3 text-slate-500">{row.hub}</td><td className="py-3 text-slate-500">{row.date}</td><td className="py-3 text-right tabular-nums">{row.transactions}</td><td className="py-3 text-right font-bold tabular-nums text-navy">{formatPHP(row.revenue)}</td><td className="py-3 text-right tabular-nums text-primary">{formatPHP(row.serviceFees)}</td></tr>)}{data.events.length === 0 ? <tr><td colSpan={6} className="py-10 text-center text-slate-500">No paid events match these filters.</td></tr> : null}</tbody></table></div>
+        <SectionHeading eyebrow="Event financial performance" title="Event revenue and payment fees" description={audience === "owner" ? "Expand an event to audit each checkout. Net Bunal revenue is the collected payment fee less PayMongo processing; settlement collection and other expenses are not allocated." : "Revenue and net Bunal fees after player-checkout processing. Settlement collection and other expenses are not allocated to individual events."} />
+        <EventFinancialPerformance audience={audience} rows={data.events} />
       </section>
 
       {audience === "owner" ? <section id="trainers" className="scroll-mt-24 rounded-2xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5"><SectionHeading eyebrow="Trainer intelligence" title="Trainer session performance" description="Confirmed trainer payments, trainer shares, and net Bunal fees after player-checkout processing." /><div className="mt-5 overflow-x-auto"><table className="w-full min-w-[560px] text-sm"><thead><tr className="border-b border-slate-200 text-left text-[11px] font-black uppercase tracking-[0.12em] text-slate-400"><th className="pb-3">Trainer</th><th className="pb-3 text-right">Paid sessions</th><th className="pb-3 text-right">Trainer share</th><th className="pb-3 text-right">Bunal fees</th></tr></thead><tbody className="divide-y divide-slate-100">{data.trainers.map((row) => <tr key={row.trainerId}><td className="py-3 font-bold text-navy">{row.trainer}</td><td className="py-3 text-right tabular-nums">{row.sessions}</td><td className="py-3 text-right font-bold tabular-nums text-navy">{formatPHP(row.revenue)}</td><td className="py-3 text-right tabular-nums text-primary">{formatPHP(row.serviceFees)}</td></tr>)}{data.trainers.length === 0 ? <tr><td colSpan={4} className="py-10 text-center text-slate-500">No trainer payments match these filters.</td></tr> : null}</tbody></table></div></section> : null}

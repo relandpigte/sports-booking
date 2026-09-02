@@ -95,12 +95,12 @@ const FAQS = [
   {
     question: "Does Bunal.club charge partners a monthly fee?",
     answer:
-      "No. There are no plans, subscriptions, or monthly charges. Automatic PayMongo bookings use a 3% service fee; manual venue payments are fee-free.",
+      "No. There are no plans, subscriptions, or monthly charges. Automatic PayMongo court bookings use a 3% service fee, while event registrations use a ₱5 payment fee per player. Manual venue payments are fee-free.",
   },
   {
     question: "How much is the booking service fee?",
     answer:
-      "Automatic PayMongo checkout has one all-inclusive 3% Bunal.club service fee with no additional processing fee. Partner-reviewed manual payments have no Bunal service fee.",
+      "Automatic PayMongo court checkout has one all-inclusive 3% service fee; event checkout has a flat ₱5 payment fee per player. Partner-reviewed manual payments have no Bunal payment fee.",
   },
   {
     question: "Where does the player's court payment go?",
@@ -1141,8 +1141,8 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                 </h3>
                 <p className="mt-3 text-sm leading-6 text-slate-600">
                   Manual payments have no Bunal.club or PayMongo fee. Automatic
-                  payments use your connected PayMongo account with the 3%
-                  Bunal.club fee shown clearly.
+                  court payments use a 3% fee, while event registrations use a
+                  ₱5 payment fee per player, shown clearly at checkout.
                 </p>
               </div>
 
@@ -1162,10 +1162,10 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                   <p className="text-xs font-bold uppercase tracking-[0.16em] text-ocean">
                     Automatic PayMongo
                   </p>
-                  <p className="mt-3 text-4xl font-black text-navy">3%</p>
+                  <p className="mt-3 text-4xl font-black text-navy">3% / ₱5</p>
                   <p className="mt-1 text-xs leading-5 text-slate-500">
-                    One all-inclusive Bunal.club service fee. PayMongo QR Ph
-                    processing is included at no additional charge.
+                    A 3% court-booking fee or ₱5 per paid event player.
+                    PayMongo QR Ph processing is included.
                   </p>
                   <p className="mt-4 rounded-xl bg-white px-3 py-2.5 text-xs font-bold leading-5 text-primary">
                     Players see the complete total before opening QR Ph.

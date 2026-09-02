@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 
 import {
-  bookingServiceFeeFor,
-  SERVICE_FEE_PERCENT,
+  EVENT_PAYMENT_FEE_PER_PLAYER,
+  eventPaymentFeeFor,
 } from "@/lib/constants";
 import { formatPHP } from "@/lib/currency";
 import {
@@ -253,7 +253,9 @@ function GuestSlotForm({
   const paidSpotCount = guestNames.length + (leadIncluded ? 1 : 0);
   const venueAmount = fee * paidSpotCount;
   const serviceFee =
-    paymentMode === "MANUAL" ? 0 : bookingServiceFeeFor(venueAmount);
+    paymentMode === "MANUAL" || fee <= 0
+      ? 0
+      : eventPaymentFeeFor(paidSpotCount);
   const total = venueAmount + serviceFee;
   const canSubmit = mode === "register" || guestNames.length > 0;
 
@@ -434,7 +436,8 @@ function GuestSlotForm({
           {serviceFee > 0 && (
             <div className="flex justify-between gap-4 text-primary">
               <dt>
-                Bunal service fee ({SERVICE_FEE_PERCENT}%, non-refundable)
+                Payment fee ({formatPHP(EVENT_PAYMENT_FEE_PER_PLAYER)} per
+                player, non-refundable)
               </dt>
               <dd className="font-bold">{formatPHP(serviceFee)}</dd>
             </div>
@@ -452,7 +455,7 @@ function GuestSlotForm({
         <p className="text-xs leading-5 text-slate-400">
           {paymentMode === "MANUAL"
             ? "Transfer the advertised registration total and upload a receipt within 15 minutes. Manual payments have no Bunal or PayMongo fee; the organizer confirms after review."
-            : "Pay securely with QR Ph through PayMongo. The 3% Bunal service fee is all-inclusive, with no additional processing fee."}
+            : `Pay securely with QR Ph through PayMongo. The ${formatPHP(EVENT_PAYMENT_FEE_PER_PLAYER)} payment fee per player is all-inclusive, with no additional processing fee.`}
         </p>
       )}
 

@@ -499,8 +499,8 @@ function EmptyDirectoryState() {
               List your venue
             </Link>
             <p className="mt-4 text-xs text-white/45">
-              No monthly subscription. Automatic PayMongo bookings carry a 3%
-              all-inclusive Bunal.club fee with no additional processing fee;
+              No monthly subscription. Automatic PayMongo court bookings carry
+              a 3% fee and event registrations carry a ₱5 fee per player;
               manual venue payments are fee-free.
             </p>
           </div>

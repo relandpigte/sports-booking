@@ -221,8 +221,9 @@ export function GatewayPanel({ gateway }: { gateway: GatewayView | null }) {
           </h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-gray-500">
             Used when Checkout mode is Automatic. Players pay you directly and
-            you keep your full court rate. The {SERVICE_FEE_PERCENT}% service
-            fee is deposited alongside it; Bunal.club absorbs PayMongo
+            you keep your full advertised court or event rate. The {SERVICE_FEE_PERCENT}%
+            court fee or ₱5-per-player event fee is deposited alongside it;
+            Bunal.club absorbs PayMongo
             processing before the net fee is remitted through the settlement
             panel below.
           </p>
@@ -399,9 +400,9 @@ export function GatewayPanel({ gateway }: { gateway: GatewayView | null }) {
               Your keys are encrypted before they&apos;re stored and are never
               shown again — only the last few characters. We use them to take
               payments on your behalf and to register the webhook that tells us
-              when one succeeds. Players pay one all-inclusive 3% Bunal.club
-              fee, and Bunal.club absorbs PayMongo processing so it does not
-              reduce your court revenue.
+              when one succeeds. Players pay an all-inclusive 3% court fee or
+              ₱5 per event player, and Bunal.club absorbs PayMongo processing
+              so it does not reduce your advertised revenue.
             </p>
 
             <Button

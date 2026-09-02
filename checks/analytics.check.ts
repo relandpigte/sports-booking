@@ -7,7 +7,11 @@ import path from "node:path";
 import { PrismaClient } from "@prisma/client";
 
 import { ok, run } from "./harness";
-import { bookingServiceFeeFor, grossFor } from "@/lib/constants";
+import {
+  bookingServiceFeeFor,
+  grossFor,
+  paymongoQrPhProcessingCostFor,
+} from "@/lib/constants";
 
 const prisma = new PrismaClient();
 
@@ -259,6 +263,17 @@ async function main() {
       bookingPaymentId: eventPayment.id,
     },
   });
+  const eventProcessingFee = paymongoQrPhProcessingCostFor(605);
+  await prisma.bookingPayment.update({
+    where: { id: eventPayment.id },
+    data: {
+      amount: 605,
+      venueAmount: 600,
+      platformFee: 5,
+      processingFee: eventProcessingFee,
+      processingFeeResponsibility: "BUNAL",
+    },
+  });
 
   const sources = await venueRevenueBreakdown({
     partnerId: partnerA.id,
@@ -286,6 +301,40 @@ async function main() {
     eventHubSources.all.totals.gross === 600 &&
       eventHubSources.court.totals.gross === 0 &&
       eventHubSources.event.totals.gross === 600
+  );
+
+  const { getBusinessAnalytics } = await import("@/lib/business-analytics");
+  const eventAnalytics = await getBusinessAnalytics({
+    audience: "owner",
+    filters: {
+      from: "2026-06-01",
+      to: "2026-06-30",
+      compare: false,
+      partnerId: partnerA.id,
+      hubId: EVENT_HUB,
+      source: "event",
+      mode: "all",
+    },
+  });
+  const eventRow = eventAnalytics.events[0];
+  ok(
+    "admin event analytics exposes the checkout fee computation",
+    eventRow?.paidSpots === 1 &&
+      eventRow.checkoutTotal === 605 &&
+      eventRow.revenue === 600 &&
+      eventRow.grossPaymentFees === 5 &&
+      eventRow.processingFees === eventProcessingFee &&
+      eventRow.serviceFees === 5 - eventProcessingFee
+  );
+  ok(
+    "the event summary and payment breakdown reconcile",
+    eventRow?.payments.length === 1 &&
+      eventRow.payments[0]?.spots === 1 &&
+      eventRow.payments[0]?.checkoutTotal === eventRow.checkoutTotal &&
+      eventRow.payments[0]?.venueRevenue === eventRow.revenue &&
+      eventRow.payments[0]?.grossPaymentFees === eventRow.grossPaymentFees &&
+      eventRow.payments[0]?.processingFees === eventRow.processingFees &&
+      eventRow.payments[0]?.netBunalRevenue === eventRow.serviceFees
   );
 
   // --- A hub filter, and a quiet period ------------------------------------

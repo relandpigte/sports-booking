@@ -149,7 +149,7 @@ function RegistrationRow({
                 defaultChecked={refundable}
                 disabled={!refundable}
               />
-              Refund (service fee retained)
+              Refund (payment fee retained)
             </label>
             <button
               disabled={pending}

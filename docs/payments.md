@@ -30,7 +30,8 @@ snapshots:
 These values and the processing-fee responsibility are stored so historical
 reports and refunds do not change when either fee schedule changes. New player
 payments use direct PayMongo Payment Intents for exactly the venue amount plus
-the 3% fee. PayMongo deducts its exact reported fee from the partner account;
+the applicable court or event payment fee. PayMongo deducts its exact reported
+fee from the partner account;
 Bunal.club records an equal processing credit against the partner's service-fee
 balance. `PAYMONGO_QRPH_PROCESSING_RATE` remains the VAT-inclusive fallback when
 PayMongo does not report the exact fee.
@@ -47,9 +48,9 @@ the booking or event capacity is confirmed.
 
 For open play and other paid events, the registration fee is per person. A
 lead player may include named guests in the first checkout, so a ₱100 event
-with two guests charges `₱100 × 3`. Automatic checkout adds only the
-all-inclusive 3% service fee; manual checkout adds neither a service nor
-processing fee. The entire group is
+with two guests has a `₱100 × 3` venue subtotal. Automatic checkout adds a
+flat ₱5 payment fee for each paid spot, making that group's total ₱315;
+manual checkout adds neither a payment nor processing fee. The entire group is
 capacity-checked under one
 event lock and is held only when every requested spot is available. Confirmed
 players can add more named guests later through an incremental payment; an
@@ -156,9 +157,9 @@ Cloudflare Tunnel or ngrok for local webhook testing.
 
 The partner's PayMongo account receives the booking subtotal and PayMongo
 deducts its processing fee. After a successful automatic booking is confirmed,
-`ServiceFeeEntry` rows record both the snapshotted 3% charge and an
-equal negative processing credit. The partner therefore remits only Bunal's net
-fee and keeps the complete advertised venue amount. Manual partner payments do
+`ServiceFeeEntry` rows record both the snapshotted court or event payment fee
+and an equal negative processing credit. The partner therefore remits only
+Bunal's net fee and keeps the complete advertised venue amount. Manual partner payments do
 not create service-fee entries.
 That service fee is non-refundable: an automatic-checkout refund returns the
 venue amount, retains the service fee, and does not create a negative ledger

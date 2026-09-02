@@ -184,8 +184,8 @@ export function paymongoQrPhTotalFor(subtotal: number): number {
 export const SERVICE_FEE_RATE = 0.03;
 export const SERVICE_FEE_PERCENT = SERVICE_FEE_RATE * 100;
 
-// Every surface computes the fee through here so the quote and payment ledger
-// agree. Money is rounded once to centavos at the quote boundary.
+// Percentage-based court booking surfaces compute the fee through here so the
+// quote and payment ledger agree. Events use the flat helpers below.
 export function bookingServiceFeeFor(courtTotal: number): number {
   if (courtTotal <= 0) return 0;
   const courtCentavos = Math.round(courtTotal * 100);
@@ -197,6 +197,24 @@ export function grossFor(courtTotal: number): number {
   const courtCentavos = Math.round(courtTotal * 100);
   const feeCentavos = Math.round(bookingServiceFeeFor(courtTotal) * 100);
   return (courtCentavos + feeCentavos) / 100;
+}
+
+// Automatic event checkout uses a flat fee per paid spot rather than the
+// percentage used for court bookings. Manual event payments remain fee-free.
+export const EVENT_PAYMENT_FEE_PER_PLAYER = 5;
+
+export function eventPaymentFeeFor(paidSpots: number): number {
+  if (!Number.isFinite(paidSpots) || paidSpots <= 0) return 0;
+  return Math.floor(paidSpots) * EVENT_PAYMENT_FEE_PER_PLAYER;
+}
+
+export function eventGrossFor(
+  registrationSubtotal: number,
+  paidSpots: number
+): number {
+  const subtotalCentavos = Math.round(registrationSubtotal * 100);
+  const feeCentavos = Math.round(eventPaymentFeeFor(paidSpots) * 100);
+  return (subtotalCentavos + feeCentavos) / 100;
 }
 
 // The only gateway a partner can connect. There is no simulated option any

@@ -135,7 +135,7 @@ export default async function PayEventRegistrationPage({
               {payment.platformFee > 0 && (
                 <div className="flex justify-between gap-4">
                   <dt className="text-slate-500">
-                    Bunal service fee (non-refundable)
+                    Payment fee (non-refundable)
                   </dt>
                   <dd className="font-semibold text-navy">{formatPHP(payment.platformFee)}</dd>
                 </div>
@@ -213,8 +213,8 @@ export default async function PayEventRegistrationPage({
                     {payment.refundReason ?? "This registration was refunded."}{" "}
                     {formatPHP(refundedAmount)} was returned
                     {payment.platformFee > 0
-                      ? `; the ${formatPHP(payment.platformFee)} service fee was retained.`
-                      : ". No service fee applied to this manual payment."}
+                      ? `; the ${formatPHP(payment.platformFee)} payment fee was retained.`
+                      : ". No payment fee applied to this manual payment."}
                   </p>
                   <Link href="/events" className="block rounded-2xl bg-primary px-4 py-3.5 text-center text-sm font-bold text-white hover:bg-primary-hover">
                     Browse events

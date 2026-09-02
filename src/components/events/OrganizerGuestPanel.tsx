@@ -163,7 +163,7 @@ export function OrganizerGuestPanel({
                   Complimentary registration
                 </p>
                 <p className="mt-1 text-xs leading-5 text-primary-hover">
-                  No registration or Bunal service fee is charged. Players consume
+                  No registration or payment fee is charged. Players consume
                   capacity immediately.
                 </p>
               </div>

@@ -218,7 +218,7 @@ async function check() {
     settled.status === "confirmed" && registration?.status === "CONFIRMED"
   );
   ok(
-    "event payment settlement accrues the 3% fee exactly once",
+    "event payment settlement accrues its snapshotted fee exactly once",
     settledAgain.status === "already" &&
       (await prisma.serviceFeeEntry.count({ where: { bookingPaymentId: payment.id } })) === 1
   );

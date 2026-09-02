@@ -79,10 +79,10 @@ export function ServiceFeePanel({
             Bunal.club service-fee settlement
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-gray-500">
-            Automatic payments accrue the displayed 3% fee less the PayMongo
-            processing absorbed by Bunal.club. Complimentary players added by
-            event staff accrue their displayed fee without a processing cost.
-            Remit the net balance; you retain exactly your advertised rates.
+            Automatic payments accrue the displayed court or event payment fee
+            less the PayMongo processing absorbed by Bunal.club. Complimentary
+            players added by event staff accrue no payment fee. Remit the net
+            balance; you retain exactly your advertised rates.
           </p>
         </div>
         {balance.blocked ? (

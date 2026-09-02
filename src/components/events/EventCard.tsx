@@ -6,7 +6,7 @@ import { formatPHP } from "@/lib/currency";
 import type { PublicEventView } from "@/lib/events";
 import { formatManilaDate, formatSlotRange } from "@/lib/time";
 import {
-  SERVICE_FEE_PERCENT,
+  EVENT_PAYMENT_FEE_PER_PLAYER,
 } from "@/lib/constants";
 
 export function FeaturedEventCard({ event }: { event: PublicEventView }) {
@@ -305,8 +305,8 @@ export function EventCard({
               <p className={`${event.pendingCount > 0 ? "mt-1" : "mt-2"} text-xs text-slate-400`}>
                 {event.registrationFee > 0
                   ? event.hub.paymentMode === "MANUAL"
-                    ? "Manual payment · no Bunal service fee"
-                    : `+ ${SERVICE_FEE_PERCENT}% non-refundable Bunal service fee at checkout`
+                    ? "Manual payment · no payment fee"
+                    : `+ ${formatPHP(EVENT_PAYMENT_FEE_PER_PLAYER)} non-refundable payment fee per player at checkout`
                   : "Free registration · no checkout required"}
               </p>
             )}

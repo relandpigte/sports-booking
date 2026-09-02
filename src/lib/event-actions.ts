@@ -9,8 +9,8 @@ import * as z from "zod";
 
 import {
   BOOKING_HOLD_MINUTES,
-  bookingServiceFeeFor,
-  grossFor,
+  eventGrossFor,
+  eventPaymentFeeFor,
 } from "@/lib/constants";
 import { getViewer } from "@/lib/dal";
 import { prisma } from "@/lib/db";
@@ -893,11 +893,13 @@ export async function registerForEventAction(
         userId: viewer.id,
         hubId: event.hubId,
         amount: new Prisma.Decimal(
-          manualPayment ? venueAmount : grossFor(venueAmount)
+          manualPayment
+            ? venueAmount
+            : eventGrossFor(venueAmount, requestedSpots)
         ),
         venueAmount: new Prisma.Decimal(venueAmount),
         platformFee: new Prisma.Decimal(
-          manualPayment ? 0 : bookingServiceFeeFor(venueAmount)
+          manualPayment ? 0 : eventPaymentFeeFor(requestedSpots)
         ),
         processingFee: new Prisma.Decimal(0),
         processingFeeResponsibility: manualPayment ? "PLAYER" : "BUNAL",
@@ -1348,11 +1350,13 @@ export async function registerGuestForEventAction(
         guestReservationId: ownerId,
         hubId: event.hubId,
         amount: new Prisma.Decimal(
-          manualPayment ? venueAmount : grossFor(venueAmount)
+          manualPayment
+            ? venueAmount
+            : eventGrossFor(venueAmount, requestedSpots)
         ),
         venueAmount: new Prisma.Decimal(venueAmount),
         platformFee: new Prisma.Decimal(
-          manualPayment ? 0 : bookingServiceFeeFor(venueAmount)
+          manualPayment ? 0 : eventPaymentFeeFor(requestedSpots)
         ),
         processingFee: new Prisma.Decimal(0),
         processingFeeResponsibility: manualPayment ? "PLAYER" : "BUNAL",
@@ -1677,11 +1681,13 @@ export async function addEventGuestSlotsAction(
         userId: viewer.id,
         hubId: event.hubId,
         amount: new Prisma.Decimal(
-          manualPayment ? venueAmount : grossFor(venueAmount)
+          manualPayment
+            ? venueAmount
+            : eventGrossFor(venueAmount, guests.names.length)
         ),
         venueAmount: new Prisma.Decimal(venueAmount),
         platformFee: new Prisma.Decimal(
-          manualPayment ? 0 : bookingServiceFeeFor(venueAmount)
+          manualPayment ? 0 : eventPaymentFeeFor(guests.names.length)
         ),
         processingFee: new Prisma.Decimal(0),
         processingFeeResponsibility: manualPayment ? "PLAYER" : "BUNAL",

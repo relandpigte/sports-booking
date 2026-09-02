@@ -2,9 +2,11 @@ import type { RevenuePoint } from "@/lib/analytics";
 import type { AnalyticsUtilizationView } from "@/lib/analytics-query";
 import type {
   BusinessAnalyticsData,
+  CourtPaymentBreakdownRow,
   EventPerformanceRow,
 } from "@/lib/business-analytics";
 import { formatPHP } from "@/lib/currency";
+import { formatManilaDateLong, formatSlotRange } from "@/lib/time";
 
 import { RevenueChart } from "./RevenueChart";
 import { UtilizationReport } from "./UtilizationReport";
@@ -131,6 +133,54 @@ function EventFinancialPerformance({
   );
 }
 
+function CourtPaymentFeeBreakdown({
+  rows,
+}: {
+  rows: CourtPaymentBreakdownRow[];
+}) {
+  const columns =
+    "grid min-w-[1040px] grid-cols-[minmax(230px,1.4fr)_90px_repeat(5,minmax(120px,0.7fr))] items-center gap-4";
+
+  return (
+    <section id="court-fees" className="scroll-mt-24 rounded-2xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5">
+      <SectionHeading eyebrow="Court payment audit" title="Bunal fee breakdown by checkout" description="Each payment shows the player total, your complete court revenue, the gross Bunal fee, PayMongo processing absorbed by Bunal, and the resulting net fee included in settlement." />
+      {rows.length > 0 ? (
+        <div className="mt-5 overflow-x-auto">
+          <div className="min-w-[1040px]">
+            <div className={`${columns} border-b border-slate-200 px-4 pb-3 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400`}>
+              <span>Payment</span><span className="text-right">Bookings</span><span className="text-right">Player checkout</span><span className="text-right">Court revenue</span><span className="text-right">Gross Bunal fee</span><span className="text-right">PayMongo</span><span className="text-right">Net Bunal fee</span>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {rows.map((row) => (
+                <details key={row.paymentId} className="group">
+                  <summary className={`${columns} cursor-pointer list-none rounded-xl px-4 py-4 transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden`}>
+                    <span><span className="flex items-center gap-2"><span className="text-primary transition group-open:rotate-45">+</span><span className="font-mono font-semibold text-navy" title={row.reference}>{paymentReference(row.reference)}</span></span><span className="ml-5 mt-1 block text-xs text-slate-400">{paymentDate(row.paidAt)} · {row.collectionMode} · {row.status}</span></span>
+                    <span className="text-right tabular-nums text-slate-600">{row.bookings.length}</span>
+                    <span className="text-right font-semibold tabular-nums text-navy">{formatPHP(row.checkoutTotal)}</span>
+                    <span className="text-right font-semibold tabular-nums text-navy">{formatPHP(row.venueRevenue)}</span>
+                    <span className="text-right tabular-nums text-slate-600">{formatPHP(row.grossPaymentFees)}</span>
+                    <span className="text-right tabular-nums text-red-600">{deduction(row.processingFees)}</span>
+                    <span className={`text-right font-black tabular-nums ${row.netBunalRevenue < 0 ? "text-red-600" : "text-primary"}`}>{formatPHP(row.netBunalRevenue)}</span>
+                  </summary>
+                  <div className="mb-4 ml-5 border-l-2 border-primary/15 pl-5">
+                    {row.bookings.length > 0 ? (
+                      <table className="w-full text-xs"><thead><tr className="border-b border-slate-100 text-left text-[10px] font-black uppercase tracking-[0.1em] text-slate-400"><th className="py-2">Court</th><th className="py-2">Schedule</th><th className="py-2 text-right">Advertised subtotal</th></tr></thead><tbody className="divide-y divide-slate-100">{row.bookings.map((booking) => <tr key={booking.bookingId}><td className="py-3 font-semibold text-navy">{booking.court}</td><td className="py-3 text-slate-500">{formatManilaDateLong(booking.date)} · {formatSlotRange(booking.startHour, booking.endHour)}</td><td className="py-3 text-right font-semibold tabular-nums text-navy">{formatPHP(booking.venueRevenue)}</td></tr>)}</tbody></table>
+                    ) : (
+                      <p className="py-4 text-xs text-slate-500">The payment snapshot remains available, but its historical booking rows are no longer present.</p>
+                    )}
+                  </div>
+                </details>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-5 rounded-xl border border-dashed border-slate-300 py-10 text-center text-sm text-slate-500">No paid court checkouts match these filters.</div>
+      )}
+    </section>
+  );
+}
+
 export function BusinessAnalyticsDashboard({
   action,
   audience,
@@ -155,6 +205,7 @@ export function BusinessAnalyticsDashboard({
         {[
           ["overview", "Overview"],
           ["courts", audience === "owner" ? "Venues" : "Courts"],
+          ...(audience === "partner" ? [["court-fees", "Booking fees"]] : []),
           ["customers", "Customers"],
           ["events", "Events"],
           ...(audience === "owner" ? [["trainers", "Trainers"]] : []),
@@ -218,6 +269,10 @@ export function BusinessAnalyticsDashboard({
         peakHours={data.peakHours}
         view={utilizationView}
       />
+
+      {audience === "partner" ? (
+        <CourtPaymentFeeBreakdown rows={data.courtPayments} />
+      ) : null}
 
       <section id="customers" className="scroll-mt-24 rounded-2xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5">
         <SectionHeading eyebrow="Customer intelligence" title="Growth and 30-day retention" description="A new customer completed their first purchase in this scope; retained customers purchased again within 30 days." />

@@ -93,6 +93,27 @@ export type EventPaymentBreakdownRow = {
   netBunalRevenue: number;
 };
 
+export type CourtPaymentBreakdownRow = {
+  paymentId: string;
+  reference: string;
+  paidAt: string;
+  status: "SUCCEEDED" | "REFUNDED";
+  collectionMode: "AUTOMATIC" | "MANUAL";
+  checkoutTotal: number;
+  venueRevenue: number;
+  grossPaymentFees: number;
+  processingFees: number;
+  netBunalRevenue: number;
+  bookings: {
+    bookingId: string;
+    court: string;
+    date: string;
+    startHour: number;
+    endHour: number;
+    venueRevenue: number;
+  }[];
+};
+
 export type TrainerPerformanceRow = {
   trainerId: string;
   trainer: string;
@@ -121,6 +142,7 @@ export type BusinessAnalyticsData = {
     retainedWithin30Days: number;
     retentionRate: number;
   };
+  courtPayments: CourtPaymentBreakdownRow[];
   events: EventPerformanceRow[];
   trainers: TrainerPerformanceRow[];
 };
@@ -160,6 +182,7 @@ type NormalizedPayment = {
   grossServiceFee?: number;
   absorbedProcessingFee?: number;
   spotCount?: number;
+  courtBookings?: CourtPaymentBreakdownRow["bookings"];
   eventId?: string;
   eventTitle?: string;
   eventDate?: string;
@@ -278,8 +301,12 @@ async function venuePayments(
       refundedAt: true,
       bookings: {
         select: {
+          id: true,
+          date: true,
+          startHour: true,
+          endHour: true,
           totalPrice: true,
-          court: { select: { id: true, sport: true } },
+          court: { select: { id: true, name: true, sport: true } },
           hub: { select: { name: true } },
         },
       },
@@ -330,6 +357,7 @@ async function venuePayments(
     if (filters.source !== "all" && filters.source !== source) continue;
 
     let ratio = 1;
+    let matchingCourtBookings = payment.bookings;
     if (event) {
       if (filters.sport && event.sport !== filters.sport) continue;
       if (
@@ -339,16 +367,16 @@ async function venuePayments(
         continue;
       }
     } else {
+      matchingCourtBookings = payment.bookings.filter(
+        (booking) =>
+          (!filters.courtId || booking.court.id === filters.courtId) &&
+          (!filters.sport || booking.court.sport === filters.sport)
+      );
       const allValue = payment.bookings.reduce(
         (sum, booking) => sum + money(booking.totalPrice),
         0
       );
-      const selectedValue = payment.bookings
-        .filter(
-          (booking) =>
-            (!filters.courtId || booking.court.id === filters.courtId) &&
-            (!filters.sport || booking.court.sport === filters.sport)
-        )
+      const selectedValue = matchingCourtBookings
         .reduce((sum, booking) => sum + money(booking.totalPrice), 0);
       if ((filters.courtId || filters.sport) && selectedValue === 0) continue;
       if ((filters.courtId || filters.sport) && allValue > 0) {
@@ -377,18 +405,19 @@ async function venuePayments(
       userId:
         payment.userId ?? `guest:${payment.guestReservationId ?? payment.id}`,
       collectionMode: payment.collectionMode,
+      paymentStatus:
+        payment.status === "REFUNDED" ? "REFUNDED" : "SUCCEEDED",
+      paymentReference: payment.providerRef ?? payment.id,
+      checkoutTotal:
+        (money(payment.amount) +
+          (payment.processingFeeResponsibility === "PLAYER"
+            ? money(payment.processingFee)
+            : 0)) *
+        ratio,
+      grossServiceFee,
+      absorbedProcessingFee,
       ...(event
         ? {
-            paymentStatus:
-              payment.status === "REFUNDED" ? "REFUNDED" : "SUCCEEDED",
-            paymentReference: payment.providerRef ?? payment.id,
-            checkoutTotal:
-              money(payment.amount) +
-              (payment.processingFeeResponsibility === "PLAYER"
-                ? money(payment.processingFee)
-                : 0),
-            grossServiceFee,
-            absorbedProcessingFee,
             spotCount:
               (payment.eventRegistration ? 1 : 0) +
               payment._count.eventGuestSlots,
@@ -397,7 +426,17 @@ async function venuePayments(
             eventDate: event.date,
             hubName: event.hub.name,
           }
-        : { hubName: payment.bookings[0]?.hub.name }),
+        : {
+            hubName: matchingCourtBookings[0]?.hub.name,
+            courtBookings: matchingCourtBookings.map((booking) => ({
+              bookingId: booking.id,
+              court: booking.court.name,
+              date: booking.date,
+              startHour: booking.startHour,
+              endHour: booking.endHour,
+              venueRevenue: money(booking.totalPrice),
+            })),
+          }),
     });
   }
   return out;
@@ -925,6 +964,48 @@ function eventPerformance(
     .sort((a, b) => b.revenue - a.revenue);
 }
 
+function courtPaymentBreakdown(
+  payments: NormalizedPayment[],
+  from: string,
+  to: string
+): CourtPaymentBreakdownRow[] {
+  return payments
+    .filter(
+      (payment) =>
+        payment.source === "court" &&
+        (isInRange(payment.paidAt, from, to) ||
+          isInRange(payment.refundedAt, from, to))
+    )
+    .map((payment) => {
+      const paidInRange = isInRange(payment.paidAt, from, to);
+      const refundedInRange = isInRange(payment.refundedAt, from, to);
+      return {
+        paymentId: payment.id,
+        reference: payment.paymentReference ?? payment.id,
+        paidAt: payment.paidAt.toISOString(),
+        status: payment.paymentStatus ?? "SUCCEEDED",
+        collectionMode: payment.collectionMode,
+        checkoutTotal: paidInRange
+          ? (payment.checkoutTotal ?? payment.gross)
+          : 0,
+        venueRevenue:
+          (paidInRange ? payment.recipientShare : 0) -
+          (refundedInRange ? payment.recipientRefund : 0),
+        grossPaymentFees: paidInRange
+          ? (payment.grossServiceFee ?? 0)
+          : 0,
+        processingFees: paidInRange
+          ? (payment.absorbedProcessingFee ?? 0)
+          : 0,
+        netBunalRevenue:
+          (paidInRange ? payment.serviceFee : 0) -
+          (refundedInRange ? payment.serviceFeeRefund : 0),
+        bookings: payment.courtBookings ?? [],
+      };
+    })
+    .sort((a, b) => b.paidAt.localeCompare(a.paidAt));
+}
+
 function trainerPerformance(payments: NormalizedPayment[], from: string, to: string) {
   const rows = new Map<string, TrainerPerformanceRow>();
   for (const payment of payments) {
@@ -1039,6 +1120,11 @@ export async function getBusinessAnalytics(args: {
     utilization: utilization.rows,
     peakHours: utilization.peakHours,
     customers,
+    courtPayments: courtPaymentBreakdown(
+      venue,
+      args.filters.from,
+      args.filters.to
+    ),
     events: eventPerformance(
       venue,
       organizerFees,

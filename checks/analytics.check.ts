@@ -337,6 +337,36 @@ async function main() {
       eventRow.payments[0]?.netBunalRevenue === eventRow.serviceFees
   );
 
+  const courtAnalytics = await getBusinessAnalytics({
+    audience: "partner",
+    filters: {
+      from: "2026-06-01",
+      to: "2026-06-30",
+      compare: false,
+      partnerId: partnerA.id,
+      source: "court",
+      mode: "all",
+    },
+  });
+  const firstCourtPayment = courtAnalytics.courtPayments.find(
+    (payment) => payment.checkoutTotal === grossFor(1_000)
+  );
+  ok(
+    "partner analytics exposes each court payment fee split",
+    courtAnalytics.courtPayments.length === 3 &&
+      firstCourtPayment?.venueRevenue === 1_000 &&
+      firstCourtPayment.grossPaymentFees === bookingServiceFeeFor(1_000) &&
+      firstCourtPayment.processingFees === 0 &&
+      firstCourtPayment.netBunalRevenue === bookingServiceFeeFor(1_000)
+  );
+  ok(
+    "partner court fee rows exclude event and other-partner payments",
+    courtAnalytics.courtPayments.every(
+      (payment) =>
+        payment.paymentId !== eventPayment.id && payment.venueRevenue < 9_999
+    )
+  );
+
   // --- A hub filter, and a quiet period ------------------------------------
   const otherHub = await venueRevenue({
     partnerId: partnerA.id,

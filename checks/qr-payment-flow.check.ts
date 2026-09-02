@@ -8,7 +8,11 @@ import { PrismaClient } from "@prisma/client";
 
 import { ok, run, stubRequestContext } from "./harness";
 import { installPaymongoMock } from "./paymongo-mock";
-import { BOOKING_HOLD_MINUTES } from "@/lib/constants";
+import {
+  BOOKING_HOLD_MINUTES,
+  eventPaymentFeeFor,
+  paymongoQrPhProcessingCostFor,
+} from "@/lib/constants";
 import { manilaInstant } from "@/lib/time";
 
 const prisma = new PrismaClient();
@@ -153,13 +157,14 @@ async function check() {
       ) &&
       registration.payment?.method === "QRPH" &&
       Number(registration.payment.venueAmount) === 1_500 &&
-      Number(registration.payment.platformFee) === 45 &&
+      Number(registration.payment.platformFee) === eventPaymentFeeFor(3) &&
       registration.payment.providerPaymentId?.startsWith("pi_") === true &&
       registration.payment.qrImageUrl?.startsWith("data:image/") === true &&
       registration.payment.redirectUrl?.startsWith(
         "https://test.paymongo.com/qrph/"
       ) === true &&
-      Number(registration.payment.processingFee) === 23.19 &&
+      Number(registration.payment.processingFee) ===
+        paymongoQrPhProcessingCostFor(1_515) &&
       registration.payment.processingFeeResponsibility === "BUNAL" &&
       registration.holdExpiresAt != null &&
       registration.holdExpiresAt.getTime() >=
@@ -330,7 +335,7 @@ async function check() {
         (guest) => guest.status === "PENDING"
       ) &&
       Number(addOnPayment.venueAmount) === 1_000 &&
-      Number(addOnPayment.platformFee) === 30
+      Number(addOnPayment.platformFee) === eventPaymentFeeFor(2)
   );
 
   const expiredAddOnIntent = paymongo.intents.get(

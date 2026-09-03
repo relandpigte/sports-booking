@@ -1,7 +1,17 @@
+import Link from "next/link";
+
 import type { RevenuePoint } from "@/lib/analytics";
-import type { AnalyticsUtilizationView } from "@/lib/analytics-query";
+import { courtPaymentFeePage } from "@/lib/analytics-booking-fees";
+import {
+  addAnalyticsBookingFeeParams,
+  addAnalyticsUtilizationParams,
+  analyticsSearchParams,
+  type AnalyticsBookingFeeView,
+  type AnalyticsUtilizationView,
+} from "@/lib/analytics-query";
 import type {
   BusinessAnalyticsData,
+  BusinessAnalyticsFilters,
   CourtPaymentBreakdownRow,
   EventPerformanceRow,
 } from "@/lib/business-analytics";
@@ -134,27 +144,123 @@ function EventFinancialPerformance({
 }
 
 function CourtPaymentFeeBreakdown({
+  action,
+  audience,
+  filters,
   rows,
+  utilizationView,
+  view,
 }: {
+  action: string;
+  audience: "partner" | "owner";
+  filters: BusinessAnalyticsFilters;
   rows: CourtPaymentBreakdownRow[];
+  utilizationView: AnalyticsUtilizationView;
+  view: AnalyticsBookingFeeView;
 }) {
+  const result = courtPaymentFeePage(rows, view);
+  const preservedQuery = addAnalyticsUtilizationParams(
+    analyticsSearchParams(filters),
+    utilizationView
+  );
+  const filterFields = [...preservedQuery.entries()];
   const columns =
     "grid min-w-[1040px] grid-cols-[minmax(230px,1.4fr)_90px_repeat(5,minmax(120px,0.7fr))] items-center gap-4";
 
+  const href = (page: number, reset = false) => {
+    const query = addAnalyticsUtilizationParams(
+      analyticsSearchParams(filters),
+      utilizationView
+    );
+    if (!reset) addAnalyticsBookingFeeParams(query, view, page);
+    return `${action}?${query.toString()}#court-fees`;
+  };
+
   return (
     <section id="court-fees" className="scroll-mt-24 rounded-2xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5">
-      <SectionHeading eyebrow="Court payment audit" title="Bunal fee breakdown by checkout" description="Each payment shows the player total, your complete court revenue, the gross Bunal fee, PayMongo processing absorbed by Bunal, and the resulting net fee included in settlement." />
-      {rows.length > 0 ? (
+      <SectionHeading
+        eyebrow="Court payment audit"
+        title="Bunal fee breakdown by checkout"
+        description={
+          audience === "owner"
+            ? "Audit every court checkout by partner and hub, including the gross Bunal fee, absorbed PayMongo processing, and resulting net revenue."
+            : "Each payment shows the player total, your complete court revenue, the gross Bunal fee, PayMongo processing absorbed by Bunal, and the resulting net fee included in settlement."
+        }
+      />
+      <form
+        action={action}
+        method="get"
+        className="mt-5 flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-[#fbfcfb] p-3"
+      >
+        {filterFields.map(([name, value]) => (
+          <input key={name} type="hidden" name={name} value={value} />
+        ))}
+        <label className="min-w-[220px] flex-1 lg:max-w-sm">
+          <span className="mb-1 block text-[11px] font-bold text-slate-500">
+            Search payments
+          </span>
+          <input
+            type="search"
+            name="bookingFeeQuery"
+            defaultValue={view.query}
+            placeholder={
+              audience === "owner"
+                ? "Reference, partner, hub, or court"
+                : "Reference, hub, or court"
+            }
+            className="min-h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-navy outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+          />
+        </label>
+        <label>
+          <span className="mb-1 block text-[11px] font-bold text-slate-500">
+            Paid from
+          </span>
+          <input
+            type="date"
+            name="bookingFeeFrom"
+            min={filters.from}
+            max={filters.to}
+            defaultValue={view.from}
+            className="min-h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-navy outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+          />
+        </label>
+        <label>
+          <span className="mb-1 block text-[11px] font-bold text-slate-500">
+            Paid to
+          </span>
+          <input
+            type="date"
+            name="bookingFeeTo"
+            min={filters.from}
+            max={filters.to}
+            defaultValue={view.to}
+            className="min-h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-navy outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+          />
+        </label>
+        <button
+          type="submit"
+          className="min-h-9 rounded-lg bg-navy px-4 text-sm font-bold text-white transition hover:bg-navy/90"
+        >
+          Apply
+        </button>
+        <Link
+          href={href(1, true)}
+          className="inline-flex min-h-9 items-center px-2 text-xs font-bold text-slate-500 hover:text-navy"
+        >
+          Reset
+        </Link>
+      </form>
+      {result.items.length > 0 ? (
         <div className="mt-5 overflow-x-auto">
           <div className="min-w-[1040px]">
             <div className={`${columns} border-b border-slate-200 px-4 pb-3 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400`}>
               <span>Payment</span><span className="text-right">Bookings</span><span className="text-right">Player checkout</span><span className="text-right">Court revenue</span><span className="text-right">Gross Bunal fee</span><span className="text-right">PayMongo</span><span className="text-right">Net Bunal fee</span>
             </div>
             <div className="divide-y divide-slate-100">
-              {rows.map((row) => (
+              {result.items.map((row) => (
                 <details key={row.paymentId} className="group">
                   <summary className={`${columns} cursor-pointer list-none rounded-xl px-4 py-4 transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden`}>
-                    <span><span className="flex items-center gap-2"><span className="text-primary transition group-open:rotate-45">+</span><span className="font-mono font-semibold text-navy" title={row.reference}>{paymentReference(row.reference)}</span></span><span className="ml-5 mt-1 block text-xs text-slate-400">{paymentDate(row.paidAt)} · {row.collectionMode} · {row.status}</span></span>
+                    <span><span className="flex items-center gap-2"><span className="text-primary transition group-open:rotate-45">+</span><span className="font-mono font-semibold text-navy" title={row.reference}>{paymentReference(row.reference)}</span></span><span className="ml-5 mt-1 block truncate text-xs text-slate-400">{audience === "owner" ? `${row.partner} · ` : ""}{row.hub} · {paymentDate(row.paidAt)} · {row.collectionMode} · {row.status}</span></span>
                     <span className="text-right tabular-nums text-slate-600">{row.bookings.length}</span>
                     <span className="text-right font-semibold tabular-nums text-navy">{formatPHP(row.checkoutTotal)}</span>
                     <span className="text-right font-semibold tabular-nums text-navy">{formatPHP(row.venueRevenue)}</span>
@@ -175,8 +281,28 @@ function CourtPaymentFeeBreakdown({
           </div>
         </div>
       ) : (
-        <div className="mt-5 rounded-xl border border-dashed border-slate-300 py-10 text-center text-sm text-slate-500">No paid court checkouts match these filters.</div>
+        <div className="mt-5 rounded-xl border border-dashed border-slate-300 py-10 text-center text-sm text-slate-500">No paid court checkouts match this search and date range.</div>
       )}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+        <p className="text-xs text-slate-500">
+          {result.total === 0
+            ? "No payments to display"
+            : `Showing ${(result.page - 1) * result.pageSize + 1}–${Math.min(result.page * result.pageSize, result.total)} of ${result.total.toLocaleString()} payments`}
+        </p>
+        <div className="flex items-center gap-2">
+          {result.page > 1 ? (
+            <Link href={href(result.page - 1)} className="inline-flex min-h-9 items-center rounded-lg border border-slate-200 px-3 text-xs font-bold text-navy transition hover:bg-slate-50">Previous</Link>
+          ) : (
+            <span className="inline-flex min-h-9 items-center rounded-lg border border-slate-100 px-3 text-xs font-bold text-slate-300">Previous</span>
+          )}
+          <span className="text-xs font-bold text-slate-500">Page {result.page} of {result.pageCount}</span>
+          {result.page < result.pageCount ? (
+            <Link href={href(result.page + 1)} className="inline-flex min-h-9 items-center rounded-lg border border-slate-200 px-3 text-xs font-bold text-navy transition hover:bg-slate-50">Next</Link>
+          ) : (
+            <span className="inline-flex min-h-9 items-center rounded-lg border border-slate-100 px-3 text-xs font-bold text-slate-300">Next</span>
+          )}
+        </div>
+      </div>
     </section>
   );
 }
@@ -184,11 +310,13 @@ function CourtPaymentFeeBreakdown({
 export function BusinessAnalyticsDashboard({
   action,
   audience,
+  bookingFeeView,
   data,
   utilizationView,
 }: {
   action: string;
   audience: "partner" | "owner";
+  bookingFeeView: AnalyticsBookingFeeView;
   data: BusinessAnalyticsData;
   utilizationView: AnalyticsUtilizationView;
 }) {
@@ -205,7 +333,7 @@ export function BusinessAnalyticsDashboard({
         {[
           ["overview", "Overview"],
           ["courts", audience === "owner" ? "Venues" : "Courts"],
-          ...(audience === "partner" ? [["court-fees", "Booking fees"]] : []),
+          ["court-fees", "Booking fees"],
           ["customers", "Customers"],
           ["events", "Events"],
           ...(audience === "owner" ? [["trainers", "Trainers"]] : []),
@@ -264,15 +392,21 @@ export function BusinessAnalyticsDashboard({
       <UtilizationReport
         action={action}
         audience={audience}
+        bookingFeeView={bookingFeeView}
         filters={data.filters}
         rows={data.utilization}
         peakHours={data.peakHours}
         view={utilizationView}
       />
 
-      {audience === "partner" ? (
-        <CourtPaymentFeeBreakdown rows={data.courtPayments} />
-      ) : null}
+      <CourtPaymentFeeBreakdown
+        action={action}
+        audience={audience}
+        filters={data.filters}
+        rows={data.courtPayments}
+        utilizationView={utilizationView}
+        view={bookingFeeView}
+      />
 
       <section id="customers" className="scroll-mt-24 rounded-2xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5">
         <SectionHeading eyebrow="Customer intelligence" title="Growth and 30-day retention" description="A new customer completed their first purchase in this scope; retained customers purchased again within 30 days." />

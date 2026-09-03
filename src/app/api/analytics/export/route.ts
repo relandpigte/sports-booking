@@ -72,26 +72,24 @@ export async function GET(request: Request) {
     csvRow(["Court", "Hub", "Sport", "Booked hours", "Available hours", "Utilization (%)", "Estimated"]),
     ...data.utilization.map((row) => csvRow([row.court, row.hub, row.sport, row.bookedHours, row.availableHours, row.utilizationRate.toFixed(2), row.estimated ? "Yes" : "No"])),
     "",
-    ...(audience === "partner"
-      ? [
-          csvRow(["Court payment", "Paid at", "Status", "Mode", "Bookings", "Player checkout", "Court revenue", "Gross Bunal fee", "PayMongo deduction", "Net Bunal fee"]),
-          ...data.courtPayments.map((payment) =>
-            csvRow([
-              payment.reference,
-              payment.paidAt,
-              payment.status,
-              payment.collectionMode,
-              payment.bookings.map((booking) => `${booking.court} ${booking.date} ${booking.startHour}:00-${booking.endHour}:00`).join("; "),
-              payment.checkoutTotal,
-              payment.venueRevenue,
-              payment.grossPaymentFees,
-              payment.processingFees,
-              payment.netBunalRevenue,
-            ])
-          ),
-          "",
-        ]
-      : []),
+    csvRow(["Court payment", "Partner", "Hub", "Paid at", "Status", "Mode", "Bookings", "Player checkout", "Court revenue", "Gross Bunal fee", "PayMongo deduction", "Net Bunal fee"]),
+    ...data.courtPayments.map((payment) =>
+      csvRow([
+        payment.reference,
+        payment.partner,
+        payment.hub,
+        payment.paidAt,
+        payment.status,
+        payment.collectionMode,
+        payment.bookings.map((booking) => `${booking.court} ${booking.date} ${booking.startHour}:00-${booking.endHour}:00`).join("; "),
+        payment.checkoutTotal,
+        payment.venueRevenue,
+        payment.grossPaymentFees,
+        payment.processingFees,
+        payment.netBunalRevenue,
+      ])
+    ),
+    "",
     ...(audience === "owner"
       ? [
           csvRow(["Event", "Hub", "Date", "Transactions", "Paid spots", "Player checkout", "Venue revenue", "Gross payment fees", "PayMongo deductions", "Net Bunal revenue"]),

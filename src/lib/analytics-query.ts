@@ -24,6 +24,13 @@ export type AnalyticsUtilizationView = {
   expandedHubId?: string;
 };
 
+export type AnalyticsBookingFeeView = {
+  page: number;
+  query: string;
+  from: string;
+  to: string;
+};
+
 function single(value: string | string[] | undefined) {
   return Array.isArray(value) ? value.at(-1) : value;
 }
@@ -59,6 +66,65 @@ export function parseAnalyticsUtilizationView(
       (single(query.utilizationHub) ?? "").trim().slice(0, 100) ||
       undefined,
   };
+}
+
+export function parseAnalyticsBookingFeeView(
+  query: AnalyticsQuery,
+  filters: Pick<BusinessAnalyticsFilters, "from" | "to">
+): AnalyticsBookingFeeView {
+  const rawPage = Number(single(query.bookingFeePage));
+  const rawFrom = single(query.bookingFeeFrom);
+  const rawTo = single(query.bookingFeeTo);
+  let from =
+    rawFrom &&
+    isValidDateString(rawFrom) &&
+    rawFrom >= filters.from &&
+    rawFrom <= filters.to
+      ? rawFrom
+      : filters.from;
+  let to =
+    rawTo &&
+    isValidDateString(rawTo) &&
+    rawTo >= filters.from &&
+    rawTo <= filters.to
+      ? rawTo
+      : filters.to;
+  if (from > to) [from, to] = [to, from];
+
+  return {
+    page:
+      Number.isSafeInteger(rawPage) && rawPage > 0
+        ? Math.min(rawPage, 100_000)
+        : 1,
+    query: (single(query.bookingFeeQuery) ?? "").trim().slice(0, 100),
+    from,
+    to,
+  };
+}
+
+export function addAnalyticsUtilizationParams(
+  query: URLSearchParams,
+  view: AnalyticsUtilizationView
+) {
+  if (view.query) query.set("utilizationQuery", view.query);
+  if (view.sort !== "utilization-desc") {
+    query.set("utilizationSort", view.sort);
+  }
+  if (view.page > 1) query.set("utilizationPage", String(view.page));
+  if (view.expandedHubId) query.set("utilizationHub", view.expandedHubId);
+  return query;
+}
+
+export function addAnalyticsBookingFeeParams(
+  query: URLSearchParams,
+  view: AnalyticsBookingFeeView,
+  page = view.page
+) {
+  if (view.query) query.set("bookingFeeQuery", view.query);
+  query.set("bookingFeeFrom", view.from);
+  query.set("bookingFeeTo", view.to);
+  if (page > 1) query.set("bookingFeePage", String(page));
+  return query;
 }
 
 export function parseAnalyticsFilters(args: {

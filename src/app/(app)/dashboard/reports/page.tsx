@@ -4,6 +4,7 @@ import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader"
 import { AnalyticsFilters } from "@/components/reports/AnalyticsFilters";
 import { BusinessAnalyticsDashboard } from "@/components/reports/BusinessAnalyticsDashboard";
 import {
+  parseAnalyticsBookingFeeView,
   parseAnalyticsFilters,
   parseAnalyticsUtilizationView,
 } from "@/lib/analytics-query";
@@ -34,6 +35,7 @@ export default async function PartnerReportsPage({
     partnerId: workspace.partnerId,
   });
   const utilizationView = parseAnalyticsUtilizationView(query);
+  const bookingFeeView = parseAnalyticsBookingFeeView(query, filters);
   const data = await getBusinessAnalytics({ audience: "partner", filters });
 
   return (
@@ -56,6 +58,7 @@ export default async function PartnerReportsPage({
         action="/dashboard/reports"
         audience="partner"
         data={data}
+        bookingFeeView={bookingFeeView}
         utilizationView={utilizationView}
       />
     </div>

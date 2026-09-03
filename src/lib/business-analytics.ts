@@ -96,6 +96,8 @@ export type EventPaymentBreakdownRow = {
 export type CourtPaymentBreakdownRow = {
   paymentId: string;
   reference: string;
+  partner: string;
+  hub: string;
   paidAt: string;
   status: "SUCCEEDED" | "REFUNDED";
   collectionMode: "AUTOMATIC" | "MANUAL";
@@ -182,6 +184,7 @@ type NormalizedPayment = {
   grossServiceFee?: number;
   absorbedProcessingFee?: number;
   spotCount?: number;
+  partnerName?: string;
   courtBookings?: CourtPaymentBreakdownRow["bookings"];
   eventId?: string;
   eventTitle?: string;
@@ -299,6 +302,7 @@ async function venuePayments(
       providerRef: true,
       paidAt: true,
       refundedAt: true,
+      partner: { select: { name: true, email: true } },
       bookings: {
         select: {
           id: true,
@@ -405,6 +409,7 @@ async function venuePayments(
       userId:
         payment.userId ?? `guest:${payment.guestReservationId ?? payment.id}`,
       collectionMode: payment.collectionMode,
+      partnerName: payment.partner.name ?? payment.partner.email,
       paymentStatus:
         payment.status === "REFUNDED" ? "REFUNDED" : "SUCCEEDED",
       paymentReference: payment.providerRef ?? payment.id,
@@ -982,6 +987,8 @@ function courtPaymentBreakdown(
       return {
         paymentId: payment.id,
         reference: payment.paymentReference ?? payment.id,
+        partner: payment.partnerName ?? "Unknown partner",
+        hub: payment.hubName ?? "Unknown hub",
         paidAt: payment.paidAt.toISOString(),
         status: payment.paymentStatus ?? "SUCCEEDED",
         collectionMode: payment.collectionMode,

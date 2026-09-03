@@ -5,6 +5,7 @@ import { AnalyticsFilters } from "@/components/reports/AnalyticsFilters";
 import { BusinessAnalyticsDashboard } from "@/components/reports/BusinessAnalyticsDashboard";
 import { requireAdmin } from "@/lib/admin";
 import {
+  parseAnalyticsBookingFeeView,
   parseAnalyticsFilters,
   parseAnalyticsUtilizationView,
   rawAnalyticsSelection,
@@ -31,6 +32,7 @@ export default async function AdminReportsPage({
     options,
   });
   const utilizationView = parseAnalyticsUtilizationView(query);
+  const bookingFeeView = parseAnalyticsBookingFeeView(query, filters);
   const data = await getBusinessAnalytics({ audience: "owner", filters });
 
   return (
@@ -53,6 +55,7 @@ export default async function AdminReportsPage({
         action="/dashboard/admin/reports"
         audience="owner"
         data={data}
+        bookingFeeView={bookingFeeView}
         utilizationView={utilizationView}
       />
     </div>

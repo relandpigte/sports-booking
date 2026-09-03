@@ -4,6 +4,7 @@ import { ok, run } from "./harness";
 
 async function main() {
   const {
+    parseAnalyticsBookingFeeView,
     parseAnalyticsFilters,
     parseAnalyticsUtilizationView,
   } = await import("@/lib/analytics-query");
@@ -12,6 +13,9 @@ async function main() {
   );
   const { hubUtilizationPage } = await import(
     "@/lib/analytics-utilization"
+  );
+  const { courtPaymentFeePage } = await import(
+    "@/lib/analytics-booking-fees"
   );
   const options = {
     partners: [
@@ -92,6 +96,85 @@ async function main() {
   });
   ok("admin utilization is paginated to 25 hubs", utilizationPage.pageSize === 25 && utilizationPage.page === 2 && utilizationPage.items.length === 1 && utilizationPage.total === 26);
   ok("hub utilization groups court details with weighted totals", utilizationPage.items[0]?.courtCount === 2 && utilizationPage.items[0]?.bookedHours === 50 && utilizationPage.items[0]?.availableHours === 200 && utilizationPage.items[0]?.utilizationRate === 25);
+
+  const bookingFeeView = parseAnalyticsBookingFeeView(
+    {
+      bookingFeePage: "2",
+      bookingFeeQuery: "  Metro  ",
+      bookingFeeFrom: "2026-08-01",
+      bookingFeeTo: "2026-08-20",
+    },
+    { from: "2026-08-01", to: "2026-08-31" }
+  );
+  ok(
+    "booking fee view validates pagination, search, and dates",
+    JSON.stringify(bookingFeeView) ===
+      JSON.stringify({
+        page: 2,
+        query: "Metro",
+        from: "2026-08-01",
+        to: "2026-08-20",
+      })
+  );
+
+  const courtPayments = Array.from({ length: 11 }, (_, index) => ({
+    paymentId: `payment-${index}`,
+    reference: `reference-${index}`,
+    partner: index === 10 ? "Metro Sports" : "Partner One",
+    hub: index === 10 ? "Metro Hub" : "North Hub",
+    paidAt: `2026-08-${String(index + 1).padStart(2, "0")}T04:00:00.000Z`,
+    status: "SUCCEEDED" as const,
+    collectionMode: "AUTOMATIC" as const,
+    checkoutTotal: 1_050,
+    venueRevenue: 1_000,
+    grossPaymentFees: 50,
+    processingFees: 20,
+    netBunalRevenue: 30,
+    bookings: [
+      {
+        bookingId: `booking-${index}`,
+        court: index === 10 ? "Metro Court" : "Court One",
+        date: `2026-08-${String(index + 1).padStart(2, "0")}`,
+        startHour: 8,
+        endHour: 9,
+        venueRevenue: 1_000,
+      },
+    ],
+  }));
+  const secondPaymentPage = courtPaymentFeePage(courtPayments, {
+    page: 2,
+    query: "",
+    from: "2026-08-01",
+    to: "2026-08-31",
+  });
+  ok(
+    "court fee payments default to ten rows per page",
+    secondPaymentPage.pageSize === 10 &&
+      secondPaymentPage.page === 2 &&
+      secondPaymentPage.items.length === 1 &&
+      secondPaymentPage.total === 11
+  );
+  const searchedPayments = courtPaymentFeePage(courtPayments, {
+    page: 1,
+    query: "metro",
+    from: "2026-08-01",
+    to: "2026-08-31",
+  });
+  ok(
+    "court fee search covers partner, hub, and court names",
+    searchedPayments.total === 1 &&
+      searchedPayments.items[0]?.paymentId === "payment-10"
+  );
+  const datedPayments = courtPaymentFeePage(courtPayments, {
+    page: 1,
+    query: "",
+    from: "2026-08-05",
+    to: "2026-08-07",
+  });
+  ok(
+    "court fee date filters use the Manila payment date",
+    datedPayments.total === 3
+  );
 
   const optionRoute = fs.readFileSync(
     "src/app/api/analytics/options/route.ts",

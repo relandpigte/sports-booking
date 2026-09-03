@@ -183,6 +183,15 @@ async function main() {
   ok("analytics option search is admin-only", optionRoute.includes('user.role !== "ADMIN"'));
   ok("analytics option search has a bounded result window", optionRoute.includes("limit: 20"));
 
+  const analyticsDashboard = fs.readFileSync(
+    "src/components/reports/BusinessAnalyticsDashboard.tsx",
+    "utf8"
+  );
+  ok(
+    "booking fee filters return to their report section",
+    analyticsDashboard.includes('action={`${action}#court-fees`}')
+  );
+
   const migration = fs.readFileSync(
     "prisma/migrations/202608240002_business_analytics/migration.sql",
     "utf8"

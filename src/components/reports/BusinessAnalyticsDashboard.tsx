@@ -188,7 +188,7 @@ function CourtPaymentFeeBreakdown({
         }
       />
       <form
-        action={action}
+        action={`${action}#court-fees`}
         method="get"
         className="mt-5 flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-[#fbfcfb] p-3"
       >

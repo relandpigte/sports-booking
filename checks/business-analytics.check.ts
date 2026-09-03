@@ -183,13 +183,15 @@ async function main() {
   ok("analytics option search is admin-only", optionRoute.includes('user.role !== "ADMIN"'));
   ok("analytics option search has a bounded result window", optionRoute.includes("limit: 20"));
 
-  const analyticsDashboard = fs.readFileSync(
-    "src/components/reports/BusinessAnalyticsDashboard.tsx",
+  const bookingFeeBreakdown = fs.readFileSync(
+    "src/components/reports/CourtPaymentFeeBreakdown.tsx",
     "utf8"
   );
   ok(
-    "booking fee filters return to their report section",
-    analyticsDashboard.includes('action={`${action}#court-fees`}')
+    "booking fee filters update without reloading the report page",
+    bookingFeeBreakdown.startsWith('"use client";') &&
+      bookingFeeBreakdown.includes("window.history.replaceState") &&
+      !bookingFeeBreakdown.includes("<form")
   );
 
   const migration = fs.readFileSync(

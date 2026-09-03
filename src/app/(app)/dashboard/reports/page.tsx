@@ -5,6 +5,7 @@ import { AnalyticsFilters } from "@/components/reports/AnalyticsFilters";
 import { BusinessAnalyticsDashboard } from "@/components/reports/BusinessAnalyticsDashboard";
 import {
   parseAnalyticsBookingFeeView,
+  parseAnalyticsEventView,
   parseAnalyticsFilters,
   parseAnalyticsUtilizationView,
 } from "@/lib/analytics-query";
@@ -12,6 +13,7 @@ import {
   getBusinessAnalytics,
   partnerAnalyticsOptions,
 } from "@/lib/business-analytics";
+import { eventPerformanceDateRange } from "@/lib/analytics-events";
 import { requirePartnerWorkspace } from "@/lib/staffing";
 
 export const metadata: Metadata = {
@@ -37,6 +39,10 @@ export default async function PartnerReportsPage({
   const utilizationView = parseAnalyticsUtilizationView(query);
   const bookingFeeView = parseAnalyticsBookingFeeView(query, filters);
   const data = await getBusinessAnalytics({ audience: "partner", filters });
+  const eventView = parseAnalyticsEventView(
+    query,
+    eventPerformanceDateRange(data.events, filters)
+  );
 
   return (
     <div>
@@ -59,6 +65,7 @@ export default async function PartnerReportsPage({
         audience="partner"
         data={data}
         bookingFeeView={bookingFeeView}
+        eventView={eventView}
         utilizationView={utilizationView}
       />
     </div>

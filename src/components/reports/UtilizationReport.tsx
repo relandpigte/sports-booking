@@ -3,8 +3,10 @@ import { Fragment } from "react";
 
 import {
   addAnalyticsBookingFeeParams,
+  addAnalyticsEventParams,
   analyticsSearchParams,
   type AnalyticsBookingFeeView,
+  type AnalyticsEventView,
   type AnalyticsUtilizationView,
 } from "@/lib/analytics-query";
 import { hubUtilizationPage } from "@/lib/analytics-utilization";
@@ -25,11 +27,13 @@ function utilizationHref(args: {
   filters: BusinessAnalyticsFilters;
   view: AnalyticsUtilizationView;
   bookingFeeView: AnalyticsBookingFeeView;
+  eventView: AnalyticsEventView;
   page?: number;
   expandedHubId?: string;
 }) {
   const query = analyticsSearchParams(args.filters);
   addAnalyticsBookingFeeParams(query, args.bookingFeeView);
+  addAnalyticsEventParams(query, args.eventView);
   if (args.view.query) query.set("utilizationQuery", args.view.query);
   if (args.view.sort !== "utilization-desc") {
     query.set("utilizationSort", args.view.sort);
@@ -114,20 +118,25 @@ function OwnerHubTable({
   action,
   filters,
   bookingFeeView,
+  eventView,
   rows,
   view,
 }: {
   action: string;
   filters: BusinessAnalyticsFilters;
   bookingFeeView: AnalyticsBookingFeeView;
+  eventView: AnalyticsEventView;
   rows: UtilizationRow[];
   view: AnalyticsUtilizationView;
 }) {
   const result = hubUtilizationPage(rows, view);
   const filterFields = [
-    ...addAnalyticsBookingFeeParams(
-      analyticsSearchParams(filters),
-      bookingFeeView
+    ...addAnalyticsEventParams(
+      addAnalyticsBookingFeeParams(
+        analyticsSearchParams(filters),
+        bookingFeeView
+      ),
+      eventView
     ).entries(),
   ];
 
@@ -202,6 +211,7 @@ function OwnerHubTable({
                 filters,
                 view,
                 bookingFeeView,
+                eventView,
                 page: result.page,
                 expandedHubId: expanded ? undefined : hub.hubId,
               });
@@ -312,6 +322,7 @@ function OwnerHubTable({
                 filters,
                 view,
                 bookingFeeView,
+                eventView,
                 page: result.page - 1,
               })}
               className="inline-flex min-h-9 items-center rounded-lg border border-slate-200 px-3 text-xs font-bold text-navy transition hover:bg-slate-50"
@@ -333,6 +344,7 @@ function OwnerHubTable({
                 filters,
                 view,
                 bookingFeeView,
+                eventView,
                 page: result.page + 1,
               })}
               className="inline-flex min-h-9 items-center rounded-lg border border-slate-200 px-3 text-xs font-bold text-navy transition hover:bg-slate-50"
@@ -417,6 +429,7 @@ export function UtilizationReport({
   action,
   audience,
   bookingFeeView,
+  eventView,
   filters,
   rows,
   peakHours,
@@ -425,6 +438,7 @@ export function UtilizationReport({
   action: string;
   audience: "partner" | "owner";
   bookingFeeView: AnalyticsBookingFeeView;
+  eventView: AnalyticsEventView;
   filters: BusinessAnalyticsFilters;
   rows: UtilizationRow[];
   peakHours: { weekday: number; hour: number; bookedHours: number }[];
@@ -453,6 +467,7 @@ export function UtilizationReport({
         <OwnerHubTable
           action={action}
           bookingFeeView={bookingFeeView}
+          eventView={eventView}
           filters={filters}
           rows={rows}
           view={view}

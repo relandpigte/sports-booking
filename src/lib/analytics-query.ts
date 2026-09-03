@@ -31,6 +31,13 @@ export type AnalyticsBookingFeeView = {
   to: string;
 };
 
+export type AnalyticsEventView = {
+  page: number;
+  query: string;
+  from: string;
+  to: string;
+};
+
 function single(value: string | string[] | undefined) {
   return Array.isArray(value) ? value.at(-1) : value;
 }
@@ -102,6 +109,40 @@ export function parseAnalyticsBookingFeeView(
   };
 }
 
+export function parseAnalyticsEventView(
+  query: AnalyticsQuery,
+  filters: Pick<BusinessAnalyticsFilters, "from" | "to">
+): AnalyticsEventView {
+  const rawPage = Number(single(query.eventPage));
+  const rawFrom = single(query.eventFrom);
+  const rawTo = single(query.eventTo);
+  let from =
+    rawFrom &&
+    isValidDateString(rawFrom) &&
+    rawFrom >= filters.from &&
+    rawFrom <= filters.to
+      ? rawFrom
+      : filters.from;
+  let to =
+    rawTo &&
+    isValidDateString(rawTo) &&
+    rawTo >= filters.from &&
+    rawTo <= filters.to
+      ? rawTo
+      : filters.to;
+  if (from > to) [from, to] = [to, from];
+
+  return {
+    page:
+      Number.isSafeInteger(rawPage) && rawPage > 0
+        ? Math.min(rawPage, 100_000)
+        : 1,
+    query: (single(query.eventQuery) ?? "").trim().slice(0, 100),
+    from,
+    to,
+  };
+}
+
 export function addAnalyticsUtilizationParams(
   query: URLSearchParams,
   view: AnalyticsUtilizationView
@@ -124,6 +165,18 @@ export function addAnalyticsBookingFeeParams(
   query.set("bookingFeeFrom", view.from);
   query.set("bookingFeeTo", view.to);
   if (page > 1) query.set("bookingFeePage", String(page));
+  return query;
+}
+
+export function addAnalyticsEventParams(
+  query: URLSearchParams,
+  view: AnalyticsEventView,
+  page = view.page
+) {
+  if (view.query) query.set("eventQuery", view.query);
+  query.set("eventFrom", view.from);
+  query.set("eventTo", view.to);
+  if (page > 1) query.set("eventPage", String(page));
   return query;
 }
 

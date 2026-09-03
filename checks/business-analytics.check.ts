@@ -5,6 +5,7 @@ import { ok, run } from "./harness";
 async function main() {
   const {
     parseAnalyticsBookingFeeView,
+    parseAnalyticsEventView,
     parseAnalyticsFilters,
     parseAnalyticsUtilizationView,
   } = await import("@/lib/analytics-query");
@@ -16,6 +17,9 @@ async function main() {
   );
   const { courtPaymentFeePage } = await import(
     "@/lib/analytics-booking-fees"
+  );
+  const { eventPerformancePage } = await import(
+    "@/lib/analytics-events"
   );
   const options = {
     partners: [
@@ -176,6 +180,85 @@ async function main() {
     datedPayments.total === 3
   );
 
+  const eventView = parseAnalyticsEventView(
+    {
+      eventPage: "2",
+      eventQuery: "  Metro  ",
+      eventFrom: "2026-08-01",
+      eventTo: "2026-08-20",
+    },
+    { from: "2026-08-01", to: "2026-08-31" }
+  );
+  ok(
+    "event view validates pagination, search, and dates",
+    JSON.stringify(eventView) ===
+      JSON.stringify({
+        page: 2,
+        query: "Metro",
+        from: "2026-08-01",
+        to: "2026-08-20",
+      })
+  );
+  const events = Array.from({ length: 11 }, (_, index) => ({
+    eventId: `event-${index}`,
+    title: index === 10 ? "Metro Open Play" : `Open Play ${index}`,
+    hub: index === 10 ? "Metro Hub" : "North Hub",
+    date: `2026-08-${String(index + 1).padStart(2, "0")}`,
+    paidSpots: 1,
+    checkoutTotal: 105,
+    revenue: 100,
+    grossPaymentFees: 5,
+    processingFees: 2,
+    serviceFees: 3,
+    transactions: 1,
+    payments: [
+      {
+        paymentId: `event-payment-${index}`,
+        reference: index === 10 ? "metro-reference" : `reference-${index}`,
+        paidAt: `2026-08-${String(index + 1).padStart(2, "0")}T04:00:00.000Z`,
+        status: "SUCCEEDED" as const,
+        collectionMode: "AUTOMATIC" as const,
+        spots: 1,
+        checkoutTotal: 105,
+        venueRevenue: 100,
+        grossPaymentFees: 5,
+        processingFees: 2,
+        netBunalRevenue: 3,
+      },
+    ],
+  }));
+  const secondEventPage = eventPerformancePage(events, {
+    page: 2,
+    query: "",
+    from: "2026-08-01",
+    to: "2026-08-31",
+  });
+  ok(
+    "event revenue defaults to ten rows per page",
+    secondEventPage.pageSize === 10 &&
+      secondEventPage.page === 2 &&
+      secondEventPage.items.length === 1 &&
+      secondEventPage.total === 11
+  );
+  const searchedEvents = eventPerformancePage(events, {
+    page: 1,
+    query: "metro",
+    from: "2026-08-01",
+    to: "2026-08-31",
+  });
+  ok(
+    "event revenue search covers events, hubs, and payment references",
+    searchedEvents.total === 1 &&
+      searchedEvents.items[0]?.eventId === "event-10"
+  );
+  const datedEvents = eventPerformancePage(events, {
+    page: 1,
+    query: "",
+    from: "2026-08-05",
+    to: "2026-08-07",
+  });
+  ok("event revenue filters by event date", datedEvents.total === 3);
+
   const optionRoute = fs.readFileSync(
     "src/app/api/analytics/options/route.ts",
     "utf8"
@@ -192,6 +275,16 @@ async function main() {
     bookingFeeBreakdown.startsWith('"use client";') &&
       bookingFeeBreakdown.includes("window.history.replaceState") &&
       !bookingFeeBreakdown.includes("<form")
+  );
+  const eventFinancialPerformance = fs.readFileSync(
+    "src/components/reports/EventFinancialPerformance.tsx",
+    "utf8"
+  );
+  ok(
+    "event revenue filters update without reloading the report page",
+    eventFinancialPerformance.startsWith('"use client";') &&
+      eventFinancialPerformance.includes("window.history.replaceState") &&
+      !eventFinancialPerformance.includes("<form")
   );
 
   const migration = fs.readFileSync(

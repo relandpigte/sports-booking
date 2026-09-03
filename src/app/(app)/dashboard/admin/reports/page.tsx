@@ -6,6 +6,7 @@ import { BusinessAnalyticsDashboard } from "@/components/reports/BusinessAnalyti
 import { requireAdmin } from "@/lib/admin";
 import {
   parseAnalyticsBookingFeeView,
+  parseAnalyticsEventView,
   parseAnalyticsFilters,
   parseAnalyticsUtilizationView,
   rawAnalyticsSelection,
@@ -14,6 +15,7 @@ import {
   getBusinessAnalytics,
   ownerAnalyticsOptions,
 } from "@/lib/business-analytics";
+import { eventPerformanceDateRange } from "@/lib/analytics-events";
 
 export const metadata: Metadata = {
   title: "Platform Analytics — Bunal.club",
@@ -34,6 +36,10 @@ export default async function AdminReportsPage({
   const utilizationView = parseAnalyticsUtilizationView(query);
   const bookingFeeView = parseAnalyticsBookingFeeView(query, filters);
   const data = await getBusinessAnalytics({ audience: "owner", filters });
+  const eventView = parseAnalyticsEventView(
+    query,
+    eventPerformanceDateRange(data.events, filters)
+  );
 
   return (
     <div>
@@ -56,6 +62,7 @@ export default async function AdminReportsPage({
         audience="owner"
         data={data}
         bookingFeeView={bookingFeeView}
+        eventView={eventView}
         utilizationView={utilizationView}
       />
     </div>

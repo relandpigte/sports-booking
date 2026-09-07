@@ -376,6 +376,12 @@ async function check() {
     ) === true
   );
   ok("public snapshots omit email, phone, and payment fields", !serialized.includes("@example.test") && !serialized.includes("phone") && !serialized.includes("payment"));
+  ok(
+    "active BunalQ rooms appear in the public directory",
+    (await domain.listPublicBunalQQueues()).some(
+      (queue) => queue.publicId === snapshot?.queue.publicId
+    )
+  );
 
   const teammateHistory = domain.buildTeammateHistory([
     {

@@ -32,6 +32,9 @@ export async function SiteFooter() {
             <Link href="/events" className="hover:text-white">
               Open play events
             </Link>
+            <Link href="/bunalq" className="hover:text-white">
+              Live BunalQ
+            </Link>
             <Link href="/register" className="hover:text-white">
               Player signup
             </Link>

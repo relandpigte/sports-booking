@@ -801,6 +801,48 @@ export async function listOpenPlayQueues(partnerId: string) {
   });
 }
 
+export async function listPublicBunalQQueues() {
+  return prisma.openPlayQueue.findMany({
+    where: { sessions: { some: { status: "ACTIVE" } } },
+    orderBy: { updatedAt: "desc" },
+    take: 50,
+    select: {
+      publicId: true,
+      title: true,
+      kind: true,
+      admissionMode: true,
+      hub: { select: { name: true, address: true } },
+      event: {
+        select: {
+          publicId: true,
+          date: true,
+          startHour: true,
+          endHour: true,
+        },
+      },
+      sessions: {
+        where: { status: "ACTIVE" },
+        orderBy: { runNumber: "desc" },
+        take: 1,
+        select: {
+          runNumber: true,
+          startedAt: true,
+          _count: {
+            select: {
+              participants: {
+                where: {
+                  status: { notIn: ["PENDING_APPROVAL", "REMOVED"] },
+                },
+              },
+              courts: true,
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
 export async function listBunalQEligibleEvents(partnerId: string) {
   return prisma.event.findMany({
     where: {

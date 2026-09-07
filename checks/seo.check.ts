@@ -11,11 +11,14 @@ const nationwideFiles = [
   "src/app/page.tsx",
   "src/app/hubs/page.tsx",
   "src/app/events/page.tsx",
+  "src/app/bunalq/page.tsx",
   "src/app/opengraph-image.tsx",
   "src/app/register/page.tsx",
   "src/components/AuthLayout.tsx",
   "src/components/registration/RegistrationSuccessPage.tsx",
   "src/components/home/HomePage.tsx",
+  "src/components/hubs/PublicTopBar.tsx",
+  "src/components/dashboard/DashboardNavigation.ts",
   "src/components/hubs/HubDirectory.tsx",
   "src/components/dashboard/home/PlayerHome.tsx",
   "src/lib/welcome-email.ts",
@@ -33,6 +36,15 @@ async function check() {
     ?.source;
   const layoutSource = entries.find(
     ({ path }) => path === "src/app/layout.tsx"
+  )?.source;
+  const homeSourceWithNavigation = entries.find(
+    ({ path }) => path === "src/components/home/HomePage.tsx"
+  )?.source;
+  const publicTopBarSource = entries.find(
+    ({ path }) => path === "src/components/hubs/PublicTopBar.tsx"
+  )?.source;
+  const dashboardNavigationSource = entries.find(
+    ({ path }) => path === "src/components/dashboard/DashboardNavigation.ts"
   )?.source;
 
   ok(
@@ -57,6 +69,14 @@ async function check() {
   ok(
     "canonical metadata uses the final production hostname",
     SITE_URL === "https://www.bunal.club"
+  );
+  ok(
+    "public primary navigation links to the BunalQ directory",
+    homeSourceWithNavigation?.includes('["BunalQ", "/bunalq"]') === true &&
+      publicTopBarSource?.includes('href="/bunalq"') === true &&
+      dashboardNavigationSource?.includes(
+        '{ href: "/bunalq", label: "BunalQ"'
+      ) === true
   );
 }
 

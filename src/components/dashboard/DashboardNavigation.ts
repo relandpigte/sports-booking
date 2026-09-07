@@ -24,6 +24,7 @@ const playerItems: DashboardNavigationItem[] = [
   { href: "/dashboard/player", label: "Home", icon: "home", exact: true },
   { href: "/hubs", label: "Find Courts", icon: "map" },
   { href: "/events", label: "Events", icon: "trophy" },
+  { href: "/bunalq", label: "BunalQ", icon: "booking" },
   { href: "/dashboard/bookings", label: "Bookings", icon: "booking" },
   { href: "/trainers", label: "Find Trainers", icon: "profile" },
   { href: "/dashboard/trainer", label: "Trainer Tools", icon: "account" },

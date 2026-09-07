@@ -57,6 +57,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.9,
     },
     {
+      url: absoluteUrl("/bunalq"),
+      changeFrequency: "hourly",
+      priority: 0.8,
+    },
+    {
       url: absoluteUrl("/trainers"),
       changeFrequency: "daily",
       priority: 0.9,

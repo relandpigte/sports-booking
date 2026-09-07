@@ -119,7 +119,7 @@ export function OpenPlayBoard({ snapshot }: { snapshot: OpenPlaySnapshot }) {
         )}
       </section>
 
-      <div className="grid gap-5 lg:grid-cols-[1.45fr_1fr]">
+      <div className="grid gap-5 lg:grid-cols-2">
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
           <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
             <h2 className="text-sm font-black uppercase tracking-[0.16em] text-navy">Waiting queue</h2>

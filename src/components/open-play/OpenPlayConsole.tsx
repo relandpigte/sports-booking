@@ -177,7 +177,7 @@ function ModeForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
           {pending ? "Saving…" : "Apply mode"}
         </button>
       </div>
-      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="mt-4 grid gap-2 md:grid-cols-5">
         {OPEN_PLAY_MODES.map((mode, index) => (
           <label
             key={mode}

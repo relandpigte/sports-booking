@@ -678,6 +678,10 @@ export async function toggleOpenPlayCourtAction(
         where: { sessionId, courtId, status: "ACTIVE" },
       });
       if (occupied > 0) return "occupied";
+      await tx.openPlayGame.updateMany({
+        where: { sessionId, courtId, status: "STAGED" },
+        data: { courtId: null },
+      });
     }
     await tx.openPlaySessionCourt.update({
       where: { sessionId_courtId: { sessionId, courtId } },
@@ -699,21 +703,20 @@ export async function toggleOpenPlayCourtAction(
   return { success: active ? "Court resumed." : "Court paused." };
 }
 
-async function activateOpenPlayGame(
+async function startStagedOpenPlayGame(
   tx: Tx,
   input: {
     sessionId: string;
-    courtId: string;
-    gameId?: string;
+    gameId: string;
   }
 ): Promise<string | null> {
   const game = await tx.openPlayGame.findFirst({
     where: {
       sessionId: input.sessionId,
+      id: input.gameId,
       status: "STAGED",
-      ...(input.gameId ? { id: input.gameId } : {}),
+      courtId: { not: null },
     },
-    orderBy: { sequence: "asc" },
     include: {
       players: {
         include: { participant: { select: { status: true } } },
@@ -722,6 +725,7 @@ async function activateOpenPlayGame(
   });
   if (
     !game ||
+    !game.courtId ||
     game.players.length !== 4 ||
     game.players.some((player) => player.participant.status !== "STAGED")
   ) return null;
@@ -729,7 +733,6 @@ async function activateOpenPlayGame(
   await tx.openPlayGame.update({
     where: { id: game.id },
     data: {
-      courtId: input.courtId,
       status: "ACTIVE",
       startedAt: new Date(),
     },
@@ -761,15 +764,23 @@ export async function dispatchOpenPlayUpNextAction(
     const court = session.courts.find((item) => item.courtId === courtId && item.active);
     if (!court) return { kind: "court" as const };
     const occupied = await tx.openPlayGame.count({
-      where: { sessionId, courtId, status: "ACTIVE" },
+      where: {
+        sessionId,
+        courtId,
+        status: { in: ["STAGED", "ACTIVE"] },
+      },
     });
     if (occupied > 0) return { kind: "occupied" as const };
-    const gameId = await activateOpenPlayGame(tx, {
-      sessionId,
-      courtId,
-      gameId: String(formData.get("gameId") ?? ""),
+    const gameId = String(formData.get("gameId") ?? "");
+    const game = await tx.openPlayGame.findFirst({
+      where: { id: gameId, sessionId, status: "STAGED", courtId: null },
+      select: { id: true },
     });
-    if (!gameId) return { kind: "game" as const };
+    if (!game) return { kind: "game" as const };
+    await tx.openPlayGame.update({
+      where: { id: game.id },
+      data: { courtId },
+    });
     await syncAutomaticOpenPlayUpNext(tx, {
       sessionId,
       createdById: workspace.actorId,
@@ -777,7 +788,7 @@ export async function dispatchOpenPlayUpNextAction(
     return { kind: "dispatched" as const, gameId };
   });
   if (result.kind === "occupied") {
-    return { message: "That court already has a live match." };
+    return { message: "That court already has a match ready or playing." };
   }
   if (result.kind === "court") {
     return { message: "Choose an active court." };
@@ -793,7 +804,7 @@ export async function dispatchOpenPlayUpNextAction(
   return { success: "Match sent to court." };
 }
 
-export async function regenerateOpenPlayUpNextAction(
+export async function startOpenPlayMatchAction(
   _previous: OpenPlayActionState,
   formData: FormData
 ): Promise<OpenPlayActionState> {
@@ -803,22 +814,44 @@ export async function regenerateOpenPlayUpNextAction(
   const gameId = String(formData.get("gameId") ?? "");
   const owned = await ownedSession(sessionId, workspace);
   if (!owned) return { message: "BunalQ run not found." };
-  const regenerated = await bunalQTransaction(async (tx) => {
+  const started = await bunalQTransaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
-    if (!session || session.status !== "ACTIVE") return false;
-    if (!(await cancelOpenPlayUpNextGame(tx, sessionId, gameId))) {
-      return false;
-    }
+    if (!session || session.status !== "ACTIVE") return null;
+    const staged = await tx.openPlayGame.findFirst({
+      where: { id: gameId, sessionId, status: "STAGED" },
+      select: { courtId: true },
+    });
+    if (
+      !staged?.courtId ||
+      !session.courts.some(
+        (court) => court.courtId === staged.courtId && court.active
+      )
+    ) return null;
+    const active = await tx.openPlayGame.count({
+      where: {
+        sessionId,
+        courtId: staged.courtId,
+        status: "ACTIVE",
+      },
+    });
+    if (active > 0) return null;
+    const startedGameId = await startStagedOpenPlayGame(tx, {
+      sessionId,
+      gameId,
+    });
+    if (!startedGameId) return null;
     await syncAutomaticOpenPlayUpNext(tx, {
       sessionId,
       createdById: workspace.actorId,
     });
-    return true;
+    return startedGameId;
   });
-  if (!regenerated) return { message: "That upcoming match is no longer available." };
-  await audit(workspace, "OPEN_PLAY_MATCH_REGENERATED", sessionId, { gameId });
+  if (!started) return { message: "This match cannot be started." };
+  await audit(workspace, "OPEN_PLAY_MATCH_STARTED", sessionId, {
+    gameId: started,
+  });
   refresh(owned.queue.publicId, owned.queue.event?.publicId);
-  return { success: "Upcoming match regenerated." };
+  return { success: "Match started." };
 }
 
 export async function editStagedOpenPlayMatchAction(
@@ -943,26 +976,22 @@ export async function recordOpenPlayWinnerAction(
       where: { id: game.id },
       data: { status: "COMPLETED", winningTeam, completedAt: new Date() },
     });
-    const nextGameId = await activateOpenPlayGame(tx, {
-      sessionId,
-      courtId: game.courtId,
-    });
-    await syncAutomaticOpenPlayUpNext(tx, {
+    const synced = await syncAutomaticOpenPlayUpNext(tx, {
       sessionId,
       createdById: workspace.actorId,
     });
-    return { nextGameId };
+    return { nextGameIds: synced.assignedGameIds };
   });
   if (!completed) return { message: "This result was already recorded or the match is unavailable." };
   await audit(workspace, "OPEN_PLAY_RESULT_RECORDED", sessionId, {
     gameId,
     winningTeam,
-    nextGameId: completed.nextGameId,
+    nextGameIds: completed.nextGameIds,
   });
   refresh(owned.queue.publicId, owned.queue.event?.publicId);
   return {
-    success: completed.nextGameId
-      ? "Winner recorded; the next match is now live."
+    success: completed.nextGameIds.length > 0
+      ? "Winner recorded; the next match is staged on court."
       : "Winner recorded; the court is ready.",
   };
 }
@@ -1001,6 +1030,14 @@ export async function undoOpenPlayResultAction(
       },
     });
     if (newerStarted > 0) return false;
+    await tx.openPlayGame.updateMany({
+      where: {
+        sessionId,
+        courtId: game.courtId,
+        status: "STAGED",
+      },
+      data: { courtId: null },
+    });
     const restoredPlayerIds = game.players.map((slot) => slot.participantId);
     const conflictingUpNext = await tx.openPlayGame.findMany({
       where: {

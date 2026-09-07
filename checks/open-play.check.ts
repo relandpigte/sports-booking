@@ -177,11 +177,10 @@ async function check() {
     include: { players: { orderBy: { slot: "asc" } } },
   });
   ok(
-    "starting a run automatically prepares one court-independent matchup per active court",
+    "starting a run automatically stages one matchup on each available court",
     stagedGames.length === 2 &&
-      stagedGames.every(
-        (game) => game.courtId === null && game.players.length === 4
-      ) &&
+      stagedGames.every((game) => game.courtId && game.players.length === 4) &&
+      new Set(stagedGames.map((game) => game.courtId)).size === 2 &&
       new Set(
         stagedGames.flatMap((game) =>
           game.players.map((slot) => slot.participantId)
@@ -229,30 +228,6 @@ async function check() {
       selectionMethod: "AUTOMATIC",
     },
   });
-  const regenerate = new FormData();
-  regenerate.set("sessionId", session.id);
-  regenerate.set("gameId", automaticGame.id);
-  ok(
-    "an upcoming matchup can be regenerated",
-    Boolean(
-      (await actions.regenerateOpenPlayUpNextAction({}, regenerate)).success
-    )
-  );
-  const regeneratedGame = await prisma.openPlayGame.findFirstOrThrow({
-    where: {
-      sessionId: session.id,
-      status: "STAGED",
-      selectionMethod: "AUTOMATIC",
-    },
-  });
-  ok(
-    "regeneration replaces the previous card without losing queue capacity",
-    regeneratedGame.id !== automaticGame.id &&
-      (await prisma.openPlayGame.findUniqueOrThrow({
-        where: { id: automaticGame.id },
-      })).status === "CANCELLED"
-  );
-  automaticGame = regeneratedGame;
 
   const pauseSecondCourt = new FormData();
   pauseSecondCourt.set("sessionId", session.id);
@@ -322,21 +297,24 @@ async function check() {
       })).status === "REMOVED"
   );
 
+  const automaticCourtId = automaticGame.courtId;
   const startGame = new FormData();
   startGame.set("sessionId", session.id);
   startGame.set("gameId", automaticGame.id);
-  startGame.set("courtId", hub.courts[0].id);
   const startResults = await Promise.all([
-    actions.dispatchOpenPlayUpNextAction({}, startGame),
-    actions.dispatchOpenPlayUpNextAction({}, startGame),
+    actions.startOpenPlayMatchAction({}, startGame),
+    actions.startOpenPlayMatchAction({}, startGame),
   ]);
-  ok("an upcoming match dispatches once under concurrent submissions", startResults.filter((result) => result.success).length === 1);
-  ok("a duplicate concurrent dispatch is rejected", startResults.filter((result) => result.message).length === 1);
+  ok("a staged court match starts once under concurrent submissions", startResults.filter((result) => result.success).length === 1);
+  ok("a duplicate concurrent start is rejected", startResults.filter((result) => result.message).length === 1);
   ok(
-    "dispatch assigns the selected court only when play starts",
+    "starting preserves the automatically assigned court",
     (await prisma.openPlayGame.findUniqueOrThrow({
       where: { id: automaticGame.id },
-    })).courtId === hub.courts[0].id
+    })).status === "ACTIVE" &&
+      (await prisma.openPlayGame.findUniqueOrThrow({
+        where: { id: automaticGame.id },
+      })).courtId === automaticCourtId
   );
 
   const winner = new FormData();
@@ -354,13 +332,14 @@ async function check() {
     (await prisma.openPlayGame.count({ where: { id: automaticGame.id, status: "COMPLETED", winningTeam: 1 } })) === 1
   );
   ok(
-    "finishing a match automatically sends the oldest upcoming match to the freed court",
-    (await prisma.openPlayGame.findUniqueOrThrow({
-      where: { id: manualGame.id },
-    })).status === "ACTIVE" &&
-      (await prisma.openPlayGame.findUniqueOrThrow({
-        where: { id: manualGame.id },
-      })).courtId === hub.courts[0].id
+    "finishing a match automatically stages the next matchup on the freed court",
+    (await prisma.openPlayGame.count({
+      where: {
+        sessionId: session.id,
+        status: "STAGED",
+        courtId: automaticCourtId,
+      },
+    })) === 1
   );
   stagedGames = await prisma.openPlayGame.findMany({
     where: { sessionId: session.id, status: "STAGED" },
@@ -368,28 +347,32 @@ async function check() {
   });
   ok(
     "recording a result automatically replenishes available upcoming capacity",
-    stagedGames.length === 1 &&
-      stagedGames.every((game) => game.courtId === null)
+    stagedGames.length === 2 &&
+      stagedGames.every((game) => game.courtId !== null)
   );
 
   const undo = new FormData();
   undo.set("sessionId", session.id);
   undo.set("gameId", automaticGame.id);
   ok(
-    "undo does not interrupt the next match after it automatically starts",
-    Boolean((await actions.undoOpenPlayResultAction({}, undo)).message) &&
+    "undo restores the completed game before the staged successor starts",
+    Boolean((await actions.undoOpenPlayResultAction({}, undo)).success) &&
       (await prisma.openPlayGame.findUniqueOrThrow({
         where: { id: automaticGame.id },
-      })).status === "COMPLETED"
+      })).status === "ACTIVE"
+  );
+  ok(
+    "the restored game can be completed again",
+    Boolean((await actions.recordOpenPlayWinnerAction({}, winner)).success)
   );
 
   const snapshot = await domain.getPublicOpenPlaySnapshot(event.publicId);
   const serialized = JSON.stringify(snapshot);
   ok("public snapshots expose the live queue", Boolean(snapshot?.participants.length));
   ok(
-    "public snapshots expose court-independent upcoming matchups",
+    "public snapshots expose upcoming matchups staged on courts",
     snapshot?.games.some(
-      (game) => game.status === "STAGED" && game.courtId === null
+      (game) => game.status === "STAGED" && game.courtId !== null
     ) === true
   );
   ok("public snapshots omit email, phone, and payment fields", !serialized.includes("@example.test") && !serialized.includes("phone") && !serialized.includes("payment"));

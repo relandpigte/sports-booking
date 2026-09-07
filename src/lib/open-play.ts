@@ -271,7 +271,7 @@ export async function syncAutomaticOpenPlayUpNext(
     createdById: string | null;
     refreshAutomatic?: boolean;
   }
-): Promise<{ createdGameIds: string[] }> {
+): Promise<{ createdGameIds: string[]; assignedGameIds: string[] }> {
   // Callers hold the OpenPlaySession row lock, serializing every queue and
   // dispatch mutation so two requests cannot reserve the same participant.
   const session = await tx.openPlaySession.findUnique({
@@ -280,11 +280,14 @@ export async function syncAutomaticOpenPlayUpNext(
       id: true,
       status: true,
       matchingMode: true,
-      courts: { select: { active: true } },
+      courts: {
+        orderBy: { position: "asc" },
+        select: { courtId: true, active: true },
+      },
     },
   });
   if (!session || session.status !== "ACTIVE") {
-    return { createdGameIds: [] };
+    return { createdGameIds: [], assignedGameIds: [] };
   }
 
   const targetCount = session.courts.filter((court) => court.active).length;
@@ -389,7 +392,43 @@ export async function syncAutomaticOpenPlayUpNext(
     });
   }
 
-  return { createdGameIds };
+  const occupiedCourtIds = new Set(
+    (
+      await tx.openPlayGame.findMany({
+        where: {
+          sessionId: session.id,
+          status: { in: ["STAGED", "ACTIVE"] },
+          courtId: { not: null },
+        },
+        select: { courtId: true },
+      })
+    ).flatMap((game) => game.courtId ? [game.courtId] : [])
+  );
+  const vacantCourtIds = session.courts
+    .filter((court) => court.active && !occupiedCourtIds.has(court.courtId))
+    .map((court) => court.courtId);
+  const courtlessGames = await tx.openPlayGame.findMany({
+    where: {
+      sessionId: session.id,
+      status: "STAGED",
+      courtId: null,
+    },
+    orderBy: { sequence: "asc" },
+    take: vacantCourtIds.length,
+    select: { id: true },
+  });
+  const assignedGameIds: string[] = [];
+  for (const [index, game] of courtlessGames.entries()) {
+    const courtId = vacantCourtIds[index];
+    if (!courtId) break;
+    await tx.openPlayGame.update({
+      where: { id: game.id },
+      data: { courtId },
+    });
+    assignedGameIds.push(game.id);
+  }
+
+  return { createdGameIds, assignedGameIds };
 }
 
 export async function getOpenPlayWorkspace(

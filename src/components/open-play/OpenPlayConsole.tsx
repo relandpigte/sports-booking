@@ -28,8 +28,8 @@ import {
   rejectPublicQueueGuestAction,
   removeOpenPlayParticipantAction,
   resumeOpenPlayParticipantAction,
-  regenerateOpenPlayUpNextAction,
   startNewOpenPlayRunAction,
+  startOpenPlayMatchAction,
   startOpenPlaySessionAction,
   syncOpenPlayRosterAction,
   toggleOpenPlayCourtAction,
@@ -323,13 +323,17 @@ function DispatchUpNextForm({
 }
 
 function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
-  const activeGames = snapshot.games.filter((game) => game.status === "ACTIVE");
+  const courtGames = snapshot.games.filter(
+    (game) =>
+      game.courtId && ["STAGED", "ACTIVE"].includes(game.status)
+  );
+  const activeGames = courtGames.filter((game) => game.status === "ACTIVE");
   const upNext = snapshot.games
-    .filter((game) => game.status === "STAGED")
+    .filter((game) => game.status === "STAGED" && !game.courtId)
     .sort((left, right) => left.sequence - right.sequence);
   const freeCourts = snapshot.courts.filter(
     (court) =>
-      court.active && !activeGames.some((game) => game.courtId === court.id)
+      court.active && !courtGames.some((game) => game.courtId === court.id)
   );
   const latestResult = snapshot.games
     .filter((game) => game.status === "COMPLETED" && game.completedAt)
@@ -351,19 +355,20 @@ function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {snapshot.courts.map((court) => {
-            const game = activeGames.find((item) => item.courtId === court.id);
-            const live = Boolean(game);
+            const game = courtGames.find((item) => item.courtId === court.id);
+            const live = game?.status === "ACTIVE";
+            const staged = game?.status === "STAGED";
             const palette = game ? liveMatchPalette(game.id) : null;
             return (
               <article
                 key={court.id}
-                className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${game ? "border-emerald-200" : "border-slate-200"}`}
+                className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${live ? "border-emerald-200" : staged ? "border-violet-200" : "border-slate-200"}`}
               >
                 <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-4 py-2.5">
                   <h3 className="text-sm font-black text-navy">{court.name}</h3>
-                  <span className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider ${live ? "text-emerald-700" : "text-slate-500"}`}>
-                    <span className={`h-1.5 w-1.5 rounded-full ${live ? "animate-pulse bg-emerald-500" : court.active ? "bg-slate-300" : "bg-amber-400"}`} />
-                    {!court.active ? "Paused" : live ? "Playing" : "Ready"}
+                  <span className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider ${live ? "text-emerald-700" : staged ? "text-violet-700" : "text-slate-500"}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${live ? "animate-pulse bg-emerald-500" : staged ? "bg-violet-500" : court.active ? "bg-slate-300" : "bg-amber-400"}`} />
+                    {!court.active ? "Paused" : live ? "Playing" : staged ? "Up next" : "Ready"}
                   </span>
                 </div>
                 <div className="p-3">
@@ -384,11 +389,12 @@ function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
                   ) : <p className="py-4 text-center text-xs text-slate-500">{court.active ? "Ready for the next match." : "Rotation paused for this court."}</p>}
                   <div className="mt-3 grid grid-cols-[minmax(0,1fr)_1.25rem_minmax(0,1fr)] gap-2">
                     {!game ? <ActionForm className="col-span-3" action={toggleOpenPlayCourtAction} values={{ sessionId: snapshot.id, courtId: court.id, active: !court.active }} label={court.active ? "Pause court" : "Resume court"} tone="quiet" /> : null}
-                    {game && palette ? <>
+                    {live && game && palette ? <>
                       <ActionForm action={recordOpenPlayWinnerAction} values={{ sessionId: snapshot.id, gameId: game.id, winningTeam: 1 }} label="Team 1 wins" buttonClassName={`w-full ${palette.team1Button}`} />
                       <span aria-hidden />
                       <ActionForm action={recordOpenPlayWinnerAction} values={{ sessionId: snapshot.id, gameId: game.id, winningTeam: 2 }} label="Team 2 wins" buttonClassName={`w-full ${palette.team2Button}`} />
                     </> : null}
+                    {staged && game ? <ActionForm className="col-span-3" action={startOpenPlayMatchAction} values={{ sessionId: snapshot.id, gameId: game.id }} label="Start match" buttonClassName="w-full bg-primary text-white hover:bg-primary-hover" /> : null}
                   </div>
                 </div>
               </article>
@@ -427,9 +433,6 @@ function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
                   ))}
                 </div>
                 <DispatchUpNextForm snapshot={snapshot} gameId={game.id} freeCourts={freeCourts} />
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <ActionForm action={regenerateOpenPlayUpNextAction} values={{ sessionId: snapshot.id, gameId: game.id }} label="Regenerate" tone="quiet" />
-                </div>
                 <StagedMatchEditor snapshot={snapshot} game={game} />
               </article>
             ))}

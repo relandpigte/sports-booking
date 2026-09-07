@@ -29,11 +29,14 @@ function Team({
 }
 
 export function OpenPlayBoard({ snapshot }: { snapshot: OpenPlaySnapshot }) {
-  const liveGames = snapshot.games
-    .filter((game) => game.status === "ACTIVE")
+  const courtGames = snapshot.games
+    .filter(
+      (game) =>
+        game.courtId && ["STAGED", "ACTIVE"].includes(game.status)
+    )
     .sort((left, right) => left.sequence - right.sequence);
   const upNext = snapshot.games
-    .filter((game) => game.status === "STAGED")
+    .filter((game) => game.status === "STAGED" && !game.courtId)
     .sort((left, right) => left.sequence - right.sequence);
   const queued = snapshot.participants
     .filter((participant) => participant.status === "QUEUED")
@@ -55,19 +58,21 @@ export function OpenPlayBoard({ snapshot }: { snapshot: OpenPlaySnapshot }) {
 
       <section>
         <div className="mb-3 flex items-end justify-between gap-3">
-          <h2 className="text-sm font-black uppercase tracking-[0.16em] text-navy">Live courts</h2>
+          <h2 className="text-sm font-black uppercase tracking-[0.16em] text-navy">Courts</h2>
           <span className="text-xs font-bold text-slate-500">{snapshot.courts.filter((court) => court.active).length} active</span>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {snapshot.courts.map((court) => {
-            const game = liveGames.find((item) => item.courtId === court.id);
+            const game = courtGames.find((item) => item.courtId === court.id);
+            const live = game?.status === "ACTIVE";
+            const staged = game?.status === "STAGED";
             const palette = game ? liveMatchPalette(game.id) : null;
             return (
-              <article key={court.id} className={`overflow-hidden rounded-2xl border bg-white ${game ? "border-emerald-200" : "border-slate-200"}`}>
+              <article key={court.id} className={`overflow-hidden rounded-2xl border bg-white ${live ? "border-emerald-200" : staged ? "border-violet-200" : "border-slate-200"}`}>
                 <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-4 py-3">
                   <h3 className="font-black text-navy">{court.name}</h3>
-                  <span className={`text-[10px] font-black uppercase tracking-[0.12em] ${game ? "text-emerald-700" : "text-slate-400"}`}>
-                    {!court.active ? "Paused" : game ? "Playing" : "Open"}
+                  <span className={`text-[10px] font-black uppercase tracking-[0.12em] ${live ? "text-emerald-700" : staged ? "text-violet-700" : "text-slate-400"}`}>
+                    {!court.active ? "Paused" : live ? "Playing" : staged ? "Up next" : "Open"}
                   </span>
                 </div>
                 <div className="p-4">

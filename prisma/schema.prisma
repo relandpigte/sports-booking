@@ -1762,8 +1762,8 @@ model OpenPlayParticipant {
 model OpenPlayGame {
   id              String                  @id @default(cuid())
   sessionId       String
-  // Upcoming games are court-independent until an operator dispatches them.
-  // A database check still requires a court for ACTIVE and COMPLETED rows.
+  // Upcoming games may wait courtless or reserve a vacant court before play.
+  // A database check requires a court for ACTIVE and COMPLETED rows.
   courtId         String?
   sequence        Int
   matchingMode    OpenPlayMatchingMode

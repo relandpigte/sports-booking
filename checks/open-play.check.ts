@@ -13,6 +13,22 @@ const PLAYER_EMAILS = Array.from(
   (_, index) => `check-open-play-player-${index + 1}@example.test`
 );
 
+function sameTeam(
+  match: Array<{ participantId: string; team: number }> | null,
+  firstId: string,
+  secondId: string
+) {
+  const first = match?.find((slot) => slot.participantId === firstId);
+  const second = match?.find((slot) => slot.participantId === secondId);
+  return Boolean(first && second && first.team === second.team);
+}
+
+function selectedIds(
+  match: Array<{ participantId: string }> | null
+): string[] {
+  return match?.map((slot) => slot.participantId).sort() ?? [];
+}
+
 async function cleanup() {
   await prisma.openPlayQueue.deleteMany({
     where: { hub: { owner: { email: PARTNER_EMAIL } } },
@@ -218,7 +234,35 @@ async function check() {
   ok("public snapshots expose the live queue", Boolean(snapshot?.participants.length));
   ok("public snapshots omit email, phone, and payment fields", !serialized.includes("@example.test") && !serialized.includes("phone") && !serialized.includes("payment"));
 
-  const balanced = domain.chooseAutomaticMatch({
+  const teammateHistory = domain.buildTeammateHistory([
+    {
+      sequence: 2,
+      players: [
+        { participantId: "a", team: 1 },
+        { participantId: "b", team: 1 },
+        { participantId: "c", team: 2 },
+        { participantId: "d", team: 2 },
+      ],
+    },
+    {
+      sequence: 1,
+      players: [
+        { participantId: "a", team: 1 },
+        { participantId: "c", team: 1 },
+        { participantId: "b", team: 2 },
+        { participantId: "d", team: 2 },
+      ],
+    },
+  ]);
+  ok(
+    "teammate history counts every partnership and follows game sequence for recency",
+    teammateHistory.counts.get("a:b") === 1 &&
+      teammateHistory.counts.get("a:c") === 1 &&
+      teammateHistory.mostRecent.get("a") === "b" &&
+      teammateHistory.mostRecent.get("b") === "a"
+  );
+
+  const balancedBySkill = domain.chooseAutomaticMatch({
     mode: "BALANCED",
     queued: [
       { id: "a", queuePosition: 1, skillLevel: "advanced", lastResult: "UNCLASSIFIED", pairId: null },
@@ -228,31 +272,165 @@ async function check() {
     ],
   });
   ok(
-    "Balanced mode splits strong players across teams",
-    balanced?.find((slot) => slot.participantId === "a")?.team !==
-      balanced?.find((slot) => slot.participantId === "b")?.team
+    "Balanced mode uses skill balance after partner rotation is tied",
+    !sameTeam(balancedBySkill, "a", "b")
   );
+
+  const balancedWithoutRematch = domain.chooseAutomaticMatch({
+    mode: "BALANCED",
+    queued: [
+      { id: "a", queuePosition: 1, skillLevel: "advanced", lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "b", queuePosition: 2, skillLevel: "intermediate", lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "c", queuePosition: 3, skillLevel: "intermediate", lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "d", queuePosition: 4, skillLevel: "beginner", lastResult: "UNCLASSIFIED", pairId: null },
+    ],
+    teammateHistory: {
+      counts: new Map([["a:d", 1], ["b:c", 1]]),
+      mostRecent: new Map([["a", "d"], ["d", "a"], ["b", "c"], ["c", "b"]]),
+    },
+  });
+  ok(
+    "Balanced mode avoids back-to-back partners before optimizing skill",
+    !sameTeam(balancedWithoutRematch, "a", "d") &&
+      !sameTeam(balancedWithoutRematch, "b", "c")
+  );
+
+  const balancedByUsage = domain.chooseAutomaticMatch({
+    mode: "BALANCED",
+    queued: [
+      { id: "a", queuePosition: 1, skillLevel: "advanced", lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "b", queuePosition: 2, skillLevel: "intermediate", lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "c", queuePosition: 3, skillLevel: "intermediate", lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "d", queuePosition: 4, skillLevel: "beginner", lastResult: "UNCLASSIFIED", pairId: null },
+    ],
+    teammateHistory: {
+      counts: new Map([["a:b", 1], ["c:d", 1], ["a:c", 2], ["b:d", 2]]),
+      mostRecent: new Map(),
+    },
+  });
+  ok(
+    "Balanced mode chooses the least-used partnerships before skill balance",
+    sameTeam(balancedByUsage, "a", "d") && sameTeam(balancedByUsage, "b", "c")
+  );
+
   const separated = domain.chooseAutomaticMatch({
     mode: "SKILL_SEPARATED",
     queued: [
       { id: "x", queuePosition: 1, skillLevel: "beginner", lastResult: "UNCLASSIFIED", pairId: null },
       ...["a", "b", "c", "d"].map((id, index) => ({ id, queuePosition: index + 2, skillLevel: "advanced", lastResult: "UNCLASSIFIED" as const, pairId: null })),
     ],
+    teammateHistory: {
+      counts: new Map([["a:b", 1], ["c:d", 1]]),
+      mostRecent: new Map([["a", "b"], ["b", "a"], ["c", "d"], ["d", "c"]]),
+    },
   });
-  ok("Skill Separated waits for a complete tier", separated?.every((slot) => slot.participantId !== "x") === true);
-  const fixed = domain.chooseAutomaticMatch({
-    mode: "FIXED_PARTNERS",
+  ok(
+    "Skill Separated uses the earliest complete tier and rotates its partners",
+    separated?.every((slot) => slot.participantId !== "x") === true &&
+      !sameTeam(separated, "a", "b") &&
+      !sameTeam(separated, "c", "d")
+  );
+
+  const winnersLosers = domain.chooseAutomaticMatch({
+    mode: "WINNERS_LOSERS",
     queued: [
-      { id: "a", queuePosition: 1, skillLevel: "advanced", lastResult: "WIN", pairId: "one" },
-      { id: "b", queuePosition: 3, skillLevel: "beginner", lastResult: "LOSS", pairId: "one" },
-      { id: "c", queuePosition: 2, skillLevel: "advanced", lastResult: "WIN", pairId: "two" },
-      { id: "d", queuePosition: 4, skillLevel: "beginner", lastResult: "LOSS", pairId: "two" },
+      { id: "w1", queuePosition: 1, skillLevel: "advanced", lastResult: "WIN", pairId: null },
+      { id: "l1", queuePosition: 2, skillLevel: "advanced", lastResult: "LOSS", pairId: null },
+      { id: "w2", queuePosition: 3, skillLevel: "beginner", lastResult: "WIN", pairId: null },
+      { id: "l2", queuePosition: 4, skillLevel: "advanced", lastResult: "LOSS", pairId: null },
+      { id: "l3", queuePosition: 5, skillLevel: "beginner", lastResult: "LOSS", pairId: null },
+      { id: "l4", queuePosition: 6, skillLevel: "beginner", lastResult: "LOSS", pairId: null },
+      { id: "w3", queuePosition: 7, skillLevel: "intermediate", lastResult: "WIN", pairId: null },
+    ],
+    teammateHistory: {
+      counts: new Map([["l1:l2", 1], ["l3:l4", 1]]),
+      mostRecent: new Map([["l1", "l2"], ["l2", "l1"], ["l3", "l4"], ["l4", "l3"]]),
+    },
+  });
+  ok(
+    "Winners / Losers uses a complete result cohort and rotates its partners",
+    selectedIds(winnersLosers).join(",") === "l1,l2,l3,l4" &&
+      !sameTeam(winnersLosers, "l1", "l2") &&
+      !sameTeam(winnersLosers, "l3", "l4")
+  );
+
+  const winnersLosersFallback = domain.chooseAutomaticMatch({
+    mode: "WINNERS_LOSERS",
+    queued: [
+      { id: "a", queuePosition: 1, skillLevel: "advanced", lastResult: "WIN", pairId: null },
+      { id: "b", queuePosition: 2, skillLevel: "beginner", lastResult: "LOSS", pairId: null },
+      { id: "c", queuePosition: 3, skillLevel: "intermediate", lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "d", queuePosition: 4, skillLevel: "advanced", lastResult: "WIN", pairId: null },
+      { id: "e", queuePosition: 5, skillLevel: "beginner", lastResult: "LOSS", pairId: null },
     ],
   });
   ok(
-    "Fixed Partners keeps each pair on one team",
-    fixed?.find((slot) => slot.participantId === "a")?.team === fixed?.find((slot) => slot.participantId === "b")?.team &&
-      fixed?.find((slot) => slot.participantId === "c")?.team === fixed?.find((slot) => slot.participantId === "d")?.team
+    "Winners / Losers falls back to the first four when no cohort is complete",
+    selectedIds(winnersLosersFallback).join(",") === "a,b,c,d"
+  );
+
+  const fixed = domain.chooseAutomaticMatch({
+    mode: "FIXED_PARTNERS",
+    queued: [
+      { id: "a", queuePosition: 1, skillLevel: "advanced", lastResult: "WIN", pairId: "late" },
+      { id: "b", queuePosition: 2, skillLevel: "beginner", lastResult: "LOSS", pairId: "first" },
+      { id: "c", queuePosition: 3, skillLevel: "advanced", lastResult: "WIN", pairId: "first" },
+      { id: "d", queuePosition: 4, skillLevel: "beginner", lastResult: "LOSS", pairId: "second" },
+      { id: "e", queuePosition: 5, skillLevel: "intermediate", lastResult: "WIN", pairId: "second" },
+      { id: "x", queuePosition: 6, skillLevel: "intermediate", lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "f", queuePosition: 7, skillLevel: "beginner", lastResult: "LOSS", pairId: "incomplete" },
+      { id: "g", queuePosition: 8, skillLevel: "beginner", lastResult: "LOSS", pairId: "late" },
+    ],
+  });
+  ok(
+    "Fixed Partners chooses the earliest two complete pairs and keeps them intact",
+    selectedIds(fixed).join(",") === "b,c,d,e" &&
+      sameTeam(fixed, "b", "c") &&
+      sameTeam(fixed, "d", "e")
+  );
+
+  const incompleteFixed = domain.chooseAutomaticMatch({
+    mode: "FIXED_PARTNERS",
+    queued: [
+      { id: "a", queuePosition: 1, skillLevel: "advanced", lastResult: "WIN", pairId: "one" },
+      { id: "b", queuePosition: 2, skillLevel: "beginner", lastResult: "LOSS", pairId: "one" },
+      { id: "c", queuePosition: 3, skillLevel: "intermediate", lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "d", queuePosition: 4, skillLevel: "intermediate", lastResult: "UNCLASSIFIED", pairId: "incomplete" },
+    ],
+  });
+  ok(
+    "Fixed Partners waits for two complete pairs",
+    incompleteFixed === null
+  );
+
+  for (const mode of ["BALANCED", "SKILL_SEPARATED", "WINNERS_LOSERS"] as const) {
+    const tooFew = domain.chooseAutomaticMatch({
+      mode,
+      queued: [
+        { id: "a", queuePosition: 1, skillLevel: "advanced", lastResult: "WIN", pairId: null },
+        { id: "b", queuePosition: 2, skillLevel: "intermediate", lastResult: "LOSS", pairId: null },
+        { id: "c", queuePosition: 3, skillLevel: "beginner", lastResult: "UNCLASSIFIED", pairId: null },
+      ],
+    });
+    ok(`${mode} waits for four queued players`, tooFew === null);
+  }
+
+  const deterministicInput = {
+    mode: "BALANCED" as const,
+    queued: [
+      { id: "d", queuePosition: 4, skillLevel: "intermediate", lastResult: "UNCLASSIFIED" as const, pairId: null },
+      { id: "b", queuePosition: 2, skillLevel: "intermediate", lastResult: "UNCLASSIFIED" as const, pairId: null },
+      { id: "a", queuePosition: 1, skillLevel: "intermediate", lastResult: "UNCLASSIFIED" as const, pairId: null },
+      { id: "c", queuePosition: 3, skillLevel: "intermediate", lastResult: "UNCLASSIFIED" as const, pairId: null },
+    ],
+  };
+  const deterministicMatch = domain.chooseAutomaticMatch(deterministicInput);
+  ok(
+    "matching remains deterministic after queue sorting and score ties",
+    sameTeam(deterministicMatch, "a", "b") &&
+      sameTeam(deterministicMatch, "c", "d") &&
+      deterministicMatch?.map((slot) => slot.participantId).join(",") ===
+        "a,b,c,d"
   );
 
   const queue = await prisma.openPlayQueue.findUniqueOrThrow({

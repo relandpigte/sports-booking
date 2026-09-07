@@ -19,11 +19,11 @@ export const OPEN_PLAY_MODE_LABELS: Record<OpenPlayMatchingMode, string> = {
 
 export const OPEN_PLAY_MODE_DESCRIPTIONS: Record<OpenPlayMatchingMode, string> = {
   BALANCED:
-    "Takes the next four players, balances teams by skill, and avoids repeat teammates when possible.",
+    "Takes the next four players, avoids back-to-back and overused partnerships, then balances team skill.",
   SKILL_SEPARATED:
-    "Waits for four players at the same skill level; the earliest eligible group plays next.",
+    "Uses the earliest skill tier with four waiting players, then rotates partners within that tier.",
   WINNERS_LOSERS:
-    "Groups the first waiting player with others sharing their previous result when possible, then uses queue order.",
+    "Uses the earliest complete previous-result group, rotates partners, then falls back to queue order.",
   FIXED_PARTNERS:
     "Keeps saved partners together and selects the next two complete pairs in queue order.",
 };

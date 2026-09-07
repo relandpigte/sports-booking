@@ -30,6 +30,16 @@ export type MatchTeam = {
   queuePositionBefore: number;
 };
 
+export type TeammateHistory = {
+  counts: Map<string, number>;
+  mostRecent: Map<string, string>;
+};
+
+type CompletedGameForHistory = {
+  sequence: number;
+  players: Array<{ participantId: string; team: number }>;
+};
+
 const skillScore: Record<string, number> = {
   beginner: 1,
   intermediate: 2,
@@ -40,9 +50,33 @@ function pairKey(left: string, right: string): string {
   return [left, right].sort().join(":");
 }
 
+export function buildTeammateHistory(
+  games: CompletedGameForHistory[]
+): TeammateHistory {
+  const counts = new Map<string, number>();
+  const mostRecent = new Map<string, string>();
+  const ordered = [...games].sort(
+    (left, right) => left.sequence - right.sequence
+  );
+
+  for (const game of ordered) {
+    for (const team of [1, 2]) {
+      const members = game.players.filter((player) => player.team === team);
+      if (members.length !== 2) continue;
+      const [first, second] = members;
+      const key = pairKey(first.participantId, second.participantId);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+      mostRecent.set(first.participantId, second.participantId);
+      mostRecent.set(second.participantId, first.participantId);
+    }
+  }
+
+  return { counts, mostRecent };
+}
+
 function balancedTeams(
   players: MatchCandidate[],
-  teammateCounts: Map<string, number>
+  teammateHistory: TeammateHistory
 ): MatchTeam[] {
   const arrangements = [
     [[0, 1], [2, 3]],
@@ -55,15 +89,33 @@ function balancedTeams(
       (skillScore[players[b].skillLevel] ?? 2);
     const second = (skillScore[players[c].skillLevel] ?? 2) +
       (skillScore[players[d].skillLevel] ?? 2);
-    const repeats =
-      (teammateCounts.get(pairKey(players[a].id, players[b].id)) ?? 0) +
-      (teammateCounts.get(pairKey(players[c].id, players[d].id)) ?? 0);
-    return { teams, index, difference: Math.abs(first - second), repeats };
+    const pairs = [[players[a], players[b]], [players[c], players[d]]] as const;
+    const immediateRepeats = pairs.reduce(
+      (total, [left, right]) =>
+        total +
+        Number(teammateHistory.mostRecent.get(left.id) === right.id) +
+        Number(teammateHistory.mostRecent.get(right.id) === left.id),
+      0
+    );
+    const usages = pairs.map(
+      ([left, right]) =>
+        teammateHistory.counts.get(pairKey(left.id, right.id)) ?? 0
+    );
+    return {
+      teams,
+      index,
+      difference: Math.abs(first - second),
+      immediateRepeats,
+      totalUsage: usages[0] + usages[1],
+      maximumUsage: Math.max(...usages),
+    };
   });
   ranked.sort(
     (left, right) =>
+      left.immediateRepeats - right.immediateRepeats ||
+      left.totalUsage - right.totalUsage ||
+      left.maximumUsage - right.maximumUsage ||
       left.difference - right.difference ||
-      left.repeats - right.repeats ||
       left.index - right.index
   );
   const [[a, b], [c, d]] = ranked[0].teams;
@@ -78,7 +130,7 @@ function balancedTeams(
 export function chooseAutomaticMatch(input: {
   mode: OpenPlayMatchingMode;
   queued: MatchCandidate[];
-  teammateCounts?: Map<string, number>;
+  teammateHistory?: TeammateHistory;
 }): MatchTeam[] | null {
   const queued = [...input.queued].sort(
     (left, right) => left.queuePosition - right.queuePosition
@@ -127,16 +179,24 @@ export function chooseAutomaticMatch(input: {
     if (eligible.length === 0) return null;
     selected = eligible[0].slice(0, 4);
   } else if (input.mode === "WINNERS_LOSERS") {
-    const first = queued[0];
-    const sameResult = queued.filter(
-      (player) => player.lastResult === first.lastResult
-    );
-    selected = sameResult.length >= 4 ? sameResult.slice(0, 4) : queued.slice(0, 4);
+    const groups = new Map<OpenPlayLastResult, MatchCandidate[]>();
+    for (const player of queued) {
+      const group = groups.get(player.lastResult) ?? [];
+      group.push(player);
+      groups.set(player.lastResult, group);
+    }
+    const eligible = [...groups.values()]
+      .filter((group) => group.length >= 4)
+      .sort((left, right) => left[0].queuePosition - right[0].queuePosition);
+    selected = eligible.length > 0 ? eligible[0].slice(0, 4) : queued.slice(0, 4);
   } else {
     selected = queued.slice(0, 4);
   }
 
-  return balancedTeams(selected, input.teammateCounts ?? new Map());
+  return balancedTeams(
+    selected,
+    input.teammateHistory ?? { counts: new Map(), mostRecent: new Map() }
+  );
 }
 
 export async function getOpenPlayWorkspace(

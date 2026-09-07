@@ -16,6 +16,7 @@ import { consumeRateLimit } from "@/lib/rate-limit";
 import { getSecurityRequestContext } from "@/lib/security-context";
 import { manilaToday } from "@/lib/time";
 import {
+  buildTeammateHistory,
   canTransitionParticipant,
   chooseAutomaticMatch,
   getOpenPlayWorkspace,
@@ -667,23 +668,6 @@ export async function toggleOpenPlayCourtAction(
   return { success: active ? "Court resumed." : "Court paused." };
 }
 
-function teammateHistory(games: Array<{
-  winningTeam: number | null;
-  players: Array<{ participantId: string; team: number }>;
-}>) {
-  const counts = new Map<string, number>();
-  for (const game of games) {
-    if (!game.winningTeam) continue;
-    for (const team of [1, 2]) {
-      const members = game.players.filter((player) => player.team === team);
-      if (members.length !== 2) continue;
-      const key = [members[0].participantId, members[1].participantId].sort().join(":");
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-  }
-  return counts;
-}
-
 export async function stageOpenPlayMatchAction(
   _previous: OpenPlayActionState,
   formData: FormData
@@ -711,7 +695,10 @@ export async function stageOpenPlayMatchAction(
       }),
       tx.openPlayGame.findMany({
         where: { sessionId, status: "COMPLETED" },
-        select: { winningTeam: true, players: { select: { participantId: true, team: true } } },
+        select: {
+          sequence: true,
+          players: { select: { participantId: true, team: true } },
+        },
       }),
       tx.openPlayGame.findFirst({ where: { sessionId }, orderBy: { sequence: "desc" }, select: { sequence: true } }),
     ]);
@@ -721,7 +708,7 @@ export async function stageOpenPlayMatchAction(
     const teams = chooseAutomaticMatch({
       mode: session.matchingMode,
       queued,
-      teammateCounts: teammateHistory(completedGames),
+      teammateHistory: buildTeammateHistory(completedGames),
     });
     if (!teams) return { kind: "players" as const };
     const game = await tx.openPlayGame.create({

@@ -79,8 +79,8 @@ export type OpenPlaySnapshot = {
   games: Array<{
     id: string;
     sequence: number;
-    courtId: string;
-    courtName: string;
+    courtId: string | null;
+    courtName: string | null;
     status: OpenPlayGameStatus;
     matchingMode: OpenPlayMatchingMode;
     selectionMethod: OpenPlaySelectionMethod;

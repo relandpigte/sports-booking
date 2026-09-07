@@ -4,6 +4,7 @@ import { useActionState, useMemo, useState } from "react";
 
 import { OpenPlayBoard } from "@/components/open-play/OpenPlayBoard";
 import { OpenPlayLiveRefresh } from "@/components/open-play/OpenPlayLiveRefresh";
+import { liveMatchPalette } from "@/components/open-play/openPlayColors";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import {
@@ -17,6 +18,7 @@ import {
   checkInOpenPlayParticipantAction,
   checkOutOpenPlayParticipantAction,
   editOpenPlayParticipantAction,
+  dispatchOpenPlayUpNextAction,
   editStagedOpenPlayMatchAction,
   endOpenPlaySessionAction,
   pairOpenPlayParticipantsAction,
@@ -26,9 +28,8 @@ import {
   rejectPublicQueueGuestAction,
   removeOpenPlayParticipantAction,
   resumeOpenPlayParticipantAction,
-  stageOpenPlayMatchAction,
+  regenerateOpenPlayUpNextAction,
   startNewOpenPlayRunAction,
-  startOpenPlayMatchAction,
   startOpenPlaySessionAction,
   syncOpenPlayRosterAction,
   toggleOpenPlayCourtAction,
@@ -144,7 +145,7 @@ function ModeForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 className="text-xs font-black uppercase tracking-[0.16em] text-navy">Matching mode</h2>
-          <p className="mt-1 text-xs text-slate-500">Changes apply to the next staged match.</p>
+          <p className="mt-1 text-xs text-slate-500">Changes rebuild untouched automatic matchups while preserving manual edits.</p>
         </div>
         <button disabled={pending || selected === snapshot.matchingMode} className="min-h-9 rounded-lg bg-primary px-3 text-xs font-black text-white disabled:opacity-40">
           {pending ? "Saving…" : "Apply mode"}
@@ -264,7 +265,7 @@ function StagedMatchEditor({ snapshot, game }: { snapshot: OpenPlaySnapshot; gam
         <input type="hidden" name="sessionId" value={snapshot.id} />
         <input type="hidden" name="gameId" value={game.id} />
         {[0, 1, 2, 3].map((index) => (
-          <Select key={index} name={`player${index + 1}`} label={`${index < 2 ? "Team 1" : "Team 2"} · P${(index % 2) + 1}`} options={options} defaultValue={players[index]?.participantId} />
+          <Select key={index} id={`${game.id}-player-${index + 1}`} name={`player${index + 1}`} label={`${index < 2 ? "Team 1" : "Team 2"} · P${(index % 2) + 1}`} options={options} defaultValue={players[index]?.participantId} />
         ))}
         <Button className="sm:col-span-2 min-h-10 py-2" disabled={pending}>{pending ? "Saving…" : "Save teams"}</Button>
         <div className="sm:col-span-2"><Feedback state={state} /></div>
@@ -273,58 +274,162 @@ function StagedMatchEditor({ snapshot, game }: { snapshot: OpenPlaySnapshot; gam
   );
 }
 
-function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
-  const games = snapshot.games.filter((game) => game.status === "STAGED" || game.status === "ACTIVE");
+function DispatchUpNextForm({
+  snapshot,
+  gameId,
+  freeCourts,
+}: {
+  snapshot: OpenPlaySnapshot;
+  gameId: string;
+  freeCourts: OpenPlaySnapshot["courts"];
+}) {
+  const [state, action, pending] = useBunalQActionState(
+    dispatchOpenPlayUpNextAction
+  );
+  const onlyCourt = freeCourts.length === 1 ? freeCourts[0] : null;
   return (
-    <section>
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-xs font-black uppercase tracking-[0.16em] text-navy">Court status</h2>
-        {snapshot.games.find((game) => game.status === "COMPLETED") ? (() => {
-          const latest = snapshot.games.find((game) => game.status === "COMPLETED");
-          return latest ? <ActionForm action={undoOpenPlayResultAction} values={{ sessionId: snapshot.id, gameId: latest.id }} label="Undo latest result" tone="quiet" /> : null;
-        })() : null}
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {snapshot.courts.map((court) => {
-          const game = games.find((item) => item.courtId === court.id);
-          return (
-            <article key={court.id} className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${game?.status === "ACTIVE" ? "border-primary/40 ring-1 ring-primary/10" : "border-slate-200"}`}>
-              <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-2.5">
-                <h3 className="text-sm font-black text-navy">{court.name}</h3>
-                <span className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider ${game?.status === "ACTIVE" ? "text-primary" : game ? "text-ocean" : "text-slate-500"}`}>
-                  <span className={`h-1.5 w-1.5 rounded-full ${game?.status === "ACTIVE" ? "animate-pulse bg-primary" : game ? "bg-ocean" : court.active ? "bg-slate-300" : "bg-amber-400"}`} />
-                  {!court.active ? "Paused" : game?.status === "ACTIVE" ? "Playing" : game ? "Staged" : "Ready"}
-                </span>
-              </div>
-              <div className="p-3">
-                {game ? (
-                  <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                    {[1, 2].map((team, index) => (
-                      <div key={team} className="contents">
-                        {index === 1 ? <span className="text-[10px] font-black text-slate-300">VS</span> : null}
-                        <div className={`rounded-lg border p-2 text-center ${game.status === "ACTIVE" ? "border-primary/20 bg-primary-soft/60" : "border-slate-200"}`}>
-                          {game.players.filter((player) => player.team === team).map((player) => <p key={player.participantId} className="truncate text-xs font-bold text-navy">{player.displayName}</p>)}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : <p className="py-4 text-center text-xs text-slate-500">{court.active ? "Ready for the next match." : "Rotation paused for this court."}</p>}
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {!game ? <ActionForm action={toggleOpenPlayCourtAction} values={{ sessionId: snapshot.id, courtId: court.id, active: !court.active }} label={court.active ? "Pause court" : "Resume court"} tone="quiet" /> : null}
-                  {!game && court.active && snapshot.status === "ACTIVE" ? <ActionForm action={stageOpenPlayMatchAction} values={{ sessionId: snapshot.id, courtId: court.id }} label="Stage next" /> : null}
-                  {game?.status === "STAGED" ? <ActionForm action={startOpenPlayMatchAction} values={{ sessionId: snapshot.id, gameId: game.id }} label="Start match" /> : null}
-                  {game?.status === "ACTIVE" ? <>
-                    <ActionForm action={recordOpenPlayWinnerAction} values={{ sessionId: snapshot.id, gameId: game.id, winningTeam: 1 }} label="Team 1 won" />
-                    <ActionForm action={recordOpenPlayWinnerAction} values={{ sessionId: snapshot.id, gameId: game.id, winningTeam: 2 }} label="Team 2 won" />
-                  </> : null}
+    <form action={action} className="mt-3 space-y-2">
+      <input type="hidden" name="sessionId" value={snapshot.id} />
+      <input type="hidden" name="gameId" value={gameId} />
+      {onlyCourt ? (
+        <input type="hidden" name="courtId" value={onlyCourt.id} />
+      ) : freeCourts.length > 1 ? (
+        <Select
+          id={`dispatch-court-${gameId}`}
+          name="courtId"
+          label="Available court"
+          options={freeCourts.map((court) => ({
+            value: court.id,
+            label: court.name,
+          }))}
+        />
+      ) : null}
+      <button
+        disabled={pending || freeCourts.length === 0}
+        className="min-h-10 w-full rounded-xl bg-primary px-4 text-sm font-black text-white shadow-sm transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
+      >
+        {pending
+          ? "Sending…"
+          : onlyCourt
+            ? `Send to ${onlyCourt.name}`
+            : freeCourts.length > 1
+              ? "Send to court"
+              : "Waiting for a free court"}
+      </button>
+      <Feedback state={state} />
+    </form>
+  );
+}
+
+function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
+  const activeGames = snapshot.games.filter((game) => game.status === "ACTIVE");
+  const upNext = snapshot.games
+    .filter((game) => game.status === "STAGED")
+    .sort((left, right) => left.sequence - right.sequence);
+  const freeCourts = snapshot.courts.filter(
+    (court) =>
+      court.active && !activeGames.some((game) => game.courtId === court.id)
+  );
+  const latest = snapshot.games
+    .filter((game) => game.status === "COMPLETED" && game.completedAt)
+    .sort(
+      (left, right) =>
+        new Date(right.completedAt!).getTime() -
+        new Date(left.completedAt!).getTime()
+    )[0];
+
+  return (
+    <div className="space-y-6">
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-xs font-black uppercase tracking-[0.16em] text-navy">Court status</h2>
+          {latest ? <ActionForm action={undoOpenPlayResultAction} values={{ sessionId: snapshot.id, gameId: latest.id }} label="Undo latest result" tone="quiet" /> : null}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {snapshot.courts.map((court) => {
+            const game = activeGames.find((item) => item.courtId === court.id);
+            const live = Boolean(game);
+            return (
+              <article
+                key={court.id}
+                className={`overflow-hidden rounded-2xl border shadow-sm ${game ? liveMatchPalette(game.id) : "border-slate-200 bg-white"}`}
+              >
+                <div className={`flex items-center justify-between border-b px-4 py-2.5 ${live ? "border-white/20 bg-black/10" : "border-slate-100 bg-slate-50/80"}`}>
+                  <h3 className={`text-sm font-black ${live ? "text-white" : "text-navy"}`}>{court.name}</h3>
+                  <span className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider ${live ? "text-white" : "text-slate-500"}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${live ? "animate-pulse bg-white" : court.active ? "bg-slate-300" : "bg-amber-400"}`} />
+                    {!court.active ? "Paused" : live ? "Playing" : "Ready"}
+                  </span>
                 </div>
-                {game?.status === "STAGED" ? <StagedMatchEditor snapshot={snapshot} game={game} /> : null}
-              </div>
-            </article>
-          );
-        })}
-      </div>
-    </section>
+                <div className="p-3">
+                  {game ? (
+                    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                      {[1, 2].map((team, index) => (
+                        <div key={team} className="contents">
+                          {index === 1 ? <span className="text-[10px] font-black text-white/60">VS</span> : null}
+                          <div className="rounded-lg border border-white/25 bg-white/15 p-2 text-center backdrop-blur-sm">
+                            {game.players.filter((player) => player.team === team).map((player) => <p key={player.participantId} className="truncate text-xs font-bold text-white">{player.displayName}</p>)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <p className="py-4 text-center text-xs text-slate-500">{court.active ? "Ready for the next match." : "Rotation paused for this court."}</p>}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {!game ? <ActionForm action={toggleOpenPlayCourtAction} values={{ sessionId: snapshot.id, courtId: court.id, active: !court.active }} label={court.active ? "Pause court" : "Resume court"} tone="quiet" /> : null}
+                    {game ? <>
+                      <ActionForm action={recordOpenPlayWinnerAction} values={{ sessionId: snapshot.id, gameId: game.id, winningTeam: 1 }} label="Team 1 won" />
+                      <ActionForm action={recordOpenPlayWinnerAction} values={{ sessionId: snapshot.id, gameId: game.id, winningTeam: 2 }} label="Team 2 won" />
+                    </> : null}
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      <section>
+        <div className="mb-3 flex items-end justify-between gap-3">
+          <div>
+            <h2 className="text-xs font-black uppercase tracking-[0.16em] text-navy">Up next</h2>
+            <p className="mt-1 text-xs text-slate-500">Matchups are prepared automatically and wait for a free court.</p>
+          </div>
+          <span className="text-xs font-bold text-slate-500">{upNext.length} prepared</span>
+        </div>
+        {upNext.length > 0 ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {upNext.map((game, index) => (
+              <article key={game.id} className="rounded-2xl border border-violet-200 bg-white p-3 shadow-sm ring-1 ring-violet-100">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-black text-navy">Match {index + 1}</p>
+                  <div className="flex gap-1.5">
+                    <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-black uppercase text-violet-700">{game.selectionMethod === "AUTOMATIC" ? "Auto" : "Manual"}</span>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-black text-slate-600">{OPEN_PLAY_MODE_LABELS[game.matchingMode]}</span>
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                  {[1, 2].map((team, teamIndex) => (
+                    <div key={team} className="contents">
+                      {teamIndex === 1 ? <span className="text-[10px] font-black text-slate-300">VS</span> : null}
+                      <div className={`rounded-lg border p-2 text-center ${team === 1 ? "border-indigo-200 bg-indigo-50" : "border-rose-200 bg-rose-50"}`}>
+                        {game.players.filter((player) => player.team === team).map((player) => <p key={player.participantId} className="truncate text-xs font-bold text-navy">{player.displayName}</p>)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <DispatchUpNextForm snapshot={snapshot} gameId={game.id} freeCourts={freeCourts} />
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <ActionForm action={regenerateOpenPlayUpNextAction} values={{ sessionId: snapshot.id, gameId: game.id }} label="Regenerate" tone="quiet" />
+                </div>
+                <StagedMatchEditor snapshot={snapshot} game={game} />
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">Check in four eligible players to prepare the next matchup.</p>
+        )}
+      </section>
+    </div>
   );
 }
 
@@ -332,7 +437,7 @@ const GROUPS = [
   ["PENDING_APPROVAL", "Pending approval"],
   ["QUEUED", "Waiting"],
   ["PLAYING", "Playing"],
-  ["STAGED", "Staged"],
+  ["STAGED", "Up next"],
   ["PAUSED", "On break"],
   ["NOT_CHECKED_IN", "Not checked in"],
   ["CHECKED_OUT", "Checked out"],
@@ -815,7 +920,7 @@ export function OpenPlayConsole({ snapshot, canManage }: { snapshot: OpenPlaySna
             <PairForm snapshot={snapshot} />
             {pairs.size > 0 ? <div className="flex flex-wrap gap-2">{[...pairs.entries()].map(([pairId, names]) => <div key={pairId} className="flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900"><span>{names.join(" + ")}</span><ActionForm action={unpairOpenPlayParticipantsAction} values={{ sessionId: snapshot.id, pairId }} label="Unpair" tone="quiet" /></div>)}</div> : null}
             <div className="space-y-6">
-              <div>{snapshot.status === "ACTIVE" ? <MatchControls snapshot={snapshot} /> : <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">Start the run to stage matches.</p>}</div>
+              <div>{snapshot.status === "ACTIVE" ? <MatchControls snapshot={snapshot} /> : <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">Start the run to prepare matchups automatically.</p>}</div>
               <div className={snapshot.queue.kind === "QUICK" ? "grid gap-4 lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.7fr)]" : ""}>
                 <AdmissionForm snapshot={snapshot} />
                 <WalkInForm snapshot={snapshot} />

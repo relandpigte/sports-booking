@@ -3,6 +3,7 @@ import {
   OPEN_PLAY_MODE_LABELS,
   type OpenPlaySnapshot,
 } from "@/lib/open-play-shared";
+import { liveMatchPalette } from "@/components/open-play/openPlayColors";
 
 function Team({
   players,
@@ -22,7 +23,10 @@ function Team({
 
 export function OpenPlayBoard({ snapshot }: { snapshot: OpenPlaySnapshot }) {
   const liveGames = snapshot.games
-    .filter((game) => game.status === "ACTIVE" || game.status === "STAGED")
+    .filter((game) => game.status === "ACTIVE")
+    .sort((left, right) => left.sequence - right.sequence);
+  const upNext = snapshot.games
+    .filter((game) => game.status === "STAGED")
     .sort((left, right) => left.sequence - right.sequence);
   const queued = snapshot.participants
     .filter((participant) => participant.status === "QUEUED")
@@ -51,19 +55,19 @@ export function OpenPlayBoard({ snapshot }: { snapshot: OpenPlaySnapshot }) {
           {snapshot.courts.map((court) => {
             const game = liveGames.find((item) => item.courtId === court.id);
             return (
-              <article key={court.id} className={`overflow-hidden rounded-2xl border ${game?.status === "ACTIVE" ? "border-navy bg-navy" : "border-slate-200 bg-white"}`}>
-                <div className={`flex items-center justify-between border-b px-4 py-3 ${game?.status === "ACTIVE" ? "border-white/10" : "border-slate-100"}`}>
-                  <h3 className={`font-black ${game?.status === "ACTIVE" ? "text-white" : "text-navy"}`}>{court.name}</h3>
-                  <span className={`text-[10px] font-black uppercase tracking-[0.12em] ${game?.status === "ACTIVE" ? "text-accent" : game ? "text-ocean" : "text-slate-400"}`}>
-                    {!court.active ? "Paused" : game?.status === "ACTIVE" ? "Playing" : game?.status === "STAGED" ? "Up next" : "Open"}
+              <article key={court.id} className={`overflow-hidden rounded-2xl border ${game ? liveMatchPalette(game.id) : "border-slate-200 bg-white"}`}>
+                <div className={`flex items-center justify-between border-b px-4 py-3 ${game ? "border-white/20 bg-black/10" : "border-slate-100"}`}>
+                  <h3 className={`font-black ${game ? "text-white" : "text-navy"}`}>{court.name}</h3>
+                  <span className={`text-[10px] font-black uppercase tracking-[0.12em] ${game ? "text-white" : "text-slate-400"}`}>
+                    {!court.active ? "Paused" : game ? "Playing" : "Open"}
                   </span>
                 </div>
                 <div className="p-4">
                   {game ? (
                     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                      <Team dark={game.status === "ACTIVE"} players={game.players.filter((player) => player.team === 1)} />
-                      <span className={`text-[10px] font-black ${game.status === "ACTIVE" ? "text-white/30" : "text-slate-300"}`}>VS</span>
-                      <Team dark={game.status === "ACTIVE"} players={game.players.filter((player) => player.team === 2)} />
+                      <Team dark players={game.players.filter((player) => player.team === 1)} />
+                      <span className="text-[10px] font-black text-white/60">VS</span>
+                      <Team dark players={game.players.filter((player) => player.team === 2)} />
                     </div>
                   ) : <p className="py-5 text-center text-sm text-slate-500">{court.active ? "Ready for the next match." : "Court rotation is paused."}</p>}
                 </div>
@@ -71,6 +75,35 @@ export function OpenPlayBoard({ snapshot }: { snapshot: OpenPlaySnapshot }) {
             );
           })}
         </div>
+      </section>
+
+      <section>
+        <div className="mb-3 flex items-end justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-black uppercase tracking-[0.16em] text-navy">Up next</h2>
+            <p className="mt-1 text-xs text-slate-500">Be ready when a court opens.</p>
+          </div>
+          <span className="text-xs font-bold text-slate-500">{upNext.length} prepared</span>
+        </div>
+        {upNext.length > 0 ? (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {upNext.map((game, index) => (
+              <article key={game.id} className="rounded-2xl border border-violet-200 bg-white p-4 shadow-sm ring-1 ring-violet-100">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-700">Match {index + 1}</p>
+                  <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-black text-violet-700">{OPEN_PLAY_MODE_LABELS[game.matchingMode]}</span>
+                </div>
+                <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                  <Team dark={false} players={game.players.filter((player) => player.team === 1)} />
+                  <span className="text-[10px] font-black text-slate-300">VS</span>
+                  <Team dark={false} players={game.players.filter((player) => player.team === 2)} />
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-sm text-slate-500">The next matchup appears automatically when four eligible players are waiting.</p>
+        )}
       </section>
 
       <div className="grid gap-5 lg:grid-cols-[1.45fr_1fr]">

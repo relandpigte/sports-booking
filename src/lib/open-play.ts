@@ -35,8 +35,21 @@ export type TeammateHistory = {
   mostRecent: Map<string, string>;
 };
 
+type OpenPlayTx = Prisma.TransactionClient;
+
+type StagedGameWithPlayers = {
+  id: string;
+  sequence: number;
+  selectionMethod: "AUTOMATIC" | "MANUAL";
+  players: Array<{
+    participantId: string;
+    queuePositionBefore: number;
+  }>;
+};
+
 type CompletedGameForHistory = {
   sequence: number;
+  completedAt?: Date | null;
   players: Array<{ participantId: string; team: number }>;
 };
 
@@ -55,9 +68,12 @@ export function buildTeammateHistory(
 ): TeammateHistory {
   const counts = new Map<string, number>();
   const mostRecent = new Map<string, string>();
-  const ordered = [...games].sort(
-    (left, right) => left.sequence - right.sequence
-  );
+  const ordered = [...games].sort((left, right) => {
+    if (left.completedAt && right.completedAt) {
+      return left.completedAt.getTime() - right.completedAt.getTime();
+    }
+    return left.sequence - right.sequence;
+  });
 
   for (const game of ordered) {
     for (const team of [1, 2]) {
@@ -197,6 +213,183 @@ export function chooseAutomaticMatch(input: {
     selected,
     input.teammateHistory ?? { counts: new Map(), mostRecent: new Map() }
   );
+}
+
+async function cancelStagedGames(
+  tx: OpenPlayTx,
+  sessionId: string,
+  games: StagedGameWithPlayers[]
+): Promise<void> {
+  const now = new Date();
+  for (const game of games) {
+    for (const player of game.players) {
+      await tx.openPlayParticipant.updateMany({
+        where: {
+          id: player.participantId,
+          sessionId,
+          status: "STAGED",
+        },
+        data: {
+          status: "QUEUED",
+          queuePosition: player.queuePositionBefore,
+          queuedAt: now,
+        },
+      });
+    }
+    await tx.openPlayGame.updateMany({
+      where: { id: game.id, sessionId, status: "STAGED" },
+      data: { status: "CANCELLED", cancelledAt: now },
+    });
+  }
+}
+
+export async function cancelOpenPlayUpNextGame(
+  tx: OpenPlayTx,
+  sessionId: string,
+  gameId: string
+): Promise<boolean> {
+  const game = await tx.openPlayGame.findFirst({
+    where: { id: gameId, sessionId, status: "STAGED" },
+    select: {
+      id: true,
+      sequence: true,
+      selectionMethod: true,
+      players: {
+        select: { participantId: true, queuePositionBefore: true },
+      },
+    },
+  });
+  if (!game) return false;
+  await cancelStagedGames(tx, sessionId, [game]);
+  return true;
+}
+
+export async function syncAutomaticOpenPlayUpNext(
+  tx: OpenPlayTx,
+  input: {
+    sessionId: string;
+    createdById: string | null;
+    refreshAutomatic?: boolean;
+  }
+): Promise<{ createdGameIds: string[] }> {
+  // Callers hold the OpenPlaySession row lock, serializing every queue and
+  // dispatch mutation so two requests cannot reserve the same participant.
+  const session = await tx.openPlaySession.findUnique({
+    where: { id: input.sessionId },
+    select: {
+      id: true,
+      status: true,
+      matchingMode: true,
+      courts: { select: { active: true } },
+    },
+  });
+  if (!session || session.status !== "ACTIVE") {
+    return { createdGameIds: [] };
+  }
+
+  const targetCount = session.courts.filter((court) => court.active).length;
+  let staged = await tx.openPlayGame.findMany({
+    where: { sessionId: session.id, status: "STAGED" },
+    orderBy: { sequence: "asc" },
+    select: {
+      id: true,
+      sequence: true,
+      selectionMethod: true,
+      players: {
+        select: { participantId: true, queuePositionBefore: true },
+      },
+    },
+  });
+
+  if (input.refreshAutomatic) {
+    const automatic = staged.filter(
+      (game) => game.selectionMethod === "AUTOMATIC"
+    );
+    await cancelStagedGames(tx, session.id, automatic);
+    const automaticIds = new Set(automatic.map((game) => game.id));
+    staged = staged.filter((game) => !automaticIds.has(game.id));
+  }
+
+  if (staged.length > targetCount) {
+    const excess = staged.length - targetCount;
+    const removable = staged
+      .filter((game) => game.selectionMethod === "AUTOMATIC")
+      .slice(-excess);
+    await cancelStagedGames(tx, session.id, removable);
+    const removedIds = new Set(removable.map((game) => game.id));
+    staged = staged.filter((game) => !removedIds.has(game.id));
+  }
+
+  const [completedGames, latestGame] = await Promise.all([
+    tx.openPlayGame.findMany({
+      where: { sessionId: session.id, status: "COMPLETED" },
+      select: {
+        sequence: true,
+        completedAt: true,
+        players: { select: { participantId: true, team: true } },
+      },
+    }),
+    tx.openPlayGame.findFirst({
+      where: { sessionId: session.id },
+      orderBy: { sequence: "desc" },
+      select: { sequence: true },
+    }),
+  ]);
+  const teammateHistory = buildTeammateHistory(completedGames);
+  const createdGameIds: string[] = [];
+  let nextSequence = (latestGame?.sequence ?? 0) + 1;
+
+  while (staged.length + createdGameIds.length < targetCount) {
+    const queuedRows = await tx.openPlayParticipant.findMany({
+      where: {
+        sessionId: session.id,
+        status: "QUEUED",
+        queuePosition: { not: null },
+      },
+      orderBy: { queuePosition: "asc" },
+      select: {
+        id: true,
+        queuePosition: true,
+        skillLevel: true,
+        lastResult: true,
+        pairId: true,
+      },
+    });
+    const queued = queuedRows.flatMap((row) =>
+      row.queuePosition == null
+        ? []
+        : [{ ...row, queuePosition: row.queuePosition }]
+    ) satisfies MatchCandidate[];
+    const teams = chooseAutomaticMatch({
+      mode: session.matchingMode,
+      queued,
+      teammateHistory,
+    });
+    if (!teams) break;
+
+    const game = await tx.openPlayGame.create({
+      data: {
+        sessionId: session.id,
+        sequence: nextSequence,
+        matchingMode: session.matchingMode,
+        createdById: input.createdById,
+        players: { create: teams },
+      },
+      select: { id: true },
+    });
+    nextSequence += 1;
+    createdGameIds.push(game.id);
+    await tx.openPlayParticipant.updateMany({
+      where: {
+        id: { in: teams.map((team) => team.participantId) },
+        sessionId: session.id,
+        status: "QUEUED",
+      },
+      data: { status: "STAGED", queuePosition: null, queuedAt: null },
+    });
+  }
+
+  return { createdGameIds };
 }
 
 export async function getOpenPlayWorkspace(
@@ -376,7 +569,7 @@ function toSnapshot(
       id: game.id,
       sequence: game.sequence,
       courtId: game.courtId,
-      courtName: game.court.name,
+      courtName: game.court?.name ?? null,
       status: game.status,
       matchingMode: game.matchingMode,
       selectionMethod: game.selectionMethod,
@@ -469,6 +662,23 @@ export async function getOpenPlayLiveRevision(
     orderBy: { runNumber: "desc" },
     select: {
       id: true,
+      updatedAt: true,
+      matchingMode: true,
+      courts: {
+        orderBy: { position: "asc" },
+        select: { courtId: true, active: true },
+      },
+      games: {
+        where: { status: { in: ["STAGED", "ACTIVE"] } },
+        orderBy: { sequence: "asc" },
+        select: {
+          id: true,
+          courtId: true,
+          status: true,
+          selectionMethod: true,
+          updatedAt: true,
+        },
+      },
       participants: {
         orderBy: { id: "asc" },
         select: { id: true, status: true, updatedAt: true },
@@ -478,6 +688,13 @@ export async function getOpenPlayLiveRevision(
   if (!session) return null;
   return JSON.stringify({
     sessionId: session.id,
+    updatedAt: session.updatedAt.toISOString(),
+    matchingMode: session.matchingMode,
+    courts: session.courts,
+    games: session.games.map((game) => ({
+      ...game,
+      updatedAt: game.updatedAt.toISOString(),
+    })),
     participants: session.participants.map((participant) => ({
       id: participant.id,
       status: participant.status,

@@ -1762,7 +1762,9 @@ model OpenPlayParticipant {
 model OpenPlayGame {
   id              String                  @id @default(cuid())
   sessionId       String
-  courtId         String
+  // Upcoming games are court-independent until an operator dispatches them.
+  // A database check still requires a court for ACTIVE and COMPLETED rows.
+  courtId         String?
   sequence        Int
   matchingMode    OpenPlayMatchingMode
   selectionMethod OpenPlaySelectionMethod @default(AUTOMATIC)
@@ -1776,7 +1778,7 @@ model OpenPlayGame {
   updatedAt       DateTime                @updatedAt
 
   session OpenPlaySession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  court   Court                @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  court   Court?               @relation(fields: [courtId], references: [id], onDelete: Cascade)
   players OpenPlayGamePlayer[]
 
   @@unique([sessionId, sequence])

@@ -601,7 +601,7 @@ function ParticipantMoreActions({
         <span aria-hidden="true">⋮</span>
         <span className="sr-only">More actions</span>
       </summary>
-      <div className="absolute right-0 top-full z-30 mt-2 flex w-[min(18rem,calc(100vw-3rem))] flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
+      <div className="absolute right-0 top-full z-30 mt-2 flex w-[min(24rem,calc(100vw-3rem))] flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
         {participant.status === "PENDING_APPROVAL" ? (
           <ActionForm action={rejectPublicQueueGuestAction} values={values} label="Reject request" tone="danger" />
         ) : null}
@@ -782,7 +782,7 @@ function ParticipantRoster({
           Select actionable players in this view
         </label>
       ) : null}
-      <div className="grid grid-cols-1 gap-2 p-2 sm:p-3 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2 p-2 sm:p-3 md:grid-cols-2">
         {visibleParticipants.length === 0 ? (
           <p className="col-span-full px-4 py-10 text-center text-sm text-slate-500">No players in this view.</p>
         ) : visibleParticipants.map((player) => {
@@ -933,11 +933,19 @@ function ParticipantRoster({
 function EditParticipantForm({ snapshot, participant }: { snapshot: OpenPlaySnapshot; participant: OpenPlaySnapshot["participants"][number] }) {
   const [state, action, pending] = useBunalQActionState(editOpenPlayParticipantAction);
   return (
-    <form action={action} className="mt-2 grid gap-2 rounded-lg bg-white p-2 sm:grid-cols-2">
+    <form action={action} className="mt-2 grid gap-3 rounded-lg bg-white p-2 sm:grid-cols-2">
       <input type="hidden" name="sessionId" value={snapshot.id} />
       <input type="hidden" name="participantId" value={participant.id} />
-      <label className="text-[10px] font-bold text-slate-500">Name<input name="displayName" defaultValue={participant.displayName} required className="mt-1 min-h-9 w-full rounded-lg border border-slate-300 px-2 text-xs" /></label>
-      <Select name="skillLevel" label="Skill" options={[...SKILL_LEVELS]} defaultValue={participant.skillLevel} />
+      <label className="flex flex-col gap-1.5 text-sm font-medium text-gray-800">
+        Name
+        <input
+          name="displayName"
+          defaultValue={participant.displayName}
+          required
+          className="min-h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+        />
+      </label>
+      <Select name="skillLevel" label="Skill" options={[...SKILL_LEVELS]} defaultValue={participant.skillLevel} className="min-h-10" />
       <button disabled={pending} className="min-h-9 rounded-lg bg-primary px-3 text-xs font-black text-white sm:col-span-2">{pending ? "Saving…" : "Save changes"}</button>
       <div className="sm:col-span-2"><Feedback state={state} /></div>
     </form>

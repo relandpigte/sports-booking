@@ -69,6 +69,7 @@ export type EventDetailView = PublicEventView & {
     name: string | null;
     playerName: string | null;
     image: string | null;
+    isGuest: boolean;
   }[];
   viewerRegistration: EventRegistrationView | null;
   ownerId: string;
@@ -515,31 +516,30 @@ export async function getPublicEvent(
                   name: null,
                   playerName: "Private player",
                   image: null,
+                  isGuest: false,
                 }
               : {
                   id: account.id,
                   name: account.name,
                   playerName: account.playerName,
                   image: account.image,
+                  isGuest: false,
                 }
             : {
                 id: registration.id,
                 name: guestLead?.name ?? "Guest player",
                 playerName: null,
                 image: null,
+                isGuest: true,
               };
-          const leadName = account
-            ? account.playerName ?? account.name ?? "Player"
-            : guestLead?.name ?? "Guest player";
           const guests = registration.guests
             .filter((guest) => guest.status === "CONFIRMED")
             .map((guest) => ({
               id: guest.id,
-              name: null,
-              playerName: account?.privateProfile
-                ? "Guest player"
-                : `Guest of ${leadName}`,
+              name: guest.name,
+              playerName: null,
               image: null,
+              isGuest: true,
             }));
           return [lead, ...guests];
         }),
@@ -547,9 +547,10 @@ export async function getPublicEvent(
         .filter((guest) => guest.status === "CONFIRMED")
         .map((guest) => ({
           id: guest.id,
-          name: null,
-          playerName: "Guest of organizer",
+          name: guest.name,
+          playerName: null,
           image: null,
+          isGuest: true,
         })),
     ],
     viewerRegistration: viewer

@@ -292,6 +292,7 @@ export default async function EventDetailPage({
                           key={player.id}
                           image={player.image}
                           displayName={displayName}
+                          isGuest={player.isGuest}
                         />
                       );
                     })}
@@ -344,6 +345,7 @@ export default async function EventDetailPage({
                               key={player.id}
                               image={player.image}
                               displayName={displayName}
+                              isGuest={player.isGuest}
                             />
                           );
                         })}
@@ -445,16 +447,25 @@ function EventFact({ icon, label, children }: { icon: React.ReactNode; label: st
 function EventAttendeeChip({
   image,
   displayName,
+  isGuest,
 }: {
   image: string | null;
   displayName: string;
+  isGuest: boolean;
 }) {
   return (
     <div className="flex min-w-0 items-center gap-2 rounded-xl border border-white/80 bg-white/90 p-2.5 shadow-sm shadow-navy/5">
       <Avatar src={image} name={displayName} size={32} />
-      <p className="min-w-0 truncate text-sm font-bold text-navy">
-        {displayName}
-      </p>
+      <div className="flex min-w-0 flex-1 items-center gap-1.5">
+        <p className="min-w-0 truncate text-sm font-bold text-navy">
+          {displayName}
+        </p>
+        {isGuest ? (
+          <Badge className="px-1.5 py-0 text-[10px] uppercase tracking-wide">
+            Guest
+          </Badge>
+        ) : null}
+      </div>
     </div>
   );
 }

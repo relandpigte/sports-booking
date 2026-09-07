@@ -262,10 +262,14 @@ async function check() {
   );
   const publicEvent = await getPublicEvent(event.publicId, null, guest.id);
   ok(
-    "the public roster shows the guest lead's submitted full name",
+    "the public roster shows submitted guest names with guest markers",
     publicEvent?.attendees.some(
-      (attendee) => attendee.name === "Guest Event Player"
-    ) === true
+      (attendee) =>
+        attendee.name === "Guest Event Player" && attendee.isGuest
+    ) === true &&
+      publicEvent.attendees.some(
+        (attendee) => attendee.name === "Guest Companion" && attendee.isGuest
+      )
   );
   ok(
     "the private guest identity restores registration status on the event",

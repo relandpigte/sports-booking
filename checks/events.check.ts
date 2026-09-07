@@ -569,7 +569,9 @@ async function check() {
       fullOrganizerEvent.remainingSpots === 0 &&
       fullOrganizerEvent.attendees.every(
         (attendee) =>
-          attendee.name === null && attendee.playerName === "Guest of organizer"
+          organizerGuestRows.some((guest) => guest.name === attendee.name) &&
+          attendee.playerName === null &&
+          attendee.isGuest
       )
   );
 

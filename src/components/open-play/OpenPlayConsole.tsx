@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 
 import { OpenPlayBoard } from "@/components/open-play/OpenPlayBoard";
 import { OpenPlayLiveRefresh } from "@/components/open-play/OpenPlayLiveRefresh";
@@ -979,8 +979,14 @@ function ParticipantRoster({
 
 function EditParticipantForm({ snapshot, participant }: { snapshot: OpenPlaySnapshot; participant: OpenPlaySnapshot["participants"][number] }) {
   const [state, action, pending] = useBunalQActionState(editOpenPlayParticipantAction);
+  const formRef = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (!state.success) return;
+    const menu = formRef.current?.closest("details");
+    if (menu instanceof HTMLDetailsElement) menu.open = false;
+  }, [state.success]);
   return (
-    <form action={action} className="mt-2 grid gap-3 rounded-lg bg-white p-2 sm:grid-cols-2">
+    <form ref={formRef} action={action} className="mt-2 grid gap-3 rounded-lg bg-white p-2 sm:grid-cols-2">
       <input type="hidden" name="sessionId" value={snapshot.id} />
       <input type="hidden" name="participantId" value={participant.id} />
       <label className="flex flex-col gap-1.5 text-sm font-medium text-gray-800">
@@ -994,7 +1000,7 @@ function EditParticipantForm({ snapshot, participant }: { snapshot: OpenPlaySnap
       </label>
       <Select name="skillLevel" label="Skill" options={[...SKILL_LEVELS]} defaultValue={participant.skillLevel} className="min-h-10" />
       <button disabled={pending} className="min-h-9 rounded-lg bg-primary px-3 text-xs font-black text-white sm:col-span-2">{pending ? "Saving…" : "Save changes"}</button>
-      <div className="sm:col-span-2"><Feedback state={state} /></div>
+      {state.message ? <div className="sm:col-span-2"><Feedback state={state} /></div> : null}
     </form>
   );
 }

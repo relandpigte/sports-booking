@@ -76,6 +76,23 @@ function Feedback({ state }: { state: OpenPlayActionState }) {
   );
 }
 
+function AutoDismissSuccessFeedback({
+  state,
+  delay = 4_000,
+}: {
+  state: OpenPlayActionState;
+  delay?: number;
+}) {
+  const [dismissedState, setDismissedState] = useState<OpenPlayActionState>();
+  useEffect(() => {
+    if (!state.success) return;
+    const timeout = window.setTimeout(() => setDismissedState(state), delay);
+    return () => window.clearTimeout(timeout);
+  }, [delay, state]);
+  if (state.success && dismissedState === state) return null;
+  return <Feedback state={state} />;
+}
+
 function ActionForm({
   action,
   values,
@@ -395,7 +412,7 @@ function ReplaceStagedCourtMatchForm({
           </form>
         ))}
       </div>
-      <Feedback state={state} />
+      <AutoDismissSuccessFeedback state={state} />
     </div>
   );
 }

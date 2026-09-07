@@ -6,7 +6,7 @@ import { OpenPlayBoard } from "@/components/open-play/OpenPlayBoard";
 import { OpenPlayLiveRefresh } from "@/components/open-play/OpenPlayLiveRefresh";
 import {
   liveMatchPalette,
-  openPlayCourtGridClass,
+  openPlayThreeColumnGridClass,
 } from "@/components/open-play/openPlayColors";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
@@ -451,7 +451,7 @@ function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
           <h2 className="text-xs font-black uppercase tracking-[0.16em] text-navy">Court status</h2>
           {latest ? <ActionForm action={undoOpenPlayResultAction} values={{ sessionId: snapshot.id, gameId: latest.id }} label="Undo latest result" tone="quiet" /> : null}
         </div>
-        <div className={`grid gap-3 ${openPlayCourtGridClass(snapshot.courts.length)}`}>
+        <div className={`grid gap-3 ${openPlayThreeColumnGridClass(snapshot.courts.length)}`}>
           {snapshot.courts.map((court) => {
             const game = courtGames.find((item) => item.courtId === court.id);
             const live = game?.status === "ACTIVE";
@@ -528,7 +528,7 @@ function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
           <span className="text-xs font-bold text-slate-500">{upNext.length}/{OPEN_PLAY_UP_NEXT_BUFFER_SIZE} prepared</span>
         </div>
         {upNext.length > 0 ? (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className={`grid gap-3 ${openPlayThreeColumnGridClass(upNext.length)}`}>
             {upNext.map((game, index) => (
               <article key={game.id} className="rounded-2xl border border-violet-200 bg-white p-3 shadow-sm ring-1 ring-violet-100">
                 <div className="flex items-center justify-between gap-2">

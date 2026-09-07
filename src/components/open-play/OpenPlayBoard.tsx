@@ -6,7 +6,7 @@ import {
 } from "@/lib/open-play-shared";
 import {
   liveMatchPalette,
-  openPlayCourtGridClass,
+  openPlayThreeColumnGridClass,
 } from "@/components/open-play/openPlayColors";
 
 function Team({
@@ -65,7 +65,7 @@ export function OpenPlayBoard({ snapshot }: { snapshot: OpenPlaySnapshot }) {
           <h2 className="text-sm font-black uppercase tracking-[0.16em] text-navy">Courts</h2>
           <span className="text-xs font-bold text-slate-500">{snapshot.courts.filter((court) => court.active).length} active</span>
         </div>
-        <div className={`grid gap-3 ${openPlayCourtGridClass(snapshot.courts.length)}`}>
+        <div className={`grid gap-3 ${openPlayThreeColumnGridClass(snapshot.courts.length)}`}>
           {snapshot.courts.map((court) => {
             const game = courtGames.find((item) => item.courtId === court.id);
             const live = game?.status === "ACTIVE";
@@ -103,7 +103,7 @@ export function OpenPlayBoard({ snapshot }: { snapshot: OpenPlaySnapshot }) {
           <span className="text-xs font-bold text-slate-500">{upNext.length}/{OPEN_PLAY_UP_NEXT_BUFFER_SIZE} prepared</span>
         </div>
         {upNext.length > 0 ? (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className={`grid gap-3 ${openPlayThreeColumnGridClass(upNext.length)}`}>
             {upNext.map((game, index) => (
               <article key={game.id} className="rounded-2xl border border-violet-200 bg-white p-4 shadow-sm ring-1 ring-violet-100">
                 <div className="flex items-center justify-between gap-2">

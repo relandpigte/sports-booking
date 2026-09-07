@@ -441,6 +441,24 @@ async function participantTransition(
     if (!participant || !canTransitionParticipant(participant.status, operation)) {
       return { message: "That player cannot make this transition right now." };
     }
+    let refreshedUpNext = false;
+    if (operation === "PAUSE" && participant.status === "STAGED") {
+      const stagedGame = await tx.openPlayGame.findFirst({
+        where: {
+          sessionId,
+          status: "STAGED",
+          players: { some: { participantId: participant.id } },
+        },
+        select: { id: true },
+      });
+      if (
+        !stagedGame ||
+        !(await cancelOpenPlayUpNextGame(tx, sessionId, stagedGame.id))
+      ) {
+        return { message: "That upcoming match is no longer available." };
+      }
+      refreshedUpNext = true;
+    }
     if (operation === "CHECK_IN" || operation === "RESUME") {
       const position = session.nextQueuePosition + 1;
       await tx.openPlaySession.update({
@@ -473,6 +491,7 @@ async function participantTransition(
     return {
       queuePublicId: session.queue.publicId,
       eventPublicId: session.queue.event?.publicId ?? null,
+      refreshedUpNext,
     };
   });
 }
@@ -490,7 +509,11 @@ async function transitionAction(
   if ("message" in result) return result;
   await audit(workspace, `OPEN_PLAY_${operation}`, sessionId, { participantId });
   refresh(result.queuePublicId, result.eventPublicId);
-  return { success: "Player updated." };
+  return {
+    success: result.refreshedUpNext
+      ? "Player sat out; Up next was updated automatically."
+      : "Player updated.",
+  };
 }
 
 export async function checkInOpenPlayParticipantAction(

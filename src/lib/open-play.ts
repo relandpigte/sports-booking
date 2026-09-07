@@ -901,7 +901,9 @@ export function canTransitionParticipant(
   if (operation === "CHECK_IN") {
     return status === "NOT_CHECKED_IN" || status === "CHECKED_OUT";
   }
-  if (operation === "PAUSE") return status === "QUEUED";
+  if (operation === "PAUSE") {
+    return status === "QUEUED" || status === "STAGED";
+  }
   if (operation === "RESUME") return status === "PAUSED";
   return ["NOT_CHECKED_IN", "QUEUED", "PAUSED"].includes(status);
 }

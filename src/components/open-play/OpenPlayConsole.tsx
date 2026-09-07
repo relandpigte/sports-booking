@@ -322,6 +322,45 @@ function DispatchUpNextForm({
   );
 }
 
+function SitOutStagedPlayerForm({
+  snapshot,
+  participantId,
+  displayName,
+}: {
+  snapshot: OpenPlaySnapshot;
+  participantId: string;
+  displayName: string;
+}) {
+  const [state, action, pending] = useBunalQActionState(
+    pauseOpenPlayParticipantAction
+  );
+  return (
+    <form action={action} className="relative shrink-0">
+      <input type="hidden" name="sessionId" value={snapshot.id} />
+      <input type="hidden" name="participantId" value={participantId} />
+      <button
+        type="submit"
+        disabled={pending}
+        title={`Sit ${displayName} out`}
+        aria-label={`Sit ${displayName} out and update Up next`}
+        className="flex h-7 w-7 items-center justify-center rounded-md text-amber-700 transition hover:bg-amber-100 disabled:cursor-wait disabled:opacity-50"
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 stroke-current" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="6" y="4" width="4" height="16" rx="1" />
+          <rect x="14" y="4" width="4" height="16" rx="1" />
+        </svg>
+      </button>
+      {state.message ? (
+        <span className="absolute right-0 top-full z-30 mt-1 w-48 rounded-lg bg-red-50 p-2 text-left text-[10px] font-bold text-red-700 shadow-lg" role="alert">
+          {state.message}
+        </span>
+      ) : (
+        <span className="sr-only" aria-live="polite">{state.success}</span>
+      )}
+    </form>
+  );
+}
+
 function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
   const courtGames = snapshot.games.filter(
     (game) =>
@@ -380,7 +419,18 @@ function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
                           <div className={`overflow-hidden rounded-xl border ${team === 1 ? palette.team1Panel : palette.team2Panel}`}>
                             <p className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-wider ${team === 1 ? palette.team1Accent : palette.team2Accent}`}>Team {team}</p>
                             <div className="space-y-1 px-3 py-2.5">
-                              {game.players.filter((player) => player.team === team).map((player) => <p key={player.participantId} className="truncate text-xs font-bold text-navy">{player.displayName}</p>)}
+                              {game.players.filter((player) => player.team === team).map((player) => (
+                                <div key={player.participantId} className="flex min-w-0 items-center gap-1">
+                                  <p className="min-w-0 flex-1 truncate text-xs font-bold text-navy">{player.displayName}</p>
+                                  {staged ? (
+                                    <SitOutStagedPlayerForm
+                                      snapshot={snapshot}
+                                      participantId={player.participantId}
+                                      displayName={player.displayName}
+                                    />
+                                  ) : null}
+                                </div>
+                              ))}
                             </div>
                           </div>
                         </div>
@@ -427,7 +477,16 @@ function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
                     <div key={team} className="contents">
                       {teamIndex === 1 ? <span className="text-[10px] font-black text-slate-300">VS</span> : null}
                       <div className={`rounded-lg border p-2 text-center ${team === 1 ? "border-indigo-200 bg-indigo-50" : "border-rose-200 bg-rose-50"}`}>
-                        {game.players.filter((player) => player.team === team).map((player) => <p key={player.participantId} className="truncate text-xs font-bold text-navy">{player.displayName}</p>)}
+                        {game.players.filter((player) => player.team === team).map((player) => (
+                          <div key={player.participantId} className="flex min-w-0 items-center gap-1 text-left">
+                            <p className="min-w-0 flex-1 truncate text-xs font-bold text-navy">{player.displayName}</p>
+                            <SitOutStagedPlayerForm
+                              snapshot={snapshot}
+                              participantId={player.participantId}
+                              displayName={player.displayName}
+                            />
+                          </div>
+                        ))}
                       </div>
                     </div>
                   ))}
@@ -485,8 +544,8 @@ function ParticipantPrimaryAction({
   if (["NOT_CHECKED_IN", "CHECKED_OUT"].includes(participant.status)) {
     return <ActionForm action={checkInOpenPlayParticipantAction} values={values} label="Check in" />;
   }
-  if (participant.status === "QUEUED") {
-    return <ActionForm action={pauseOpenPlayParticipantAction} values={values} label="Break" tone="quiet" />;
+  if (["QUEUED", "STAGED"].includes(participant.status)) {
+    return <ActionForm action={pauseOpenPlayParticipantAction} values={values} label="Sit out" tone="quiet" />;
   }
   if (participant.status === "PAUSED") {
     return <ActionForm action={resumeOpenPlayParticipantAction} values={values} label="Rejoin" />;
@@ -500,6 +559,7 @@ function hasParticipantPrimaryAction(status: ParticipantStatus) {
     "NOT_CHECKED_IN",
     "CHECKED_OUT",
     "QUEUED",
+    "STAGED",
     "PAUSED",
   ].includes(status);
 }
@@ -534,8 +594,12 @@ function ParticipantMoreActions({
   if (!hasActions) return null;
   return (
     <details className="relative z-10 shrink-0 open:z-30">
-      <summary className="flex min-h-9 cursor-pointer list-none items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
-        More
+      <summary
+        aria-label={`More actions for ${participant.displayName}`}
+        className="flex h-10 w-9 cursor-pointer list-none items-center justify-center rounded-lg text-xl font-black leading-none text-slate-500 transition hover:bg-slate-100 hover:text-navy [&::-webkit-details-marker]:hidden"
+      >
+        <span aria-hidden="true">⋮</span>
+        <span className="sr-only">More actions</span>
       </summary>
       <div className="absolute right-0 top-full z-30 mt-2 flex w-[min(18rem,calc(100vw-3rem))] flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
         {participant.status === "PENDING_APPROVAL" ? (
@@ -618,6 +682,10 @@ function ParticipantRoster({
   );
   const bulkPending = checkInPending || pausePending || removePending;
   const activeCount = snapshot.participants.filter((player) => player.status !== "REMOVED").length;
+  const standingsByParticipant = useMemo(
+    () => new Map(snapshot.standings.map((row) => [row.participantId, row])),
+    [snapshot.standings]
+  );
   const sortedParticipants = useMemo(
     () => GROUPS.flatMap(([status]) => snapshot.participants.filter((player) => player.status === status)),
     [snapshot.participants]
@@ -676,14 +744,16 @@ function ParticipantRoster({
   });
   return (
     <section className="rounded-2xl border border-slate-200 bg-white">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-5">
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
+        <div className="flex items-center gap-2">
           <h2 className="text-xs font-black uppercase tracking-[0.16em] text-navy">Active roster</h2>
-          <p className="mt-1 text-xs text-slate-500">{activeCount} active records · Updates live</p>
+          <span className="text-xs font-black text-slate-500">{activeCount}</span>
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
+          <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Live</span>
         </div>
         {!readOnly && snapshot.queue.kind === "EVENT" ? <ActionForm action={syncOpenPlayRosterAction} values={{ sessionId: snapshot.id }} label="Refresh" tone="quiet" /> : null}
       </div>
-      <div className="border-b border-slate-100 px-4 py-3 sm:px-5">
+      <div className="border-b border-slate-100 px-4 py-2 sm:px-5">
         <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Filter roster">
           {filters.map((item) => (
             <button
@@ -703,7 +773,7 @@ function ParticipantRoster({
         </div>
       </div>
       {selectable.length > 0 ? (
-        <label className="flex min-h-11 cursor-pointer items-center gap-2 border-b border-slate-100 bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600 sm:px-5">
+        <label className="flex min-h-9 cursor-pointer items-center gap-2 border-b border-slate-100 bg-slate-50 px-4 py-1.5 text-[11px] font-bold text-slate-600 sm:px-5">
           <input
             type="checkbox"
             checked={selectable.every((player) => selected.has(player.id))}
@@ -712,12 +782,12 @@ function ParticipantRoster({
           Select actionable players in this view
         </label>
       ) : null}
-      <div className="grid grid-cols-1 gap-3 p-3 sm:p-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2 p-2 sm:p-3 xl:grid-cols-2">
         {visibleParticipants.length === 0 ? (
           <p className="col-span-full px-4 py-10 text-center text-sm text-slate-500">No players in this view.</p>
         ) : visibleParticipants.map((player) => {
           const groupLabel = GROUPS.find(([status]) => status === player.status)?.[1] ?? player.status;
-          const isEligible = ["NOT_CHECKED_IN", "CHECKED_OUT", "QUEUED", "PAUSED"].includes(player.status);
+          const isEligible = !readOnly && ["NOT_CHECKED_IN", "CHECKED_OUT", "QUEUED", "PAUSED"].includes(player.status);
           const hasActions =
             !readOnly &&
             (hasParticipantPrimaryAction(player.status) ||
@@ -727,10 +797,14 @@ function ParticipantRoster({
                 (item) => item.status === "QUEUED" && (item.queuePosition ?? 0) <= player.queuePosition!
               ).length
             : null;
+          const standing = standingsByParticipant.get(player.id);
+          const playerRecord = standing
+            ? `${standing.games}G · ${standing.wins}W ${standing.losses}L`
+            : "0G";
           return (
             <article
               key={player.id}
-              className={`relative flex h-full min-w-0 flex-col rounded-xl border transition hover:shadow-sm ${
+              className={`relative flex min-h-[4.5rem] min-w-0 items-center gap-2 rounded-xl border px-3 py-2 transition hover:shadow-sm sm:gap-3 ${
                 player.status === "PENDING_APPROVAL"
                   ? "border-amber-200 bg-amber-50/70 hover:border-amber-300 hover:bg-amber-50"
                   : player.status === "REMOVED"
@@ -738,60 +812,43 @@ function ParticipantRoster({
                     : "border-slate-200 bg-white hover:border-primary/25"
               }`}
             >
-              <div className="flex flex-1 flex-col p-4">
-                <div className="flex min-w-0 items-start justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    {isEligible ? (
-                      <label className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-slate-50 ring-1 ring-slate-200">
-                        <input
-                          type="checkbox"
-                          checked={selected.has(player.id)}
-                          onChange={() => toggle(player.id)}
-                          aria-label={`Select ${player.displayName}`}
-                        />
-                      </label>
-                    ) : (
-                      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[10px] font-black ${
-                        queueNumber ? "bg-primary-soft text-primary" : "bg-slate-100 text-slate-500"
-                      }`}>
-                        {queueNumber ?? player.displayName.slice(0, 1).toUpperCase()}
-                      </span>
-                    )}
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-black text-navy">{player.displayName}</p>
-                      <p className="mt-0.5 truncate text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                        {player.source.toLowerCase().replaceAll("_", " ")}
-                      </p>
-                    </div>
-                  </div>
-                  <span className={`inline-flex shrink-0 rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-wide ${STATUS_STYLES[player.status]}`}>
+              {isEligible ? (
+                <label className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-white/80 ring-1 ring-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(player.id)}
+                    onChange={() => toggle(player.id)}
+                    aria-label={`Select ${player.displayName}`}
+                  />
+                </label>
+              ) : (
+                <span className="h-8 w-8 shrink-0" aria-hidden="true" />
+              )}
+              <span className={`w-5 shrink-0 text-center text-sm font-black ${
+                queueNumber ? "text-primary" : "text-slate-400"
+              }`}>
+                {queueNumber ?? "—"}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-black text-navy">{player.displayName}</p>
+                <p className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1 text-[11px] font-bold text-slate-500">
+                  <span className="capitalize">{player.skillLevel}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{playerRecord}</span>
+                  {player.estimatedWaitMinutes ? (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <span>~{player.estimatedWaitMinutes}m</span>
+                    </>
+                  ) : null}
+                  <span aria-hidden="true">·</span>
+                  <span className={`rounded-full px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide ${STATUS_STYLES[player.status]}`}>
                     {groupLabel}
                   </span>
-                </div>
-
-                <div className={`mt-4 grid grid-cols-2 gap-3 border-t pt-3 ${
-                  player.status === "PENDING_APPROVAL"
-                    ? "border-amber-200/70"
-                    : "border-slate-100"
-                }`}>
-                  <div>
-                    <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Skill</p>
-                    <p className="mt-0.5 text-xs font-bold capitalize text-slate-600">{player.skillLevel}</p>
-                  </div>
-                  <div>
-                    <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Estimated wait</p>
-                    <p className="mt-0.5 text-xs font-bold text-slate-600">
-                      {player.estimatedWaitMinutes ? `~${player.estimatedWaitMinutes}m` : "—"}
-                    </p>
-                  </div>
-                </div>
+                </p>
               </div>
               {hasActions ? (
-                <div className={`mt-auto flex items-start justify-end gap-2 border-t px-4 py-3 ${
-                  player.status === "PENDING_APPROVAL"
-                    ? "border-amber-200 bg-amber-100/30"
-                    : "border-slate-200 bg-slate-50/80"
-                }`}>
+                <div className="flex shrink-0 items-start justify-end gap-1 sm:gap-2">
                   <ParticipantPrimaryAction
                     snapshot={snapshot}
                     participant={player}

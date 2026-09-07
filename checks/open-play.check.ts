@@ -227,6 +227,7 @@ async function check() {
       status: "STAGED",
       selectionMethod: "AUTOMATIC",
     },
+    include: { players: true },
   });
 
   const pauseSecondCourt = new FormData();
@@ -264,12 +265,68 @@ async function check() {
       status: "STAGED",
       selectionMethod: "AUTOMATIC",
     },
+    include: { players: true },
   });
 
   const checkInNinth = new FormData();
   checkInNinth.set("sessionId", session.id);
   checkInNinth.set("participantId", session.participants[8].id);
   await actions.checkInOpenPlayParticipantAction({}, checkInNinth);
+
+  const stagedPlayerId = automaticGame.players[0].participantId;
+  const replacedAutomaticGameId = automaticGame.id;
+  const replacedAutomaticCourtId = automaticGame.courtId;
+  const sitOutUpNext = new FormData();
+  sitOutUpNext.set("sessionId", session.id);
+  sitOutUpNext.set("participantId", stagedPlayerId);
+  const sitOutResult = await actions.pauseOpenPlayParticipantAction(
+    {},
+    sitOutUpNext
+  );
+  const replacementGame = await prisma.openPlayGame.findFirstOrThrow({
+    where: {
+      sessionId: session.id,
+      status: "STAGED",
+      selectionMethod: "AUTOMATIC",
+      id: { not: replacedAutomaticGameId },
+    },
+    include: { players: true },
+  });
+  ok(
+    "staff can sit out a player from Up next",
+    sitOutResult.success?.includes("updated automatically") === true &&
+      (await prisma.openPlayParticipant.findUniqueOrThrow({
+        where: { id: stagedPlayerId },
+      })).status === "PAUSED" &&
+      (await prisma.openPlayGame.findUniqueOrThrow({
+        where: { id: replacedAutomaticGameId },
+      })).status === "CANCELLED"
+  );
+  ok(
+    "sitting out a staged player automatically replaces the upcoming match",
+    replacementGame.courtId === replacedAutomaticCourtId &&
+      replacementGame.players.length === 4 &&
+      replacementGame.players.every(
+        (slot) => slot.participantId !== stagedPlayerId
+      ) &&
+      (await prisma.openPlayGame.count({
+        where: { sessionId: session.id, status: "STAGED" },
+      })) === 2
+  );
+
+  const resumeStagedPlayer = new FormData();
+  resumeStagedPlayer.set("sessionId", session.id);
+  resumeStagedPlayer.set("participantId", stagedPlayerId);
+  await actions.resumeOpenPlayParticipantAction({}, resumeStagedPlayer);
+  automaticGame = await prisma.openPlayGame.findFirstOrThrow({
+    where: {
+      id: replacementGame.id,
+      sessionId: session.id,
+      status: "STAGED",
+      selectionMethod: "AUTOMATIC",
+    },
+    include: { players: true },
+  });
 
   const removableQueued = await prisma.openPlayParticipant.findFirstOrThrow({
     where: { sessionId: session.id, status: "QUEUED" },

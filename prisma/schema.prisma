@@ -102,6 +102,7 @@ enum OpenPlayAdmissionMode {
 
 enum OpenPlayMatchingMode {
   BALANCED
+  ROUND_ROBIN
   SKILL_SEPARATED
   WINNERS_LOSERS
   FIXED_PARTNERS

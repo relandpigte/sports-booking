@@ -209,9 +209,9 @@ async function check() {
   );
   const changeMode = new FormData();
   changeMode.set("sessionId", session.id);
-  changeMode.set("mode", "WINNERS_LOSERS");
+  changeMode.set("mode", "ROUND_ROBIN");
   ok(
-    "changing modes refreshes automatic matchups",
+    "changing to Round Robin refreshes automatic matchups",
     Boolean((await actions.changeOpenPlayModeAction({}, changeMode)).success)
   );
   ok(
@@ -229,6 +229,10 @@ async function check() {
     },
     include: { players: true },
   });
+  ok(
+    "Round Robin is stored on regenerated automatic matchups",
+    automaticGame.matchingMode === "ROUND_ROBIN"
+  );
 
   const pauseSecondCourt = new FormData();
   pauseSecondCourt.set("sessionId", session.id);
@@ -645,6 +649,99 @@ async function check() {
     sameTeam(balancedByUsage, "a", "d") && sameTeam(balancedByUsage, "b", "c")
   );
 
+  const roundRobinPartnerRotation = domain.chooseAutomaticMatch({
+    mode: "ROUND_ROBIN",
+    queued: [
+      { id: "a", queuePosition: 1, skillLevel: "advanced", lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "b", queuePosition: 2, skillLevel: "intermediate", lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "c", queuePosition: 3, skillLevel: "intermediate", lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "d", queuePosition: 4, skillLevel: "beginner", lastResult: "UNCLASSIFIED", pairId: null },
+    ],
+    completedGames: [
+      {
+        sequence: 1,
+        players: [
+          { participantId: "a", team: 1 },
+          { participantId: "b", team: 1 },
+          { participantId: "c", team: 2 },
+          { participantId: "d", team: 2 },
+        ],
+      },
+    ],
+  });
+  ok(
+    "Round Robin rotates completed partnerships",
+    !sameTeam(roundRobinPartnerRotation, "a", "b") &&
+      !sameTeam(roundRobinPartnerRotation, "c", "d")
+  );
+
+  const roundRobinOpponentVariety = domain.chooseAutomaticMatch({
+    mode: "ROUND_ROBIN",
+    queued: [
+      ...["a", "b", "c", "d", "e", "f", "g", "h"].map((id, index) => ({
+        id,
+        queuePosition: index + 1,
+        skillLevel: "intermediate",
+        lastResult: "UNCLASSIFIED" as const,
+        pairId: null,
+      })),
+    ],
+    completedGames: [
+      {
+        sequence: 1,
+        players: [
+          { participantId: "a", team: 1 },
+          { participantId: "b", team: 1 },
+          { participantId: "c", team: 2 },
+          { participantId: "d", team: 2 },
+        ],
+      },
+      {
+        sequence: 2,
+        players: [
+          { participantId: "e", team: 1 },
+          { participantId: "f", team: 1 },
+          { participantId: "g", team: 2 },
+          { participantId: "h", team: 2 },
+        ],
+      },
+    ],
+  });
+  const roundRobinSelected = new Set(selectedIds(roundRobinOpponentVariety));
+  ok(
+    "Round Robin mixes previous match cohorts to increase opponent variety",
+    ["a", "b", "c", "d"].filter((id) => roundRobinSelected.has(id)).length === 2
+  );
+
+  const roundRobinByGamesPlayed = domain.chooseAutomaticMatch({
+    mode: "ROUND_ROBIN",
+    queued: [
+      { id: "a", queuePosition: 1, skillLevel: "intermediate", lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "b", queuePosition: 2, skillLevel: "intermediate", lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "c", queuePosition: 3, skillLevel: "intermediate", lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "d", queuePosition: 4, skillLevel: "intermediate", lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "x", queuePosition: 5, skillLevel: "intermediate", lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "y", queuePosition: 6, skillLevel: "intermediate", lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "z", queuePosition: 7, skillLevel: "intermediate", lastResult: "UNCLASSIFIED", pairId: null },
+    ],
+    completedGames: [
+      {
+        sequence: 1,
+        players: [
+          { participantId: "a", team: 1 },
+          { participantId: "b", team: 1 },
+          { participantId: "c", team: 2 },
+          { participantId: "d", team: 2 },
+        ],
+      },
+    ],
+  });
+  const roundRobinByGamesPlayedIds = new Set(selectedIds(roundRobinByGamesPlayed));
+  ok(
+    "Round Robin prioritizes players with fewer completed games",
+    ["x", "y", "z"].every((id) => roundRobinByGamesPlayedIds.has(id))
+  );
+
   const separated = domain.chooseAutomaticMatch({
     mode: "SKILL_SEPARATED",
     queued: [
@@ -735,7 +832,7 @@ async function check() {
     incompleteFixed === null
   );
 
-  for (const mode of ["BALANCED", "SKILL_SEPARATED", "WINNERS_LOSERS"] as const) {
+  for (const mode of ["BALANCED", "ROUND_ROBIN", "SKILL_SEPARATED", "WINNERS_LOSERS"] as const) {
     const tooFew = domain.chooseAutomaticMatch({
       mode,
       queued: [

@@ -12,6 +12,7 @@ import type {
 
 export const OPEN_PLAY_MODE_LABELS: Record<OpenPlayMatchingMode, string> = {
   BALANCED: "Balanced",
+  ROUND_ROBIN: "Round Robin",
   SKILL_SEPARATED: "Skill Separated",
   WINNERS_LOSERS: "Winners / Losers",
   FIXED_PARTNERS: "Fixed Partners",
@@ -20,6 +21,8 @@ export const OPEN_PLAY_MODE_LABELS: Record<OpenPlayMatchingMode, string> = {
 export const OPEN_PLAY_MODE_DESCRIPTIONS: Record<OpenPlayMatchingMode, string> = {
   BALANCED:
     "Takes the next four players, avoids back-to-back and overused partnerships, then balances team skill.",
+  ROUND_ROBIN:
+    "Prioritizes players with fewer games, then rotates them through the least-used partners and opponents.",
   SKILL_SEPARATED:
     "Uses the earliest skill tier with four waiting players, then rotates partners within that tier.",
   WINNERS_LOSERS:

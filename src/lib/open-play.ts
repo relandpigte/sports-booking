@@ -56,6 +56,12 @@ type CompletedGameForHistory = {
   players: Array<{ participantId: string; team: number }>;
 };
 
+export type RoundRobinHistory = {
+  gamesPlayed: Map<string, number>;
+  teammateCounts: Map<string, number>;
+  opponentCounts: Map<string, number>;
+};
+
 const skillScore: Record<string, number> = {
   beginner: 1,
   intermediate: 2,
@@ -91,6 +97,132 @@ export function buildTeammateHistory(
   }
 
   return { counts, mostRecent };
+}
+
+export function buildRoundRobinHistory(
+  games: CompletedGameForHistory[]
+): RoundRobinHistory {
+  const gamesPlayed = new Map<string, number>();
+  const teammateCounts = new Map<string, number>();
+  const opponentCounts = new Map<string, number>();
+  for (const game of games) {
+    for (const player of game.players) {
+      gamesPlayed.set(player.participantId, (gamesPlayed.get(player.participantId) ?? 0) + 1);
+    }
+    for (let leftIndex = 0; leftIndex < game.players.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < game.players.length; rightIndex += 1) {
+        const left = game.players[leftIndex];
+        const right = game.players[rightIndex];
+        const key = pairKey(left.participantId, right.participantId);
+        const counts = left.team === right.team ? teammateCounts : opponentCounts;
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+    }
+  }
+  return { gamesPlayed, teammateCounts, opponentCounts };
+}
+
+function roundRobinTeams(
+  players: MatchCandidate[],
+  history: RoundRobinHistory
+): MatchTeam[] {
+  const byParticipation = [...players].sort((left, right) =>
+    (history.gamesPlayed.get(left.id) ?? 0) -
+      (history.gamesPlayed.get(right.id) ?? 0) ||
+    left.queuePosition - right.queuePosition ||
+    left.id.localeCompare(right.id)
+  );
+  const fourthGameCount = history.gamesPlayed.get(byParticipation[3].id) ?? 0;
+  const candidates = byParticipation
+    .filter(
+      (player) =>
+        (history.gamesPlayed.get(player.id) ?? 0) <= fourthGameCount
+    )
+    .slice(0, 16);
+  const arrangements = [
+    [[0, 1], [2, 3]],
+    [[0, 2], [1, 3]],
+    [[0, 3], [1, 2]],
+  ] as const;
+  const ranked: Array<{
+    players: MatchCandidate[];
+    teams: (typeof arrangements)[number];
+    score: number[];
+  }> = [];
+  let combinationIndex = 0;
+  for (let a = 0; a < candidates.length - 3; a += 1) {
+    for (let b = a + 1; b < candidates.length - 2; b += 1) {
+      for (let c = b + 1; c < candidates.length - 1; c += 1) {
+        for (let d = c + 1; d < candidates.length; d += 1) {
+          const selected = [candidates[a], candidates[b], candidates[c], candidates[d]];
+          const gameCounts = selected.map(
+            (player) => history.gamesPlayed.get(player.id) ?? 0
+          );
+          let totalEncounterUsage = 0;
+          for (let left = 0; left < selected.length - 1; left += 1) {
+            for (let right = left + 1; right < selected.length; right += 1) {
+              const key = pairKey(selected[left].id, selected[right].id);
+              totalEncounterUsage +=
+                (history.teammateCounts.get(key) ?? 0) +
+                (history.opponentCounts.get(key) ?? 0);
+            }
+          }
+          arrangements.forEach((teams, arrangementIndex) => {
+            const [[firstLeft, firstRight], [secondLeft, secondRight]] = teams;
+            const teammateUsages = [
+              history.teammateCounts.get(
+                pairKey(selected[firstLeft].id, selected[firstRight].id)
+              ) ?? 0,
+              history.teammateCounts.get(
+                pairKey(selected[secondLeft].id, selected[secondRight].id)
+              ) ?? 0,
+            ];
+            const opponentUsages = [firstLeft, firstRight].flatMap((left) =>
+              [secondLeft, secondRight].map(
+                (right) =>
+                  history.opponentCounts.get(
+                    pairKey(selected[left].id, selected[right].id)
+                  ) ?? 0
+              )
+            );
+            ranked.push({
+              players: selected,
+              teams,
+              score: [
+                gameCounts.reduce((total, count) => total + count, 0),
+                Math.max(...gameCounts),
+                teammateUsages.reduce((total, count) => total + count, 0),
+                Math.max(...teammateUsages),
+                totalEncounterUsage,
+                opponentUsages.reduce((total, count) => total + count, 0),
+                selected.reduce((total, player) => total + player.queuePosition, 0),
+                Math.max(...selected.map((player) => player.queuePosition)),
+                combinationIndex,
+                arrangementIndex,
+              ],
+            });
+          });
+          combinationIndex += 1;
+        }
+      }
+    }
+  }
+  ranked.sort((left, right) => {
+    for (let index = 0; index < left.score.length; index += 1) {
+      if (left.score[index] !== right.score[index]) {
+        return left.score[index] - right.score[index];
+      }
+    }
+    return 0;
+  });
+  const winner = ranked[0];
+  const [[firstLeft, firstRight], [secondLeft, secondRight]] = winner.teams;
+  return [
+    { participantId: winner.players[firstLeft].id, team: 1, slot: 1, queuePositionBefore: winner.players[firstLeft].queuePosition },
+    { participantId: winner.players[firstRight].id, team: 1, slot: 2, queuePositionBefore: winner.players[firstRight].queuePosition },
+    { participantId: winner.players[secondLeft].id, team: 2, slot: 3, queuePositionBefore: winner.players[secondLeft].queuePosition },
+    { participantId: winner.players[secondRight].id, team: 2, slot: 4, queuePositionBefore: winner.players[secondRight].queuePosition },
+  ];
 }
 
 function balancedTeams(
@@ -150,11 +282,19 @@ export function chooseAutomaticMatch(input: {
   mode: OpenPlayMatchingMode;
   queued: MatchCandidate[];
   teammateHistory?: TeammateHistory;
+  completedGames?: CompletedGameForHistory[];
 }): MatchTeam[] | null {
   const queued = [...input.queued].sort(
     (left, right) => left.queuePosition - right.queuePosition
   );
   if (queued.length < 4) return null;
+
+  if (input.mode === "ROUND_ROBIN") {
+    return roundRobinTeams(
+      queued,
+      buildRoundRobinHistory(input.completedGames ?? [])
+    );
+  }
 
   if (input.mode === "FIXED_PARTNERS") {
     const pairs = new Map<string, MatchCandidate[]>();
@@ -380,6 +520,7 @@ export async function syncAutomaticOpenPlayUpNext(
       mode: session.matchingMode,
       queued,
       teammateHistory,
+      completedGames,
     });
     if (!teams) break;
 

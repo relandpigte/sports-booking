@@ -200,14 +200,13 @@ model User {
   // Claimed atomically by the maintenance sweep before an overdue service-fee
   // reminder is sent. This throttles reminders across concurrent cron runs.
   serviceFeeReminderAt    DateTime?
-  // Scalar by design: deleting an admin must not erase who approved a partner.
+  // Scalar by design; permanent admin deletion anonymizes this attribution.
   partnerActivatedById    String?
   createdAt               DateTime           @default(now())
   updatedAt               DateTime           @updatedAt
   chatRestrictedAt        DateTime?
   chatRestrictionReason   String?            @db.VarChar(200)
-  // Scalar audit fact: deleting an administrator must not erase who applied
-  // a restriction to an account.
+  // Scalar audit fact; permanent admin deletion anonymizes this attribution.
   chatRestrictedById      String?
 
   accounts             Account[]
@@ -551,14 +550,14 @@ model TrainerServiceFeeSettlement {
 }
 
 // Trainer waivers mirror partner waivers while retaining a separate ledger.
-// They are administrative credits, never cash settlements, and reversals keep
-// their complete attribution and balance snapshots for auditability.
+// They are administrative credits, never cash settlements. Balance snapshots
+// survive permanently deleted administrators with anonymized attribution.
 model TrainerServiceFeeWaiver {
   id            String   @id @default(cuid())
   trainerId     String
   amount        Decimal  @db.Decimal(10, 2)
   reason        String   @db.Text
-  grantedById   String
+  grantedById   String?
   balanceBefore Decimal  @db.Decimal(10, 2)
   balanceAfter  Decimal  @db.Decimal(10, 2)
   grantedAt     DateTime @default(now())
@@ -571,8 +570,8 @@ model TrainerServiceFeeWaiver {
   updatedAt             DateTime  @updatedAt
 
   trainer    User  @relation("TrainerServiceFeeWaiverOwner", fields: [trainerId], references: [id], onDelete: Cascade)
-  grantedBy  User  @relation("TrainerServiceFeeWaiverGrantor", fields: [grantedById], references: [id], onDelete: Restrict)
-  reversedBy User? @relation("TrainerServiceFeeWaiverReverser", fields: [reversedById], references: [id], onDelete: Restrict)
+  grantedBy  User? @relation("TrainerServiceFeeWaiverGrantor", fields: [grantedById], references: [id], onDelete: SetNull)
+  reversedBy User? @relation("TrainerServiceFeeWaiverReverser", fields: [reversedById], references: [id], onDelete: SetNull)
 
   @@index([trainerId, grantedAt])
   @@index([reversedAt, grantedAt])
@@ -586,7 +585,7 @@ model PartnerStaffMembership {
   id          String           @id @default(cuid())
   partnerId   String
   userId      String           @unique
-  invitedById String
+  invitedById String?
   hubs        StaffAccessLevel @default(NONE)
   bookings    StaffAccessLevel @default(NONE)
   events      StaffAccessLevel @default(NONE)
@@ -600,7 +599,7 @@ model PartnerStaffMembership {
 
   partner   User @relation("PartnerStaffOwner", fields: [partnerId], references: [id], onDelete: Cascade)
   user      User @relation("PartnerStaffUser", fields: [userId], references: [id], onDelete: Cascade)
-  invitedBy User @relation("PartnerStaffMembershipInviter", fields: [invitedById], references: [id], onDelete: Restrict)
+  invitedBy User? @relation("PartnerStaffMembershipInviter", fields: [invitedById], references: [id], onDelete: SetNull)
 
   @@unique([partnerId, userId])
   @@index([partnerId, createdAt])
@@ -611,7 +610,7 @@ model PartnerStaffMembership {
 model PartnerStaffInvitation {
   id          String           @id @default(cuid())
   partnerId   String
-  invitedById String
+  invitedById String?
   email       String           @unique
   tokenHash   String           @unique
   hubs        StaffAccessLevel @default(NONE)
@@ -626,7 +625,7 @@ model PartnerStaffInvitation {
   updatedAt   DateTime         @updatedAt
 
   partner   User @relation("PartnerStaffInvitationOwner", fields: [partnerId], references: [id], onDelete: Cascade)
-  invitedBy User @relation("PartnerStaffInvitationInviter", fields: [invitedById], references: [id], onDelete: Restrict)
+  invitedBy User? @relation("PartnerStaffInvitationInviter", fields: [invitedById], references: [id], onDelete: SetNull)
 
   @@index([partnerId, createdAt])
   @@index([expiresAt])
@@ -1098,13 +1097,14 @@ model ServiceFeeSettlement {
 // An explicit administrative credit against a partner's service-fee balance.
 // Waivers never masquerade as cash settlements and never modify the immutable
 // per-payment charge ledger. Reversal metadata is retained instead of deleting
-// the waiver so every financial decision remains attributable and reviewable.
+// the waiver so every financial decision remains reviewable. Attribution is
+// anonymized only when its administrator is permanently deleted.
 model ServiceFeeWaiver {
   id            String   @id @default(cuid())
   partnerId     String
   amount        Decimal  @db.Decimal(10, 2)
   reason        String   @db.Text
-  grantedById   String
+  grantedById   String?
   balanceBefore Decimal  @db.Decimal(10, 2)
   balanceAfter  Decimal  @db.Decimal(10, 2)
   grantedAt     DateTime @default(now())
@@ -1117,8 +1117,8 @@ model ServiceFeeWaiver {
   updatedAt             DateTime  @updatedAt
 
   partner    User  @relation("PartnerServiceFeeWaivers", fields: [partnerId], references: [id], onDelete: Cascade)
-  grantedBy  User  @relation("ServiceFeeWaiverGrantor", fields: [grantedById], references: [id], onDelete: Restrict)
-  reversedBy User? @relation("ServiceFeeWaiverReverser", fields: [reversedById], references: [id], onDelete: Restrict)
+  grantedBy  User? @relation("ServiceFeeWaiverGrantor", fields: [grantedById], references: [id], onDelete: SetNull)
+  reversedBy User? @relation("ServiceFeeWaiverReverser", fields: [reversedById], references: [id], onDelete: SetNull)
 
   @@index([partnerId, grantedAt])
   @@index([reversedAt, grantedAt])
@@ -1142,8 +1142,8 @@ model ProviderEvent {
 
 // A short-lived admin assistance session. The browser holds only the random
 // token; its SHA-256 hash is stored here so a database read cannot recreate an
-// active impersonation cookie. Admin and partner ids remain as immutable audit
-// facts even if either account is later removed.
+// active impersonation cookie. Deleting either account removes these short-lived
+// sessions while preserving anonymized audit rows.
 model PartnerImpersonationSession {
   id           String    @id @default(cuid())
   tokenHash    String    @unique
@@ -1160,13 +1160,13 @@ model PartnerImpersonationSession {
 }
 
 // Operational mutations performed while assisting a partner. These rows are
-// append-only and intentionally keep plain ids rather than cascading user
-// relations so deleting an account cannot erase the administrative record.
+// append-only and intentionally keep plain ids. User deletion anonymizes the
+// ids without erasing the administrative record.
 model PartnerImpersonationAudit {
   id         String   @id @default(cuid())
   sessionId  String?
-  adminId    String
-  partnerId  String
+  adminId    String?
+  partnerId  String?
   action     String
   targetType String?
   targetId   String?
@@ -1278,7 +1278,7 @@ model CourtBlock {
   customerPhone String?        @db.VarChar(40)
   amountPaid    Decimal?       @db.Decimal(10, 2)
   internalNote  String?        @db.VarChar(500)
-  createdById   String
+  createdById   String?
   releasedAt    DateTime?
   releasedById  String?
   createdAt     DateTime       @default(now())
@@ -1661,7 +1661,7 @@ model OpenPlayQueue {
   title         String                @db.VarChar(120)
   kind          OpenPlayQueueKind
   admissionMode OpenPlayAdmissionMode @default(APPROVAL_REQUIRED)
-  createdById   String
+  createdById   String?
   createdAt     DateTime              @default(now())
   updatedAt     DateTime              @updatedAt
 
@@ -1682,7 +1682,7 @@ model OpenPlaySession {
   status            OpenPlaySessionStatus @default(SETUP)
   matchingMode      OpenPlayMatchingMode  @default(BALANCED)
   nextQueuePosition Int                   @default(0)
-  createdById       String
+  createdById       String?
   startedAt         DateTime?
   endedAt           DateTime?
   createdAt         DateTime              @default(now())
@@ -1768,7 +1768,7 @@ model OpenPlayGame {
   selectionMethod OpenPlaySelectionMethod @default(AUTOMATIC)
   status          OpenPlayGameStatus      @default(STAGED)
   winningTeam     Int?
-  createdById     String
+  createdById     String?
   startedAt       DateTime?
   completedAt     DateTime?
   cancelledAt     DateTime?
@@ -1862,7 +1862,7 @@ model EventGuestSlot {
 model EventOrganizerGuest {
   id          String                  @id @default(cuid())
   eventId     String
-  createdById String
+  createdById String?
   name        String
   status      EventRegistrationStatus @default(CONFIRMED)
   confirmedAt DateTime                @default(now())
@@ -1871,7 +1871,7 @@ model EventOrganizerGuest {
   updatedAt   DateTime                @updatedAt
 
   event                Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  createdBy            User                  @relation("OrganizerEventGuestCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  createdBy            User?                 @relation("OrganizerEventGuestCreator", fields: [createdById], references: [id], onDelete: SetNull)
   openPlayParticipants OpenPlayParticipant[]
   serviceFeeEntries    ServiceFeeEntry[]
 

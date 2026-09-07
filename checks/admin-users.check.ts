@@ -10,9 +10,28 @@ const EMAIL_PREFIX = "check-admin-page-";
 const ADMIN_EMAIL = `${EMAIL_PREFIX}admin@example.test`;
 
 async function cleanup() {
+  await prisma.verificationToken.deleteMany({
+    where: { identifier: { startsWith: EMAIL_PREFIX, mode: "insensitive" } },
+  });
+  await prisma.providerEvent.deleteMany({
+    where: { eventId: { startsWith: EMAIL_PREFIX } },
+  });
+  await prisma.partnerImpersonationAudit.deleteMany({
+    where: { action: { startsWith: EMAIL_PREFIX } },
+  });
+  await prisma.partnerImpersonationSession.deleteMany({
+    where: { tokenHash: { startsWith: EMAIL_PREFIX } },
+  });
   await prisma.user.deleteMany({
     where: { email: { startsWith: EMAIL_PREFIX } },
   });
+}
+
+function deletionForm(userId: string, email: string) {
+  const formData = new FormData();
+  formData.set("userId", userId);
+  formData.set("confirmationEmail", email);
+  return formData;
 }
 
 async function check() {
@@ -89,19 +108,21 @@ async function check() {
     searched.total === 1 && searched.items[0]?.email === ADMIN_EMAIL
   );
 
+  const emptyPartnerEmail = `${EMAIL_PREFIX}empty-partner@example.test`;
   const emptyPartner = await prisma.user.create({
     data: {
       name: "Empty Partner",
-      email: `${EMAIL_PREFIX}empty-partner@example.test`,
+      email: emptyPartnerEmail,
       role: "PARTNER",
       partnerStatus: "ACTIVE",
     },
     select: { id: true },
   });
+  const establishedPartnerEmail = `${EMAIL_PREFIX}established-partner@example.test`;
   const establishedPartner = await prisma.user.create({
     data: {
       name: "Established Partner",
-      email: `${EMAIL_PREFIX}established-partner@example.test`,
+      email: establishedPartnerEmail,
       role: "PARTNER",
       partnerStatus: "ACTIVE",
       hubs: {
@@ -109,63 +130,416 @@ async function check() {
           name: "Protected Venue",
           coverPhotos: [],
           games: ["pickleball"],
+          courts: { create: { name: "Protected Court" } },
         },
       },
     },
+    select: { id: true, hubs: { select: { id: true } } },
+  });
+  const gateway = await prisma.partnerGateway.create({
+    data: {
+      userId: establishedPartner.id,
+      provider: "paymongo",
+      publicKey: "pk_test_admin_delete",
+      secretKeyEnc: "encrypted",
+      webhookSecretEnc: "encrypted",
+      secretKeyHint: "lete",
+      webhookToken: `${EMAIL_PREFIX}gateway-token`,
+    },
     select: { id: true },
   });
-  const { deleteUserAction, setPartnerActiveAction } =
-    await import("@/lib/admin-actions");
+  const providerEventId = `${EMAIL_PREFIX}venue-webhook`;
+  await prisma.providerEvent.create({
+    data: {
+      provider: `venue:${gateway.id}`,
+      eventId: providerEventId,
+      type: "payment.paid",
+      payload: {},
+    },
+  });
+  const { deleteUserAction } = await import("@/lib/admin-actions");
 
-  const activeDelete = new FormData();
-  activeDelete.set("userId", emptyPartner.id);
-  const activeDeleteResult = await deleteUserAction({}, activeDelete);
+  const mismatchedDelete = await deleteUserAction(
+    {},
+    deletionForm(emptyPartner.id, "wrong@example.test")
+  );
   ok(
-    "an active partner must be deactivated before deletion",
-    activeDeleteResult.message?.includes("Deactivate") === true &&
+    "typed email confirmation is enforced by the server",
+    Boolean(mismatchedDelete.errors?.confirmationEmail) &&
       (await prisma.user.count({ where: { id: emptyPartner.id } })) === 1
   );
 
-  for (const userId of [emptyPartner.id, establishedPartner.id]) {
-    const deactivate = new FormData();
-    deactivate.set("userId", userId);
-    deactivate.set("active", "false");
-    await setPartnerActiveAction(deactivate);
-  }
-  const deactivated = await prisma.user.findMany({
-    where: { id: { in: [emptyPartner.id, establishedPartner.id] } },
-    select: { partnerStatus: true },
-  });
+  const selfDelete = await deleteUserAction(
+    {},
+    deletionForm(admin.id, admin.email)
+  );
   ok(
-    "deactivation uses a distinct partner status",
-    deactivated.every((partner) => partner.partnerStatus === "DEACTIVATED")
+    "an administrator cannot delete their own active account",
+    selfDelete.message?.includes("own administrator") === true &&
+      (await prisma.user.count({ where: { id: admin.id } })) === 1
   );
 
-  const emptyDelete = new FormData();
-  emptyDelete.set("userId", emptyPartner.id);
-  const emptyDeleteResult = await deleteUserAction({}, emptyDelete);
+  const emptyDeleteResult = await deleteUserAction(
+    {},
+    deletionForm(emptyPartner.id, emptyPartnerEmail.toUpperCase())
+  );
   ok(
-    "a deactivated partner with no domain history can be deleted",
-    emptyDeleteResult.message === undefined &&
+    "an active partner can be deleted without deactivation",
+    !emptyDeleteResult.message &&
+      !emptyDeleteResult.errors &&
       (await prisma.user.count({ where: { id: emptyPartner.id } })) === 0
   );
 
-  const protectedDelete = new FormData();
-  protectedDelete.set("userId", establishedPartner.id);
-  const protectedDeleteResult = await deleteUserAction({}, protectedDelete);
-  ok(
-    "venue history prevents permanent partner deletion",
-    protectedDeleteResult.message?.includes("history") === true &&
-      (await prisma.user.count({ where: { id: establishedPartner.id } })) === 1
+  const establishedDeleteResult = await deleteUserAction(
+    {},
+    deletionForm(establishedPartner.id, establishedPartnerEmail)
   );
-  const protectedList = await listUsers({
-    query: `${EMAIL_PREFIX}established-partner`,
-    role: "PARTNER",
-    page: 1,
-  });
   ok(
-    "the admin list explains why protected partners cannot be deleted",
-    protectedList.items[0]?.deleteBlockedReason?.includes("history") === true
+    "an established active partner and its owned venue data can be deleted",
+    !establishedDeleteResult.message &&
+      !establishedDeleteResult.errors &&
+      (await prisma.user.count({ where: { id: establishedPartner.id } })) === 0 &&
+      (await prisma.hub.count({ where: { id: establishedPartner.hubs[0].id } })) === 0
+  );
+  ok(
+    "partner deletion removes its namespaced webhook replay data",
+    (await prisma.providerEvent.count({ where: { eventId: providerEventId } })) === 0
+  );
+
+  await prisma.trainerProfile.update({
+    where: { userId: trainerUser.id },
+    data: { status: "ACTIVE", activatedAt: new Date() },
+  });
+  const trainerDeleteResult = await deleteUserAction(
+    {},
+    deletionForm(trainerUser.id, `${EMAIL_PREFIX}1@example.test`)
+  );
+  ok(
+    "an active trainer profile can be deleted with its owned data",
+    !trainerDeleteResult.message &&
+      (await prisma.user.count({ where: { id: trainerUser.id } })) === 0 &&
+      (await prisma.trainerProfile.count({ where: { userId: trainerUser.id } })) === 0
+  );
+
+  const actorEmail = `${EMAIL_PREFIX}secondary-admin@example.test`;
+  const contentEmail = `${EMAIL_PREFIX}content-player@example.test`;
+  const invitationEmail = `${EMAIL_PREFIX}pending-staff@example.test`;
+  const [actor, contentPlayer, survivingPartner, staffUser] = await Promise.all([
+    prisma.user.create({
+      data: { email: actorEmail, name: "Secondary Admin", role: "ADMIN" },
+      select: { id: true },
+    }),
+    prisma.user.create({
+      data: { email: contentEmail, name: "Content Player", role: "PLAYER" },
+      select: { id: true },
+    }),
+    prisma.user.create({
+      data: {
+        email: `${EMAIL_PREFIX}surviving-partner@example.test`,
+        name: "Surviving Partner",
+        role: "PARTNER",
+        partnerStatus: "ACTIVE",
+      },
+      select: { id: true },
+    }),
+    prisma.user.create({
+      data: {
+        email: `${EMAIL_PREFIX}staff@example.test`,
+        name: "Surviving Staff",
+        role: "PLAYER",
+      },
+      select: { id: true },
+    }),
+  ]);
+  await prisma.user.update({
+    where: { id: survivingPartner.id },
+    data: {
+      partnerActivatedById: actor.id,
+      chatRestrictedById: actor.id,
+    },
+  });
+  const survivingHub = await prisma.hub.create({
+    data: {
+      ownerId: survivingPartner.id,
+      name: "Surviving Venue",
+      coverPhotos: [],
+      games: ["pickleball"],
+      courts: { create: { name: "Shared Court" } },
+    },
+    select: { id: true, courts: { select: { id: true } } },
+  });
+  const event = await prisma.event.create({
+    data: {
+      publicId: `${EMAIL_PREFIX}shared-event`,
+      hubId: survivingHub.id,
+      title: "Shared Event",
+      sport: "pickleball",
+      date: "2099-01-01",
+      startHour: 8,
+      endHour: 10,
+      startsAt: new Date("2099-01-01T00:00:00.000Z"),
+      endsAt: new Date("2099-01-01T02:00:00.000Z"),
+      capacity: 8,
+      registrationFee: 0,
+    },
+    select: { id: true },
+  });
+  const organizerGuest = await prisma.eventOrganizerGuest.create({
+    data: {
+      eventId: event.id,
+      createdById: actor.id,
+      name: "Shared Guest",
+    },
+    select: { id: true },
+  });
+  const courtBlock = await prisma.courtBlock.create({
+    data: {
+      hubId: survivingHub.id,
+      type: "OTHER",
+      date: "2099-01-02",
+      startHour: 8,
+      endHour: 9,
+      createdById: actor.id,
+      releasedById: actor.id,
+    },
+    select: { id: true },
+  });
+  const queue = await prisma.openPlayQueue.create({
+    data: {
+      publicId: `${EMAIL_PREFIX}shared-queue`,
+      hubId: survivingHub.id,
+      title: "Shared Queue",
+      kind: "QUICK",
+      createdById: actor.id,
+    },
+    select: { id: true },
+  });
+  const openPlaySession = await prisma.openPlaySession.create({
+    data: {
+      queueId: queue.id,
+      createdById: actor.id,
+      participants: {
+        create: {
+          source: "REGISTERED_PLAYER",
+          userId: contentPlayer.id,
+          displayName: "Content Player",
+        },
+      },
+    },
+    select: { id: true, participants: { select: { id: true } } },
+  });
+  const openPlayGame = await prisma.openPlayGame.create({
+    data: {
+      sessionId: openPlaySession.id,
+      courtId: survivingHub.courts[0].id,
+      sequence: 1,
+      matchingMode: "BALANCED",
+      createdById: actor.id,
+    },
+    select: { id: true },
+  });
+  const conversation = await prisma.chatConversation.create({
+    data: {
+      kind: "HUB_PLAYER",
+      hubId: survivingHub.id,
+      playerId: contentPlayer.id,
+    },
+    select: { id: true },
+  });
+  const message = await prisma.chatMessage.create({
+    data: {
+      conversationId: conversation.id,
+      senderId: contentPlayer.id,
+      body: "Personal message body",
+      targetPath: "/private/path",
+    },
+    select: { id: true },
+  });
+  const report = await prisma.chatReport.create({
+    data: {
+      messageId: message.id,
+      reporterId: actor.id,
+      reviewerId: actor.id,
+      category: "OTHER",
+      details: "Personal report details",
+      evidenceBody: "Personal message body",
+      status: "RESOLVED",
+      resolution: "Personal review resolution",
+      reviewedAt: new Date(),
+    },
+    select: { id: true },
+  });
+  const waiver = await prisma.serviceFeeWaiver.create({
+    data: {
+      partnerId: survivingPartner.id,
+      amount: 25,
+      reason: "Shared financial history",
+      grantedById: actor.id,
+      balanceBefore: 100,
+      balanceAfter: 75,
+    },
+    select: { id: true },
+  });
+  const membership = await prisma.partnerStaffMembership.create({
+    data: {
+      partnerId: survivingPartner.id,
+      userId: staffUser.id,
+      invitedById: actor.id,
+    },
+    select: { id: true },
+  });
+  const invitation = await prisma.partnerStaffInvitation.create({
+    data: {
+      partnerId: survivingPartner.id,
+      invitedById: actor.id,
+      email: invitationEmail,
+      tokenHash: `${EMAIL_PREFIX}invitation-token`,
+      expiresAt: new Date("2099-01-01T00:00:00.000Z"),
+    },
+    select: { id: true },
+  });
+  const activity = await prisma.partnerStaffActivity.create({
+    data: {
+      partnerId: survivingPartner.id,
+      actorId: actor.id,
+      action: "USER_DELETION_CHECK",
+      targetType: "User",
+      targetId: actor.id,
+      metadata: { email: actorEmail, preserved: true },
+    },
+    select: { id: true },
+  });
+  const impersonationSession = await prisma.partnerImpersonationSession.create({
+    data: {
+      tokenHash: `${EMAIL_PREFIX}impersonation-token`,
+      adminId: actor.id,
+      partnerId: survivingPartner.id,
+      expiresAt: new Date("2099-01-01T00:00:00.000Z"),
+    },
+    select: { id: true },
+  });
+  const impersonationAudit = await prisma.partnerImpersonationAudit.create({
+    data: {
+      sessionId: impersonationSession.id,
+      adminId: actor.id,
+      partnerId: survivingPartner.id,
+      action: `${EMAIL_PREFIX}IMPERSONATION_CHECK`,
+      targetType: "User",
+      targetId: actor.id,
+    },
+    select: { id: true },
+  });
+  await prisma.verificationToken.create({
+    data: {
+      identifier: actorEmail.toUpperCase(),
+      token: `${EMAIL_PREFIX}verification-token`,
+      expires: new Date("2099-01-01T00:00:00.000Z"),
+    },
+  });
+
+  const contentDeleteResult = await deleteUserAction(
+    {},
+    deletionForm(contentPlayer.id, contentEmail)
+  );
+  const [redactedMessage, redactedParticipant, preservedConversation] =
+    await Promise.all([
+      prisma.chatMessage.findUnique({ where: { id: message.id } }),
+      prisma.openPlayParticipant.findUnique({
+        where: { id: openPlaySession.participants[0].id },
+      }),
+      prisma.chatConversation.findUnique({ where: { id: conversation.id } }),
+    ]);
+  ok(
+    "shared chat and BunalQ history is preserved with player content redacted",
+    !contentDeleteResult.message &&
+      redactedMessage?.senderId === null &&
+      redactedMessage.body === null &&
+      redactedMessage.targetPath === null &&
+      redactedMessage.deletedAt !== null &&
+      redactedParticipant?.userId === null &&
+      redactedParticipant.displayName === "Deleted player" &&
+      preservedConversation?.playerId === null
+  );
+  ok(
+    "copied report evidence from a deleted sender is redacted",
+    (await prisma.chatReport.findUnique({ where: { id: report.id } }))
+      ?.evidenceBody === null
+  );
+
+  const adminDeleteResult = await deleteUserAction(
+    {},
+    deletionForm(actor.id, actorEmail)
+  );
+  const [
+    preservedWaiver,
+    preservedMembership,
+    preservedInvitation,
+    preservedActivity,
+    preservedAudit,
+    preservedUser,
+    preservedBlock,
+    preservedQueue,
+    preservedSession,
+    preservedGame,
+    preservedGuest,
+    preservedReport,
+  ] = await Promise.all([
+    prisma.serviceFeeWaiver.findUnique({ where: { id: waiver.id } }),
+    prisma.partnerStaffMembership.findUnique({ where: { id: membership.id } }),
+    prisma.partnerStaffInvitation.findUnique({ where: { id: invitation.id } }),
+    prisma.partnerStaffActivity.findUnique({ where: { id: activity.id } }),
+    prisma.partnerImpersonationAudit.findUnique({
+      where: { id: impersonationAudit.id },
+    }),
+    prisma.user.findUnique({ where: { id: survivingPartner.id } }),
+    prisma.courtBlock.findUnique({ where: { id: courtBlock.id } }),
+    prisma.openPlayQueue.findUnique({ where: { id: queue.id } }),
+    prisma.openPlaySession.findUnique({ where: { id: openPlaySession.id } }),
+    prisma.openPlayGame.findUnique({ where: { id: openPlayGame.id } }),
+    prisma.eventOrganizerGuest.findUnique({ where: { id: organizerGuest.id } }),
+    prisma.chatReport.findUnique({ where: { id: report.id } }),
+  ]);
+  ok(
+    "another administrator can be deleted while shared financial and staffing rows survive",
+    !adminDeleteResult.message &&
+      (await prisma.user.count({ where: { id: actor.id } })) === 0 &&
+      preservedWaiver?.grantedById === null &&
+      preservedMembership?.invitedById === null &&
+      preservedInvitation?.invitedById === null
+  );
+  ok(
+    "email verification credentials are removed with the account",
+    (await prisma.verificationToken.count({
+      where: { token: `${EMAIL_PREFIX}verification-token` },
+    })) === 0
+  );
+  ok(
+    "surviving operational history removes administrator attribution",
+    preservedActivity?.actorId === null &&
+      preservedActivity.targetId === null &&
+      JSON.stringify(preservedActivity.metadata).includes(actorEmail) === false &&
+      preservedAudit?.adminId === null &&
+      preservedAudit.partnerId === survivingPartner.id &&
+      preservedAudit.sessionId === null &&
+      preservedAudit.targetId === null &&
+      (await prisma.partnerImpersonationSession.count({
+        where: { id: impersonationSession.id },
+      })) === 0
+  );
+  ok(
+    "all scalar creator and reviewer references are anonymized",
+    preservedUser?.partnerActivatedById === null &&
+      preservedUser.chatRestrictedById === null &&
+      preservedBlock?.createdById === null &&
+      preservedBlock.releasedById === null &&
+      preservedQueue?.createdById === null &&
+      preservedSession?.createdById === null &&
+      preservedGame?.createdById === null &&
+      preservedGuest?.createdById === null &&
+      preservedReport?.reporterId === null &&
+      preservedReport.reviewerId === null &&
+      preservedReport.details === null &&
+      preservedReport.resolution === null
   );
 }
 

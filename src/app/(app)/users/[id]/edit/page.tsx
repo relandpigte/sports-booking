@@ -76,7 +76,10 @@ export default async function EditUserPage({
                     </time>
                   </div>
                   <p className="mt-0.5 text-xs text-gray-500">
-                    {entry.admin?.name ?? entry.admin?.email ?? entry.adminId}
+                    {entry.admin?.name ??
+                      entry.admin?.email ??
+                      entry.adminId ??
+                      "Deleted administrator"}
                     {entry.targetType && entry.targetId
                       ? ` · ${entry.targetType} ${entry.targetId}`
                       : ""}

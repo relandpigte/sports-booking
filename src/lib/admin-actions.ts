@@ -14,6 +14,7 @@ import {
   sendPartnerApprovalEmail,
 } from "@/lib/email";
 import { appUrl } from "@/lib/urls";
+import { deleteUserData } from "@/lib/user-deletion";
 import { firstErrors } from "@/lib/zod-errors";
 import {
   AdminCreateUserSchema,
@@ -29,6 +30,7 @@ export type AdminFormState = {
 };
 
 export type DeleteUserState = {
+  errors?: { confirmationEmail?: string };
   message?: string;
 };
 
@@ -382,6 +384,11 @@ export async function deleteUserAction(
     };
   }
   const id = String(formData.get("userId") ?? "");
+  const confirmationEmail = String(
+    formData.get("confirmationEmail") ?? ""
+  )
+    .trim()
+    .toLowerCase();
 
   if (!id) return { message: "User not found." };
   // Don't let an admin delete their own account.
@@ -394,102 +401,30 @@ export async function deleteUserAction(
       const user = await tx.user.findUnique({
         where: { id },
         select: {
-          role: true,
-          partnerStatus: true,
+          email: true,
           partnerGateway: { select: { id: true } },
-          trainerProfile: { select: { status: true } },
-          trainerGateway: { select: { id: true } },
-          _count: {
-            select: {
-              hubs: true,
-              bookings: true,
-              bookingPayments: true,
-              venuePayments: true,
-              eventRegistrations: true,
-              organizerEventGuests: true,
-              manualPaymentMethods: true,
-              serviceFeeEntries: true,
-              serviceFeeSettlements: true,
-              serviceFeeWaivers: true,
-              serviceFeeWaiversGranted: true,
-              serviceFeeWaiversReversed: true,
-              trainerManualMethods: true,
-              trainerSessionsBooked: true,
-              trainerPaymentsMade: true,
-              trainerPaymentsReceived: true,
-              trainerFeeEntries: true,
-              trainerFeeSettlements: true,
-              trainerFeeWaivers: true,
-              trainerFeeWaiversGranted: true,
-              trainerFeeWaiversReversed: true,
-            },
-          },
         },
       });
       if (!user) return { message: "User not found." };
-
-      if (user.trainerProfile?.status === "ACTIVE") {
-        return { message: "Deactivate this trainer profile before deleting the account." };
-      }
-      const hasTrainerHistory = user.trainerGateway !== null || user._count.trainerManualMethods > 0 || user._count.trainerSessionsBooked > 0 || user._count.trainerPaymentsMade > 0 || user._count.trainerPaymentsReceived > 0 || user._count.trainerFeeEntries > 0 || user._count.trainerFeeSettlements > 0 || user._count.trainerFeeWaivers > 0 || user._count.trainerFeeWaiversGranted > 0 || user._count.trainerFeeWaiversReversed > 0;
-      if (hasTrainerHistory) {
-        return { message: "This account has trainer session, payment, or settlement history and cannot be permanently deleted." };
-      }
-
-      if (user.role === "PARTNER") {
-        if (user.partnerStatus === "ACTIVE") {
-          return {
-            message: "Deactivate this partner before deleting the account.",
-          };
-        }
-        const hasPartnerOwnedHistory =
-          user.partnerGateway !== null ||
-          user._count.hubs > 0 ||
-          user._count.venuePayments > 0 ||
-          user._count.organizerEventGuests > 0 ||
-          user._count.manualPaymentMethods > 0 ||
-          user._count.serviceFeeEntries > 0 ||
-          user._count.serviceFeeSettlements > 0 ||
-          user._count.serviceFeeWaivers > 0 ||
-          user._count.serviceFeeWaiversGranted > 0 ||
-          user._count.serviceFeeWaiversReversed > 0;
-        const hasPartnerAccountHistory =
-          hasPartnerOwnedHistory ||
-          user._count.bookings > 0 ||
-          user._count.bookingPayments > 0 ||
-          user._count.eventRegistrations > 0;
-        if (hasPartnerOwnedHistory || hasPartnerAccountHistory) {
-          return {
-            message:
-              "This partner has venue, booking, payment, or settlement history and cannot be permanently deleted. Keep the account deactivated instead.",
-          };
-        }
-      } else {
-        const hasPartnerOwnedHistory =
-          user.partnerGateway !== null ||
-          user._count.hubs > 0 ||
-          user._count.venuePayments > 0 ||
-          user._count.organizerEventGuests > 0 ||
-          user._count.manualPaymentMethods > 0 ||
-          user._count.serviceFeeEntries > 0 ||
-          user._count.serviceFeeSettlements > 0 ||
-          user._count.serviceFeeWaivers > 0 ||
-          user._count.serviceFeeWaiversGranted > 0 ||
-          user._count.serviceFeeWaiversReversed > 0;
-        if (hasPartnerOwnedHistory) {
-          return {
-            message:
-              "This account still owns partner venue or financial history and cannot be permanently deleted.",
-          };
-        }
+      if (confirmationEmail !== user.email.trim().toLowerCase()) {
+        return {
+          errors: {
+            confirmationEmail:
+              "Enter the account email exactly to confirm permanent deletion.",
+          },
+        };
       }
 
-      await tx.user.delete({ where: { id } });
+      await deleteUserData(tx, {
+        id,
+        email: user.email,
+        partnerGatewayId: user.partnerGateway?.id ?? null,
+      });
       return {};
     },
-    { isolationLevel: "Serializable" }
+    { isolationLevel: "Serializable", maxWait: 5_000, timeout: 60_000 }
   );
-  if (result.message) return result;
-  revalidatePath("/users");
+  if (result.message || result.errors) return result;
+  revalidatePath("/", "layout");
   return {};
 }

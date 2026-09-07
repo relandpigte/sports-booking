@@ -37,87 +37,22 @@ const userListSelect = {
   lastLoginAt: true,
   loginCount: true,
   createdAt: true,
-  partnerGateway: { select: { id: true } },
   trainerProfile: { select: { status: true } },
-  trainerGateway: { select: { id: true } },
-  _count: {
-    select: {
-      hubs: true,
-      bookings: true,
-      bookingPayments: true,
-      venuePayments: true,
-      eventRegistrations: true,
-      organizerEventGuests: true,
-      manualPaymentMethods: true,
-      serviceFeeEntries: true,
-      serviceFeeSettlements: true,
-      serviceFeeWaivers: true,
-      serviceFeeWaiversGranted: true,
-      serviceFeeWaiversReversed: true,
-      trainerManualMethods: true,
-      trainerSessionsBooked: true,
-      trainerPaymentsMade: true,
-      trainerPaymentsReceived: true,
-      trainerFeeEntries: true,
-      trainerFeeSettlements: true,
-      trainerFeeWaivers: true,
-      trainerFeeWaiversGranted: true,
-      trainerFeeWaiversReversed: true,
-    },
-  },
 } as const;
 
 type AdminUserRecord = Prisma.UserGetPayload<{
   select: typeof userListSelect;
 }>;
 
-export type AdminUser = Omit<AdminUserRecord, "partnerGateway" | "trainerProfile" | "trainerGateway" | "_count"> & {
+export type AdminUser = Omit<AdminUserRecord, "trainerProfile"> & {
   trainerStatus: TrainerStatus | null;
-  deleteBlockedReason: string | null;
 };
 
 function mapAdminUser(user: AdminUserRecord): AdminUser {
-  const { partnerGateway, trainerProfile, trainerGateway, _count, ...safeUser } = user;
-  const baseUser = {
+  const { trainerProfile, ...safeUser } = user;
+  return {
     ...safeUser,
     trainerStatus: trainerProfile?.status ?? null,
-  };
-  if (user.partnerStatus === "ACTIVE") {
-    return {
-      ...baseUser,
-      deleteBlockedReason: "Deactivate this partner before deleting the account.",
-    };
-  }
-  if (trainerProfile?.status === "ACTIVE") {
-    return { ...baseUser, deleteBlockedReason: "Deactivate this trainer profile before deleting the account." };
-  }
-  const hasTrainerHistory = trainerGateway !== null || _count.trainerManualMethods > 0 || _count.trainerSessionsBooked > 0 || _count.trainerPaymentsMade > 0 || _count.trainerPaymentsReceived > 0 || _count.trainerFeeEntries > 0 || _count.trainerFeeSettlements > 0 || _count.trainerFeeWaivers > 0 || _count.trainerFeeWaiversGranted > 0 || _count.trainerFeeWaiversReversed > 0;
-  if (hasTrainerHistory) {
-    return { ...baseUser, deleteBlockedReason: "This account has trainer session, payment, or settlement history and cannot be permanently deleted." };
-  }
-  const hasPartnerOwnedHistory =
-    partnerGateway !== null ||
-    _count.hubs > 0 ||
-    _count.venuePayments > 0 ||
-    _count.organizerEventGuests > 0 ||
-    _count.manualPaymentMethods > 0 ||
-    _count.serviceFeeEntries > 0 ||
-    _count.serviceFeeSettlements > 0 ||
-    _count.serviceFeeWaivers > 0 ||
-    _count.serviceFeeWaiversGranted > 0 ||
-    _count.serviceFeeWaiversReversed > 0;
-  const hasPartnerAccountHistory =
-    hasPartnerOwnedHistory ||
-    _count.bookings > 0 ||
-    _count.bookingPayments > 0 ||
-    _count.eventRegistrations > 0;
-  return {
-    ...baseUser,
-    deleteBlockedReason:
-      hasPartnerOwnedHistory ||
-      (user.role === "PARTNER" && hasPartnerAccountHistory)
-      ? "This partner has venue, booking, payment, or settlement history and cannot be permanently deleted. Keep the account deactivated instead."
-      : null,
   };
 }
 
@@ -227,7 +162,13 @@ export async function listPartnerAssistanceAudit(partnerId: string) {
       createdAt: true,
     },
   });
-  const adminIds = [...new Set(rows.map((row) => row.adminId))];
+  const adminIds = [
+    ...new Set(
+      rows
+        .map((row) => row.adminId)
+        .filter((id): id is string => id !== null)
+    ),
+  ];
   const admins = await prisma.user.findMany({
     where: { id: { in: adminIds } },
     select: { id: true, name: true, email: true },
@@ -236,6 +177,6 @@ export async function listPartnerAssistanceAudit(partnerId: string) {
 
   return rows.map((row) => ({
     ...row,
-    admin: adminById.get(row.adminId) ?? null,
+    admin: row.adminId ? adminById.get(row.adminId) ?? null : null,
   }));
 }

@@ -413,7 +413,8 @@ function mapWaiver(
     amount: Number(row.amount),
     reason: row.reason,
     grantedAt: row.grantedAt,
-    grantedByName: row.grantedBy.name ?? row.grantedBy.email,
+    grantedByName:
+      row.grantedBy?.name ?? row.grantedBy?.email ?? "Deleted administrator",
     balanceBefore: Number(row.balanceBefore),
     balanceAfter: Number(row.balanceAfter),
     reversedAt: row.reversedAt,

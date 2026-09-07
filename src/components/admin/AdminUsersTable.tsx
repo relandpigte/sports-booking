@@ -424,7 +424,7 @@ function UserDirectoryRow({
               <DeleteUserButton
                 userId={user.id}
                 name={user.name ?? user.email}
-                blockedReason={user.deleteBlockedReason}
+                email={user.email}
               />
             )}
           </div>

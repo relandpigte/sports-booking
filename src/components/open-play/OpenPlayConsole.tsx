@@ -79,6 +79,7 @@ function ActionForm({
   values,
   label,
   className = "",
+  buttonClassName,
   tone = "default",
   confirm,
 }: {
@@ -86,6 +87,7 @@ function ActionForm({
   values: Record<string, string | number | boolean>;
   label: string;
   className?: string;
+  buttonClassName?: string;
   tone?: "default" | "danger" | "quiet";
   confirm?: string;
 }) {
@@ -104,7 +106,9 @@ function ActionForm({
       <button
         disabled={pending}
         className={`min-h-9 rounded-lg px-3 py-1.5 text-xs font-black transition disabled:opacity-50 ${
-          tone === "danger"
+          buttonClassName
+            ? buttonClassName
+            : tone === "danger"
             ? "bg-red-50 text-red-700 hover:bg-red-100"
             : tone === "quiet"
               ? "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
@@ -349,36 +353,40 @@ function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
           {snapshot.courts.map((court) => {
             const game = activeGames.find((item) => item.courtId === court.id);
             const live = Boolean(game);
+            const palette = game ? liveMatchPalette(game.id) : null;
             return (
               <article
                 key={court.id}
-                className={`overflow-hidden rounded-2xl border shadow-sm ${game ? liveMatchPalette(game.id) : "border-slate-200 bg-white"}`}
+                className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${game ? "border-emerald-200" : "border-slate-200"}`}
               >
-                <div className={`flex items-center justify-between border-b px-4 py-2.5 ${live ? "border-white/20 bg-black/10" : "border-slate-100 bg-slate-50/80"}`}>
-                  <h3 className={`text-sm font-black ${live ? "text-white" : "text-navy"}`}>{court.name}</h3>
-                  <span className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider ${live ? "text-white" : "text-slate-500"}`}>
-                    <span className={`h-1.5 w-1.5 rounded-full ${live ? "animate-pulse bg-white" : court.active ? "bg-slate-300" : "bg-amber-400"}`} />
+                <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-4 py-2.5">
+                  <h3 className="text-sm font-black text-navy">{court.name}</h3>
+                  <span className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider ${live ? "text-emerald-700" : "text-slate-500"}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${live ? "animate-pulse bg-emerald-500" : court.active ? "bg-slate-300" : "bg-amber-400"}`} />
                     {!court.active ? "Paused" : live ? "Playing" : "Ready"}
                   </span>
                 </div>
                 <div className="p-3">
-                  {game ? (
+                  {game && palette ? (
                     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                       {[1, 2].map((team, index) => (
                         <div key={team} className="contents">
-                          {index === 1 ? <span className="text-[10px] font-black text-white/60">VS</span> : null}
-                          <div className="rounded-lg border border-white/25 bg-white/15 p-2 text-center backdrop-blur-sm">
-                            {game.players.filter((player) => player.team === team).map((player) => <p key={player.participantId} className="truncate text-xs font-bold text-white">{player.displayName}</p>)}
+                          {index === 1 ? <span className="text-[10px] font-black text-slate-400">VS</span> : null}
+                          <div className={`overflow-hidden rounded-xl border ${team === 1 ? palette.team1Panel : palette.team2Panel}`}>
+                            <p className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-wider ${team === 1 ? palette.team1Accent : palette.team2Accent}`}>Team {team}</p>
+                            <div className="space-y-1 px-3 py-2.5">
+                              {game.players.filter((player) => player.team === team).map((player) => <p key={player.participantId} className="truncate text-xs font-bold text-navy">{player.displayName}</p>)}
+                            </div>
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : <p className="py-4 text-center text-xs text-slate-500">{court.active ? "Ready for the next match." : "Rotation paused for this court."}</p>}
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {!game ? <ActionForm action={toggleOpenPlayCourtAction} values={{ sessionId: snapshot.id, courtId: court.id, active: !court.active }} label={court.active ? "Pause court" : "Resume court"} tone="quiet" /> : null}
-                    {game ? <>
-                      <ActionForm action={recordOpenPlayWinnerAction} values={{ sessionId: snapshot.id, gameId: game.id, winningTeam: 1 }} label="Team 1 won" />
-                      <ActionForm action={recordOpenPlayWinnerAction} values={{ sessionId: snapshot.id, gameId: game.id, winningTeam: 2 }} label="Team 2 won" />
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    {!game ? <ActionForm className="col-span-2" action={toggleOpenPlayCourtAction} values={{ sessionId: snapshot.id, courtId: court.id, active: !court.active }} label={court.active ? "Pause court" : "Resume court"} tone="quiet" /> : null}
+                    {game && palette ? <>
+                      <ActionForm action={recordOpenPlayWinnerAction} values={{ sessionId: snapshot.id, gameId: game.id, winningTeam: 1 }} label="Team 1 wins" buttonClassName={`w-full ${palette.team1Button}`} />
+                      <ActionForm action={recordOpenPlayWinnerAction} values={{ sessionId: snapshot.id, gameId: game.id, winningTeam: 2 }} label="Team 2 wins" buttonClassName={`w-full ${palette.team2Button}`} />
                     </> : null}
                   </div>
                 </div>

@@ -7,16 +7,23 @@ import { liveMatchPalette } from "@/components/open-play/openPlayColors";
 
 function Team({
   players,
-  dark,
+  label,
+  panelClassName,
+  accentClassName,
 }: {
   players: { participantId: string; displayName: string }[];
-  dark: boolean;
+  label?: string;
+  panelClassName?: string;
+  accentClassName?: string;
 }) {
   return (
-    <div className={`min-w-0 rounded-xl border px-3 py-2 text-center ${dark ? "border-white/15 bg-white/5" : "border-slate-200 bg-slate-50"}`}>
-      {players.map((player) => (
-        <p key={player.participantId} className={`truncate text-sm font-black ${dark ? "text-white" : "text-navy"}`}>{player.displayName}</p>
-      ))}
+    <div className={`min-w-0 overflow-hidden rounded-xl border ${panelClassName ?? "border-slate-200 bg-slate-50"}`}>
+      {label ? <p className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-wider ${accentClassName}`}>{label}</p> : null}
+      <div className="space-y-1 px-3 py-2 text-center">
+        {players.map((player) => (
+          <p key={player.participantId} className="truncate text-sm font-black text-navy">{player.displayName}</p>
+        ))}
+      </div>
     </div>
   );
 }
@@ -54,20 +61,21 @@ export function OpenPlayBoard({ snapshot }: { snapshot: OpenPlaySnapshot }) {
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {snapshot.courts.map((court) => {
             const game = liveGames.find((item) => item.courtId === court.id);
+            const palette = game ? liveMatchPalette(game.id) : null;
             return (
-              <article key={court.id} className={`overflow-hidden rounded-2xl border ${game ? liveMatchPalette(game.id) : "border-slate-200 bg-white"}`}>
-                <div className={`flex items-center justify-between border-b px-4 py-3 ${game ? "border-white/20 bg-black/10" : "border-slate-100"}`}>
-                  <h3 className={`font-black ${game ? "text-white" : "text-navy"}`}>{court.name}</h3>
-                  <span className={`text-[10px] font-black uppercase tracking-[0.12em] ${game ? "text-white" : "text-slate-400"}`}>
+              <article key={court.id} className={`overflow-hidden rounded-2xl border bg-white ${game ? "border-emerald-200" : "border-slate-200"}`}>
+                <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-4 py-3">
+                  <h3 className="font-black text-navy">{court.name}</h3>
+                  <span className={`text-[10px] font-black uppercase tracking-[0.12em] ${game ? "text-emerald-700" : "text-slate-400"}`}>
                     {!court.active ? "Paused" : game ? "Playing" : "Open"}
                   </span>
                 </div>
                 <div className="p-4">
-                  {game ? (
+                  {game && palette ? (
                     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                      <Team dark players={game.players.filter((player) => player.team === 1)} />
-                      <span className="text-[10px] font-black text-white/60">VS</span>
-                      <Team dark players={game.players.filter((player) => player.team === 2)} />
+                      <Team label="Team 1" panelClassName={palette.team1Panel} accentClassName={palette.team1Accent} players={game.players.filter((player) => player.team === 1)} />
+                      <span className="text-[10px] font-black text-slate-400">VS</span>
+                      <Team label="Team 2" panelClassName={palette.team2Panel} accentClassName={palette.team2Accent} players={game.players.filter((player) => player.team === 2)} />
                     </div>
                   ) : <p className="py-5 text-center text-sm text-slate-500">{court.active ? "Ready for the next match." : "Court rotation is paused."}</p>}
                 </div>
@@ -94,9 +102,9 @@ export function OpenPlayBoard({ snapshot }: { snapshot: OpenPlaySnapshot }) {
                   <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-black text-violet-700">{OPEN_PLAY_MODE_LABELS[game.matchingMode]}</span>
                 </div>
                 <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                  <Team dark={false} players={game.players.filter((player) => player.team === 1)} />
+                  <Team players={game.players.filter((player) => player.team === 1)} />
                   <span className="text-[10px] font-black text-slate-300">VS</span>
-                  <Team dark={false} players={game.players.filter((player) => player.team === 2)} />
+                  <Team players={game.players.filter((player) => player.team === 2)} />
                 </div>
               </article>
             ))}

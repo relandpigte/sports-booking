@@ -699,6 +699,52 @@ export async function toggleOpenPlayCourtAction(
   return { success: active ? "Court resumed." : "Court paused." };
 }
 
+async function activateOpenPlayGame(
+  tx: Tx,
+  input: {
+    sessionId: string;
+    courtId: string;
+    gameId?: string;
+  }
+): Promise<string | null> {
+  const game = await tx.openPlayGame.findFirst({
+    where: {
+      sessionId: input.sessionId,
+      status: "STAGED",
+      ...(input.gameId ? { id: input.gameId } : {}),
+    },
+    orderBy: { sequence: "asc" },
+    include: {
+      players: {
+        include: { participant: { select: { status: true } } },
+      },
+    },
+  });
+  if (
+    !game ||
+    game.players.length !== 4 ||
+    game.players.some((player) => player.participant.status !== "STAGED")
+  ) return null;
+
+  await tx.openPlayGame.update({
+    where: { id: game.id },
+    data: {
+      courtId: input.courtId,
+      status: "ACTIVE",
+      startedAt: new Date(),
+    },
+  });
+  await tx.openPlayParticipant.updateMany({
+    where: {
+      id: { in: game.players.map((player) => player.participantId) },
+      sessionId: input.sessionId,
+      status: "STAGED",
+    },
+    data: { status: "PLAYING" },
+  });
+  return game.id;
+}
+
 export async function dispatchOpenPlayUpNextAction(
   _previous: OpenPlayActionState,
   formData: FormData
@@ -718,37 +764,17 @@ export async function dispatchOpenPlayUpNextAction(
       where: { sessionId, courtId, status: "ACTIVE" },
     });
     if (occupied > 0) return { kind: "occupied" as const };
-    const gameId = String(formData.get("gameId") ?? "");
-    const game = await tx.openPlayGame.findFirst({
-      where: { id: gameId, sessionId, status: "STAGED" },
-      include: {
-        players: {
-          include: { participant: { select: { status: true } } },
-        },
-      },
+    const gameId = await activateOpenPlayGame(tx, {
+      sessionId,
+      courtId,
+      gameId: String(formData.get("gameId") ?? ""),
     });
-    if (
-      !game ||
-      game.players.length !== 4 ||
-      game.players.some((player) => player.participant.status !== "STAGED")
-    ) return { kind: "game" as const };
-    await tx.openPlayGame.update({
-      where: { id: game.id },
-      data: { courtId, status: "ACTIVE", startedAt: new Date() },
-    });
-    await tx.openPlayParticipant.updateMany({
-      where: {
-        id: { in: game.players.map((player) => player.participantId) },
-        sessionId,
-        status: "STAGED",
-      },
-      data: { status: "PLAYING" },
-    });
+    if (!gameId) return { kind: "game" as const };
     await syncAutomaticOpenPlayUpNext(tx, {
       sessionId,
       createdById: workspace.actorId,
     });
-    return { kind: "dispatched" as const, gameId: game.id };
+    return { kind: "dispatched" as const, gameId };
   });
   if (result.kind === "occupied") {
     return { message: "That court already has a live match." };
@@ -893,12 +919,12 @@ export async function recordOpenPlayWinnerAction(
   if (!owned) return { message: "BunalQ run not found." };
   const completed = await bunalQTransaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
-    if (!session || session.status !== "ACTIVE") return false;
+    if (!session || session.status !== "ACTIVE") return null;
     const game = await tx.openPlayGame.findFirst({
       where: { id: gameId, sessionId, status: "ACTIVE" },
       include: { players: true },
     });
-    if (!game || game.players.length !== 4) return false;
+    if (!game || !game.courtId || game.players.length !== 4) return null;
     let next = session.nextQueuePosition;
     for (const slot of game.players.sort((left, right) => left.slot - right.slot)) {
       next += 1;
@@ -917,16 +943,28 @@ export async function recordOpenPlayWinnerAction(
       where: { id: game.id },
       data: { status: "COMPLETED", winningTeam, completedAt: new Date() },
     });
+    const nextGameId = await activateOpenPlayGame(tx, {
+      sessionId,
+      courtId: game.courtId,
+    });
     await syncAutomaticOpenPlayUpNext(tx, {
       sessionId,
       createdById: workspace.actorId,
     });
-    return true;
+    return { nextGameId };
   });
   if (!completed) return { message: "This result was already recorded or the match is unavailable." };
-  await audit(workspace, "OPEN_PLAY_RESULT_RECORDED", sessionId, { gameId, winningTeam });
+  await audit(workspace, "OPEN_PLAY_RESULT_RECORDED", sessionId, {
+    gameId,
+    winningTeam,
+    nextGameId: completed.nextGameId,
+  });
   refresh(owned.queue.publicId, owned.queue.event?.publicId);
-  return { success: "Winner recorded." };
+  return {
+    success: completed.nextGameId
+      ? "Winner recorded; the next match is now live."
+      : "Winner recorded; the court is ready.",
+  };
 }
 
 export async function undoOpenPlayResultAction(

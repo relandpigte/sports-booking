@@ -353,13 +353,22 @@ async function check() {
     "the result is counted exactly once",
     (await prisma.openPlayGame.count({ where: { id: automaticGame.id, status: "COMPLETED", winningTeam: 1 } })) === 1
   );
+  ok(
+    "finishing a match automatically sends the oldest upcoming match to the freed court",
+    (await prisma.openPlayGame.findUniqueOrThrow({
+      where: { id: manualGame.id },
+    })).status === "ACTIVE" &&
+      (await prisma.openPlayGame.findUniqueOrThrow({
+        where: { id: manualGame.id },
+      })).courtId === hub.courts[0].id
+  );
   stagedGames = await prisma.openPlayGame.findMany({
     where: { sessionId: session.id, status: "STAGED" },
     include: { players: true },
   });
   ok(
-    "recording a result automatically replenishes the upcoming queue",
-    stagedGames.length === 2 &&
+    "recording a result automatically replenishes available upcoming capacity",
+    stagedGames.length === 1 &&
       stagedGames.every((game) => game.courtId === null)
   );
 
@@ -367,15 +376,11 @@ async function check() {
   undo.set("sessionId", session.id);
   undo.set("gameId", automaticGame.id);
   ok(
-    "undo restores a completed game even when its players were automatically prepared again",
-    Boolean((await actions.undoOpenPlayResultAction({}, undo)).success) &&
+    "undo does not interrupt the next match after it automatically starts",
+    Boolean((await actions.undoOpenPlayResultAction({}, undo)).message) &&
       (await prisma.openPlayGame.findUniqueOrThrow({
         where: { id: automaticGame.id },
-      })).status === "ACTIVE"
-  );
-  ok(
-    "the restored game can be completed again",
-    Boolean((await actions.recordOpenPlayWinnerAction({}, winner)).success)
+      })).status === "COMPLETED"
   );
 
   const snapshot = await domain.getPublicOpenPlaySnapshot(event.publicId);

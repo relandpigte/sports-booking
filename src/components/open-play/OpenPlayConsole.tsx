@@ -290,38 +290,35 @@ function DispatchUpNextForm({
   const [state, action, pending] = useBunalQActionState(
     dispatchOpenPlayUpNextAction
   );
-  const onlyCourt = freeCourts.length === 1 ? freeCourts[0] : null;
-  return (
-    <form action={action} className="mt-3 space-y-2">
-      <input type="hidden" name="sessionId" value={snapshot.id} />
-      <input type="hidden" name="gameId" value={gameId} />
-      {onlyCourt ? (
-        <input type="hidden" name="courtId" value={onlyCourt.id} />
-      ) : freeCourts.length > 1 ? (
-        <Select
-          id={`dispatch-court-${gameId}`}
-          name="courtId"
-          label="Available court"
-          options={freeCourts.map((court) => ({
-            value: court.id,
-            label: court.name,
-          }))}
-        />
-      ) : null}
+  if (freeCourts.length === 0) {
+    return (
       <button
-        disabled={pending || freeCourts.length === 0}
-        className="min-h-10 w-full rounded-xl bg-primary px-4 text-sm font-black text-white shadow-sm transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
+        disabled
+        className="mt-3 min-h-10 w-full cursor-not-allowed rounded-xl bg-slate-200 px-4 text-sm font-black text-slate-500"
       >
-        {pending
-          ? "Sending…"
-          : onlyCourt
-            ? `Send to ${onlyCourt.name}`
-            : freeCourts.length > 1
-              ? "Send to court"
-              : "Waiting for a free court"}
+        Waiting for a free court
       </button>
+    );
+  }
+  return (
+    <div className="mt-3 space-y-2">
+      <div className={`grid gap-2 ${freeCourts.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+        {freeCourts.map((court) => (
+          <form key={court.id} action={action}>
+            <input type="hidden" name="sessionId" value={snapshot.id} />
+            <input type="hidden" name="gameId" value={gameId} />
+            <input type="hidden" name="courtId" value={court.id} />
+            <button
+              disabled={pending}
+              className="min-h-10 w-full rounded-xl bg-primary px-3 text-xs font-black text-white shadow-sm transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {pending ? "Sending…" : `Send to ${court.name}`}
+            </button>
+          </form>
+        ))}
+      </div>
       <Feedback state={state} />
-    </form>
+    </div>
   );
 }
 
@@ -334,13 +331,16 @@ function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
     (court) =>
       court.active && !activeGames.some((game) => game.courtId === court.id)
   );
-  const latest = snapshot.games
+  const latestResult = snapshot.games
     .filter((game) => game.status === "COMPLETED" && game.completedAt)
     .sort(
       (left, right) =>
         new Date(right.completedAt!).getTime() -
         new Date(left.completedAt!).getTime()
     )[0];
+  const latest = latestResult && !activeGames.some(
+    (active) => active.courtId === latestResult.courtId
+  ) ? latestResult : undefined;
 
   return (
     <div className="space-y-6">
@@ -368,7 +368,7 @@ function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
                 </div>
                 <div className="p-3">
                   {game && palette ? (
-                    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                    <div className="grid grid-cols-[minmax(0,1fr)_1.25rem_minmax(0,1fr)] items-center gap-2">
                       {[1, 2].map((team, index) => (
                         <div key={team} className="contents">
                           {index === 1 ? <span className="text-[10px] font-black text-slate-400">VS</span> : null}
@@ -382,10 +382,11 @@ function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
                       ))}
                     </div>
                   ) : <p className="py-4 text-center text-xs text-slate-500">{court.active ? "Ready for the next match." : "Rotation paused for this court."}</p>}
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    {!game ? <ActionForm className="col-span-2" action={toggleOpenPlayCourtAction} values={{ sessionId: snapshot.id, courtId: court.id, active: !court.active }} label={court.active ? "Pause court" : "Resume court"} tone="quiet" /> : null}
+                  <div className="mt-3 grid grid-cols-[minmax(0,1fr)_1.25rem_minmax(0,1fr)] gap-2">
+                    {!game ? <ActionForm className="col-span-3" action={toggleOpenPlayCourtAction} values={{ sessionId: snapshot.id, courtId: court.id, active: !court.active }} label={court.active ? "Pause court" : "Resume court"} tone="quiet" /> : null}
                     {game && palette ? <>
                       <ActionForm action={recordOpenPlayWinnerAction} values={{ sessionId: snapshot.id, gameId: game.id, winningTeam: 1 }} label="Team 1 wins" buttonClassName={`w-full ${palette.team1Button}`} />
+                      <span aria-hidden />
                       <ActionForm action={recordOpenPlayWinnerAction} values={{ sessionId: snapshot.id, gameId: game.id, winningTeam: 2 }} label="Team 2 wins" buttonClassName={`w-full ${palette.team2Button}`} />
                     </> : null}
                   </div>

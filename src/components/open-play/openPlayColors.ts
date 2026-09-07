@@ -56,3 +56,9 @@ export function liveMatchPalette(gameId: string) {
   }
   return LIVE_MATCH_PALETTES[hash % LIVE_MATCH_PALETTES.length];
 }
+
+export function openPlayCourtGridClass(courtCount: number) {
+  if (courtCount <= 1) return "md:grid-cols-1";
+  if (courtCount === 2) return "md:grid-cols-2";
+  return "md:grid-cols-3";
+}

@@ -4,7 +4,10 @@ import {
   OPEN_PLAY_UP_NEXT_BUFFER_SIZE,
   type OpenPlaySnapshot,
 } from "@/lib/open-play-shared";
-import { liveMatchPalette } from "@/components/open-play/openPlayColors";
+import {
+  liveMatchPalette,
+  openPlayCourtGridClass,
+} from "@/components/open-play/openPlayColors";
 
 function Team({
   players,
@@ -62,7 +65,7 @@ export function OpenPlayBoard({ snapshot }: { snapshot: OpenPlaySnapshot }) {
           <h2 className="text-sm font-black uppercase tracking-[0.16em] text-navy">Courts</h2>
           <span className="text-xs font-bold text-slate-500">{snapshot.courts.filter((court) => court.active).length} active</span>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className={`grid gap-3 ${openPlayCourtGridClass(snapshot.courts.length)}`}>
           {snapshot.courts.map((court) => {
             const game = courtGames.find((item) => item.courtId === court.id);
             const live = game?.status === "ACTIVE";

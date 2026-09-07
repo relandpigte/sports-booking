@@ -27,6 +27,7 @@ import {
   recordOpenPlayWinnerAction,
   rejectPublicQueueGuestAction,
   removeOpenPlayParticipantAction,
+  replaceStagedCourtMatchAction,
   resumeOpenPlayParticipantAction,
   startNewOpenPlayRunAction,
   startOpenPlayMatchAction,
@@ -40,6 +41,7 @@ import {
   OPEN_PLAY_MODE_DESCRIPTIONS,
   OPEN_PLAY_MODE_LABELS,
   OPEN_PLAY_MODES,
+  OPEN_PLAY_UP_NEXT_BUFFER_SIZE,
   type OpenPlayActionState,
   type OpenPlaySnapshot,
 } from "@/lib/open-play-shared";
@@ -361,6 +363,44 @@ function SitOutStagedPlayerForm({
   );
 }
 
+function ReplaceStagedCourtMatchForm({
+  snapshot,
+  courtGameId,
+  upNext,
+}: {
+  snapshot: OpenPlaySnapshot;
+  courtGameId: string;
+  upNext: OpenPlaySnapshot["games"];
+}) {
+  const [state, action, pending] = useBunalQActionState(
+    replaceStagedCourtMatchAction
+  );
+  if (upNext.length === 0) return null;
+  return (
+    <div className="col-span-3 mt-1 border-t border-slate-100 pt-2">
+      <p className="mb-1.5 text-[9px] font-black uppercase tracking-wider text-slate-400">
+        Replace with
+      </p>
+      <div className={`grid gap-1.5 ${upNext.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+        {upNext.map((game, index) => (
+          <form key={game.id} action={action}>
+            <input type="hidden" name="sessionId" value={snapshot.id} />
+            <input type="hidden" name="courtGameId" value={courtGameId} />
+            <input type="hidden" name="replacementGameId" value={game.id} />
+            <button
+              disabled={pending}
+              className="min-h-9 w-full rounded-lg border border-violet-200 bg-violet-50 px-2 text-[10px] font-black text-violet-700 transition hover:bg-violet-100 disabled:cursor-wait disabled:opacity-50"
+            >
+              {pending ? "Replacing…" : `Match ${index + 1}`}
+            </button>
+          </form>
+        ))}
+      </div>
+      <Feedback state={state} />
+    </div>
+  );
+}
+
 function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
   const courtGames = snapshot.games.filter(
     (game) =>
@@ -445,6 +485,13 @@ function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
                       <ActionForm action={recordOpenPlayWinnerAction} values={{ sessionId: snapshot.id, gameId: game.id, winningTeam: 2 }} label="Team 2 wins" buttonClassName={`w-full ${palette.team2Button}`} />
                     </> : null}
                     {staged && game ? <ActionForm className="col-span-3" action={startOpenPlayMatchAction} values={{ sessionId: snapshot.id, gameId: game.id }} label="Start match" buttonClassName="w-full bg-primary text-white hover:bg-primary-hover" /> : null}
+                    {staged && game ? (
+                      <ReplaceStagedCourtMatchForm
+                        snapshot={snapshot}
+                        courtGameId={game.id}
+                        upNext={upNext}
+                      />
+                    ) : null}
                   </div>
                 </div>
               </article>
@@ -459,7 +506,7 @@ function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
             <h2 className="text-xs font-black uppercase tracking-[0.16em] text-navy">Up next</h2>
             <p className="mt-1 text-xs text-slate-500">Matchups are prepared automatically and wait for a free court.</p>
           </div>
-          <span className="text-xs font-bold text-slate-500">{upNext.length} prepared</span>
+          <span className="text-xs font-bold text-slate-500">{upNext.length}/{OPEN_PLAY_UP_NEXT_BUFFER_SIZE} prepared</span>
         </div>
         {upNext.length > 0 ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -497,7 +544,7 @@ function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
             ))}
           </div>
         ) : (
-          <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">Check in four eligible players to prepare the next matchup.</p>
+          <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">Check in four eligible players to build the two-match Up next buffer.</p>
         )}
       </section>
     </div>

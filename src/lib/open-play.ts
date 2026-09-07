@@ -13,7 +13,10 @@ import {
   hasStaffAccess,
   type PartnerWorkspace,
 } from "@/lib/staffing";
-import type { OpenPlaySnapshot } from "@/lib/open-play-shared";
+import {
+  OPEN_PLAY_UP_NEXT_BUFFER_SIZE,
+  type OpenPlaySnapshot,
+} from "@/lib/open-play-shared";
 
 export type MatchCandidate = {
   id: string;
@@ -284,13 +287,23 @@ export async function syncAutomaticOpenPlayUpNext(
         orderBy: { position: "asc" },
         select: { courtId: true, active: true },
       },
+      games: {
+        where: { status: "ACTIVE", courtId: { not: null } },
+        select: { courtId: true },
+      },
     },
   });
   if (!session || session.status !== "ACTIVE") {
     return { createdGameIds: [], assignedGameIds: [] };
   }
 
-  const targetCount = session.courts.filter((court) => court.active).length;
+  const activeCourtIds = new Set(
+    session.games.flatMap((game) => game.courtId ? [game.courtId] : [])
+  );
+  const availableCourtSlots = session.courts.filter(
+    (court) => court.active && !activeCourtIds.has(court.courtId)
+  ).length;
+  const targetCount = availableCourtSlots + OPEN_PLAY_UP_NEXT_BUFFER_SIZE;
   let staged = await tx.openPlayGame.findMany({
     where: { sessionId: session.id, status: "STAGED" },
     orderBy: { sequence: "asc" },

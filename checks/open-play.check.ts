@@ -235,16 +235,19 @@ async function check() {
   pauseSecondCourt.set("courtId", hub.courts[1].id);
   pauseSecondCourt.set("active", "false");
   ok(
-    "pausing a free court trims the newest automatic upcoming card",
+    "pausing a free court preserves the staged matchup in the Up next buffer",
     Boolean(
       (await actions.toggleOpenPlayCourtAction({}, pauseSecondCourt)).success
     ) &&
       (await prisma.openPlayGame.count({
         where: { sessionId: session.id, status: "STAGED" },
-      })) === 1 &&
+      })) === 2 &&
       (await prisma.openPlayGame.findUniqueOrThrow({
         where: { id: manualGame.id },
-      })).status === "STAGED"
+      })).status === "STAGED" &&
+      (await prisma.openPlayGame.findUniqueOrThrow({
+        where: { id: manualGame.id },
+      })).courtId === null
   );
   const resumeSecondCourt = new FormData();
   resumeSecondCourt.set("sessionId", session.id);
@@ -438,6 +441,101 @@ async function check() {
     (await domain.listPublicBunalQQueues()).some(
       (queue) => queue.publicId === snapshot?.queue.publicId
     )
+  );
+
+  const bufferSession = await prisma.openPlaySession.create({
+    data: {
+      queue: {
+        create: {
+          publicId: `buffer-${partner.id}`,
+          hubId: hub.id,
+          title: "Buffered Quick Queue",
+          kind: "QUICK",
+          admissionMode: "APPROVAL_REQUIRED",
+          createdById: partner.id,
+        },
+      },
+      status: "SETUP",
+      matchingMode: "BALANCED",
+      createdById: partner.id,
+      courts: {
+        create: hub.courts.map((court, index) => ({
+          courtId: court.id,
+          position: index,
+        })),
+      },
+      participants: {
+        create: Array.from({ length: 16 }, (_, index) => ({
+          source: "WALK_IN",
+          displayName: `Buffer Player ${index + 1}`,
+          skillLevel: index % 2 === 0 ? "advanced" : "beginner",
+        })),
+      },
+    },
+    include: { participants: true },
+  });
+  const checkInBuffer = new FormData();
+  checkInBuffer.set("sessionId", bufferSession.id);
+  bufferSession.participants.forEach((participant) =>
+    checkInBuffer.append("participantId", participant.id)
+  );
+  await actions.bulkCheckInOpenPlayParticipantsAction({}, checkInBuffer);
+  const startBuffer = new FormData();
+  startBuffer.set("sessionId", bufferSession.id);
+  await actions.startOpenPlaySessionAction({}, startBuffer);
+  const bufferedGames = await prisma.openPlayGame.findMany({
+    where: { sessionId: bufferSession.id, status: "STAGED" },
+    orderBy: { sequence: "asc" },
+  });
+  ok(
+    "BunalQ maintains two prepared matches beyond staged court matchups",
+    bufferedGames.length === 4 &&
+      bufferedGames.filter((game) => game.courtId !== null).length === 2 &&
+      bufferedGames.filter((game) => game.courtId === null).length === 2
+  );
+
+  const stagedCourtGame = bufferedGames.find((game) => game.courtId !== null)!;
+  const bufferedReplacement = bufferedGames.find((game) => game.courtId === null)!;
+  const originalCourtId = stagedCourtGame.courtId;
+  const replaceCourtMatch = new FormData();
+  replaceCourtMatch.set("sessionId", bufferSession.id);
+  replaceCourtMatch.set("courtGameId", stagedCourtGame.id);
+  replaceCourtMatch.set("replacementGameId", bufferedReplacement.id);
+  const replaceResult = await actions.replaceStagedCourtMatchAction(
+    {},
+    replaceCourtMatch
+  );
+  ok(
+    "staff can replace an unstarted court matchup with a buffered match",
+    Boolean(replaceResult.success) &&
+      (await prisma.openPlayGame.findUniqueOrThrow({
+        where: { id: stagedCourtGame.id },
+      })).courtId === null &&
+      (await prisma.openPlayGame.findUniqueOrThrow({
+        where: { id: bufferedReplacement.id },
+      })).courtId === originalCourtId &&
+      (await prisma.openPlayGame.count({
+        where: {
+          sessionId: bufferSession.id,
+          status: "STAGED",
+          courtId: null,
+        },
+      })) === 2
+  );
+
+  const startReplacement = new FormData();
+  startReplacement.set("sessionId", bufferSession.id);
+  startReplacement.set("gameId", bufferedReplacement.id);
+  await actions.startOpenPlayMatchAction({}, startReplacement);
+  ok(
+    "starting a staged match keeps two additional matchups prepared",
+    (await prisma.openPlayGame.count({
+      where: {
+        sessionId: bufferSession.id,
+        status: "STAGED",
+        courtId: null,
+      },
+    })) === 2
   );
 
   const teammateHistory = domain.buildTeammateHistory([

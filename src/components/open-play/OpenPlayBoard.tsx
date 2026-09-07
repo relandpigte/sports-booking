@@ -1,6 +1,7 @@
 import {
   OPEN_PLAY_MODE_DESCRIPTIONS,
   OPEN_PLAY_MODE_LABELS,
+  OPEN_PLAY_UP_NEXT_BUFFER_SIZE,
   type OpenPlaySnapshot,
 } from "@/lib/open-play-shared";
 import { liveMatchPalette } from "@/components/open-play/openPlayColors";
@@ -96,7 +97,7 @@ export function OpenPlayBoard({ snapshot }: { snapshot: OpenPlaySnapshot }) {
             <h2 className="text-sm font-black uppercase tracking-[0.16em] text-navy">Up next</h2>
             <p className="mt-1 text-xs text-slate-500">Be ready when a court opens.</p>
           </div>
-          <span className="text-xs font-bold text-slate-500">{upNext.length} prepared</span>
+          <span className="text-xs font-bold text-slate-500">{upNext.length}/{OPEN_PLAY_UP_NEXT_BUFFER_SIZE} prepared</span>
         </div>
         {upNext.length > 0 ? (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -115,7 +116,7 @@ export function OpenPlayBoard({ snapshot }: { snapshot: OpenPlaySnapshot }) {
             ))}
           </div>
         ) : (
-          <p className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-sm text-slate-500">The next matchup appears automatically when four eligible players are waiting.</p>
+          <p className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-sm text-slate-500">Up to two matchups appear automatically as eligible players become available.</p>
         )}
       </section>
 

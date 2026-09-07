@@ -32,6 +32,8 @@ export const OPEN_PLAY_MODES = Object.keys(
   OPEN_PLAY_MODE_LABELS
 ) as OpenPlayMatchingMode[];
 
+export const OPEN_PLAY_UP_NEXT_BUFFER_SIZE = 2;
+
 export type OpenPlayActionState = {
   message?: string;
   success?: string;

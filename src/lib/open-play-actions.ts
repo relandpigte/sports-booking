@@ -827,6 +827,74 @@ export async function dispatchOpenPlayUpNextAction(
   return { success: "Match sent to court." };
 }
 
+export async function replaceStagedCourtMatchAction(
+  _previous: OpenPlayActionState,
+  formData: FormData
+): Promise<OpenPlayActionState> {
+  const workspace = await workspaceForManage();
+  if (!workspace) return { message: "BunalQ manage access is required." };
+  const sessionId = String(formData.get("sessionId") ?? "");
+  const courtGameId = String(formData.get("courtGameId") ?? "");
+  const replacementGameId = String(formData.get("replacementGameId") ?? "");
+  if (!sessionId || !courtGameId || !replacementGameId || courtGameId === replacementGameId) {
+    return { message: "Choose a valid Up next replacement." };
+  }
+  const owned = await ownedSession(sessionId, workspace);
+  if (!owned) return { message: "BunalQ run not found." };
+  const replaced = await bunalQTransaction(async (tx) => {
+    const session = await lockSession(tx, sessionId);
+    if (!session || session.status !== "ACTIVE") return null;
+    const games = await tx.openPlayGame.findMany({
+      where: {
+        sessionId,
+        id: { in: [courtGameId, replacementGameId] },
+        status: "STAGED",
+      },
+      select: { id: true, courtId: true },
+    });
+    const courtGame = games.find(
+      (game) => game.id === courtGameId && game.courtId !== null
+    );
+    const replacement = games.find(
+      (game) => game.id === replacementGameId && game.courtId === null
+    );
+    if (
+      !courtGame?.courtId ||
+      !replacement ||
+      !session.courts.some(
+        (court) => court.courtId === courtGame.courtId && court.active
+      )
+    ) return null;
+    const activeOnCourt = await tx.openPlayGame.count({
+      where: {
+        sessionId,
+        courtId: courtGame.courtId,
+        status: "ACTIVE",
+      },
+    });
+    if (activeOnCourt > 0) return null;
+    await tx.openPlayGame.update({
+      where: { id: courtGame.id },
+      data: { courtId: null },
+    });
+    await tx.openPlayGame.update({
+      where: { id: replacement.id },
+      data: { courtId: courtGame.courtId },
+    });
+    return { courtId: courtGame.courtId };
+  });
+  if (!replaced) {
+    return { message: "That staged match can no longer be replaced." };
+  }
+  await audit(workspace, "OPEN_PLAY_MATCH_REPLACED", sessionId, {
+    courtGameId,
+    replacementGameId,
+    courtId: replaced.courtId,
+  });
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
+  return { success: "Court matchup replaced; the previous match moved to Up next." };
+}
+
 export async function startOpenPlayMatchAction(
   _previous: OpenPlayActionState,
   formData: FormData

@@ -294,12 +294,11 @@ function DispatchUpNextForm({
   );
   if (freeCourts.length === 0) {
     return (
-      <button
-        disabled
-        className="mt-3 min-h-10 w-full cursor-not-allowed rounded-xl bg-slate-200 px-4 text-sm font-black text-slate-500"
-      >
-        Waiting for a free court
-      </button>
+      <div className="mt-3 flex min-h-9 items-center justify-center gap-2 rounded-xl bg-slate-100 px-3 text-[10px] font-black uppercase tracking-wide text-slate-500">
+        <span className="h-1.5 w-1.5 rounded-full bg-violet-500" aria-hidden="true" />
+        <span>Queued for next available court</span>
+        <span className="text-violet-600">Automatic</span>
+      </div>
     );
   }
   return (

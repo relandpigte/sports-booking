@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import {
   type OpenPlayAdmissionMode,
   type OpenPlayMatchingMode,
+  type OpenPlayParticipantStatus,
   Prisma,
 } from "@prisma/client";
 import { revalidatePath } from "next/cache";
@@ -64,6 +65,19 @@ const BUNALQ_TRANSACTION_OPTIONS = {
   maxWait: 5_000,
   timeout: 15_000,
 } as const;
+
+const PAIRABLE_PARTICIPANT_STATUSES = new Set<OpenPlayParticipantStatus>([
+  "NOT_CHECKED_IN",
+  "QUEUED",
+  "STAGED",
+  "PLAYING",
+  "PAUSED",
+  "CHECKED_OUT",
+]);
+const SCHEDULED_PARTICIPANT_STATUSES = new Set<OpenPlayParticipantStatus>([
+  "STAGED",
+  "PLAYING",
+]);
 
 function bunalQTransaction<T>(
   operation: (tx: Tx) => Promise<T>
@@ -621,13 +635,19 @@ export async function pairOpenPlayParticipantsAction(
     if (
       participants.length !== 2 ||
       participants.some(
-        (participant) =>
-          !["NOT_CHECKED_IN", "QUEUED", "PAUSED", "CHECKED_OUT"].includes(
-            participant.status
-          )
+        (participant) => !PAIRABLE_PARTICIPANT_STATUSES.has(participant.status)
       )
     ) return false;
     const oldPairIds = participants.flatMap((participant) => participant.pairId ? [participant.pairId] : []);
+    const oldPairMembers = oldPairIds.length > 0
+      ? await tx.openPlayParticipant.findMany({
+          where: { sessionId, pairId: { in: oldPairIds } },
+          select: { status: true },
+        })
+      : [];
+    const preserveScheduledGames = [...participants, ...oldPairMembers].some(
+      (participant) => SCHEDULED_PARTICIPANT_STATUSES.has(participant.status)
+    );
     await tx.openPlayParticipant.updateMany({
       where: { sessionId, pairId: { in: oldPairIds } },
       data: { pairId: null },
@@ -641,14 +661,19 @@ export async function pairOpenPlayParticipantsAction(
     await syncAutomaticOpenPlayUpNext(tx, {
       sessionId,
       createdById: workspace.actorId,
-      refreshAutomatic: true,
+      refreshAutomatic: !preserveScheduledGames,
     });
-    return true;
+    return preserveScheduledGames ? "deferred" : "applied";
   });
   if (!result) return { message: "Those players cannot be paired right now." };
   await audit(workspace, "OPEN_PLAY_PAIR_CREATED", sessionId, { firstId, secondId });
   refresh(owned.queue.publicId, owned.queue.event?.publicId);
-  return { success: "Fixed partners saved." };
+  return {
+    success:
+      result === "deferred"
+        ? "Fixed partners saved. Playing and Up Next matches were kept unchanged; the pair applies when both players return to the queue."
+        : "Fixed partners saved.",
+  };
 }
 
 export async function unpairOpenPlayParticipantsAction(
@@ -664,20 +689,34 @@ export async function unpairOpenPlayParticipantsAction(
   const removed = await bunalQTransaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
     if (!session || session.status === "ENDED") return false;
-    const pair = await tx.openPlayPair.findFirst({ where: { id: pairId, sessionId } });
+    const pair = await tx.openPlayPair.findFirst({
+      where: { id: pairId, sessionId },
+      select: {
+        id: true,
+        participants: { select: { status: true } },
+      },
+    });
     if (!pair) return false;
+    const preserveScheduledGames = pair.participants.some((participant) =>
+      SCHEDULED_PARTICIPANT_STATUSES.has(participant.status)
+    );
     await tx.openPlayParticipant.updateMany({ where: { sessionId, pairId }, data: { pairId: null } });
     await tx.openPlayPair.delete({ where: { id: pairId } });
     await syncAutomaticOpenPlayUpNext(tx, {
       sessionId,
       createdById: workspace.actorId,
-      refreshAutomatic: true,
+      refreshAutomatic: !preserveScheduledGames,
     });
-    return true;
+    return preserveScheduledGames ? "deferred" : "applied";
   });
   if (!removed) return { message: "That pair cannot be removed." };
   refresh(owned.queue.publicId, owned.queue.event?.publicId);
-  return { success: "Pair removed." };
+  return {
+    success:
+      removed === "deferred"
+        ? "Pair removed. Playing and Up Next matches were kept unchanged; the change applies when those players return to the queue."
+        : "Pair removed.",
+  };
 }
 
 export async function toggleOpenPlayCourtAction(

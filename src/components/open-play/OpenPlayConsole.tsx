@@ -262,21 +262,32 @@ function AdmissionForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
 function PairForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
   const [state, action, pending] = useBunalQActionState(pairOpenPlayParticipantsAction);
   const eligible = snapshot.participants.filter((participant) =>
-    ["NOT_CHECKED_IN", "QUEUED", "PAUSED", "CHECKED_OUT"].includes(participant.status)
+    ["NOT_CHECKED_IN", "QUEUED", "STAGED", "PLAYING", "PAUSED", "CHECKED_OUT"].includes(participant.status)
   );
   if (!["BALANCED", "ROUND_ROBIN", "FIXED_PARTNERS"].includes(snapshot.matchingMode)) return null;
-  const options = eligible.map((participant) => ({ value: participant.id, label: participant.displayName }));
+  const options = eligible.map((participant) => ({
+    value: participant.id,
+    label: `${participant.displayName}${
+      participant.status === "PLAYING"
+        ? " · Playing"
+        : participant.status === "STAGED"
+          ? " · Up Next"
+          : ""
+    }`,
+  }));
   return (
-    <form action={action} className="flex flex-wrap items-end gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+    <form action={action} className="rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:p-5">
       <input type="hidden" name="sessionId" value={snapshot.id} />
-      <div className="w-full">
-        <p className="text-xs font-black uppercase tracking-[0.16em] text-amber-950">Fixed partner</p>
-        <p className="mt-1 text-xs leading-5 text-amber-900/70">Saved partners stay on the same team whenever both are available.</p>
+      <div>
+        <h2 className="text-xs font-black uppercase tracking-[0.16em] text-amber-950">Fixed partner settings</h2>
+        <p className="mt-1 text-xs leading-5 text-amber-900/70">Saved partners stay on the same team whenever both are available. Assigning Playing or Up Next players will not change their current matchup.</p>
       </div>
-      <Select name="firstId" label="Player one" options={options} />
-      <Select name="secondId" label="Player two" options={options} />
-      <Button className="w-auto min-h-10 py-2" disabled={pending || options.length < 2}>{pending ? "Pairing…" : "Save pair"}</Button>
-      <div className="w-full"><Feedback state={state} /></div>
+      <div className="mt-4 grid gap-2">
+        <Select name="firstId" label="Player one" options={options} />
+        <Select name="secondId" label="Player two" options={options} />
+        <Button className="min-h-10 py-2" disabled={pending || options.length < 2}>{pending ? "Pairing…" : "Save pair"}</Button>
+      </div>
+      <Feedback state={state} />
     </form>
   );
 }
@@ -1035,6 +1046,7 @@ export function OpenPlayConsole({ snapshot, canManage }: { snapshot: OpenPlaySna
   const activeCourts = snapshot.courts.filter((court) => court.active).length;
   const pairs = new Map<string, string[]>();
   snapshot.participants.forEach((player) => { if (player.pairId) pairs.set(player.pairId, [...(pairs.get(player.pairId) ?? []), player.displayName]); });
+  const fixedPartnerSettingsAvailable = ["BALANCED", "ROUND_ROBIN", "FIXED_PARTNERS"].includes(snapshot.matchingMode);
   return (
     <div className="space-y-6">
       <OpenPlayLiveRefresh publicId={snapshot.queue.publicId} />
@@ -1070,14 +1082,22 @@ export function OpenPlayConsole({ snapshot, canManage }: { snapshot: OpenPlaySna
         {snapshot.status !== "ENDED" ? (
           <>
             <ModeForm snapshot={snapshot} />
-            <PairForm snapshot={snapshot} />
-            {pairs.size > 0 ? <div className="flex flex-wrap gap-2">{[...pairs.entries()].map(([pairId, names]) => <div key={pairId} className="flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900"><span>{names.join(" + ")}</span><ActionForm action={unpairOpenPlayParticipantsAction} values={{ sessionId: snapshot.id, pairId }} label="Unpair" tone="quiet" /></div>)}</div> : null}
             <div className="space-y-6">
               <div>{snapshot.status === "ACTIVE" ? <MatchControls snapshot={snapshot} /> : <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">Start the run to prepare matchups automatically.</p>}</div>
-              <div className={snapshot.queue.kind === "QUICK" ? "grid gap-4 lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.7fr)]" : ""}>
+              <div className={`grid gap-4 ${
+                snapshot.queue.kind === "QUICK"
+                  ? fixedPartnerSettingsAvailable
+                    ? "lg:grid-cols-3"
+                    : "lg:grid-cols-2"
+                  : fixedPartnerSettingsAvailable
+                    ? "lg:grid-cols-2"
+                    : ""
+              }`}>
                 <AdmissionForm snapshot={snapshot} />
+                {fixedPartnerSettingsAvailable ? <PairForm snapshot={snapshot} /> : null}
                 <WalkInForm snapshot={snapshot} />
               </div>
+              {pairs.size > 0 ? <div className="flex flex-wrap gap-2">{[...pairs.entries()].map(([pairId, names]) => <div key={pairId} className="flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900"><span>{names.join(" + ")}</span><ActionForm action={unpairOpenPlayParticipantsAction} values={{ sessionId: snapshot.id, pairId }} label="Unpair" tone="quiet" /></div>)}</div> : null}
               <ParticipantRoster snapshot={snapshot} />
             </div>
           </>

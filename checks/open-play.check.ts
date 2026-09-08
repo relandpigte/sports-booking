@@ -381,6 +381,57 @@ async function check() {
       })).courtId === automaticCourtId
   );
 
+  const upNextForPairing = await prisma.openPlayGame.findFirstOrThrow({
+    where: { sessionId: session.id, status: "STAGED" },
+    orderBy: { sequence: "asc" },
+    include: { players: true },
+  });
+  const pairDuringPlay = new FormData();
+  pairDuringPlay.set("sessionId", session.id);
+  pairDuringPlay.set("firstId", automaticGame.players[0].participantId);
+  pairDuringPlay.set("secondId", upNextForPairing.players[0].participantId);
+  const pairDuringPlayResult =
+    await actions.pairOpenPlayParticipantsAction({}, pairDuringPlay);
+  const assignedPairId = (
+    await prisma.openPlayParticipant.findUniqueOrThrow({
+      where: { id: automaticGame.players[0].participantId },
+      select: { pairId: true },
+    })
+  ).pairId;
+  ok(
+    "staff can assign a fixed pair across Playing and Up Next",
+    pairDuringPlayResult.success?.includes("kept unchanged") === true &&
+      Boolean(assignedPairId) &&
+      (await prisma.openPlayParticipant.findUniqueOrThrow({
+        where: { id: upNextForPairing.players[0].participantId },
+        select: { pairId: true },
+      })).pairId === assignedPairId
+  );
+  ok(
+    "pairing Playing and Up Next players preserves announced matchups",
+    (await prisma.openPlayGame.findUniqueOrThrow({
+      where: { id: automaticGame.id },
+    })).status === "ACTIVE" &&
+      (await prisma.openPlayGame.findUniqueOrThrow({
+        where: { id: upNextForPairing.id },
+      })).status === "STAGED"
+  );
+  const unpairDuringPlay = new FormData();
+  unpairDuringPlay.set("sessionId", session.id);
+  unpairDuringPlay.set("pairId", assignedPairId ?? "");
+  const unpairDuringPlayResult =
+    await actions.unpairOpenPlayParticipantsAction({}, unpairDuringPlay);
+  ok(
+    "removing a pair during play also preserves announced matchups",
+    unpairDuringPlayResult.success?.includes("kept unchanged") === true &&
+      (await prisma.openPlayGame.findUniqueOrThrow({
+        where: { id: automaticGame.id },
+      })).status === "ACTIVE" &&
+      (await prisma.openPlayGame.findUniqueOrThrow({
+        where: { id: upNextForPairing.id },
+      })).status === "STAGED"
+  );
+
   const winner = new FormData();
   winner.set("sessionId", session.id);
   winner.set("gameId", automaticGame.id);

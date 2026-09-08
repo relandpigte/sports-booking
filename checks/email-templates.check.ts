@@ -10,7 +10,6 @@ import {
 } from "@/lib/booking-notification-email";
 import type { TransactionalEmailContent } from "@/lib/email-html";
 import { partnerApprovalEmailContent } from "@/lib/partner-approval-email";
-import { partnerAssistanceEmailContent } from "@/lib/partner-assistance-email";
 import { passwordResetEmailContent } from "@/lib/password-reset-email";
 import { newDeviceLoginEmailContent } from "@/lib/security-alert-email";
 import { serviceFeeOverdueEmailContent } from "@/lib/service-fee-notification-email";
@@ -50,15 +49,6 @@ async function check() {
       content: partnerApprovalEmailContent({
         name: "Venue Owner",
         venueName: "Bunal Club Hub",
-        actionUrl: `${APP_URL}/dashboard/partner`,
-      }),
-    },
-    {
-      name: "partner assistance",
-      content: partnerAssistanceEmailContent({
-        name: "Venue Owner",
-        adminName: "Bunal Support",
-        expiresAt: new Date("2030-01-02T03:30:00.000Z"),
         actionUrl: `${APP_URL}/dashboard/partner`,
       }),
     },
@@ -167,7 +157,7 @@ async function check() {
     },
   ];
 
-  ok("the inventory covers every transactional email family", templates.length === 14);
+  ok("the inventory covers every transactional email family", templates.length === 13);
 
   for (const { name, content } of templates) {
     ok(

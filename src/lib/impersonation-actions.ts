@@ -6,21 +6,19 @@ import { redirect } from "next/navigation";
 
 import { requireAdmin } from "@/lib/admin";
 import { prisma } from "@/lib/db";
-import { emailDeliveryConfigured, sendPartnerAssistanceEmail } from "@/lib/email";
 import {
   getActivePartnerImpersonation,
   hashImpersonationToken,
   PARTNER_IMPERSONATION_COOKIE,
   PARTNER_IMPERSONATION_MINUTES,
 } from "@/lib/impersonation";
-import { appUrl } from "@/lib/urls";
 
 export async function startPartnerImpersonationAction(formData: FormData) {
   const admin = await requireAdmin();
   const partnerId = String(formData.get("partnerId") ?? "");
   const partner = await prisma.user.findFirst({
     where: { id: partnerId, role: "PARTNER" },
-    select: { id: true, name: true, email: true },
+    select: { id: true },
   });
   if (!partner) redirect("/users?role=PARTNER");
 
@@ -28,7 +26,7 @@ export async function startPartnerImpersonationAction(formData: FormData) {
   const expiresAt = new Date(
     Date.now() + PARTNER_IMPERSONATION_MINUTES * 60_000
   );
-  const impersonation = await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx) => {
     const replaced = await tx.partnerImpersonationSession.findMany({
       where: { adminId: admin.id, endedAt: null },
       select: { id: true, partnerId: true },
@@ -76,24 +74,6 @@ export async function startPartnerImpersonationAction(formData: FormData) {
     secure: process.env.NODE_ENV === "production",
     priority: "high",
   });
-
-  if (emailDeliveryConfigured()) {
-    try {
-      await sendPartnerAssistanceEmail({
-        to: partner.email,
-        name: partner.name ?? "there",
-        adminName: admin.name ?? admin.email,
-        expiresAt,
-        actionUrl: appUrl("/dashboard/partner"),
-        idempotencyKey: `partner-assistance-${impersonation.id}`,
-      });
-    } catch (error) {
-      console.error(
-        "Partner-assistance email delivery failed:",
-        error instanceof Error ? error.message : "Unknown provider error"
-      );
-    }
-  }
 
   redirect("/dashboard/partner");
 }

@@ -275,6 +275,24 @@ function PairForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
           : ""
     }`,
   }));
+  return (
+    <form action={action} className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm shadow-navy/5">
+      <input type="hidden" name="sessionId" value={snapshot.id} />
+      <div>
+        <h2 className="text-xs font-black uppercase tracking-[0.16em] text-amber-950">Pair players</h2>
+        <p className="mt-1 text-xs text-amber-900/70">Pairs stay together; active games stay put.</p>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+        <Select name="firstId" label="Player 1" options={options} />
+        <Select name="secondId" label="Player 2" options={options} />
+        <Button className="min-h-10 px-4 py-2 sm:w-auto" disabled={pending || options.length < 2}>{pending ? "Saving…" : "Save"}</Button>
+      </div>
+      <AutoDismissSuccessFeedback state={state} />
+    </form>
+  );
+}
+
+function SavedPairs({ snapshot }: { snapshot: OpenPlaySnapshot }) {
   const pairs = new Map<string, string[]>();
   snapshot.participants.forEach((participant) => {
     if (participant.pairId) {
@@ -284,37 +302,26 @@ function PairForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
       ]);
     }
   });
+  if (pairs.size === 0) return null;
   return (
-    <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm shadow-navy/5">
-      <form action={action}>
-        <input type="hidden" name="sessionId" value={snapshot.id} />
-        <div>
-          <h2 className="text-xs font-black uppercase tracking-[0.16em] text-amber-950">Fixed partners</h2>
-          <p className="mt-1 text-xs text-amber-900/70">Pairs stay together; active games stay put.</p>
-        </div>
-        <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-          <Select name="firstId" label="Player 1" options={options} />
-          <Select name="secondId" label="Player 2" options={options} />
-          <Button className="min-h-10 px-4 py-2 sm:w-auto" disabled={pending || options.length < 2}>{pending ? "Saving…" : "Save"}</Button>
-        </div>
-        <Feedback state={state} />
-      </form>
-      {pairs.size > 0 ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-amber-200/80 pt-3">
-          <span className="text-[10px] font-black uppercase tracking-[0.12em] text-amber-900/60">Saved</span>
-          {[...pairs.entries()].map(([pairId, names]) => (
-            <div key={pairId} className="flex items-center gap-1 rounded-full bg-amber-100 py-0.5 pl-2.5 pr-0.5 text-xs font-bold text-amber-900">
-              <span>{names.join(" + ")}</span>
-              <ActionForm
-                action={unpairOpenPlayParticipantsAction}
-                values={{ sessionId: snapshot.id, pairId }}
-                label="Unpair"
-                buttonClassName="border border-amber-200 bg-white text-amber-900 hover:bg-amber-50"
-              />
-            </div>
-          ))}
-        </div>
-      ) : null}
+    <section className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/60 px-3 py-2.5 shadow-sm shadow-navy/5">
+      <div className="mr-auto shrink-0">
+        <h2 className="text-[11px] font-black uppercase tracking-[0.14em] text-amber-950">Fixed partners</h2>
+        <p className="mt-0.5 text-[11px] text-amber-900/60">{pairs.size} saved {pairs.size === 1 ? "pair" : "pairs"}</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {[...pairs.entries()].map(([pairId, names]) => (
+          <div key={pairId} className="flex items-center rounded-lg border border-amber-200 bg-white pl-3 text-xs font-bold text-amber-900 shadow-sm">
+            <span className="whitespace-nowrap">{names.join(" + ")}</span>
+            <ActionForm
+              action={unpairOpenPlayParticipantsAction}
+              values={{ sessionId: snapshot.id, pairId }}
+              label="Unpair"
+              buttonClassName="ml-2 rounded-l-none border-l border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100"
+            />
+          </div>
+        ))}
+      </div>
     </section>
   );
 }
@@ -1119,9 +1126,10 @@ export function OpenPlayConsole({ snapshot, canManage }: { snapshot: OpenPlaySna
                     : ""
               }`}>
                 <AdmissionForm snapshot={snapshot} />
-                {fixedPartnerSettingsAvailable ? <PairForm snapshot={snapshot} /> : null}
                 <WalkInForm snapshot={snapshot} />
+                {fixedPartnerSettingsAvailable ? <PairForm snapshot={snapshot} /> : null}
               </div>
+              {fixedPartnerSettingsAvailable ? <SavedPairs snapshot={snapshot} /> : null}
               <ParticipantRoster snapshot={snapshot} />
             </div>
           </>

@@ -264,13 +264,17 @@ function PairForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
   const eligible = snapshot.participants.filter((participant) =>
     ["NOT_CHECKED_IN", "QUEUED", "PAUSED", "CHECKED_OUT"].includes(participant.status)
   );
-  if (snapshot.matchingMode !== "FIXED_PARTNERS") return null;
+  if (!["BALANCED", "ROUND_ROBIN", "FIXED_PARTNERS"].includes(snapshot.matchingMode)) return null;
   const options = eligible.map((participant) => ({ value: participant.id, label: participant.displayName }));
   return (
     <form action={action} className="flex flex-wrap items-end gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-4">
       <input type="hidden" name="sessionId" value={snapshot.id} />
-      <Select name="firstId" label="Partner one" options={options} />
-      <Select name="secondId" label="Partner two" options={options} />
+      <div className="w-full">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-amber-950">Fixed partner</p>
+        <p className="mt-1 text-xs leading-5 text-amber-900/70">Saved partners stay on the same team whenever both are available.</p>
+      </div>
+      <Select name="firstId" label="Player one" options={options} />
+      <Select name="secondId" label="Player two" options={options} />
       <Button className="w-auto min-h-10 py-2" disabled={pending || options.length < 2}>{pending ? "Pairing…" : "Save pair"}</Button>
       <div className="w-full"><Feedback state={state} /></div>
     </form>

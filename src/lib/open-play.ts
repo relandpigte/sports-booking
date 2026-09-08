@@ -62,6 +62,10 @@ export type RoundRobinHistory = {
   opponentCounts: Map<string, number>;
 };
 
+type MatchUnit = {
+  players: MatchCandidate[];
+};
+
 const skillScore: Record<string, number> = {
   beginner: 1,
   intermediate: 2,
@@ -122,23 +126,135 @@ export function buildRoundRobinHistory(
   return { gamesPlayed, teammateCounts, opponentCounts };
 }
 
+function buildMatchUnits(players: MatchCandidate[]): MatchUnit[] {
+  const pairMembers = new Map<string, MatchCandidate[]>();
+  const units: MatchUnit[] = [];
+
+  for (const player of players) {
+    if (!player.pairId) {
+      units.push({ players: [player] });
+      continue;
+    }
+    const members = pairMembers.get(player.pairId) ?? [];
+    members.push(player);
+    pairMembers.set(player.pairId, members);
+  }
+
+  for (const members of pairMembers.values()) {
+    if (members.length === 2) units.push({ players: members });
+  }
+
+  return units;
+}
+
+function compareQueueSelections(
+  left: MatchCandidate[],
+  right: MatchCandidate[]
+): number {
+  const queueOrder = (players: MatchCandidate[]) =>
+    [...players].sort(
+      (first, second) =>
+        second.queuePosition - first.queuePosition ||
+        first.id.localeCompare(second.id)
+    );
+  const leftOrder = queueOrder(left);
+  const rightOrder = queueOrder(right);
+  for (let index = 0; index < leftOrder.length; index += 1) {
+    const queueDifference =
+      leftOrder[index].queuePosition - rightOrder[index].queuePosition;
+    if (queueDifference !== 0) return queueDifference;
+  }
+  return leftOrder
+    .map((player) => player.id)
+    .join(":")
+    .localeCompare(rightOrder.map((player) => player.id).join(":"));
+}
+
+function selectBalancedPlayers(players: MatchCandidate[]): MatchCandidate[] | null {
+  const bestBySize: Array<MatchCandidate[] | null> = [[], null, null, null, null];
+  for (const unit of buildMatchUnits(players)) {
+    for (let size = 4; size >= unit.players.length; size -= 1) {
+      const previous = bestBySize[size - unit.players.length];
+      if (!previous) continue;
+      const candidate = [...previous, ...unit.players];
+      const current = bestBySize[size];
+      if (!current || compareQueueSelections(candidate, current) < 0) {
+        bestBySize[size] = candidate;
+      }
+    }
+  }
+  return bestBySize[4];
+}
+
+function keepsFixedPartnersTogether(
+  players: MatchCandidate[],
+  teams: readonly [readonly [number, number], readonly [number, number]]
+): boolean {
+  const teamByIndex = new Map<number, number>();
+  teams.forEach((team, teamIndex) => {
+    team.forEach((playerIndex) => teamByIndex.set(playerIndex, teamIndex));
+  });
+  const pairTeams = new Map<string, number>();
+  for (let index = 0; index < players.length; index += 1) {
+    const pairId = players[index].pairId;
+    if (!pairId) continue;
+    const team = teamByIndex.get(index);
+    if (team === undefined) return false;
+    const existingTeam = pairTeams.get(pairId);
+    if (existingTeam !== undefined && existingTeam !== team) return false;
+    pairTeams.set(pairId, team);
+  }
+  return true;
+}
+
+function roundRobinCandidates(
+  players: MatchCandidate[],
+  history: RoundRobinHistory
+): MatchCandidate[] {
+  const units = buildMatchUnits(players).sort((left, right) => {
+    const gamesPlayed = (unit: MatchUnit) =>
+      Math.max(
+        ...unit.players.map(
+          (player) => history.gamesPlayed.get(player.id) ?? 0
+        )
+      );
+    const queuePosition = (unit: MatchUnit) =>
+      Math.max(...unit.players.map((player) => player.queuePosition));
+    return (
+      gamesPlayed(left) - gamesPlayed(right) ||
+      queuePosition(left) - queuePosition(right) ||
+      left.players[0].id.localeCompare(right.players[0].id)
+    );
+  });
+  let playerCount = 0;
+  let maximumGames = Number.POSITIVE_INFINITY;
+  for (const unit of units) {
+    playerCount += unit.players.length;
+    maximumGames = Math.max(
+      ...unit.players.map((player) => history.gamesPlayed.get(player.id) ?? 0)
+    );
+    if (playerCount >= 4) break;
+  }
+  if (playerCount < 4) return [];
+
+  const candidates: MatchCandidate[] = [];
+  for (const unit of units) {
+    const unitGames = Math.max(
+      ...unit.players.map((player) => history.gamesPlayed.get(player.id) ?? 0)
+    );
+    if (unitGames > maximumGames) break;
+    if (candidates.length + unit.players.length > 16) break;
+    candidates.push(...unit.players);
+  }
+  return candidates;
+}
+
 function roundRobinTeams(
   players: MatchCandidate[],
   history: RoundRobinHistory
-): MatchTeam[] {
-  const byParticipation = [...players].sort((left, right) =>
-    (history.gamesPlayed.get(left.id) ?? 0) -
-      (history.gamesPlayed.get(right.id) ?? 0) ||
-    left.queuePosition - right.queuePosition ||
-    left.id.localeCompare(right.id)
-  );
-  const fourthGameCount = history.gamesPlayed.get(byParticipation[3].id) ?? 0;
-  const candidates = byParticipation
-    .filter(
-      (player) =>
-        (history.gamesPlayed.get(player.id) ?? 0) <= fourthGameCount
-    )
-    .slice(0, 16);
+): MatchTeam[] | null {
+  const candidates = roundRobinCandidates(players, history);
+  if (candidates.length < 4) return null;
   const arrangements = [
     [[0, 1], [2, 3]],
     [[0, 2], [1, 3]],
@@ -155,6 +271,18 @@ function roundRobinTeams(
       for (let c = b + 1; c < candidates.length - 1; c += 1) {
         for (let d = c + 1; d < candidates.length; d += 1) {
           const selected = [candidates[a], candidates[b], candidates[c], candidates[d]];
+          const selectedPairCounts = new Map<string, number>();
+          selected.forEach((player) => {
+            if (player.pairId) {
+              selectedPairCounts.set(
+                player.pairId,
+                (selectedPairCounts.get(player.pairId) ?? 0) + 1
+              );
+            }
+          });
+          if ([...selectedPairCounts.values()].some((count) => count !== 2)) {
+            continue;
+          }
           const gameCounts = selected.map(
             (player) => history.gamesPlayed.get(player.id) ?? 0
           );
@@ -168,6 +296,7 @@ function roundRobinTeams(
             }
           }
           arrangements.forEach((teams, arrangementIndex) => {
+            if (!keepsFixedPartnersTogether(selected, teams)) return;
             const [[firstLeft, firstRight], [secondLeft, secondRight]] = teams;
             const teammateUsages = [
               history.teammateCounts.get(
@@ -216,6 +345,7 @@ function roundRobinTeams(
     return 0;
   });
   const winner = ranked[0];
+  if (!winner) return null;
   const [[firstLeft, firstRight], [secondLeft, secondRight]] = winner.teams;
   return [
     { participantId: winner.players[firstLeft].id, team: 1, slot: 1, queuePositionBefore: winner.players[firstLeft].queuePosition },
@@ -227,14 +357,18 @@ function roundRobinTeams(
 
 function balancedTeams(
   players: MatchCandidate[],
-  teammateHistory: TeammateHistory
-): MatchTeam[] {
+  teammateHistory: TeammateHistory,
+  keepFixedPartners = false
+): MatchTeam[] | null {
   const arrangements = [
     [[0, 1], [2, 3]],
     [[0, 2], [1, 3]],
     [[0, 3], [1, 2]],
   ] as const;
-  const ranked = arrangements.map((teams, index) => {
+  const ranked = arrangements.flatMap((teams, index) => {
+    if (keepFixedPartners && !keepsFixedPartnersTogether(players, teams)) {
+      return [];
+    }
     const [[a, b], [c, d]] = teams;
     const first = (skillScore[players[a].skillLevel] ?? 2) +
       (skillScore[players[b].skillLevel] ?? 2);
@@ -252,14 +386,14 @@ function balancedTeams(
       ([left, right]) =>
         teammateHistory.counts.get(pairKey(left.id, right.id)) ?? 0
     );
-    return {
+    return [{
       teams,
       index,
       difference: Math.abs(first - second),
       immediateRepeats,
       totalUsage: usages[0] + usages[1],
       maximumUsage: Math.max(...usages),
-    };
+    }];
   });
   ranked.sort(
     (left, right) =>
@@ -269,6 +403,7 @@ function balancedTeams(
       left.difference - right.difference ||
       left.index - right.index
   );
+  if (ranked.length === 0) return null;
   const [[a, b], [c, d]] = ranked[0].teams;
   return [
     { participantId: players[a].id, team: 1, slot: 1, queuePositionBefore: players[a].queuePosition },
@@ -348,13 +483,18 @@ export function chooseAutomaticMatch(input: {
       .filter((group) => group.length >= 4)
       .sort((left, right) => left[0].queuePosition - right[0].queuePosition);
     selected = eligible.length > 0 ? eligible[0].slice(0, 4) : queued.slice(0, 4);
+  } else if (input.mode === "BALANCED") {
+    const balancedSelection = selectBalancedPlayers(queued);
+    if (!balancedSelection) return null;
+    selected = balancedSelection;
   } else {
     selected = queued.slice(0, 4);
   }
 
   return balancedTeams(
     selected,
-    input.teammateHistory ?? { counts: new Map(), mostRecent: new Map() }
+    input.teammateHistory ?? { counts: new Map(), mostRecent: new Map() },
+    input.mode === "BALANCED"
   );
 }
 

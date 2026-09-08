@@ -649,6 +649,40 @@ async function check() {
     sameTeam(balancedByUsage, "a", "d") && sameTeam(balancedByUsage, "b", "c")
   );
 
+  const balancedFixedPartner = domain.chooseAutomaticMatch({
+    mode: "BALANCED",
+    queued: [
+      { id: "a", queuePosition: 1, skillLevel: "advanced", lastResult: "UNCLASSIFIED", pairId: "fixed" },
+      { id: "x", queuePosition: 2, skillLevel: "beginner", lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "y", queuePosition: 3, skillLevel: "advanced", lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "z", queuePosition: 4, skillLevel: "intermediate", lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "b", queuePosition: 5, skillLevel: "beginner", lastResult: "UNCLASSIFIED", pairId: "fixed" },
+      { id: "w", queuePosition: 6, skillLevel: "intermediate", lastResult: "UNCLASSIFIED", pairId: null },
+    ],
+  });
+  ok(
+    "Balanced mode selects and keeps a saved fixed partnership together",
+    sameTeam(balancedFixedPartner, "a", "b") &&
+      selectedIds(balancedFixedPartner).includes("a") &&
+      selectedIds(balancedFixedPartner).includes("b")
+  );
+
+  const balancedIncompleteFixedPartner = domain.chooseAutomaticMatch({
+    mode: "BALANCED",
+    queued: [
+      { id: "a", queuePosition: 1, skillLevel: "advanced", lastResult: "UNCLASSIFIED", pairId: "waiting" },
+      { id: "w", queuePosition: 2, skillLevel: "beginner", lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "x", queuePosition: 3, skillLevel: "intermediate", lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "y", queuePosition: 4, skillLevel: "intermediate", lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "z", queuePosition: 5, skillLevel: "advanced", lastResult: "UNCLASSIFIED", pairId: null },
+    ],
+  });
+  ok(
+    "a saved pair waits rather than splitting when only one partner is queued",
+    !selectedIds(balancedIncompleteFixedPartner).includes("a") &&
+      selectedIds(balancedIncompleteFixedPartner).join(",") === "w,x,y,z"
+  );
+
   const roundRobinPartnerRotation = domain.chooseAutomaticMatch({
     mode: "ROUND_ROBIN",
     queued: [
@@ -673,6 +707,31 @@ async function check() {
     "Round Robin rotates completed partnerships",
     !sameTeam(roundRobinPartnerRotation, "a", "b") &&
       !sameTeam(roundRobinPartnerRotation, "c", "d")
+  );
+
+  const roundRobinFixedPartner = domain.chooseAutomaticMatch({
+    mode: "ROUND_ROBIN",
+    queued: [
+      { id: "a", queuePosition: 1, skillLevel: "advanced", lastResult: "UNCLASSIFIED", pairId: "fixed" },
+      { id: "b", queuePosition: 2, skillLevel: "beginner", lastResult: "UNCLASSIFIED", pairId: "fixed" },
+      { id: "c", queuePosition: 3, skillLevel: "intermediate", lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "d", queuePosition: 4, skillLevel: "intermediate", lastResult: "UNCLASSIFIED", pairId: null },
+    ],
+    completedGames: [
+      {
+        sequence: 1,
+        players: [
+          { participantId: "a", team: 1 },
+          { participantId: "b", team: 1 },
+          { participantId: "c", team: 2 },
+          { participantId: "d", team: 2 },
+        ],
+      },
+    ],
+  });
+  ok(
+    "Round Robin keeps a saved fixed partnership together",
+    sameTeam(roundRobinFixedPartner, "a", "b")
   );
 
   const roundRobinOpponentVariety = domain.chooseAutomaticMatch({

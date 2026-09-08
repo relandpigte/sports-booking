@@ -20,9 +20,9 @@ export const OPEN_PLAY_MODE_LABELS: Record<OpenPlayMatchingMode, string> = {
 
 export const OPEN_PLAY_MODE_DESCRIPTIONS: Record<OpenPlayMatchingMode, string> = {
   BALANCED:
-    "Takes the next four players, avoids back-to-back and overused partnerships, then balances team skill.",
+    "Takes the next eligible players, keeps saved partners together, then balances team skill and avoids repeated pairings.",
   ROUND_ROBIN:
-    "Prioritizes players with fewer games, then rotates them through the least-used partners and opponents.",
+    "Prioritizes players with fewer games, keeps saved partners together, then rotates least-used partners and opponents.",
   SKILL_SEPARATED:
     "Uses the earliest skill tier with four waiting players, then rotates partners within that tier.",
   WINNERS_LOSERS:

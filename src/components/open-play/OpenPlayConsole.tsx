@@ -212,20 +212,20 @@ function ModeForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
 function WalkInForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
   const [state, action, pending] = useBunalQActionState(addOpenPlayWalkInAction);
   return (
-    <form action={action} className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+    <form action={action} className="rounded-2xl border border-slate-200 bg-white p-4">
       <input type="hidden" name="sessionId" value={snapshot.id} />
       <input type="hidden" name="publicId" value={snapshot.queue.publicId} />
       <div>
         <h2 className="text-xs font-black uppercase tracking-[0.16em] text-navy">Add player</h2>
         <p className="mt-1 text-xs text-slate-500">Add a walk-in directly to this run.</p>
       </div>
-      <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_170px_auto] sm:items-end">
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 sm:items-end 2xl:grid-cols-[minmax(0,1fr)_170px_auto]">
         <label className="text-xs font-bold text-slate-600">
           Player name
           <input name="displayName" maxLength={120} required placeholder="Enter player name" className="mt-1.5 block min-h-10 w-full rounded-lg border border-slate-300 px-3 text-sm font-semibold text-navy" />
         </label>
         <Select name="skillLevel" label="Skill" options={[...SKILL_LEVELS]} defaultValue="intermediate" />
-        <Button className="min-h-10 px-5 py-2.5 sm:w-auto" disabled={pending}>{pending ? "Adding…" : "Add player"}</Button>
+        <Button className="min-h-10 px-5 py-2 sm:col-span-2 sm:w-auto 2xl:col-span-1" disabled={pending}>{pending ? "Adding…" : "Add player"}</Button>
       </div>
       <Feedback state={state} />
     </form>
@@ -236,13 +236,13 @@ function AdmissionForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
   const [state, action, pending] = useBunalQActionState(changeQueueAdmissionModeAction);
   if (snapshot.queue.kind !== "QUICK") return null;
   return (
-    <form action={action} className="rounded-2xl border border-ocean/20 bg-ocean-soft p-4 sm:p-5">
+    <form action={action} className="rounded-2xl border border-ocean/20 bg-ocean-soft p-4">
       <input type="hidden" name="sessionId" value={snapshot.id} />
       <div>
         <h2 className="text-xs font-black uppercase tracking-[0.16em] text-navy">Guest entry</h2>
         <p className="mt-1 text-xs text-slate-500">Choose how public requests enter the queue.</p>
       </div>
-      <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+      <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
         <Select
           name="admissionMode"
           label="Admission mode"
@@ -252,7 +252,7 @@ function AdmissionForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
             { value: "INSTANT", label: "Instant queue entry" },
           ]}
         />
-        <Button className="min-h-10 px-5 py-2.5 sm:w-auto" disabled={pending}>{pending ? "Saving…" : "Save"}</Button>
+        <Button className="min-h-10 px-5 py-2 sm:w-auto" disabled={pending}>{pending ? "Saving…" : "Save"}</Button>
       </div>
       <Feedback state={state} />
     </form>
@@ -276,16 +276,16 @@ function PairForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
     }`,
   }));
   return (
-    <form action={action} className="rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:p-5">
+    <form action={action} className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
       <input type="hidden" name="sessionId" value={snapshot.id} />
       <div>
         <h2 className="text-xs font-black uppercase tracking-[0.16em] text-amber-950">Fixed partner settings</h2>
         <p className="mt-1 text-xs leading-5 text-amber-900/70">Saved partners stay on the same team whenever both are available. Assigning Playing or Up Next players will not change their current matchup.</p>
       </div>
-      <div className="mt-4 grid gap-2">
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <Select name="firstId" label="Player one" options={options} />
         <Select name="secondId" label="Player two" options={options} />
-        <Button className="min-h-10 py-2" disabled={pending || options.length < 2}>{pending ? "Pairing…" : "Save pair"}</Button>
+        <Button className="min-h-10 py-2 sm:col-span-2" disabled={pending || options.length < 2}>{pending ? "Pairing…" : "Save pair"}</Button>
       </div>
       <Feedback state={state} />
     </form>
@@ -1082,9 +1082,9 @@ export function OpenPlayConsole({ snapshot, canManage }: { snapshot: OpenPlaySna
         {snapshot.status !== "ENDED" ? (
           <>
             <ModeForm snapshot={snapshot} />
-            <div className="space-y-6">
+            <div className="space-y-4">
               <div>{snapshot.status === "ACTIVE" ? <MatchControls snapshot={snapshot} /> : <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">Start the run to prepare matchups automatically.</p>}</div>
-              <div className={`grid gap-4 ${
+              <div className={`grid items-start gap-3 ${
                 snapshot.queue.kind === "QUICK"
                   ? fixedPartnerSettingsAvailable
                     ? "lg:grid-cols-3"

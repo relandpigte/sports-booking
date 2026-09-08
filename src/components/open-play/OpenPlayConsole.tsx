@@ -212,20 +212,20 @@ function ModeForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
 function WalkInForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
   const [state, action, pending] = useBunalQActionState(addOpenPlayWalkInAction);
   return (
-    <form action={action} className="rounded-2xl border border-slate-200 bg-white p-4">
+    <form action={action} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shadow-navy/5">
       <input type="hidden" name="sessionId" value={snapshot.id} />
       <input type="hidden" name="publicId" value={snapshot.queue.publicId} />
       <div>
         <h2 className="text-xs font-black uppercase tracking-[0.16em] text-navy">Add player</h2>
         <p className="mt-1 text-xs text-slate-500">Add a walk-in directly to this run.</p>
       </div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2 sm:items-end 2xl:grid-cols-[minmax(0,1fr)_170px_auto]">
-        <label className="text-xs font-bold text-slate-600">
-          Player name
-          <input name="displayName" maxLength={120} required placeholder="Enter player name" className="mt-1.5 block min-h-10 w-full rounded-lg border border-slate-300 px-3 text-sm font-semibold text-navy" />
+      <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)_auto] sm:items-end">
+        <label className="text-sm font-medium text-gray-800">
+          Name
+          <input name="displayName" maxLength={120} required placeholder="Player name" className="mt-1.5 block min-h-10 w-full rounded-lg border border-slate-300 px-3 text-sm font-semibold text-navy" />
         </label>
         <Select name="skillLevel" label="Skill" options={[...SKILL_LEVELS]} defaultValue="intermediate" />
-        <Button className="min-h-10 px-5 py-2 sm:col-span-2 sm:w-auto 2xl:col-span-1" disabled={pending}>{pending ? "Adding…" : "Add player"}</Button>
+        <Button className="min-h-10 px-4 py-2 sm:w-auto" disabled={pending}>{pending ? "Adding…" : "Add"}</Button>
       </div>
       <Feedback state={state} />
     </form>
@@ -236,7 +236,7 @@ function AdmissionForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
   const [state, action, pending] = useBunalQActionState(changeQueueAdmissionModeAction);
   if (snapshot.queue.kind !== "QUICK") return null;
   return (
-    <form action={action} className="rounded-2xl border border-ocean/20 bg-ocean-soft p-4">
+    <form action={action} className="rounded-2xl border border-ocean/20 bg-ocean-soft p-4 shadow-sm shadow-navy/5">
       <input type="hidden" name="sessionId" value={snapshot.id} />
       <div>
         <h2 className="text-xs font-black uppercase tracking-[0.16em] text-navy">Guest entry</h2>
@@ -275,20 +275,47 @@ function PairForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
           : ""
     }`,
   }));
+  const pairs = new Map<string, string[]>();
+  snapshot.participants.forEach((participant) => {
+    if (participant.pairId) {
+      pairs.set(participant.pairId, [
+        ...(pairs.get(participant.pairId) ?? []),
+        participant.displayName,
+      ]);
+    }
+  });
   return (
-    <form action={action} className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-      <input type="hidden" name="sessionId" value={snapshot.id} />
-      <div>
-        <h2 className="text-xs font-black uppercase tracking-[0.16em] text-amber-950">Fixed partner settings</h2>
-        <p className="mt-1 text-xs leading-5 text-amber-900/70">Saved partners stay on the same team whenever both are available. Assigning Playing or Up Next players will not change their current matchup.</p>
-      </div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        <Select name="firstId" label="Player one" options={options} />
-        <Select name="secondId" label="Player two" options={options} />
-        <Button className="min-h-10 py-2 sm:col-span-2" disabled={pending || options.length < 2}>{pending ? "Pairing…" : "Save pair"}</Button>
-      </div>
-      <Feedback state={state} />
-    </form>
+    <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm shadow-navy/5">
+      <form action={action}>
+        <input type="hidden" name="sessionId" value={snapshot.id} />
+        <div>
+          <h2 className="text-xs font-black uppercase tracking-[0.16em] text-amber-950">Fixed partners</h2>
+          <p className="mt-1 text-xs text-amber-900/70">Pairs stay together; active games stay put.</p>
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+          <Select name="firstId" label="Player 1" options={options} />
+          <Select name="secondId" label="Player 2" options={options} />
+          <Button className="min-h-10 px-4 py-2 sm:w-auto" disabled={pending || options.length < 2}>{pending ? "Saving…" : "Save"}</Button>
+        </div>
+        <Feedback state={state} />
+      </form>
+      {pairs.size > 0 ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-amber-200/80 pt-3">
+          <span className="text-[10px] font-black uppercase tracking-[0.12em] text-amber-900/60">Saved</span>
+          {[...pairs.entries()].map(([pairId, names]) => (
+            <div key={pairId} className="flex items-center gap-1 rounded-full bg-amber-100 py-0.5 pl-2.5 pr-0.5 text-xs font-bold text-amber-900">
+              <span>{names.join(" + ")}</span>
+              <ActionForm
+                action={unpairOpenPlayParticipantsAction}
+                values={{ sessionId: snapshot.id, pairId }}
+                label="Unpair"
+                buttonClassName="border border-amber-200 bg-white text-amber-900 hover:bg-amber-50"
+              />
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </section>
   );
 }
 
@@ -1044,8 +1071,6 @@ export function OpenPlayConsole({ snapshot, canManage }: { snapshot: OpenPlaySna
   const pending = snapshot.participants.filter((player) => player.status === "PENDING_APPROVAL").length;
   const playing = snapshot.participants.filter((player) => player.status === "PLAYING").length;
   const activeCourts = snapshot.courts.filter((court) => court.active).length;
-  const pairs = new Map<string, string[]>();
-  snapshot.participants.forEach((player) => { if (player.pairId) pairs.set(player.pairId, [...(pairs.get(player.pairId) ?? []), player.displayName]); });
   const fixedPartnerSettingsAvailable = ["BALANCED", "ROUND_ROBIN", "FIXED_PARTNERS"].includes(snapshot.matchingMode);
   return (
     <div className="space-y-6">
@@ -1097,7 +1122,6 @@ export function OpenPlayConsole({ snapshot, canManage }: { snapshot: OpenPlaySna
                 {fixedPartnerSettingsAvailable ? <PairForm snapshot={snapshot} /> : null}
                 <WalkInForm snapshot={snapshot} />
               </div>
-              {pairs.size > 0 ? <div className="flex flex-wrap gap-2">{[...pairs.entries()].map(([pairId, names]) => <div key={pairId} className="flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900"><span>{names.join(" + ")}</span><ActionForm action={unpairOpenPlayParticipantsAction} values={{ sessionId: snapshot.id, pairId }} label="Unpair" tone="quiet" /></div>)}</div> : null}
               <ParticipantRoster snapshot={snapshot} />
             </div>
           </>

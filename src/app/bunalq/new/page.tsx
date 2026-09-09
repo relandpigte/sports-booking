@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 export default function NewGuestBunalQPage() {
   return (
-    <PageShell maxWidth="max-w-3xl">
+    <PageShell maxWidth="max-w-7xl">
       <div className="py-8 sm:py-12">
         <Link href="/bunalq" className="text-sm font-bold text-primary">
           ← Live BunalQ

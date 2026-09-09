@@ -31,6 +31,10 @@ function selectedIds(
 
 async function cleanup() {
   await prisma.openPlayQueue.deleteMany({
+    where: { hub: { owner: { isGuestBunalQOrganizer: true } } },
+  });
+  await prisma.user.deleteMany({ where: { isGuestBunalQOrganizer: true } });
+  await prisma.openPlayQueue.deleteMany({
     where: { hub: { owner: { email: PARTNER_EMAIL } } },
   });
   await prisma.user.deleteMany({
@@ -114,7 +118,7 @@ async function check() {
     select: { id: true, publicId: true },
   });
 
-  stubRequestContext(partner, { stubPublicRequest: true });
+  const requestContext = stubRequestContext(partner, { stubPublicRequest: true });
   const actions = await import("@/lib/open-play-actions");
   const domain = await import("@/lib/open-play");
   const maintenance = await import("@/lib/open-play-maintenance");
@@ -1286,6 +1290,97 @@ async function check() {
           source: "PUBLIC_GUEST",
         },
       })) === 1
+  );
+
+  const guestCreate = new FormData();
+  guestCreate.set("title", "Anonymous Check Queue");
+  guestCreate.set("courtCount", "3");
+  guestCreate.set("matchingMode", "ROUND_ROBIN");
+  guestCreate.set("admissionMode", "APPROVAL_REQUIRED");
+  let guestRedirected = false;
+  try {
+    await actions.createGuestQuickQueueAction({}, guestCreate);
+  } catch (error) {
+    guestRedirected =
+      error instanceof Error && error.message.includes("unexpected redirect");
+  }
+  const guestQueue = await prisma.openPlayQueue.findFirstOrThrow({
+    where: { title: "Anonymous Check Queue" },
+    include: {
+      hub: { include: { owner: true, courts: true } },
+      sessions: { orderBy: { runNumber: "desc" }, take: 1 },
+    },
+  });
+  const guestRun = guestQueue.sessions[0]!;
+  ok(
+    "an anonymous browser can create an active unlisted BunalQ",
+    guestRedirected &&
+      guestQueue.kind === "QUICK" &&
+      !guestQueue.directoryListed &&
+      guestQueue.hub.guestBunalQOnly &&
+      guestQueue.hub.owner.isGuestBunalQOrganizer &&
+      guestQueue.hub.courts.length === 3 &&
+      guestRun.status === "ACTIVE" &&
+      guestRun.matchingMode === "ROUND_ROBIN"
+  );
+  ok(
+    "guest-created BunalQ rooms stay out of the public directory",
+    !(await domain.listPublicBunalQQueues()).some(
+      (listed) => listed.publicId === guestQueue.publicId
+    )
+  );
+  ok(
+    "guest-created BunalQ rooms retain a public player board",
+    (await domain.getPublicOpenPlaySnapshot(guestQueue.publicId))?.queue
+      .guestCreated === true
+  );
+
+  const guestWalkIn = new FormData();
+  guestWalkIn.set("sessionId", guestRun.id);
+  guestWalkIn.set("publicId", guestQueue.publicId);
+  guestWalkIn.set("displayName", "Browser-managed Player");
+  guestWalkIn.set("skillLevel", "intermediate");
+  ok(
+    "the creating browser receives the full organizer action path",
+    Boolean((await actions.addOpenPlayWalkInAction({}, guestWalkIn)).success)
+  );
+  const organizerCookie = [...requestContext.cookies.entries()][0];
+  requestContext.cookies.clear();
+  ok(
+    "a browser without the organizer cookie cannot mutate a guest queue",
+    Boolean((await actions.addOpenPlayWalkInAction({}, guestWalkIn)).message)
+  );
+  if (organizerCookie) requestContext.cookies.set(...organizerCookie);
+
+  const endGuestQueue = new FormData();
+  endGuestQueue.set("sessionId", guestRun.id);
+  ok(
+    "the guest organizer can end the queue",
+    Boolean((await actions.endOpenPlaySessionAction({}, endGuestQueue)).success)
+  );
+  const endedGuestRun = await prisma.openPlaySession.findUniqueOrThrow({
+    where: { id: guestRun.id },
+    select: { endedAt: true },
+  });
+  const justBeforeGuestDeletion = new Date(
+    endedGuestRun.endedAt!.getTime() + maintenance.GUEST_BUNALQ_RETENTION_MS - 1
+  );
+  ok(
+    "ended guest queues remain available for 24 hours",
+    (await maintenance.cleanupExpiredGuestBunalQQueues({
+      now: justBeforeGuestDeletion,
+      sessionIds: [guestRun.id],
+    })) === 0 &&
+      Boolean(await prisma.openPlayQueue.findUnique({ where: { id: guestQueue.id } }))
+  );
+  ok(
+    "guest queue data is deleted after the 24-hour retention window",
+    (await maintenance.cleanupExpiredGuestBunalQQueues({
+      now: new Date(justBeforeGuestDeletion.getTime() + 2),
+      sessionIds: [guestRun.id],
+    })) === 1 &&
+      !(await prisma.openPlayQueue.findUnique({ where: { id: guestQueue.id } })) &&
+      !(await prisma.user.findUnique({ where: { id: guestQueue.hub.ownerId } }))
   );
 
   const eventPublicJoin = new FormData();

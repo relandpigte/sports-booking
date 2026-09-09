@@ -55,6 +55,7 @@ export type OpenPlaySnapshot = {
     title: string;
     kind: OpenPlayQueueKind;
     admissionMode: OpenPlayAdmissionMode;
+    guestCreated: boolean;
     hub: { name: string; address: string | null };
     event: {
       publicId: string;

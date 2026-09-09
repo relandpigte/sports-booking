@@ -13,6 +13,15 @@ import { z } from "zod";
 
 import { DEFAULT_SKILL_LEVEL, SKILL_LEVELS } from "@/lib/constants";
 import { prisma } from "@/lib/db";
+import {
+  createGuestBunalQCredential,
+  GUEST_BUNALQ_SESSION_MS,
+  getGuestBunalQWorkspace,
+  isGuestBunalQWorkspace,
+  refreshGuestBunalQWorkspace,
+  setGuestBunalQOrganizerCookie,
+  type OpenPlayWorkspace,
+} from "@/lib/guest-bunalq";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { getSecurityRequestContext } from "@/lib/security-context";
 import { manilaToday } from "@/lib/time";
@@ -26,7 +35,7 @@ import {
   OPEN_PLAY_MODES,
   type OpenPlayActionState,
 } from "@/lib/open-play-shared";
-import { recordPartnerActivity, type PartnerWorkspace } from "@/lib/staffing";
+import { recordPartnerActivity } from "@/lib/staffing";
 
 const idSchema = z.string().trim().min(1).max(64);
 const publicIdSchema = z.string().trim().min(1).max(120);
@@ -46,6 +55,12 @@ const quickQueueSchema = z.object({
   matchingMode: z.enum(OPEN_PLAY_MODES as [OpenPlayMatchingMode, ...OpenPlayMatchingMode[]]),
   admissionMode: z.enum(["APPROVAL_REQUIRED", "INSTANT"]),
   courtIds: z.array(idSchema).min(1).max(12),
+});
+const guestQuickQueueSchema = z.object({
+  title: z.string().trim().min(2).max(120),
+  courtCount: z.coerce.number().int().min(1).max(12),
+  matchingMode: z.enum(OPEN_PLAY_MODES as [OpenPlayMatchingMode, ...OpenPlayMatchingMode[]]),
+  admissionMode: z.enum(["APPROVAL_REQUIRED", "INSTANT"]),
 });
 const participantEditSchema = z.object({
   sessionId: idSchema,
@@ -87,8 +102,10 @@ function bunalQTransaction<T>(
 
 function refresh(queuePublicId: string, eventPublicId?: string | null) {
   revalidatePath(`/dashboard/bunalq/${queuePublicId}`);
+  revalidatePath(`/bunalq/manage/${queuePublicId}`);
   revalidatePath(`/q/${queuePublicId}`);
   revalidatePath("/dashboard/bunalq");
+  revalidatePath("/bunalq");
   if (eventPublicId) {
     revalidatePath(`/dashboard/events/${eventPublicId}`);
     revalidatePath(`/dashboard/events/${eventPublicId}/bunalq`);
@@ -97,13 +114,32 @@ function refresh(queuePublicId: string, eventPublicId?: string | null) {
   }
 }
 
-async function workspaceForManage(): Promise<PartnerWorkspace | null> {
-  return getOpenPlayWorkspace("MANAGE");
+async function workspaceForManage(
+  sessionId?: string
+): Promise<OpenPlayWorkspace | null> {
+  const [partnerWorkspace, guestWorkspace] = await Promise.all([
+    getOpenPlayWorkspace("MANAGE"),
+    getGuestBunalQWorkspace(),
+  ]);
+  if (!sessionId) return partnerWorkspace;
+  const owner = await prisma.openPlaySession.findUnique({
+    where: { id: sessionId },
+    select: { queue: { select: { hub: { select: { ownerId: true } } } } },
+  });
+  if (!owner) return null;
+  if (partnerWorkspace?.partnerId === owner.queue.hub.ownerId) {
+    return partnerWorkspace;
+  }
+  if (guestWorkspace?.partnerId === owner.queue.hub.ownerId) {
+    await refreshGuestBunalQWorkspace(guestWorkspace);
+    return guestWorkspace;
+  }
+  return null;
 }
 
 async function ownedSession(
   sessionId: string,
-  workspace: PartnerWorkspace
+  workspace: OpenPlayWorkspace
 ) {
   return prisma.openPlaySession.findFirst({
     where: { id: sessionId, queue: { hub: { ownerId: workspace.partnerId } } },
@@ -194,19 +230,32 @@ async function dissolvePairs(tx: Tx, sessionId: string, pairIds: string[]) {
 }
 
 async function audit(
-  workspace: PartnerWorkspace,
+  workspace: OpenPlayWorkspace,
   action: string,
   targetId: string,
   metadata?: Prisma.InputJsonValue
 ) {
   try {
-    await recordPartnerActivity({
-      workspace,
-      action,
-      targetType: "OpenPlaySession",
-      targetId,
-      metadata,
-    });
+    if (isGuestBunalQWorkspace(workspace)) {
+      await prisma.partnerStaffActivity.create({
+        data: {
+          partnerId: workspace.partnerId,
+          actorId: workspace.actorId,
+          action,
+          targetType: "OpenPlaySession",
+          targetId,
+          metadata,
+        },
+      });
+    } else {
+      await recordPartnerActivity({
+        workspace,
+        action,
+        targetType: "OpenPlaySession",
+        targetId,
+        metadata,
+      });
+    }
   } catch (error) {
     // The BunalQ mutation has already committed at every call site. Do not
     // report a false action failure (and invite a duplicate retry) solely
@@ -558,7 +607,7 @@ export async function syncOpenPlayRosterAction(
   _previous: OpenPlayActionState,
   formData: FormData
 ): Promise<OpenPlayActionState> {
-  const workspace = await workspaceForManage();
+  const workspace = await workspaceForManage(String(formData.get("sessionId") ?? ""));
   if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const owned = await ownedSession(sessionId, workspace);
@@ -594,7 +643,7 @@ export async function addOpenPlayWalkInAction(
   _previous: OpenPlayActionState,
   formData: FormData
 ): Promise<OpenPlayActionState> {
-  const workspace = await workspaceForManage();
+  const workspace = await workspaceForManage(String(formData.get("sessionId") ?? ""));
   if (!workspace) return { message: "BunalQ manage access is required." };
   const parsed = walkInSchema.safeParse({
     sessionId: String(formData.get("sessionId") ?? ""),
@@ -629,7 +678,7 @@ export async function addOpenPlayWalkInAction(
 }
 
 async function participantTransition(
-  workspace: PartnerWorkspace,
+  workspace: OpenPlayWorkspace,
   sessionId: string,
   participantId: string,
   operation: "CHECK_IN" | "PAUSE" | "RESUME" | "CHECK_OUT"
@@ -706,7 +755,7 @@ async function transitionAction(
   formData: FormData,
   operation: "CHECK_IN" | "PAUSE" | "RESUME" | "CHECK_OUT"
 ): Promise<OpenPlayActionState> {
-  const workspace = await workspaceForManage();
+  const workspace = await workspaceForManage(String(formData.get("sessionId") ?? ""));
   if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const participantId = String(formData.get("participantId") ?? "");
@@ -743,7 +792,7 @@ export async function startOpenPlaySessionAction(
   _previous: OpenPlayActionState,
   formData: FormData
 ): Promise<OpenPlayActionState> {
-  const workspace = await workspaceForManage();
+  const workspace = await workspaceForManage(String(formData.get("sessionId") ?? ""));
   if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const owned = await ownedSession(sessionId, workspace);
@@ -796,7 +845,7 @@ export async function changeOpenPlayModeAction(
   _previous: OpenPlayActionState,
   formData: FormData
 ): Promise<OpenPlayActionState> {
-  const workspace = await workspaceForManage();
+  const workspace = await workspaceForManage(String(formData.get("sessionId") ?? ""));
   if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const mode = String(formData.get("mode") ?? "") as OpenPlayMatchingMode;
@@ -827,7 +876,7 @@ export async function pairOpenPlayParticipantsAction(
   _previous: OpenPlayActionState,
   formData: FormData
 ): Promise<OpenPlayActionState> {
-  const workspace = await workspaceForManage();
+  const workspace = await workspaceForManage(String(formData.get("sessionId") ?? ""));
   if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const firstId = String(formData.get("firstId") ?? "");
@@ -893,7 +942,7 @@ export async function unpairOpenPlayParticipantsAction(
   _previous: OpenPlayActionState,
   formData: FormData
 ): Promise<OpenPlayActionState> {
-  const workspace = await workspaceForManage();
+  const workspace = await workspaceForManage(String(formData.get("sessionId") ?? ""));
   if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const pairId = String(formData.get("pairId") ?? "");
@@ -938,7 +987,7 @@ export async function toggleOpenPlayCourtAction(
   _previous: OpenPlayActionState,
   formData: FormData
 ): Promise<OpenPlayActionState> {
-  const workspace = await workspaceForManage();
+  const workspace = await workspaceForManage(String(formData.get("sessionId") ?? ""));
   if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const courtId = String(formData.get("courtId") ?? "");
@@ -1041,7 +1090,7 @@ export async function dispatchOpenPlayUpNextAction(
   _previous: OpenPlayActionState,
   formData: FormData
 ): Promise<OpenPlayActionState> {
-  const workspace = await workspaceForManage();
+  const workspace = await workspaceForManage(String(formData.get("sessionId") ?? ""));
   if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const courtId = String(formData.get("courtId") ?? "");
@@ -1098,7 +1147,7 @@ export async function replaceStagedCourtMatchAction(
   _previous: OpenPlayActionState,
   formData: FormData
 ): Promise<OpenPlayActionState> {
-  const workspace = await workspaceForManage();
+  const workspace = await workspaceForManage(String(formData.get("sessionId") ?? ""));
   if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const courtGameId = String(formData.get("courtGameId") ?? "");
@@ -1167,7 +1216,7 @@ export async function startOpenPlayMatchAction(
   _previous: OpenPlayActionState,
   formData: FormData
 ): Promise<OpenPlayActionState> {
-  const workspace = await workspaceForManage();
+  const workspace = await workspaceForManage(String(formData.get("sessionId") ?? ""));
   if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const gameId = String(formData.get("gameId") ?? "");
@@ -1218,7 +1267,7 @@ export async function editStagedOpenPlayMatchAction(
   _previous: OpenPlayActionState,
   formData: FormData
 ): Promise<OpenPlayActionState> {
-  const workspace = await workspaceForManage();
+  const workspace = await workspaceForManage(String(formData.get("sessionId") ?? ""));
   if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const gameId = String(formData.get("gameId") ?? "");
@@ -1303,7 +1352,7 @@ export async function recordOpenPlayWinnerAction(
   _previous: OpenPlayActionState,
   formData: FormData
 ): Promise<OpenPlayActionState> {
-  const workspace = await workspaceForManage();
+  const workspace = await workspaceForManage(String(formData.get("sessionId") ?? ""));
   if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const gameId = String(formData.get("gameId") ?? "");
@@ -1367,7 +1416,7 @@ export async function undoOpenPlayResultAction(
   _previous: OpenPlayActionState,
   formData: FormData
 ): Promise<OpenPlayActionState> {
-  const workspace = await workspaceForManage();
+  const workspace = await workspaceForManage(String(formData.get("sessionId") ?? ""));
   if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const gameId = String(formData.get("gameId") ?? "");
@@ -1474,7 +1523,7 @@ export async function endOpenPlaySessionAction(
   _previous: OpenPlayActionState,
   formData: FormData
 ): Promise<OpenPlayActionState> {
-  const workspace = await workspaceForManage();
+  const workspace = await workspaceForManage(String(formData.get("sessionId") ?? ""));
   if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const owned = await ownedSession(sessionId, workspace);
@@ -1603,11 +1652,177 @@ export async function createQuickQueueAction(
   redirect(`/dashboard/bunalq/${created.publicId}`);
 }
 
+export async function createGuestQuickQueueAction(
+  _previous: OpenPlayActionState,
+  formData: FormData
+): Promise<OpenPlayActionState> {
+  const parsed = guestQuickQueueSchema.safeParse({
+    title: String(formData.get("title") ?? ""),
+    courtCount: String(formData.get("courtCount") ?? ""),
+    matchingMode: String(formData.get("matchingMode") ?? "BALANCED"),
+    admissionMode: String(formData.get("admissionMode") ?? "APPROVAL_REQUIRED"),
+  });
+  if (!parsed.success) {
+    return { message: "Enter a queue name and choose between 1 and 12 courts." };
+  }
+
+  const context = await getSecurityRequestContext();
+  if (!(await consumeRateLimit({
+    namespace: "guest-bunalq-create",
+    subject: context.ipHash,
+    limit: 3,
+    windowSeconds: 24 * 60 * 60,
+    blockSeconds: 24 * 60 * 60,
+  }))) {
+    return { message: "This connection has created too many BunalQ rooms today." };
+  }
+  if (!(await consumeRateLimit({
+    namespace: "guest-bunalq-create-global",
+    subject: "all",
+    limit: 100,
+    windowSeconds: 60 * 60,
+    blockSeconds: 60 * 60,
+  }))) {
+    return { message: "Guest BunalQ creation is temporarily busy. Try again later." };
+  }
+
+  const currentWorkspace = await getGuestBunalQWorkspace();
+  const credential = currentWorkspace ? null : createGuestBunalQCredential();
+  const expiresAt = new Date(Date.now() + GUEST_BUNALQ_SESSION_MS);
+  const publicId = crypto.randomBytes(12).toString("base64url");
+  const courtRows = Array.from({ length: parsed.data.courtCount }, (_, index) => ({
+    id: crypto.randomUUID(),
+    name: `Court ${index + 1}`,
+  }));
+
+  const created = await bunalQTransaction(async (tx) => {
+    let ownerId = currentWorkspace?.partnerId;
+    let organizerSessionId = currentWorkspace?.organizerSessionId;
+    if (organizerSessionId && ownerId) {
+      await tx.$queryRaw(
+        Prisma.sql`SELECT "id" FROM "GuestBunalQOrganizerSession" WHERE "id" = ${organizerSessionId} FOR UPDATE`
+      );
+      const organizer = await tx.guestBunalQOrganizerSession.findFirst({
+        where: {
+          id: organizerSessionId,
+          userId: ownerId,
+          expiresAt: { gt: new Date() },
+          user: { isGuestBunalQOrganizer: true },
+        },
+        select: { id: true },
+      });
+      if (!organizer) return { kind: "access-lost" as const };
+      await tx.guestBunalQOrganizerSession.update({
+        where: { id: organizer.id },
+        data: { expiresAt, lastSeenAt: new Date() },
+      });
+    } else {
+      ownerId = crypto.randomUUID();
+      organizerSessionId = crypto.randomUUID();
+      await tx.user.create({
+        data: {
+          id: ownerId,
+          email: `guest-bunalq-${crypto.randomBytes(16).toString("hex")}@internal.bunal.club`,
+          role: "PLAYER",
+          registrationCompletedAt: null,
+          isGuestBunalQOrganizer: true,
+          guestBunalQSession: {
+            create: {
+              id: organizerSessionId,
+              tokenHash: credential!.tokenHash,
+              expiresAt: credential!.expiresAt,
+            },
+          },
+        },
+      });
+    }
+
+    const activeQueues = await tx.openPlayQueue.count({
+      where: {
+        hub: { ownerId, guestBunalQOnly: true },
+        sessions: { some: { status: { in: ["SETUP", "ACTIVE"] } } },
+      },
+    });
+    if (activeQueues >= 3) return { kind: "active-limit" as const };
+
+    const hub = await tx.hub.create({
+      data: {
+        ownerId,
+        name: parsed.data.title,
+        coverPhotos: [],
+        games: ["pickleball"],
+        guestBunalQOnly: true,
+        courts: {
+          create: courtRows.map((court) => ({
+            id: court.id,
+            name: court.name,
+            sport: "pickleball",
+          })),
+        },
+      },
+      select: { id: true },
+    });
+    const session = await tx.openPlaySession.create({
+      data: {
+        queue: {
+          create: {
+            publicId,
+            hubId: hub.id,
+            title: parsed.data.title,
+            kind: "QUICK",
+            admissionMode: parsed.data.admissionMode,
+            directoryListed: false,
+            createdById: ownerId,
+          },
+        },
+        runNumber: 1,
+        status: "ACTIVE",
+        matchingMode: parsed.data.matchingMode,
+        createdById: ownerId,
+        startedAt: new Date(),
+        courts: {
+          create: courtRows.map((court, position) => ({
+            courtId: court.id,
+            position,
+          })),
+        },
+      },
+      select: { id: true },
+    });
+    await tx.partnerStaffActivity.create({
+      data: {
+        partnerId: ownerId,
+        actorId: ownerId,
+        action: "BUNALQ_GUEST_CREATED",
+        targetType: "OpenPlaySession",
+        targetId: session.id,
+        metadata: { publicId, courtCount: parsed.data.courtCount },
+      },
+    });
+    return {
+      kind: "created" as const,
+      publicId,
+      rawToken: currentWorkspace?.credentialToken ?? credential!.rawToken,
+      cookieExpiresAt: currentWorkspace ? expiresAt : credential!.expiresAt,
+    };
+  });
+
+  if (created.kind === "access-lost") {
+    return { message: "Organizer access expired. Reload this page and try again." };
+  }
+  if (created.kind === "active-limit") {
+    return { message: "This browser already manages three active BunalQ rooms." };
+  }
+  await setGuestBunalQOrganizerCookie(created.rawToken, created.cookieExpiresAt);
+  refresh(created.publicId);
+  redirect(`/bunalq/manage/${created.publicId}`);
+}
+
 export async function changeQueueAdmissionModeAction(
   _previous: OpenPlayActionState,
   formData: FormData
 ): Promise<OpenPlayActionState> {
-  const workspace = await workspaceForManage();
+  const workspace = await workspaceForManage(String(formData.get("sessionId") ?? ""));
   if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const admissionMode = String(formData.get("admissionMode") ?? "") as OpenPlayAdmissionMode;
@@ -1785,7 +2000,7 @@ async function moderatePendingGuest(
   formData: FormData,
   operation: "APPROVE" | "REJECT"
 ): Promise<OpenPlayActionState> {
-  const workspace = await workspaceForManage();
+  const workspace = await workspaceForManage(String(formData.get("sessionId") ?? ""));
   if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const participantId = String(formData.get("participantId") ?? "");
@@ -1853,7 +2068,7 @@ export async function editOpenPlayParticipantAction(
   _previous: OpenPlayActionState,
   formData: FormData
 ): Promise<OpenPlayActionState> {
-  const workspace = await workspaceForManage();
+  const workspace = await workspaceForManage(String(formData.get("sessionId") ?? ""));
   if (!workspace) return { message: "BunalQ manage access is required." };
   const parsed = participantEditSchema.safeParse({
     sessionId: String(formData.get("sessionId") ?? ""),
@@ -1903,7 +2118,7 @@ export async function removeOpenPlayParticipantAction(
   _previous: OpenPlayActionState,
   formData: FormData
 ): Promise<OpenPlayActionState> {
-  const workspace = await workspaceForManage();
+  const workspace = await workspaceForManage(String(formData.get("sessionId") ?? ""));
   if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const participantId = String(formData.get("participantId") ?? "");
@@ -1952,7 +2167,7 @@ export async function bulkCheckInOpenPlayParticipantsAction(
   _previous: OpenPlayActionState,
   formData: FormData
 ): Promise<OpenPlayActionState> {
-  const workspace = await workspaceForManage();
+  const workspace = await workspaceForManage(String(formData.get("sessionId") ?? ""));
   if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const participantIds = [...new Set(formData.getAll("participantId").map(String))].slice(0, 100);
@@ -2016,7 +2231,7 @@ export async function bulkPauseOpenPlayParticipantsAction(
   _previous: OpenPlayActionState,
   formData: FormData
 ): Promise<OpenPlayActionState> {
-  const workspace = await workspaceForManage();
+  const workspace = await workspaceForManage(String(formData.get("sessionId") ?? ""));
   if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const participantIds = [
@@ -2058,7 +2273,7 @@ export async function bulkRemoveOpenPlayParticipantsAction(
   _previous: OpenPlayActionState,
   formData: FormData
 ): Promise<OpenPlayActionState> {
-  const workspace = await workspaceForManage();
+  const workspace = await workspaceForManage(String(formData.get("sessionId") ?? ""));
   if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const participantIds = [
@@ -2117,7 +2332,7 @@ export async function startNewOpenPlayRunAction(
   _previous: OpenPlayActionState,
   formData: FormData
 ): Promise<OpenPlayActionState> {
-  const workspace = await workspaceForManage();
+  const workspace = await workspaceForManage(String(formData.get("sessionId") ?? ""));
   if (!workspace) return { message: "BunalQ manage access is required." };
   const sessionId = String(formData.get("sessionId") ?? "");
   const owned = await ownedSession(sessionId, workspace);

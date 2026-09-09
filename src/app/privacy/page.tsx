@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function PrivacyPage() {
   return (
     <PageShell maxWidth="max-w-none" padded={false} alwaysPublic>
-      <LegalLayout title="Privacy Policy" updated="August 21, 2026">
+      <LegalLayout title="Privacy Policy" updated="September 9, 2026">
         <p>
           This Privacy Policy explains how Bunal.club (&quot;we&quot;,
           &quot;us&quot;) collects, uses, and protects your personal
@@ -47,7 +47,9 @@ export default function PrivacyPage() {
             <li>
               <span className="font-medium text-gray-800">Activity</span> —
               the bookings you make, events you register for, and trainer
-              sessions you request or provide.
+              sessions you request or provide. Public BunalQ activity can
+              include a queue title, player display names, skill levels,
+              pairings, and match results.
             </li>
             <li>
               <span className="font-medium text-gray-800">Trainer data</span> —
@@ -131,6 +133,12 @@ export default function PrivacyPage() {
             for site analytics, and Vercel Analytics and Speed Insights to
             understand traffic and performance — see the Analytics section
             below.
+          </p>
+          <p>
+            Creating a BunalQ without an account sets an HttpOnly organizer
+            cookie that lets that browser manage its queues. We store only a
+            one-way hash of its random credential. Clearing the cookie removes
+            organizer access and there is no recovery process.
           </p>
         </LegalSection>
 
@@ -217,7 +225,9 @@ export default function PrivacyPage() {
             legal, accounting, safety, or dispute-resolution purposes.
             Message content is retained until a participant or moderator
             deletes it; deleted messages lose their body while minimal audit
-            metadata and reported evidence may be retained.
+            metadata and reported evidence may be retained. Guest-created
+            BunalQ rooms, their generated courts, player activity, and browser
+            organizer record are deleted 24 hours after the latest run ends.
           </p>
         </LegalSection>
 

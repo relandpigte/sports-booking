@@ -742,7 +742,15 @@ export async function getOpenPlayWorkspace(
 const sessionInclude = {
   queue: {
     include: {
-      hub: { select: { id: true, ownerId: true, name: true, address: true } },
+      hub: {
+        select: {
+          id: true,
+          ownerId: true,
+          name: true,
+          address: true,
+          guestBunalQOnly: true,
+        },
+      },
       event: {
         select: {
           id: true,
@@ -874,6 +882,7 @@ function toSnapshot(
       title: session.queue.title,
       kind: session.queue.kind,
       admissionMode: session.queue.admissionMode,
+      guestCreated: session.queue.hub.guestBunalQOnly,
       hub: {
         name: session.queue.hub.name,
         address: session.queue.hub.address,
@@ -1067,7 +1076,10 @@ export async function listOpenPlayQueues(partnerId: string) {
 
 export async function listPublicBunalQQueues() {
   return prisma.openPlayQueue.findMany({
-    where: { sessions: { some: { status: "ACTIVE" } } },
+    where: {
+      directoryListed: true,
+      sessions: { some: { status: "ACTIVE" } },
+    },
     orderBy: { updatedAt: "desc" },
     take: 50,
     select: {

@@ -77,6 +77,7 @@ export async function listUsers(opts: {
   await requireAdmin();
   const { query, role, trainerOnly, trainerStatus, partnerStatus } = opts;
   const where: Prisma.UserWhereInput = {
+    isGuestBunalQOrganizer: false,
     ...(role ? { role } : {}),
     ...(trainerOnly ? { trainerProfile: { isNot: null } } : {}),
     ...(trainerStatus
@@ -115,6 +116,7 @@ export async function userCounts(): Promise<Record<Role, number>> {
   await requireAdmin();
   const grouped = await prisma.user.groupBy({
     by: ["role"],
+    where: { isGuestBunalQOrganizer: false },
     _count: { _all: true },
   });
 
@@ -139,8 +141,8 @@ export async function pendingPartnerCount(): Promise<number> {
 
 export async function getUserById(id: string): Promise<AdminUser | null> {
   await requireAdmin();
-  const user = await prisma.user.findUnique({
-    where: { id },
+  const user = await prisma.user.findFirst({
+    where: { id, isGuestBunalQOrganizer: false },
     select: userListSelect,
   });
   return user ? mapAdminUser(user) : null;

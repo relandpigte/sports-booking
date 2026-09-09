@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 
 export const EVENT_RUN_END_GRACE_MS = 60 * 60_000;
 export const QUICK_QUEUE_INACTIVITY_MS = 12 * 60 * 60_000;
+export const GUEST_BUNALQ_RETENTION_MS = 24 * 60 * 60_000;
 
 type CleanupReason = "EVENT_END_GRACE_EXPIRED" | "QUICK_QUEUE_INACTIVE";
 
@@ -112,6 +113,107 @@ async function closeStaleSession(
   });
 }
 
+async function deleteExpiredGuestQueue(
+  queueId: string,
+  now: Date
+): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw(
+      Prisma.sql`SELECT "id" FROM "OpenPlayQueue" WHERE "id" = ${queueId} FOR UPDATE`
+    );
+    const queue = await tx.openPlayQueue.findFirst({
+      where: { id: queueId, hub: { guestBunalQOnly: true } },
+      select: {
+        id: true,
+        hubId: true,
+        hub: { select: { ownerId: true } },
+        sessions: {
+          orderBy: { runNumber: "desc" },
+          take: 1,
+          select: { status: true, endedAt: true },
+        },
+      },
+    });
+    const latest = queue?.sessions[0];
+    if (
+      !queue ||
+      !latest ||
+      latest.status !== "ENDED" ||
+      !latest.endedAt ||
+      latest.endedAt.getTime() + GUEST_BUNALQ_RETENTION_MS > now.getTime()
+    ) {
+      return false;
+    }
+
+    await tx.openPlayQueue.delete({ where: { id: queue.id } });
+    await tx.hub.delete({ where: { id: queue.hubId } });
+    const remainingGuestHubs = await tx.hub.count({
+      where: { ownerId: queue.hub.ownerId, guestBunalQOnly: true },
+    });
+    if (remainingGuestHubs === 0) {
+      await tx.user.deleteMany({
+        where: {
+          id: queue.hub.ownerId,
+          isGuestBunalQOrganizer: true,
+          hubs: { none: {} },
+        },
+      });
+    }
+    return true;
+  });
+}
+
+export async function cleanupExpiredGuestBunalQQueues({
+  now = new Date(),
+  sessionIds,
+}: {
+  now?: Date;
+  sessionIds?: string[];
+} = {}) {
+  if (sessionIds && sessionIds.length === 0) return 0;
+  const endedBefore = new Date(now.getTime() - GUEST_BUNALQ_RETENTION_MS);
+  const candidates = await prisma.openPlayQueue.findMany({
+    where: {
+      hub: { guestBunalQOnly: true },
+      AND: [
+        {
+          sessions: {
+            every: { status: "ENDED" },
+            some: { status: "ENDED", endedAt: { lte: endedBefore } },
+          },
+        },
+        ...(sessionIds
+          ? [{ sessions: { some: { id: { in: sessionIds } } } }]
+          : []),
+      ],
+    },
+    orderBy: { updatedAt: "asc" },
+    take: 100,
+    select: {
+      id: true,
+      sessions: {
+        orderBy: { runNumber: "desc" },
+        take: 1,
+        select: { status: true, endedAt: true },
+      },
+    },
+  });
+
+  let deleted = 0;
+  for (const candidate of candidates) {
+    const latest = candidate.sessions[0];
+    if (
+      latest?.status === "ENDED" &&
+      latest.endedAt &&
+      latest.endedAt.getTime() + GUEST_BUNALQ_RETENTION_MS <= now.getTime() &&
+      (await deleteExpiredGuestQueue(candidate.id, now))
+    ) {
+      deleted += 1;
+    }
+  }
+  return deleted;
+}
+
 export async function cleanupStaleOpenPlaySessions({
   now = new Date(),
   sessionIds,
@@ -120,7 +222,7 @@ export async function cleanupStaleOpenPlaySessions({
   sessionIds?: string[];
 } = {}) {
   if (sessionIds && sessionIds.length === 0) {
-    return { eventRuns: 0, quickQueues: 0 };
+    return { eventRuns: 0, quickQueues: 0, guestQueuesDeleted: 0 };
   }
   const eventCutoff = new Date(now.getTime() - EVENT_RUN_END_GRACE_MS);
   const quickCutoff = new Date(now.getTime() - QUICK_QUEUE_INACTIVITY_MS);
@@ -154,5 +256,9 @@ export async function cleanupStaleOpenPlaySessions({
     if (reason === "EVENT_END_GRACE_EXPIRED") eventRuns += 1;
     if (reason === "QUICK_QUEUE_INACTIVE") quickQueues += 1;
   }
-  return { eventRuns, quickQueues };
+  const guestQueuesDeleted = await cleanupExpiredGuestBunalQQueues({
+    now,
+    sessionIds,
+  });
+  return { eventRuns, quickQueues, guestQueuesDeleted };
 }

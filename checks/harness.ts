@@ -87,9 +87,10 @@ export function stubRequestContext(
     onImpersonatedAction?: (input: Record<string, unknown>) => void;
     stubPublicRequest?: boolean;
   } = {}
-): void {
+): { cookies: Map<string, string> } {
   const req = createRequire(import.meta.url);
   const root = process.cwd();
+  const requestCookies = new Map<string, string>();
 
   const put = (id: string, exports: Record<string, unknown>) => {
     req.cache[id] = {
@@ -147,6 +148,25 @@ export function stubRequestContext(
     endImpersonationForLogout: async () => undefined,
   });
   if (options.stubPublicRequest) {
+    put(req.resolve("next/headers"), {
+      cookies: async () => ({
+        get: (name: string) => {
+          const value = requestCookies.get(name);
+          return value === undefined ? undefined : { name, value };
+        },
+        set: (
+          nameOrOptions: string | { name: string; value: string },
+          value?: string
+        ) => {
+          if (typeof nameOrOptions === "string") {
+            requestCookies.set(nameOrOptions, value ?? "");
+          } else {
+            requestCookies.set(nameOrOptions.name, nameOrOptions.value);
+          }
+        },
+        delete: (name: string) => requestCookies.delete(name),
+      }),
+    });
     put(path.join(root, "src/lib/rate-limit.ts"), {
       consumeRateLimit: async () => true,
     });
@@ -155,6 +175,7 @@ export function stubRequestContext(
       hashSecurityToken: (value: string) => value,
     });
   }
+  return { cookies: requestCookies };
 }
 
 export function stubPublicGuestRequestContext(options: {

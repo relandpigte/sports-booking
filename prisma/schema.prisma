@@ -175,6 +175,9 @@ model User {
   role                    Role               @default(PLAYER)
   skillLevel              String             @default("intermediate")
   privateProfile          Boolean            @default(false)
+  // Internal, non-login identity backing an anonymous BunalQ organizer
+  // browser. These users are excluded from account directories and reports.
+  isGuestBunalQOrganizer  Boolean            @default(false)
   // Existing and password-created accounts default to complete. The Auth.js
   // adapter explicitly writes null for a brand-new Google identity until its
   // app role has been selected.
@@ -252,13 +255,14 @@ model User {
   serviceFeeWaiversGranted  ServiceFeeWaiver[]           @relation("ServiceFeeWaiverGrantor")
   serviceFeeWaiversReversed ServiceFeeWaiver[]           @relation("ServiceFeeWaiverReverser")
 
-  staffMembershipsOwned   PartnerStaffMembership[] @relation("PartnerStaffOwner")
-  staffMembership         PartnerStaffMembership?  @relation("PartnerStaffUser")
-  staffMembershipsInvited PartnerStaffMembership[] @relation("PartnerStaffMembershipInviter")
-  staffInvitationsOwned   PartnerStaffInvitation[] @relation("PartnerStaffInvitationOwner")
-  staffInvitationsSent    PartnerStaffInvitation[] @relation("PartnerStaffInvitationInviter")
-  staffActivityOwned      PartnerStaffActivity[]   @relation("PartnerStaffActivityOwner")
-  staffActivityPerformed  PartnerStaffActivity[]   @relation("PartnerStaffActivityActor")
+  staffMembershipsOwned   PartnerStaffMembership[]     @relation("PartnerStaffOwner")
+  staffMembership         PartnerStaffMembership?      @relation("PartnerStaffUser")
+  staffMembershipsInvited PartnerStaffMembership[]     @relation("PartnerStaffMembershipInviter")
+  staffInvitationsOwned   PartnerStaffInvitation[]     @relation("PartnerStaffInvitationOwner")
+  staffInvitationsSent    PartnerStaffInvitation[]     @relation("PartnerStaffInvitationInviter")
+  staffActivityOwned      PartnerStaffActivity[]       @relation("PartnerStaffActivityOwner")
+  staffActivityPerformed  PartnerStaffActivity[]       @relation("PartnerStaffActivityActor")
+  guestBunalQSession      GuestBunalQOrganizerSession?
 }
 
 // A trainer is a capability attached to a PLAYER account. The account keeps
@@ -598,8 +602,8 @@ model PartnerStaffMembership {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
-  partner   User @relation("PartnerStaffOwner", fields: [partnerId], references: [id], onDelete: Cascade)
-  user      User @relation("PartnerStaffUser", fields: [userId], references: [id], onDelete: Cascade)
+  partner   User  @relation("PartnerStaffOwner", fields: [partnerId], references: [id], onDelete: Cascade)
+  user      User  @relation("PartnerStaffUser", fields: [userId], references: [id], onDelete: Cascade)
   invitedBy User? @relation("PartnerStaffMembershipInviter", fields: [invitedById], references: [id], onDelete: SetNull)
 
   @@unique([partnerId, userId])
@@ -625,7 +629,7 @@ model PartnerStaffInvitation {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
-  partner   User @relation("PartnerStaffInvitationOwner", fields: [partnerId], references: [id], onDelete: Cascade)
+  partner   User  @relation("PartnerStaffInvitationOwner", fields: [partnerId], references: [id], onDelete: Cascade)
   invitedBy User? @relation("PartnerStaffInvitationInviter", fields: [invitedById], references: [id], onDelete: SetNull)
 
   @@index([partnerId, createdAt])
@@ -1181,24 +1185,26 @@ model PartnerImpersonationAudit {
 
 // A partner-operated venue/club profile.
 model Hub {
-  id             String   @id @default(cuid())
+  id              String   @id @default(cuid())
   // Stable public URL segment. Optional so existing production rows continue
   // to resolve by id until a partner chooses or saves a slug.
-  slug           String?  @unique
-  ownerId        String
-  name           String
-  about          String?  @db.Text
-  logo           String?  @db.Text // data URL
-  coverPhotos    String[] // data URLs
-  games          String[] // court games offered (see GAMES in constants)
-  address        String?  @db.Text
-  latitude       Float?
-  longitude      Float?
-  phone          String?
-  email          String?
-  operatingHours Json?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  slug            String?  @unique
+  ownerId         String
+  // Hidden container for courts generated for an anonymous BunalQ.
+  guestBunalQOnly Boolean  @default(false)
+  name            String
+  about           String?  @db.Text
+  logo            String?  @db.Text // data URL
+  coverPhotos     String[] // data URLs
+  games           String[] // court games offered (see GAMES in constants)
+  address         String?  @db.Text
+  latitude        Float?
+  longitude       Float?
+  phone           String?
+  email           String?
+  operatingHours  Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   owner             User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   courts            Court[]
@@ -1655,16 +1661,17 @@ model EventCourt {
 // Stable BunalQ room. Event queues preserve registration/payment boundaries;
 // Quick queues are immediate venue-operated rotations with public guest entry.
 model OpenPlayQueue {
-  id            String                @id @default(cuid())
-  publicId      String                @unique
-  hubId         String
-  eventId       String?               @unique
-  title         String                @db.VarChar(120)
-  kind          OpenPlayQueueKind
-  admissionMode OpenPlayAdmissionMode @default(APPROVAL_REQUIRED)
-  createdById   String?
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @updatedAt
+  id              String                @id @default(cuid())
+  publicId        String                @unique
+  hubId           String
+  eventId         String?               @unique
+  title           String                @db.VarChar(120)
+  kind            OpenPlayQueueKind
+  admissionMode   OpenPlayAdmissionMode @default(APPROVAL_REQUIRED)
+  directoryListed Boolean               @default(true)
+  createdById     String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
 
   hub      Hub               @relation(fields: [hubId], references: [id], onDelete: Cascade)
   event    Event?            @relation(fields: [eventId], references: [id], onDelete: Cascade)
@@ -1672,6 +1679,22 @@ model OpenPlayQueue {
 
   @@index([hubId, updatedAt])
   @@index([kind, updatedAt])
+}
+
+// Browser-bound organizer authority for anonymous BunalQ creation. The raw
+// credential exists only in an HttpOnly cookie; the database keeps its hash.
+model GuestBunalQOrganizerSession {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
 }
 
 // One immutable-history run inside a BunalQ room. Event and BookingSlot own

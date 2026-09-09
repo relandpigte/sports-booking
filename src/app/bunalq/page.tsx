@@ -44,6 +44,18 @@ export default async function PublicBunalQDirectoryPage() {
             Follow active courts, see who is up next, and join public Quick
             Queues from any device—no account needed to view.
           </p>
+          <Link
+            href="/bunalq/new"
+            className="mt-6 inline-flex min-h-11 items-center rounded-xl bg-primary px-4 text-sm font-black text-white transition-colors hover:bg-primary-hover"
+          >
+            Create a public BunalQ
+          </Link>
+          <Link
+            href="/bunalq/new"
+            className="mt-6 inline-flex min-h-11 items-center rounded-xl bg-primary px-4 text-sm font-black text-white transition hover:bg-primary-hover"
+          >
+            Create a BunalQ
+          </Link>
         </header>
 
         {queues.length > 0 ? (
@@ -98,14 +110,12 @@ export default async function PublicBunalQDirectoryPage() {
             </h2>
             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
               Active public rotations will appear here automatically. You can
-              browse upcoming open play events in the meantime.
+              create an unlisted queue now or browse upcoming open play events.
             </p>
-            <Link
-              href="/events"
-              className="mt-6 inline-flex rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-hover"
-            >
-              Browse events
-            </Link>
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
+              <Link href="/bunalq/new" className="inline-flex rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-hover">Create a BunalQ</Link>
+              <Link href="/events" className="inline-flex rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-navy transition-colors hover:bg-slate-50">Browse events</Link>
+            </div>
           </section>
         )}
       </div>

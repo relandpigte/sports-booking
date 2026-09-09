@@ -501,6 +501,14 @@ async function check() {
     )
   );
 
+  const bufferCourts = await Promise.all(
+    ["Buffer Court 1", "Buffer Court 2"].map((name) =>
+      prisma.court.create({
+        data: { hubId: hub.id, name, sport: "pickleball" },
+        select: { id: true },
+      })
+    )
+  );
   const bufferSession = await prisma.openPlaySession.create({
     data: {
       queue: {
@@ -517,7 +525,7 @@ async function check() {
       matchingMode: "BALANCED",
       createdById: partner.id,
       courts: {
-        create: hub.courts.map((court, index) => ({
+        create: bufferCourts.map((court, index) => ({
           courtId: court.id,
           position: index,
         })),

@@ -1136,7 +1136,7 @@ export async function listBunalQHubs(partnerId: string) {
       id: true,
       name: true,
       courts: {
-        where: { sport: "pickleball" },
+        where: { OR: [{ sport: "pickleball" }, { sport: null }] },
         orderBy: { createdAt: "asc" },
         select: { id: true, name: true },
       },

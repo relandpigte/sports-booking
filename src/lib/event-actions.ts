@@ -362,7 +362,9 @@ export async function saveEventAction(
   if (
     hub.courts.some(
       (court) =>
-        uniqueCourtIds.includes(court.id) && court.sport !== values.sport
+        uniqueCourtIds.includes(court.id) &&
+        court.sport !== null &&
+        court.sport !== values.sport
     )
   ) {
     return {

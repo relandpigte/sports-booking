@@ -1545,7 +1545,11 @@ export async function createQuickQueueAction(
     if (!hub || hub.courts.length !== parsed.data.courtIds.length) {
       return { kind: "missing" as const };
     }
-    if (hub.courts.some((court) => court.sport !== "pickleball")) {
+    if (
+      hub.courts.some(
+        (court) => court.sport !== null && court.sport !== "pickleball"
+      )
+    ) {
       return { kind: "sport" as const };
     }
     const conflict = await findActiveCourtConflict(tx, parsed.data.courtIds);

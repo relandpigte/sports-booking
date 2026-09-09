@@ -349,7 +349,11 @@ export async function updateHubAction(
   const changedBunalQCourtIds = courts
     .filter((court) => {
       const previous = existing.find((item) => item.id === court.id);
-      return previous?.sport === "pickleball" && court.sport !== "pickleball";
+      return (
+        previous &&
+        previous.sport !== court.sport &&
+        court.sport !== "pickleball"
+      );
     })
     .map((court) => court.id);
   if (changedBunalQCourtIds.length > 0) {

@@ -1089,7 +1089,7 @@ async function check() {
 
   const editPlayer = new FormData();
   editPlayer.set("sessionId", runs[1].id);
-  editPlayer.set("participantId", runs[1].participants[0].id);
+  editPlayer.set("participantId", runs[1].participants[5].id);
   editPlayer.set("displayName", "Edited for this run");
   editPlayer.set("skillLevel", "advanced");
   ok("staff can edit run-local player details", Boolean((await actions.editOpenPlayParticipantAction({}, editPlayer)).success));
@@ -1099,7 +1099,7 @@ async function check() {
   ok(
     "Event roster refresh preserves run-local player overrides",
     (await prisma.openPlayParticipant.findUniqueOrThrow({
-      where: { id: runs[1].participants[0].id },
+      where: { id: runs[1].participants[5].id },
     })).displayName === "Edited for this run"
   );
   const newlyPrivate = runs[1].participants.find(
@@ -1149,14 +1149,14 @@ async function check() {
   );
   const endedEdit = new FormData();
   endedEdit.set("sessionId", runs[1].id);
-  endedEdit.set("participantId", runs[1].participants[0].id);
+  endedEdit.set("participantId", runs[1].participants[5].id);
   endedEdit.set("displayName", "Should not change");
   endedEdit.set("skillLevel", "beginner");
   ok(
     "ended run history cannot be edited by a stale form",
     Boolean((await actions.editOpenPlayParticipantAction({}, endedEdit)).message) &&
       (await prisma.openPlayParticipant.findUniqueOrThrow({
-        where: { id: runs[1].participants[0].id },
+        where: { id: runs[1].participants[5].id },
       })).displayName === "Edited for this run"
   );
   ok(

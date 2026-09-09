@@ -155,7 +155,9 @@ async function bumpLiveRevision(tx: Tx, sessionId: string) {
 async function lockCourtAssignments(tx: Tx, courtIds: string[]) {
   for (const courtId of [...new Set(courtIds)].sort()) {
     await tx.$queryRaw(
-      Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${courtId}))`
+      Prisma.sql`
+        SELECT pg_advisory_xact_lock(hashtext(${courtId}))::text AS "locked"
+      `
     );
   }
 }

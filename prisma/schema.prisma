@@ -1710,7 +1710,7 @@ model OpenPlaySessionCourt {
   active    Boolean @default(true)
 
   session OpenPlaySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  court   Court           @relation(fields: [courtId], references: [id], onDelete: Restrict)
+  court   Court           @relation(fields: [courtId], references: [id], onDelete: NoAction)
 
   @@id([sessionId, courtId])
   @@unique([sessionId, position])
@@ -1785,7 +1785,7 @@ model OpenPlayGame {
   updatedAt       DateTime                @updatedAt
 
   session OpenPlaySession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  court   Court?               @relation(fields: [courtId], references: [id], onDelete: Restrict)
+  court   Court?               @relation(fields: [courtId], references: [id], onDelete: NoAction)
   players OpenPlayGamePlayer[]
 
   @@unique([sessionId, sequence])

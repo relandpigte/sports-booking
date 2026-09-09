@@ -89,7 +89,11 @@ async function closeStaleSession(
     });
     await tx.openPlaySession.update({
       where: { id: sessionId },
-      data: { status: "ENDED", endedAt: now },
+      data: {
+        status: "ENDED",
+        endedAt: now,
+        liveRevision: { increment: 1 },
+      },
     });
     await tx.partnerStaffActivity.create({
       data: {

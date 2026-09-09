@@ -71,7 +71,10 @@ async function check() {
       coverPhotos: [],
       games: ["pickleball"],
       courts: {
-        create: [{ name: "Court 1" }, { name: "Court 2" }],
+        create: [
+          { name: "Court 1", sport: "pickleball" },
+          { name: "Court 2", sport: "pickleball" },
+        ],
       },
     },
     select: { id: true, courts: { orderBy: { createdAt: "asc" }, select: { id: true } } },
@@ -1053,12 +1056,67 @@ async function check() {
     Boolean((await actions.pairOpenPlayParticipantsAction({}, invalidPair)).message)
   );
 
+  const removablePair = new FormData();
+  removablePair.set("sessionId", runs[1].id);
+  removablePair.set("firstId", runs[1].participants[4].id);
+  removablePair.set("secondId", runs[1].participants[5].id);
+  ok(
+    "inactive players can be assigned as fixed partners",
+    Boolean((await actions.pairOpenPlayParticipantsAction({}, removablePair)).success)
+  );
+  const removablePairId = (
+    await prisma.openPlayParticipant.findUniqueOrThrow({
+      where: { id: runs[1].participants[4].id },
+      select: { pairId: true },
+    })
+  ).pairId;
+  const removePairedPlayer = new FormData();
+  removePairedPlayer.set("sessionId", runs[1].id);
+  removePairedPlayer.set("participantId", runs[1].participants[4].id);
+  ok(
+    "removing one fixed partner dissolves the pair without stranding the survivor",
+    Boolean(
+      (await actions.removeOpenPlayParticipantAction({}, removePairedPlayer))
+        .success
+    ) &&
+      (await prisma.openPlayParticipant.findUniqueOrThrow({
+        where: { id: runs[1].participants[5].id },
+      })).pairId === null &&
+      (await prisma.openPlayPair.count({
+        where: { id: removablePairId ?? "" },
+      })) === 0
+  );
+
   const editPlayer = new FormData();
   editPlayer.set("sessionId", runs[1].id);
   editPlayer.set("participantId", runs[1].participants[0].id);
   editPlayer.set("displayName", "Edited for this run");
   editPlayer.set("skillLevel", "advanced");
   ok("staff can edit run-local player details", Boolean((await actions.editOpenPlayParticipantAction({}, editPlayer)).success));
+  const refreshAfterEdit = new FormData();
+  refreshAfterEdit.set("sessionId", runs[1].id);
+  await actions.syncOpenPlayRosterAction({}, refreshAfterEdit);
+  ok(
+    "Event roster refresh preserves run-local player overrides",
+    (await prisma.openPlayParticipant.findUniqueOrThrow({
+      where: { id: runs[1].participants[0].id },
+    })).displayName === "Edited for this run"
+  );
+  const newlyPrivate = runs[1].participants.find(
+    (participant) => participant.userId === players[6].id
+  );
+  await prisma.user.update({
+    where: { id: players[6].id },
+    data: { privateProfile: true },
+  });
+  await actions.syncOpenPlayRosterAction({}, refreshAfterEdit);
+  ok(
+    "Event roster refresh masks players who make their profile private",
+    Boolean(newlyPrivate) &&
+      (await prisma.openPlayParticipant.findUniqueOrThrow({
+        where: { id: newlyPrivate!.id },
+      })).displayName === "Private player"
+  );
   const removePlayer = new FormData();
   removePlayer.set("sessionId", runs[1].id);
   removePlayer.set("participantId", runs[1].participants[3].id);
@@ -1128,12 +1186,30 @@ async function check() {
       courts: { create: { courtId: hub.courts[0].id, position: 0 } },
     },
   });
+  const conflictingQuick = new FormData();
+  conflictingQuick.set("hubId", hub.id);
+  conflictingQuick.set("title", "Conflicting Quick Queue");
+  conflictingQuick.set("matchingMode", "BALANCED");
+  conflictingQuick.set("admissionMode", "APPROVAL_REQUIRED");
+  conflictingQuick.append("courtId", hub.courts[0].id);
+  ok(
+    "a court cannot be assigned to two active BunalQ runs",
+    (await actions.createQuickQueueAction({}, conflictingQuick)).message?.includes(
+      "already assigned"
+    ) === true
+  );
   const publicJoin = new FormData();
   publicJoin.set("publicId", quickPublicId);
   publicJoin.set("displayName", "Public Guest");
   publicJoin.set("skillLevel", "beginner");
   const revisionBeforeJoin = await domain.getOpenPlayLiveRevision(quickPublicId);
   ok("a public guest can request Quick Queue access without an account", Boolean((await actions.joinPublicQueueAction({}, publicJoin)).success));
+  ok(
+    "duplicate active public guest names are rejected",
+    (await actions.joinPublicQueueAction({}, publicJoin)).message?.includes(
+      "already in this queue"
+    ) === true
+  );
   const pendingGuest = await prisma.openPlayParticipant.findFirstOrThrow({ where: { sessionId: quickSession.id, source: "PUBLIC_GUEST" } });
   ok("approval mode keeps the guest pending", pendingGuest.status === "PENDING_APPROVAL");
   const hiddenSnapshot = await domain.getPublicOpenPlaySnapshot(quickPublicId);

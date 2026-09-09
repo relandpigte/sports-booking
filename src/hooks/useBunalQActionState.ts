@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useCallback } from "react";
+import { unstable_rethrow } from "next/navigation";
 
 import type { OpenPlayActionState } from "@/lib/open-play-shared";
 
@@ -17,6 +18,10 @@ export async function runBunalQActionSafely(
   try {
     return await action(previous, formData);
   } catch (error) {
+    // redirect(), notFound(), and other Next.js control-flow APIs throw by
+    // design. Let the framework handle those instead of showing a false
+    // BunalQ failure after a successful mutation.
+    unstable_rethrow(error);
     console.error("BunalQ action failed", error);
     return {
       message:

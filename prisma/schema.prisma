@@ -1683,6 +1683,9 @@ model OpenPlaySession {
   status            OpenPlaySessionStatus @default(SETUP)
   matchingMode      OpenPlayMatchingMode  @default(BALANCED)
   nextQueuePosition Int                   @default(0)
+  // Monotonic live-board revision. Every BunalQ mutation increments this so
+  // SSE polling never needs to load and serialize the full run.
+  liveRevision      Int                   @default(0)
   createdById       String?
   startedAt         DateTime?
   endedAt           DateTime?
@@ -1707,7 +1710,7 @@ model OpenPlaySessionCourt {
   active    Boolean @default(true)
 
   session OpenPlaySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  court   Court           @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  court   Court           @relation(fields: [courtId], references: [id], onDelete: Restrict)
 
   @@id([sessionId, courtId])
   @@unique([sessionId, position])
@@ -1736,6 +1739,9 @@ model OpenPlayParticipant {
   pairId              String?
   displayName         String                    @db.VarChar(120)
   skillLevel          String                    @default("intermediate") @db.VarChar(24)
+  // Run-local edits must survive Event roster refreshes. Private-profile
+  // masking is still applied even when these details were overridden.
+  detailsOverridden   Boolean                   @default(false)
   status              OpenPlayParticipantStatus @default(NOT_CHECKED_IN)
   lastResult          OpenPlayLastResult        @default(UNCLASSIFIED)
   queuePosition       Int?
@@ -1779,7 +1785,7 @@ model OpenPlayGame {
   updatedAt       DateTime                @updatedAt
 
   session OpenPlaySession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  court   Court?               @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  court   Court?               @relation(fields: [courtId], references: [id], onDelete: Restrict)
   players OpenPlayGamePlayer[]
 
   @@unique([sessionId, sequence])

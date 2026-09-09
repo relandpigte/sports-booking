@@ -138,7 +138,11 @@ export function OpenPlayBoard({ snapshot }: { snapshot: OpenPlaySnapshot }) {
                     <p className="truncate text-sm font-bold text-navy">{participant.displayName}</p>
                     <p className="text-[10px] capitalize text-slate-500">{participant.skillLevel}</p>
                   </div>
-                  <span className="text-xs font-bold text-slate-400">~{participant.estimatedWaitMinutes ?? 0}m</span>
+                  <span className="text-xs font-bold text-slate-400">
+                    {participant.estimatedWaitMinutes === null
+                      ? "Wait varies"
+                      : `~${participant.estimatedWaitMinutes}m`}
+                  </span>
                 </li>
               ))}
             </ol>

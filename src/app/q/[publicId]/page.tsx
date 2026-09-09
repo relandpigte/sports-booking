@@ -9,7 +9,10 @@ import { PageShell } from "@/components/PageShell";
 import { getPublicOpenPlaySnapshot } from "@/lib/open-play";
 import { formatManilaDateLong, formatSlotRange } from "@/lib/time";
 
-export const metadata: Metadata = { title: "BunalQ live board — Bunal.club" };
+export const metadata: Metadata = {
+  title: "BunalQ live board — Bunal.club",
+  robots: { index: false, follow: false },
+};
 
 export default async function PublicBunalQPage({ params }: { params: Promise<{ publicId: string }> }) {
   const { publicId } = await params;

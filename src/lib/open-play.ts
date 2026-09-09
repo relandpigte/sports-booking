@@ -835,20 +835,27 @@ function toSnapshot(
   session: SessionRecord,
   options: { publicView?: boolean } = {}
 ): OpenPlaySnapshot {
-  const activeCourtCount = Math.max(
-    1,
-    session.courts.filter((court) => court.active).length
-  );
+  const activeCourtCount = session.courts.filter((court) => court.active).length;
   const duration = gameDurationMinutes(session);
   const queue = session.participants.filter(
     (participant) => participant.status === "QUEUED"
   );
-  const waits = new Map(
-    queue.map((participant, index) => [
-      participant.id,
-      (Math.floor(index / (activeCourtCount * 4)) + 1) * duration,
-    ])
-  );
+  const scheduledGameCount = session.games.filter((game) =>
+    ["STAGED", "ACTIVE"].includes(game.status)
+  ).length;
+  const canEstimateWait =
+    activeCourtCount > 0 &&
+    queue.length >= 4 &&
+    session.matchingMode === "BALANCED" &&
+    queue.every((participant) => participant.pairId === null);
+  const waits = new Map<string, number>();
+  if (canEstimateWait) {
+    queue.forEach((participant, index) => {
+      const gamesAhead = scheduledGameCount + Math.floor(index / 4);
+      const roundsAhead = Math.ceil(gamesAhead / activeCourtCount);
+      waits.set(participant.id, roundsAhead * duration);
+    });
+  }
   const participants = options.publicView
     ? session.participants.filter(
         (participant) =>
@@ -993,47 +1000,10 @@ export async function getOpenPlayLiveRevision(
       },
     },
     orderBy: { runNumber: "desc" },
-    select: {
-      id: true,
-      updatedAt: true,
-      matchingMode: true,
-      courts: {
-        orderBy: { position: "asc" },
-        select: { courtId: true, active: true },
-      },
-      games: {
-        where: { status: { in: ["STAGED", "ACTIVE"] } },
-        orderBy: { sequence: "asc" },
-        select: {
-          id: true,
-          courtId: true,
-          status: true,
-          selectionMethod: true,
-          updatedAt: true,
-        },
-      },
-      participants: {
-        orderBy: { id: "asc" },
-        select: { id: true, status: true, updatedAt: true },
-      },
-    },
+    select: { id: true, liveRevision: true },
   });
   if (!session) return null;
-  return JSON.stringify({
-    sessionId: session.id,
-    updatedAt: session.updatedAt.toISOString(),
-    matchingMode: session.matchingMode,
-    courts: session.courts,
-    games: session.games.map((game) => ({
-      ...game,
-      updatedAt: game.updatedAt.toISOString(),
-    })),
-    participants: session.participants.map((participant) => ({
-      id: participant.id,
-      status: participant.status,
-      updatedAt: participant.updatedAt.toISOString(),
-    })),
-  });
+  return `${session.id}:${session.liveRevision}`;
 }
 
 export async function getOpenPlayEvent(publicId: string, partnerId: string) {
@@ -1160,12 +1130,16 @@ export async function listBunalQEligibleEvents(partnerId: string) {
 
 export async function listBunalQHubs(partnerId: string) {
   return prisma.hub.findMany({
-    where: { ownerId: partnerId },
+    where: { ownerId: partnerId, games: { has: "pickleball" } },
     orderBy: { name: "asc" },
     select: {
       id: true,
       name: true,
-      courts: { orderBy: { createdAt: "asc" }, select: { id: true, name: true } },
+      courts: {
+        where: { sport: "pickleball" },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, name: true },
+      },
     },
   });
 }

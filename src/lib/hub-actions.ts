@@ -305,7 +305,7 @@ export async function updateHubAction(
   // Existing-id checks keep this scoped to this hub's courts.
   const existing = await prisma.court.findMany({
     where: { hubId: id },
-    select: { id: true },
+    select: { id: true, sport: true },
   });
   const existingIds = new Set(existing.map((e) => e.id));
   const keptIds = new Set(
@@ -331,6 +331,39 @@ export async function updateHubAction(
     if (blocked) {
       return {
         message: `“${blocked.court.name}” has upcoming bookings and can't be removed. Cancel them first.`,
+        values: formValues(formData),
+      };
+    }
+    const bunalQReference = await prisma.openPlaySessionCourt.findFirst({
+      where: { courtId: { in: toDelete } },
+      select: { court: { select: { name: true } } },
+    });
+    if (bunalQReference) {
+      return {
+        message: `“${bunalQReference.court.name}” has BunalQ history and can't be removed. Rename it or keep it for historical records.`,
+        values: formValues(formData),
+      };
+    }
+  }
+
+  const changedBunalQCourtIds = courts
+    .filter((court) => {
+      const previous = existing.find((item) => item.id === court.id);
+      return previous?.sport === "pickleball" && court.sport !== "pickleball";
+    })
+    .map((court) => court.id);
+  if (changedBunalQCourtIds.length > 0) {
+    const activeBunalQ = await prisma.openPlaySessionCourt.findFirst({
+      where: {
+        courtId: { in: changedBunalQCourtIds },
+        active: true,
+        session: { status: "ACTIVE" },
+      },
+      select: { court: { select: { name: true } } },
+    });
+    if (activeBunalQ) {
+      return {
+        message: `“${activeBunalQ.court.name}” is assigned to an active BunalQ and must remain a pickleball court until that run ends.`,
         values: formValues(formData),
       };
     }
@@ -398,7 +431,31 @@ export async function updateHubAction(
       );
     }
   }
-  if (ops.length) await prisma.$transaction(ops);
+  if (ops.length) {
+    try {
+      await prisma.$transaction(ops);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2003"
+      ) {
+        return {
+          message:
+            "A court became part of BunalQ while this Hub was saving and was not removed. Reload and try again.",
+          values: formValues(formData),
+        };
+      }
+      throw error;
+    }
+  }
+
+  await prisma.openPlaySession.updateMany({
+    where: {
+      queue: { hubId: id },
+      status: { not: "ENDED" },
+    },
+    data: { liveRevision: { increment: 1 } },
+  });
 
   const currentCourtIds = await prisma.court.findMany({
     where: { hubId: id },
@@ -432,11 +489,22 @@ export async function deleteHubAction(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   if (!id) return;
 
-  // Ownership-scoped delete.
-  const deleted = await prisma.hub.deleteMany({
-    where: { id, ownerId: partner.id },
+  // Individual court deletion preserves BunalQ history at the database level.
+  // Full hub deletion is explicit, so remove those rooms first in the same
+  // ownership-scoped transaction before cascading the rest of the hub.
+  const deleted = await prisma.$transaction(async (tx) => {
+    const owned = await tx.hub.findFirst({
+      where: { id, ownerId: partner.id },
+      select: { id: true },
+    });
+    if (!owned) return 0;
+    await tx.openPlayQueue.deleteMany({ where: { hubId: id } });
+    const result = await tx.hub.deleteMany({
+      where: { id, ownerId: partner.id },
+    });
+    return result.count;
   });
-  if (deleted.count > 0) {
+  if (deleted > 0) {
     await recordImpersonatedAction({
       action: "HUB_DELETED",
       targetType: "Hub",

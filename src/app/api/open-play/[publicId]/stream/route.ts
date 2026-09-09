@@ -19,7 +19,7 @@ export async function GET(
   const security = securityContextFromHeaders(request.headers);
   if (!(await consumeRateLimit({
     namespace: "open-play-stream",
-    subject: security.ipHash,
+    subject: `${publicId}:${security.ipHash}`,
     limit: 30,
     windowSeconds: 5 * 60,
   }))) {
@@ -28,12 +28,16 @@ export async function GET(
       headers: { "Retry-After": "60" },
     });
   }
-  if (!(await getPublicOpenPlaySnapshot(publicId))) {
+  const [snapshot, initialRevision] = await Promise.all([
+    getPublicOpenPlaySnapshot(publicId),
+    getOpenPlayLiveRevision(publicId),
+  ]);
+  if (!snapshot) {
     return new Response("Open Play not found", { status: 404 });
   }
 
   const encoder = new TextEncoder();
-  let poll: ReturnType<typeof setInterval> | undefined;
+  let poll: ReturnType<typeof setTimeout> | undefined;
   let heartbeat: ReturnType<typeof setInterval> | undefined;
   let deadline: ReturnType<typeof setTimeout> | undefined;
   let closed = false;
@@ -42,7 +46,7 @@ export async function GET(
       const cleanup = () => {
         if (closed) return;
         closed = true;
-        if (poll) clearInterval(poll);
+        if (poll) clearTimeout(poll);
         if (heartbeat) clearInterval(heartbeat);
         if (deadline) clearTimeout(deadline);
         try { controller.close(); } catch { /* already closed */ }
@@ -51,24 +55,22 @@ export async function GET(
         if (closed) return;
         try { controller.enqueue(encoder.encode(value)); } catch { cleanup(); }
       };
-      let version: string | null = null;
+      let version = initialRevision;
       const tick = async () => {
         if (closed) return;
         try {
-          const [snapshot, rosterRevision] = await Promise.all([
-            getPublicOpenPlaySnapshot(publicId),
-            getOpenPlayLiveRevision(publicId),
-          ]);
-          const next = JSON.stringify({ snapshot, rosterRevision });
+          const next = await getOpenPlayLiveRevision(publicId);
           if (next !== version) {
             version = next;
-            write(`event: snapshot\ndata: ${JSON.stringify({ publicId, updatedAt: snapshot?.updatedAt ?? null })}\n\n`);
+            write(`event: snapshot\ndata: ${JSON.stringify({ publicId, revision: next })}\n\n`);
           }
         } catch { /* retry transient reads */ }
+        finally {
+          if (!closed) poll = setTimeout(tick, POLL_MS);
+        }
       };
       write("retry: 5000\n\n");
-      await tick();
-      poll = setInterval(tick, POLL_MS);
+      poll = setTimeout(tick, POLL_MS);
       heartbeat = setInterval(() => write(": ping\n\n"), HEARTBEAT_MS);
       deadline = setTimeout(cleanup, MAX_STREAM_MS);
       request.signal.addEventListener("abort", cleanup);
@@ -76,7 +78,7 @@ export async function GET(
     },
     cancel() {
       closed = true;
-      if (poll) clearInterval(poll);
+      if (poll) clearTimeout(poll);
       if (heartbeat) clearInterval(heartbeat);
       if (deadline) clearTimeout(deadline);
     },

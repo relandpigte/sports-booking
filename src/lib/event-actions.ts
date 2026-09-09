@@ -335,7 +335,7 @@ export async function saveEventAction(
     select: {
       id: true,
       games: true,
-      courts: { select: { id: true } },
+      courts: { select: { id: true, sport: true } },
       owner: {
         select: {
           partnerPaymentMode: true,
@@ -359,6 +359,16 @@ export async function saveEventAction(
   if (uniqueCourtIds.some((courtId) => !ownedCourtIds.has(courtId))) {
     return { errors: { courtIds: "One of those courts belongs to another hub." } };
   }
+  if (
+    hub.courts.some(
+      (court) =>
+        uniqueCourtIds.includes(court.id) && court.sport !== values.sport
+    )
+  ) {
+    return {
+      errors: { courtIds: "Every selected court must match the Event sport." },
+    };
+  }
   const existing = values.eventId
     ? await prisma.event.findFirst({
         where: { id: values.eventId, hub: { ownerId: partner.id } },
@@ -367,11 +377,13 @@ export async function saveEventAction(
           publicId: true,
           hubId: true,
           status: true,
+          sport: true,
           date: true,
           startHour: true,
           endHour: true,
           registrationFee: true,
           capacity: true,
+          openPlayQueue: { select: { id: true } },
           courts: { select: { courtId: true } },
           registrations: {
             where: {
@@ -407,6 +419,24 @@ export async function saveEventAction(
   }
   if (existing?.status === "CANCELLED") {
     return { message: "A cancelled event cannot be edited." };
+  }
+
+  if (
+    existing?.openPlayQueue &&
+    (existing.hubId !== values.hubId ||
+      existing.sport !== values.sport ||
+      existing.date !== values.date ||
+      existing.startHour !== values.startHour ||
+      existing.endHour !== values.endHour ||
+      !sameIds(
+        existing.courts.map((court) => court.courtId),
+        uniqueCourtIds
+      ))
+  ) {
+    return {
+      message:
+        "The sport, venue, schedule and courts are locked after BunalQ is prepared. You can still update event details.",
+    };
   }
 
   const occupied =
@@ -529,6 +559,19 @@ export async function saveEventAction(
           where: { id: existing.id },
           data: dataForDate(values.date),
         });
+        if (existing.openPlayQueue) {
+          await tx.openPlayQueue.update({
+            where: { id: existing.openPlayQueue.id },
+            data: { title: values.title },
+          });
+          await tx.openPlaySession.updateMany({
+            where: {
+              queueId: existing.openPlayQueue.id,
+              status: { not: "ENDED" },
+            },
+            data: { liveRevision: { increment: 1 } },
+          });
+        }
         eventId = existing.id;
       } else {
         const series =
@@ -1983,7 +2026,11 @@ export async function cancelEventAction(
         queue: { eventId: event.id },
         status: { in: ["SETUP", "ACTIVE"] },
       },
-      data: { status: "ENDED", endedAt: new Date() },
+      data: {
+        status: "ENDED",
+        endedAt: new Date(),
+        liveRevision: { increment: 1 },
+      },
     });
     await tx.openPlayGame.updateMany({
       where: {

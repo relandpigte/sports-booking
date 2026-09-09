@@ -55,6 +55,13 @@ export async function deleteUserData(
     where: { deletedById: target.id },
     data: { deletedById: null },
   });
+  await tx.openPlaySession.updateMany({
+    where: {
+      status: { not: "ENDED" },
+      participants: { some: { userId: target.id } },
+    },
+    data: { liveRevision: { increment: 1 } },
+  });
   await tx.openPlayParticipant.updateMany({
     where: { userId: target.id },
     data: { displayName: "Deleted player" },

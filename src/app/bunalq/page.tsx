@@ -50,12 +50,6 @@ export default async function PublicBunalQDirectoryPage() {
           >
             Create a public BunalQ
           </Link>
-          <Link
-            href="/bunalq/new"
-            className="mt-6 inline-flex min-h-11 items-center rounded-xl bg-primary px-4 text-sm font-black text-white transition hover:bg-primary-hover"
-          >
-            Create a BunalQ
-          </Link>
         </header>
 
         {queues.length > 0 ? (

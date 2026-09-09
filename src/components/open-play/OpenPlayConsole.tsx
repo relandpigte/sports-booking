@@ -5,6 +5,8 @@ import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { OpenPlayBoard } from "@/components/open-play/OpenPlayBoard";
 import { OpenPlayLiveRefresh } from "@/components/open-play/OpenPlayLiveRefresh";
 import {
+  liveCourtCardClassName,
+  liveCourtHeaderClassName,
   liveMatchPalette,
   openPlayThreeColumnGridClass,
 } from "@/components/open-play/openPlayColors";
@@ -509,9 +511,9 @@ function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
             return (
               <article
                 key={court.id}
-                className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${live ? "border-emerald-200" : staged ? "border-violet-200" : "border-slate-200"}`}
+                className={`overflow-hidden rounded-2xl border shadow-sm ${live ? liveCourtCardClassName : staged ? "border-violet-200 bg-white" : "border-slate-200 bg-white"}`}
               >
-                <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-4 py-2.5">
+                <div className={`flex items-center justify-between border-b px-4 py-2.5 ${live ? liveCourtHeaderClassName : "border-slate-200 bg-slate-50/80"}`}>
                   <h3 className="text-sm font-black text-navy">{court.name}</h3>
                   <span className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider ${live ? "text-emerald-700" : staged ? "text-violet-700" : "text-slate-500"}`}>
                     <span className={`h-1.5 w-1.5 rounded-full ${live ? "animate-pulse bg-emerald-500" : staged ? "bg-violet-500" : court.active ? "bg-slate-300" : "bg-amber-400"}`} />

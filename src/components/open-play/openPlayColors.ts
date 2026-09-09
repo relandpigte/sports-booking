@@ -49,6 +49,12 @@ const LIVE_MATCH_PALETTES = [
   },
 ] as const;
 
+export const liveCourtCardClassName =
+  "border-emerald-300 bg-gradient-to-br from-emerald-50/80 via-white to-teal-50/50 ring-1 ring-emerald-100";
+
+export const liveCourtHeaderClassName =
+  "border-emerald-100 bg-emerald-50/80";
+
 export function liveMatchPalette(gameId: string) {
   let hash = 0;
   for (const character of gameId) {

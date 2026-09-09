@@ -5,6 +5,8 @@ import {
   type OpenPlaySnapshot,
 } from "@/lib/open-play-shared";
 import {
+  liveCourtCardClassName,
+  liveCourtHeaderClassName,
   liveMatchPalette,
   openPlayThreeColumnGridClass,
 } from "@/components/open-play/openPlayColors";
@@ -72,8 +74,8 @@ export function OpenPlayBoard({ snapshot }: { snapshot: OpenPlaySnapshot }) {
             const staged = game?.status === "STAGED";
             const palette = game ? liveMatchPalette(game.id) : null;
             return (
-              <article key={court.id} className={`overflow-hidden rounded-2xl border bg-white ${live ? "border-emerald-200" : staged ? "border-violet-200" : "border-slate-200"}`}>
-                <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-4 py-3">
+              <article key={court.id} className={`overflow-hidden rounded-2xl border shadow-sm ${live ? liveCourtCardClassName : staged ? "border-violet-200 bg-white" : "border-slate-200 bg-white"}`}>
+                <div className={`flex items-center justify-between border-b px-4 py-3 ${live ? liveCourtHeaderClassName : "border-slate-200 bg-slate-50/80"}`}>
                   <h3 className="font-black text-navy">{court.name}</h3>
                   <span className={`text-[10px] font-black uppercase tracking-[0.12em] ${live ? "text-emerald-700" : staged ? "text-violet-700" : "text-slate-400"}`}>
                     {!court.active ? "Paused" : live ? "Playing" : staged ? "Up next" : "Open"}

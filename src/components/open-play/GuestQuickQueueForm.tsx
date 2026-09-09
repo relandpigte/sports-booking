@@ -58,7 +58,7 @@ export function GuestQuickQueueForm() {
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5">
         <h2 className="font-black text-navy">Matching mode</h2>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 md:grid-cols-5">
           {OPEN_PLAY_MODES.map((value) => (
             <label
               key={value}

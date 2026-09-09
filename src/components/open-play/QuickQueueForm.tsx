@@ -34,7 +34,7 @@ export function QuickQueueForm({ hubs }: { hubs: HubOption[] }) {
       </section>
       <section className="rounded-2xl border border-slate-200 bg-white p-5">
         <h2 className="font-black text-navy">Matching mode</h2>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">{OPEN_PLAY_MODES.map((value) => <label key={value} className={`cursor-pointer rounded-xl border p-3 ${mode === value ? "border-primary bg-primary-soft ring-1 ring-primary" : "border-slate-200"}`}><input className="sr-only" type="radio" name="matchingMode" value={value} checked={mode === value} onChange={() => setMode(value)} /><span className="text-sm font-black text-navy">{OPEN_PLAY_MODE_LABELS[value]}</span><span className="mt-1 block text-xs leading-5 text-slate-500">{OPEN_PLAY_MODE_DESCRIPTIONS[value]}</span></label>)}</div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 md:grid-cols-5">{OPEN_PLAY_MODES.map((value) => <label key={value} className={`cursor-pointer rounded-xl border p-3 ${mode === value ? "border-primary bg-primary-soft ring-1 ring-primary" : "border-slate-200"}`}><input className="sr-only" type="radio" name="matchingMode" value={value} checked={mode === value} onChange={() => setMode(value)} /><span className="text-sm font-black text-navy">{OPEN_PLAY_MODE_LABELS[value]}</span><span className="mt-1 block text-xs leading-5 text-slate-500">{OPEN_PLAY_MODE_DESCRIPTIONS[value]}</span></label>)}</div>
       </section>
       <section className="rounded-2xl border border-ocean/20 bg-ocean-soft p-5">
         <h2 className="font-black text-navy">Public guest entry</h2>

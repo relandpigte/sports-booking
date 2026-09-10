@@ -143,14 +143,19 @@ function mapTransaction(row: TransactionRow): AdminVenueTransaction {
 
 export async function listAdminVenueTransactions(options: {
   query?: string;
+  status?: PaymentStatus;
+  environment?: TransactionEnvironment;
   page: number;
 }): Promise<AdminVenueTransactionPage> {
   await requireAdmin();
   const query = options.query?.trim().slice(0, 100) ?? "";
   const contains = { contains: query, mode: "insensitive" as const };
-  const where: Prisma.BookingPaymentWhereInput = query
-    ? {
-        OR: [
+  const where: Prisma.BookingPaymentWhereInput = {
+    ...(options.status ? { status: options.status } : {}),
+    ...(options.environment ? { environment: options.environment } : {}),
+    ...(query
+      ? {
+          OR: [
           { id: contains },
           { providerRef: contains },
           { providerPaymentId: contains },
@@ -187,9 +192,10 @@ export async function listAdminVenueTransactions(options: {
               some: { registration: { event: { title: contains } } },
             },
           },
-        ],
-      }
-    : {};
+          ],
+        }
+      : {}),
+  };
 
   const total = await prisma.bookingPayment.count({ where });
   const pageCount = Math.max(

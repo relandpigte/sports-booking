@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { PaymentStatus, TransactionEnvironment } from "@prisma/client";
 
 import { AdminVenueTransactions } from "@/components/admin/AdminVenueTransactions";
 import { PlatformGatewayPanel } from "@/components/admin/PlatformGatewayPanel";
@@ -18,6 +19,32 @@ function firstValue(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
 
+const paymentStatuses = [
+  "PENDING",
+  "SUCCEEDED",
+  "FAILED",
+  "REFUNDED",
+] as const satisfies readonly PaymentStatus[];
+const transactionEnvironments = [
+  "TEST",
+  "LIVE",
+  "UNKNOWN",
+] as const satisfies readonly TransactionEnvironment[];
+
+function parsePaymentStatus(value: string): PaymentStatus | undefined {
+  const normalized = value.toUpperCase();
+  return paymentStatuses.find((status) => status === normalized);
+}
+
+function parseTransactionEnvironment(
+  value: string
+): TransactionEnvironment | undefined {
+  const normalized = value.toUpperCase();
+  return transactionEnvironments.find(
+    (environment) => environment === normalized
+  );
+}
+
 export default async function AdminPaymentsPage({
   searchParams,
 }: {
@@ -26,13 +53,17 @@ export default async function AdminPaymentsPage({
   await requireAdmin();
   const params = await searchParams;
   const query = firstValue(params.q).trim().slice(0, 100);
+  const status = parsePaymentStatus(firstValue(params.status));
+  const environment = parseTransactionEnvironment(
+    firstValue(params.environment)
+  );
   const requestedPage = Number.parseInt(firstValue(params.page), 10);
   const page =
     Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const [gateway, webhookUrlReachable, transactions] = await Promise.all([
     getPlatformGatewayView(),
     platformWebhookUrlReachable(),
-    listAdminVenueTransactions({ query, page }),
+    listAdminVenueTransactions({ query, status, environment, page }),
   ]);
 
   return (
@@ -54,7 +85,12 @@ export default async function AdminPaymentsPage({
           webhookUrlReachable={webhookUrlReachable}
         />
       </div>
-      <AdminVenueTransactions result={transactions} query={query} />
+      <AdminVenueTransactions
+        result={transactions}
+        query={query}
+        status={status}
+        environment={environment}
+      />
     </div>
   );
 }

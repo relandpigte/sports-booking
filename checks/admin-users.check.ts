@@ -345,6 +345,8 @@ async function check() {
   );
   const transactionPage = await listAdminVenueTransactions({
     query: paidPayment.id,
+    status: "SUCCEEDED",
+    environment: "TEST",
     page: 1,
   });
   ok(
@@ -353,6 +355,17 @@ async function check() {
       transactionPage.items[0]?.id === paidPayment.id &&
       transactionPage.items[0]?.environment === "TEST" &&
       transactionPage.items[0]?.payer === "Deleted player"
+  );
+  const excludedTransactionPage = await listAdminVenueTransactions({
+    query: paidPayment.id,
+    status: "FAILED",
+    environment: "TEST",
+    page: 1,
+  });
+  ok(
+    "status and environment filters combine before transaction pagination",
+    excludedTransactionPage.total === 0 &&
+      excludedTransactionPage.items.length === 0
   );
 
   const { deleteVenueTransactionAction } = await import(

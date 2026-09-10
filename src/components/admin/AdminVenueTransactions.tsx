@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { PaymentStatus, TransactionEnvironment } from "@prisma/client";
 
 import { DeleteVenueTransactionButton } from "@/components/admin/DeleteVenueTransactionButton";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
@@ -21,6 +22,22 @@ const environmentMeta: Record<
   UNKNOWN: { label: "Unknown", tone: "warn" },
 };
 
+const statusOptions: Array<{ value: PaymentStatus; label: string }> = [
+  { value: "PENDING", label: "Pending" },
+  { value: "SUCCEEDED", label: "Succeeded" },
+  { value: "FAILED", label: "Failed" },
+  { value: "REFUNDED", label: "Refunded" },
+];
+
+const environmentOptions: Array<{
+  value: TransactionEnvironment;
+  label: string;
+}> = [
+  { value: "TEST", label: "Test" },
+  { value: "LIVE", label: "Live" },
+  { value: "UNKNOWN", label: "Unknown" },
+];
+
 const formatDateTime = (date: Date) =>
   new Intl.DateTimeFormat("en-PH", {
     dateStyle: "medium",
@@ -28,9 +45,16 @@ const formatDateTime = (date: Date) =>
     timeZone: "Asia/Manila",
   }).format(new Date(date));
 
-function transactionsHref(query: string, page: number): string {
+function transactionsHref(
+  query: string,
+  status: PaymentStatus | undefined,
+  environment: TransactionEnvironment | undefined,
+  page: number
+): string {
   const params = new URLSearchParams();
   if (query) params.set("q", query);
+  if (status) params.set("status", status.toLowerCase());
+  if (environment) params.set("environment", environment.toLowerCase());
   if (page > 1) params.set("page", String(page));
   const value = params.toString();
   return `/dashboard/admin/payments${value ? `?${value}` : ""}`;
@@ -39,9 +63,13 @@ function transactionsHref(query: string, page: number): string {
 export function AdminVenueTransactions({
   result,
   query,
+  status,
+  environment,
 }: {
   result: AdminVenueTransactionPage;
   query: string;
+  status?: PaymentStatus;
+  environment?: TransactionEnvironment;
 }) {
   return (
     <section className="rounded-2xl border border-[#dfe7e2] bg-white shadow-sm">
@@ -63,7 +91,7 @@ export function AdminVenueTransactions({
           </div>
           <form
             action="/dashboard/admin/payments"
-            className="flex w-full max-w-md items-center rounded-xl border border-slate-200 bg-slate-50 focus-within:border-primary focus-within:ring-1 focus-within:ring-primary"
+            className="grid w-full gap-2 sm:grid-cols-[minmax(12rem,1fr)_auto_auto_auto] lg:max-w-3xl"
           >
             <label htmlFor="transaction-search" className="sr-only">
               Search transactions
@@ -74,13 +102,45 @@ export function AdminVenueTransactions({
               type="search"
               defaultValue={query}
               placeholder="Reference, player, email, or venue"
-              className="min-h-11 min-w-0 flex-1 bg-transparent px-3 text-sm text-navy outline-none placeholder:text-slate-400"
+              className="min-h-11 min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-navy outline-none focus:border-primary focus:ring-1 focus:ring-primary placeholder:text-slate-400"
             />
+            <label htmlFor="transaction-status" className="sr-only">
+              Filter by status
+            </label>
+            <select
+              id="transaction-status"
+              name="status"
+              defaultValue={status ?? ""}
+              className="min-h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-navy outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+            >
+              <option value="">All statuses</option>
+              {statusOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <label htmlFor="transaction-environment" className="sr-only">
+              Filter by environment
+            </label>
+            <select
+              id="transaction-environment"
+              name="environment"
+              defaultValue={environment ?? ""}
+              className="min-h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-navy outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+            >
+              <option value="">All environments</option>
+              {environmentOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
             <button
               type="submit"
-              className="mr-1 min-h-9 rounded-lg px-3 text-xs font-bold text-primary hover:bg-primary-soft"
+              className="min-h-11 rounded-xl bg-primary px-4 text-xs font-black text-white hover:bg-primary/90"
             >
-              Search
+              Apply
             </button>
           </form>
         </div>
@@ -88,12 +148,12 @@ export function AdminVenueTransactions({
           <span>
             {result.total.toLocaleString()} {result.total === 1 ? "transaction" : "transactions"}
           </span>
-          {query ? (
+          {query || status || environment ? (
             <Link
               href="/dashboard/admin/payments"
               className="font-bold text-primary hover:underline"
             >
-              Clear search
+              Clear filters
             </Link>
           ) : null}
         </div>
@@ -210,7 +270,12 @@ export function AdminVenueTransactions({
           <div className="flex gap-2">
             {result.page > 1 ? (
               <Link
-                href={transactionsHref(query, result.page - 1)}
+                href={transactionsHref(
+                  query,
+                  status,
+                  environment,
+                  result.page - 1
+                )}
                 className="rounded-lg border border-slate-200 px-3 py-2 font-bold text-navy hover:bg-slate-50"
               >
                 Previous
@@ -218,7 +283,12 @@ export function AdminVenueTransactions({
             ) : null}
             {result.page < result.pageCount ? (
               <Link
-                href={transactionsHref(query, result.page + 1)}
+                href={transactionsHref(
+                  query,
+                  status,
+                  environment,
+                  result.page + 1
+                )}
                 className="rounded-lg border border-slate-200 px-3 py-2 font-bold text-navy hover:bg-slate-50"
               >
                 Next

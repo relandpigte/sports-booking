@@ -314,17 +314,13 @@ async function check() {
     rejectedDualOwner
   );
 
-  let rejectedOwnerless = false;
-  try {
-    await prisma.eventRegistration.create({
-      data: { eventId: event.id, status: "WAITLISTED" },
-    });
-  } catch {
-    rejectedOwnerless = true;
-  }
+  const ownerless = await prisma.eventRegistration.create({
+    data: { eventId: event.id, status: "WAITLISTED" },
+    select: { userId: true, guestReservationId: true },
+  });
   ok(
-    "the database rejects an event registration without an owner",
-    rejectedOwnerless
+    "the database permits ownerless historical registrations after account deletion",
+    ownerless.userId === null && ownerless.guestReservationId === null
   );
 }
 

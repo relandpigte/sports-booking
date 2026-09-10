@@ -105,6 +105,23 @@ async function main() {
   const monthSvg = render(month);
   const labels = (monthSvg.match(/font-size="11"/g) ?? []).length;
   ok("a full month doesn't label every day", labels < 31);
+  const xLabels = [
+    ...monthSvg.matchAll(
+      /<text x="([\d.]+)" y="252"[^>]*>([^<]+)<\/text>/g
+    ),
+  ].map((match) => ({ x: Number(match[1]), label: match[2] }));
+  ok(
+    "month labels include both date-range endpoints",
+    xLabels[0]?.label === "07-01" &&
+      xLabels[xLabels.length - 1]?.label === "07-31"
+  );
+  ok(
+    "the final date label stays clear of its neighbor",
+    xLabels.every(
+      (label, index) =>
+        index === 0 || label.x - xLabels[index - 1].x >= 60
+    )
+  );
   ok(
     "exactly one value is direct-labelled",
     (monthSvg.match(/font-weight="600"/g) ?? []).length === 1

@@ -16,6 +16,7 @@ export const ADMIN_TRAINER_BOOKING_PAGE_SIZE = 20;
 export type AdminTrainerBooking = {
   id: string;
   publicId: string;
+  paymentId: string | null;
   trainer: string;
   trainerEmail: string;
   player: string;
@@ -63,6 +64,7 @@ const bookingSelect = {
   player: { select: { name: true, playerName: true, email: true } },
   payment: {
     select: {
+      id: true,
       status: true,
       method: true,
       collectionMode: true,
@@ -89,6 +91,7 @@ function mapBooking(row: BookingRow): AdminTrainerBooking {
   return {
     id: row.id,
     publicId: row.publicId,
+    paymentId: row.payment?.id ?? null,
     trainer: displayName(row.trainer.user),
     trainerEmail: row.trainer.user.email,
     player: displayName(row.player),

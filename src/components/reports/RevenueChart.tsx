@@ -38,6 +38,21 @@ function axisMoney(value: number): string {
   return `₱${value}`;
 }
 
+function xLabelIndexes(pointCount: number): Set<number> {
+  const labelCount = Math.min(pointCount, 8);
+  if (labelCount <= 0) return new Set();
+  if (labelCount === 1) return new Set([0]);
+
+  // Distribute labels across the complete range, including both endpoints.
+  // Appending the final point to a fixed modulo sequence can put the last two
+  // labels only one day apart at the right edge.
+  return new Set(
+    Array.from({ length: labelCount }, (_, index) =>
+      Math.round((index * (pointCount - 1)) / (labelCount - 1))
+    )
+  );
+}
+
 // Monotone cubic, not a plain bezier.
 //
 // A smooth curve through daily totals must never invent a value that isn't
@@ -105,8 +120,9 @@ export function RevenueChart({
 
   const gridValues = [0, 0.25, 0.5, 0.75, 1].map((f) => max * f);
 
-  // Enough x labels to orient, never so many they collide.
-  const labelEvery = Math.max(1, Math.ceil(points.length / 8));
+  // Enough x labels to orient, evenly spaced so the final date never crowds
+  // the label immediately before it.
+  const visibleXLabels = xLabelIndexes(points.length);
 
   // The peak, direct-labelled. One label, on the point the reader is looking
   // for — not a number on every dot.
@@ -189,7 +205,7 @@ export function RevenueChart({
         {/* The x-axis band lives INSIDE the viewBox — a container that crops it
             is one of the classic chart bugs. */}
         {points.map((point, i) =>
-          i % labelEvery === 0 || i === points.length - 1 ? (
+          visibleXLabels.has(i) ? (
             <text
               key={point.bucket}
               x={xy[i].x}

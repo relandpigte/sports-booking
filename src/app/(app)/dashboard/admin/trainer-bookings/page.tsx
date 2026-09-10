@@ -60,7 +60,7 @@ export default async function AdminTrainerBookingsPage({
       <DashboardPageHeader
         eyebrow="Platform oversight"
         title="Trainer bookings"
-        description="Review every trainer session, its participants, schedule, status, and payment summary. Session actions remain with the trainer."
+        description="Review every trainer session, its participants, schedule, status, and payment summary, or remove a selected transaction and its linked booking."
       />
       <AdminTrainerBookings
         result={result}

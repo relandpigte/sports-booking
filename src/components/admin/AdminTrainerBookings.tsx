@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { TrainerSessionStatus } from "@prisma/client";
 
+import { DeleteTrainerTransactionButton } from "@/components/admin/DeleteTrainerTransactionButton";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import type { AdminTrainerBookingPage } from "@/lib/admin-trainer-bookings";
 import { formatPHP } from "@/lib/currency";
@@ -66,10 +67,10 @@ export function AdminTrainerBookings({
 
   return (
     <section className="overflow-hidden rounded-2xl border border-[#dfe7e2] bg-white shadow-sm">
-      <div className="border-b border-slate-200 p-5 sm:p-6">
+      <div className="border-b border-slate-200 p-3 sm:p-4">
         <form
           action="/dashboard/admin/trainer-bookings"
-          className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(14rem,1fr)_auto_auto_auto_auto]"
+          className="flex flex-wrap items-center gap-2"
         >
           <label className="sr-only" htmlFor="trainer-booking-search">
             Search trainer bookings
@@ -80,7 +81,7 @@ export function AdminTrainerBookings({
             type="search"
             defaultValue={query}
             placeholder="Booking, trainer, player, or email"
-            className="min-h-11 min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-navy outline-none placeholder:text-slate-400 focus:border-primary focus:ring-1 focus:ring-primary"
+            className="h-9 min-w-48 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs text-navy outline-none placeholder:text-slate-400 focus:border-primary focus:ring-1 focus:ring-primary sm:max-w-72"
           />
           <label className="sr-only" htmlFor="trainer-booking-status">
             Filter by status
@@ -89,7 +90,7 @@ export function AdminTrainerBookings({
             id="trainer-booking-status"
             name="status"
             defaultValue={status ?? ""}
-            className="min-h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-navy outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+            className="h-9 min-w-36 rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-xs font-semibold text-navy outline-none focus:border-primary focus:ring-1 focus:ring-primary"
           >
             <option value="">All statuses</option>
             {statusOptions.map((option) => (
@@ -106,7 +107,7 @@ export function AdminTrainerBookings({
             name="from"
             type="date"
             defaultValue={from}
-            className="min-h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-navy outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+            className="h-9 w-[8.8rem] rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-xs text-navy outline-none focus:border-primary focus:ring-1 focus:ring-primary"
           />
           <label className="sr-only" htmlFor="trainer-booking-to">
             To date
@@ -116,33 +117,31 @@ export function AdminTrainerBookings({
             name="to"
             type="date"
             defaultValue={to}
-            className="min-h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-navy outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+            className="h-9 w-[8.8rem] rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-xs text-navy outline-none focus:border-primary focus:ring-1 focus:ring-primary"
           />
           <button
             type="submit"
-            className="min-h-11 rounded-xl bg-primary px-4 text-xs font-black text-white hover:bg-primary/90"
+            className="h-9 rounded-lg bg-primary px-3 text-xs font-black text-white hover:bg-primary/90"
           >
             Apply
           </button>
-        </form>
-        <div className="mt-3 flex items-center justify-between gap-3 text-xs text-slate-500">
-          <span>
-            {result.total.toLocaleString()} {result.total === 1 ? "booking" : "bookings"}
-          </span>
           {query || status || from || to ? (
             <Link
               href="/dashboard/admin/trainer-bookings"
-              className="font-bold text-primary hover:underline"
+              className="inline-flex h-9 items-center px-2 text-xs font-bold text-primary hover:underline"
             >
-              Clear filters
+              Clear
             </Link>
           ) : null}
-        </div>
+          <span className="ml-auto whitespace-nowrap text-xs text-slate-500">
+            {result.total.toLocaleString()} {result.total === 1 ? "booking" : "bookings"}
+          </span>
+        </form>
       </div>
 
       {result.items.length ? (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1050px] text-left text-xs">
+          <table className="w-full min-w-[1130px] text-left text-xs">
             <thead className="border-b border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">
               <tr>
                 <th className="px-5 py-3" scope="col">Booking</th>
@@ -152,6 +151,7 @@ export function AdminTrainerBookings({
                 <th className="px-3 py-3" scope="col">Status</th>
                 <th className="px-3 py-3" scope="col">Payment</th>
                 <th className="px-5 py-3 text-right" scope="col">Amount</th>
+                <th className="px-5 py-3 text-right" scope="col">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -204,6 +204,22 @@ export function AdminTrainerBookings({
                     <p className="mt-0.5 text-[10px] tabular-nums text-slate-400">
                       Trainer {formatPHP(booking.trainerAmount)} · Fee {formatPHP(booking.platformFee)}
                     </p>
+                  </td>
+                  <td className="px-5 py-2 text-right">
+                    {booking.paymentId ? (
+                      <DeleteTrainerTransactionButton
+                        sessionId={booking.id}
+                        paymentId={booking.paymentId}
+                        reference={booking.paymentReference ?? booking.paymentId}
+                        trainer={booking.trainer}
+                        player={booking.player}
+                        amount={booking.totalAmount}
+                      />
+                    ) : (
+                      <span className="inline-flex min-h-9 items-center px-3 text-xs font-semibold text-slate-400">
+                        No transaction
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}

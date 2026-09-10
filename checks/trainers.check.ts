@@ -354,6 +354,102 @@ async function check() {
       (await trainers.getPublicTrainer("coach-check"))?.id === profile.id
   );
 
+  const deletionCandidate = await prisma.trainerSession.create({
+    data: {
+      publicId: "check-trainer-admin-delete",
+      trainerProfileId: profile.id,
+      playerId: player.id,
+      date: FUTURE_DATE,
+      startHour: 17,
+      endHour: 18,
+      hours: 1,
+      startsAt: manilaInstant(FUTURE_DATE, 17),
+      endsAt: manilaInstant(FUTURE_DATE, 18),
+      status: "COMPLETED",
+      hourlyRate: 500,
+      trainerAmount: 500,
+      platformFee: 15,
+      totalAmount: 515,
+      requestExpiresAt: new Date(),
+      completedAt: new Date(),
+      slots: {
+        create: {
+          trainerProfileId: profile.id,
+          date: FUTURE_DATE,
+          hour: 17,
+        },
+      },
+      payment: {
+        create: {
+          trainerId: trainerUser.id,
+          playerId: player.id,
+          amount: 515,
+          trainerAmount: 500,
+          platformFee: 15,
+          method: "QRPH",
+          status: "SUCCEEDED",
+          expiresAt: new Date(),
+          provider: "paymongo",
+          providerRef: "CHECK-TRAINER-DELETE",
+          paidAt: new Date(),
+        },
+      },
+      conversation: { create: { kind: "TRAINER_SESSION" } },
+    },
+    include: { payment: true, conversation: true },
+  });
+  const deletionFee = await prisma.trainerServiceFeeEntry.create({
+    data: {
+      trainerId: trainerUser.id,
+      trainerPaymentId: deletionCandidate.payment!.id,
+      type: "CHARGE",
+      amount: 15,
+    },
+  });
+  const adminTrainerTransactions = await import(
+    "@/lib/admin-trainer-transaction-actions"
+  );
+  const deleteTrainerTransactionForm = new FormData();
+  deleteTrainerTransactionForm.set("sessionId", deletionCandidate.id);
+  deleteTrainerTransactionForm.set(
+    "paymentId",
+    deletionCandidate.payment!.id
+  );
+  deleteTrainerTransactionForm.set("confirmed", "on");
+  const deletionResult =
+    await adminTrainerTransactions.deleteTrainerTransactionAction(
+      {},
+      deleteTrainerTransactionForm
+    );
+  const deletionAudit = await prisma.securityEvent.findFirst({
+    where: {
+      userId: admin.id,
+      type: "ADMIN_TRAINER_TRANSACTION_DELETED",
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  const deletionMetadata = deletionAudit?.metadata as Record<
+    string,
+    unknown
+  > | null;
+  ok(
+    "an admin can delete one trainer transaction and its linked records",
+    !deletionResult.message &&
+      (await prisma.trainerSession.count({
+        where: { id: deletionCandidate.id },
+      })) === 0 &&
+      (await prisma.trainerPayment.count({
+        where: { id: deletionCandidate.payment!.id },
+      })) === 0 &&
+      (await prisma.trainerServiceFeeEntry.count({
+        where: { id: deletionFee.id },
+      })) === 0 &&
+      (await prisma.chatConversation.count({
+        where: { id: deletionCandidate.conversation!.id },
+      })) === 0 &&
+      deletionMetadata?.paymentId === deletionCandidate.payment!.id
+  );
+
   await prisma.user.update({ where: { id: trainerUser.id }, data: { privateProfile: true } });
   ok("making the player profile private immediately pauses trainer discovery", (await trainers.getPublicTrainer("coach-check")) === null);
   ok("the confirmed fixture remains tied to the trainer profile", confirmed.trainerProfileId === profile.id);

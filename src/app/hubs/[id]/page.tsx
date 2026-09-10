@@ -679,11 +679,6 @@ export default async function PublicHubPage({
         </section>
       )}
 
-      {viewer === null && (
-        <footer className="bg-navy py-10 text-center text-sm text-white/45">
-          <p>© {new Date().getFullYear()} Bunal.club · Play. Compete. Connect.</p>
-        </footer>
-      )}
     </PageShell>
   );
 }

@@ -53,7 +53,10 @@ export async function SiteFooter() {
           </nav>
         </div>
         <div className="flex flex-col gap-2 pt-6 text-xs text-white/40 sm:flex-row sm:items-center sm:justify-between">
-          <p>© 2026 Bunal.club. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} Bunal.club. All rights reserved.</p>
+          <p className="font-semibold tracking-wide text-white/60">
+            BUNAL.CLUB BOOKING SERVICES · BIR Registered
+          </p>
           <p>Philippines</p>
         </div>
       </div>

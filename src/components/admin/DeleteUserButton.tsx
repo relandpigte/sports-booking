@@ -13,22 +13,27 @@ export function DeleteUserButton({
   userId,
   name,
   email,
+  showTransactionDeletionOption,
 }: {
   userId: string;
   name: string;
   email: string;
+  showTransactionDeletionOption: boolean;
 }) {
   const [state, action, pending] = useActionState(
     deleteUserAction,
     initialState
   );
   const [confirmation, setConfirmation] = useState("");
+  const [deleteVenueTransactions, setDeleteVenueTransactions] =
+    useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const confirmed =
     confirmation.trim().toLowerCase() === email.trim().toLowerCase();
 
   function openDialog() {
     setConfirmation("");
+    setDeleteVenueTransactions(false);
     dialogRef.current?.showModal();
   }
 
@@ -58,10 +63,35 @@ export function DeleteUserButton({
             Delete {name}?
           </h2>
           <p className="mt-3 text-sm leading-6 text-slate-600">
-            This permanently removes the account and all data it owns,
-            including venues, bookings, payments, events, trainer records, and
-            authentication history. This cannot be undone.
+            This permanently removes the account and its personal and
+            authentication data. For player accounts, venue bookings,
+            payments, and fee records remain as anonymized financial history.
+            Partner-owned venue data is removed with a partner account. This
+            cannot be undone.
           </p>
+          {showTransactionDeletionOption ? (
+            <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+              <input
+                type="checkbox"
+                name="deleteVenueTransactions"
+                checked={deleteVenueTransactions}
+                onChange={(event) =>
+                  setDeleteVenueTransactions(event.target.checked)
+                }
+                className="mt-0.5 h-4 w-4 shrink-0 accent-red-600"
+              />
+              <span>
+                <span className="block font-black">
+                  Also delete venue transactions
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-red-700">
+                  Removes this user&apos;s court bookings, event registrations,
+                  payments, and fee entries. Venue revenue and fee balances
+                  will change. Use this only for test data.
+                </span>
+              </span>
+            </label>
+          ) : null}
           <label className="mt-5 block text-xs font-bold text-slate-700">
             Type <span className="font-black text-navy">{email}</span> to
             confirm
@@ -91,7 +121,10 @@ export function DeleteUserButton({
             </p>
           ) : null}
           {state.message ? (
-            <p className="mt-2 text-xs font-semibold text-red-600">
+            <p
+              role="alert"
+              className="mt-2 text-xs font-semibold text-red-600"
+            >
               {state.message}
             </p>
           ) : null}
@@ -109,7 +142,11 @@ export function DeleteUserButton({
               disabled={pending || !confirmed}
               className="min-h-10 rounded-lg bg-red-600 px-4 text-sm font-black text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {pending ? "Deleting…" : "Delete permanently"}
+              {pending
+                ? "Deleting…"
+                : deleteVenueTransactions
+                  ? "Delete account and transactions"
+                  : "Delete permanently"}
             </button>
           </div>
         </form>

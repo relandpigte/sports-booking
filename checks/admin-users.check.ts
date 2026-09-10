@@ -27,10 +27,17 @@ async function cleanup() {
   });
 }
 
-function deletionForm(userId: string, email: string) {
+function deletionForm(
+  userId: string,
+  email: string,
+  deleteVenueTransactions = false
+) {
   const formData = new FormData();
   formData.set("userId", userId);
   formData.set("confirmationEmail", email);
+  if (deleteVenueTransactions) {
+    formData.set("deleteVenueTransactions", "on");
+  }
   return formData;
 }
 
@@ -134,7 +141,10 @@ async function check() {
         },
       },
     },
-    select: { id: true, hubs: { select: { id: true } } },
+    select: {
+      id: true,
+      hubs: { select: { id: true, courts: { select: { id: true } } } },
+    },
   });
   const gateway = await prisma.partnerGateway.create({
     data: {
@@ -157,6 +167,110 @@ async function check() {
       payload: {},
     },
   });
+  const paidPlayerEmail = `${EMAIL_PREFIX}paid-player@example.test`;
+  const paidPlayer = await prisma.user.create({
+    data: {
+      name: "Paid Player",
+      email: paidPlayerEmail,
+      role: "PLAYER",
+    },
+    select: { id: true },
+  });
+  const paidPayment = await prisma.bookingPayment.create({
+    data: {
+      partnerId: establishedPartner.id,
+      gatewayId: gateway.id,
+      userId: paidPlayer.id,
+      hubId: establishedPartner.hubs[0].id,
+      amount: 525,
+      venueAmount: 500,
+      platformFee: 25,
+      method: "QRPH",
+      status: "SUCCEEDED",
+      expiresAt: new Date("2099-01-01T00:00:00.000Z"),
+      provider: "paymongo",
+      paidAt: new Date("2098-12-01T00:00:00.000Z"),
+    },
+    select: { id: true },
+  });
+  const paidBooking = await prisma.booking.create({
+    data: {
+      courtId: establishedPartner.hubs[0].courts[0].id,
+      hubId: establishedPartner.hubs[0].id,
+      userId: paidPlayer.id,
+      date: "2099-01-01",
+      startHour: 8,
+      endHour: 9,
+      hours: 1,
+      startsAt: new Date("2099-01-01T00:00:00.000Z"),
+      endsAt: new Date("2099-01-01T01:00:00.000Z"),
+      hourlyRate: 500,
+      totalPrice: 525,
+      bookingPaymentId: paidPayment.id,
+    },
+    select: { id: true },
+  });
+  const paidFeeEntry = await prisma.serviceFeeEntry.create({
+    data: {
+      partnerId: establishedPartner.id,
+      bookingPaymentId: paidPayment.id,
+      type: "CHARGE",
+      amount: 25,
+    },
+    select: { id: true },
+  });
+  const purgedPlayerEmail = `${EMAIL_PREFIX}purged-player@example.test`;
+  const purgedPlayer = await prisma.user.create({
+    data: {
+      name: "Test Transaction Player",
+      email: purgedPlayerEmail,
+      role: "PLAYER",
+    },
+    select: { id: true },
+  });
+  const purgedPayment = await prisma.bookingPayment.create({
+    data: {
+      partnerId: establishedPartner.id,
+      gatewayId: gateway.id,
+      userId: purgedPlayer.id,
+      hubId: establishedPartner.hubs[0].id,
+      amount: 525,
+      venueAmount: 500,
+      platformFee: 25,
+      method: "QRPH",
+      status: "SUCCEEDED",
+      expiresAt: new Date("2099-01-01T00:00:00.000Z"),
+      provider: "paymongo",
+      paidAt: new Date("2098-12-01T01:00:00.000Z"),
+    },
+    select: { id: true },
+  });
+  const purgedBooking = await prisma.booking.create({
+    data: {
+      courtId: establishedPartner.hubs[0].courts[0].id,
+      hubId: establishedPartner.hubs[0].id,
+      userId: purgedPlayer.id,
+      date: "2099-01-01",
+      startHour: 9,
+      endHour: 10,
+      hours: 1,
+      startsAt: new Date("2099-01-01T01:00:00.000Z"),
+      endsAt: new Date("2099-01-01T02:00:00.000Z"),
+      hourlyRate: 500,
+      totalPrice: 525,
+      bookingPaymentId: purgedPayment.id,
+    },
+    select: { id: true },
+  });
+  const purgedFeeEntry = await prisma.serviceFeeEntry.create({
+    data: {
+      partnerId: establishedPartner.id,
+      bookingPaymentId: purgedPayment.id,
+      type: "CHARGE",
+      amount: 25,
+    },
+    select: { id: true },
+  });
   const { deleteUserAction } = await import("@/lib/admin-actions");
 
   const mismatchedDelete = await deleteUserAction(
@@ -177,6 +291,52 @@ async function check() {
     "an administrator cannot delete their own active account",
     selfDelete.message?.includes("own administrator") === true &&
       (await prisma.user.count({ where: { id: admin.id } })) === 1
+  );
+
+  const purgedPlayerDeleteResult = await deleteUserAction(
+    {},
+    deletionForm(purgedPlayer.id, purgedPlayerEmail, true)
+  );
+  ok(
+    "an admin can delete a player and explicitly purge test transactions",
+    !purgedPlayerDeleteResult.message &&
+      !purgedPlayerDeleteResult.errors &&
+      (await prisma.user.count({ where: { id: purgedPlayer.id } })) === 0 &&
+      (await prisma.bookingPayment.count({
+        where: { id: purgedPayment.id },
+      })) === 0 &&
+      (await prisma.booking.count({ where: { id: purgedBooking.id } })) === 0 &&
+      (await prisma.serviceFeeEntry.count({
+        where: { id: purgedFeeEntry.id },
+      })) === 0
+  );
+
+  const paidPlayerDeleteResult = await deleteUserAction(
+    {},
+    deletionForm(paidPlayer.id, paidPlayerEmail)
+  );
+  const { venueRevenue } = await import("@/lib/analytics");
+  const retainedRevenue = await venueRevenue({
+    partnerId: establishedPartner.id,
+    range: { from: "2098-12-01", to: "2098-12-01", grain: "day" },
+  });
+  ok(
+    "deleting a player anonymizes paid booking history without changing venue revenue",
+    !paidPlayerDeleteResult.message &&
+      !paidPlayerDeleteResult.errors &&
+      (await prisma.user.count({ where: { id: paidPlayer.id } })) === 0 &&
+      (await prisma.bookingPayment.count({
+        where: { id: paidPayment.id, userId: null },
+      })) === 1 &&
+      (await prisma.booking.count({
+        where: { id: paidBooking.id, userId: null },
+      })) === 1 &&
+      (await prisma.serviceFeeEntry.count({
+        where: { id: paidFeeEntry.id },
+      })) === 1 &&
+      retainedRevenue.totals.gross === 500 &&
+      retainedRevenue.totals.net === 500 &&
+      retainedRevenue.totals.count === 1
   );
 
   const emptyDeleteResult = await deleteUserAction(

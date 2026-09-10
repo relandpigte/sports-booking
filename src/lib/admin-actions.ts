@@ -3,7 +3,7 @@
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { Role } from "@prisma/client";
+import { Prisma, type Role } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin";
@@ -389,6 +389,8 @@ export async function deleteUserAction(
   )
     .trim()
     .toLowerCase();
+  const deleteVenueTransactions =
+    formData.get("deleteVenueTransactions") === "on";
 
   if (!id) return { message: "User not found." };
   // Don't let an admin delete their own account.
@@ -396,34 +398,49 @@ export async function deleteUserAction(
     return { message: "You cannot delete your own administrator account." };
   }
 
-  const result = await prisma.$transaction(
-    async (tx) => {
-      const user = await tx.user.findUnique({
-        where: { id },
-        select: {
-          email: true,
-          partnerGateway: { select: { id: true } },
-        },
-      });
-      if (!user) return { message: "User not found." };
-      if (confirmationEmail !== user.email.trim().toLowerCase()) {
-        return {
-          errors: {
-            confirmationEmail:
-              "Enter the account email exactly to confirm permanent deletion.",
+  let result: DeleteUserState;
+  try {
+    result = await prisma.$transaction(
+      async (tx) => {
+        const user = await tx.user.findUnique({
+          where: { id },
+          select: {
+            email: true,
+            partnerGateway: { select: { id: true } },
           },
-        };
-      }
+        });
+        if (!user) return { message: "User not found." };
+        if (confirmationEmail !== user.email.trim().toLowerCase()) {
+          return {
+            errors: {
+              confirmationEmail:
+                "Enter the account email exactly to confirm permanent deletion.",
+            },
+          };
+        }
 
-      await deleteUserData(tx, {
-        id,
-        email: user.email,
-        partnerGatewayId: user.partnerGateway?.id ?? null,
-      });
-      return {};
-    },
-    { isolationLevel: "Serializable", maxWait: 5_000, timeout: 60_000 }
-  );
+        await deleteUserData(tx, {
+          id,
+          email: user.email,
+          partnerGatewayId: user.partnerGateway?.id ?? null,
+          deleteVenueTransactions,
+        });
+        return {};
+      },
+      { isolationLevel: "Serializable", maxWait: 5_000, timeout: 60_000 }
+    );
+  } catch (error) {
+    console.error(
+      "Admin user deletion failed:",
+      error instanceof Prisma.PrismaClientKnownRequestError
+        ? `${error.code}: ${error.message}`
+        : error
+    );
+    return {
+      message:
+        "The account could not be deleted. No changes were saved; please try again.",
+    };
+  }
   if (result.message || result.errors) return result;
   revalidatePath("/", "layout");
   return {};

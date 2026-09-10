@@ -425,6 +425,7 @@ function UserDirectoryRow({
                 userId={user.id}
                 name={user.name ?? user.email}
                 email={user.email}
+                showTransactionDeletionOption={user.role !== "PARTNER"}
               />
             )}
           </div>

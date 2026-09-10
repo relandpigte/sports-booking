@@ -914,9 +914,10 @@ model BookingPayment {
   // check shouldn't need a join.
   partnerId          String
   gatewayId          String?
-  userId             String? // the signed-in player who paid; null for guest checkout
+  userId             String? // null for guest checkout or an anonymized deleted player
   // A guest cart owns the same payment ledger without creating a User row.
-  // Exactly one of userId / guestReservationId is required by the migration.
+  // New payments require one owner. Historical rows may have neither after
+  // permanent account deletion, but can never point at both owner types.
   guestReservationId String? @unique
   // A scalar with no relation ON PURPOSE: deleting a hub must not destroy a
   // financial record.
@@ -985,7 +986,7 @@ model BookingPayment {
   updatedAt DateTime @updatedAt
 
   partner             User                        @relation("PartnerBookingPayments", fields: [partnerId], references: [id], onDelete: Cascade)
-  user                User?                       @relation("PlayerBookingPayments", fields: [userId], references: [id], onDelete: Cascade)
+  user                User?                       @relation("PlayerBookingPayments", fields: [userId], references: [id], onDelete: SetNull)
   guestReservation    GuestReservation?           @relation(fields: [guestReservationId], references: [id], onDelete: Cascade)
   gateway             PartnerGateway?             @relation(fields: [gatewayId], references: [id])
   manualPaymentMethod PartnerManualPaymentMethod? @relation(fields: [manualPaymentMethodId], references: [id], onDelete: SetNull)
@@ -1359,6 +1360,7 @@ model Booking {
   courtId            String
   // Denormalized so the partner list and revalidation don't need a join.
   hubId              String
+  // Null only for guest checkout or retained history from a deleted player.
   userId             String?
   guestReservationId String?
   date               String
@@ -1411,7 +1413,7 @@ model Booking {
 
   court            Court             @relation(fields: [courtId], references: [id], onDelete: Cascade)
   hub              Hub               @relation(fields: [hubId], references: [id], onDelete: Cascade)
-  user             User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user             User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
   guestReservation GuestReservation? @relation(fields: [guestReservationId], references: [id], onDelete: Cascade)
   bookingPayment   BookingPayment?   @relation(fields: [bookingPaymentId], references: [id])
   slots            BookingSlot[]
@@ -1838,6 +1840,7 @@ model OpenPlayGamePlayer {
 model EventRegistration {
   id                 String                  @id @default(cuid())
   eventId            String
+  // Null only for guest checkout or retained history from a deleted player.
   userId             String?
   guestReservationId String?                 @unique
   status             EventRegistrationStatus @default(PENDING)
@@ -1850,7 +1853,7 @@ model EventRegistration {
   updatedAt          DateTime                @updatedAt
 
   event                Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  user                 User?                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                 User?                 @relation(fields: [userId], references: [id], onDelete: SetNull)
   guestReservation     GuestReservation?     @relation(fields: [guestReservationId], references: [id], onDelete: Cascade)
   payment              BookingPayment?       @relation(fields: [bookingPaymentId], references: [id])
   guests               EventGuestSlot[]

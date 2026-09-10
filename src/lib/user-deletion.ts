@@ -6,7 +6,12 @@ type Tx = Prisma.TransactionClient;
 
 export async function deleteUserData(
   tx: Tx,
-  target: { id: string; email: string; partnerGatewayId: string | null }
+  target: {
+    id: string;
+    email: string;
+    partnerGatewayId: string | null;
+    deleteVenueTransactions: boolean;
+  }
 ): Promise<void> {
   const now = new Date();
   const sessionIds = (
@@ -28,6 +33,15 @@ export async function deleteUserData(
   // with RESTRICT semantics. Remove the ledger side first so both branches of
   // the partner's ownership graph can cascade safely.
   await tx.serviceFeeEntry.deleteMany({ where: { partnerId: target.id } });
+
+  if (target.deleteVenueTransactions) {
+    // This is an explicit admin escape hatch for disposable test data. Remove
+    // the reservation branches first, then the payment aggregate and its
+    // cascading service-fee entries so venue reports no longer count it.
+    await tx.booking.deleteMany({ where: { userId: target.id } });
+    await tx.eventRegistration.deleteMany({ where: { userId: target.id } });
+    await tx.bookingPayment.deleteMany({ where: { userId: target.id } });
+  }
 
   // Preserve shared conversations and match history, but remove authored
   // content and copied identity from the account being erased.

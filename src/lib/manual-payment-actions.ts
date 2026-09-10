@@ -616,7 +616,9 @@ export async function submitManualPaymentProofAction(
         const guestToken = payment.guestReservation
           ? await issueGuestAccessToken(payment.guestReservation.id)
           : null;
-        await Promise.all([
+        const recipientEmail =
+          payment.user?.email ?? payment.guestReservation?.email;
+        const notifications = [
           notifyPartnerTeamOfBooking({
             partnerId: payment.partner.id,
             module: event ? "events" : "bookings",
@@ -629,22 +631,27 @@ export async function submitManualPaymentProofAction(
             actionPath: `/dashboard/bookings?q=${encodeURIComponent(result.payment.id)}`,
             idempotencyKey: `partner-manual-proof-submitted-${result.payment.id}`,
           }),
-          notifyPlayerManualReceiptReceived({
-            to: payment.user?.email ?? payment.guestReservation!.email,
-            playerName,
-            venueName,
-            bookingTitle,
-            schedule,
-            actionPath: guestToken
-              ? event
-                ? eventGuestAccessPath(guestToken)
-                : guestAccessPath(guestToken)
-              : event
-                ? `/dashboard/bookings?q=${encodeURIComponent(event.publicId)}`
-                : `/dashboard/bookings?q=${encodeURIComponent(result.payment.id)}`,
-            idempotencyKey: `player-manual-receipt-received-${result.payment.id}`,
-          }),
-        ]);
+        ];
+        if (recipientEmail) {
+          notifications.push(
+            notifyPlayerManualReceiptReceived({
+              to: recipientEmail,
+              playerName,
+              venueName,
+              bookingTitle,
+              schedule,
+              actionPath: guestToken
+                ? event
+                  ? eventGuestAccessPath(guestToken)
+                  : guestAccessPath(guestToken)
+                : event
+                  ? `/dashboard/bookings?q=${encodeURIComponent(event.publicId)}`
+                  : `/dashboard/bookings?q=${encodeURIComponent(result.payment.id)}`,
+              idempotencyKey: `player-manual-receipt-received-${result.payment.id}`,
+            })
+          );
+        }
+        await Promise.all(notifications);
       }
     } catch (error) {
       // The proof is already committed. A notification outage must not tell
@@ -794,7 +801,7 @@ export async function reviewManualPaymentAction(
           booking.endHour
         )}`
       : "See your Bunal.club schedule for details";
-  const recipient = payment.user?.email ?? payment.guestReservation!.email;
+  const recipient = payment.user?.email ?? payment.guestReservation?.email;
   let confirmationEmailIssue = false;
 
   if (decision === "approve") {
@@ -888,16 +895,18 @@ export async function reviewManualPaymentAction(
         },
       }),
     ]);
-    await notifyPlayerBookingDeclined({
-      to: recipient,
-      playerName,
-      venueName,
-      bookingTitle,
-      schedule,
-      reason: note || "The venue declined the submitted payment proof.",
-      actionPath,
-      idempotencyKey: `player-manual-booking-declined-${payment.id}`,
-    });
+    if (recipient) {
+      await notifyPlayerBookingDeclined({
+        to: recipient,
+        playerName,
+        venueName,
+        bookingTitle,
+        schedule,
+        reason: note || "The venue declined the submitted payment proof.",
+        actionPath,
+        idempotencyKey: `player-manual-booking-declined-${payment.id}`,
+      });
+    }
   }
   revalidatePayment({
     id: payment.id,

@@ -525,13 +525,21 @@ export async function getPublicEvent(
                   image: account.image,
                   isGuest: false,
                 }
-            : {
-                id: registration.id,
-                name: guestLead?.name ?? "Guest player",
-                playerName: null,
-                image: null,
-                isGuest: true,
-              };
+            : guestLead
+              ? {
+                  id: registration.id,
+                  name: guestLead.name,
+                  playerName: null,
+                  image: null,
+                  isGuest: true,
+                }
+              : {
+                  id: `deleted:${registration.id}`,
+                  name: "Deleted player",
+                  playerName: null,
+                  image: null,
+                  isGuest: false,
+                };
           const guests = registration.guests
             .filter((guest) => guest.status === "CONFIRMED")
             .map((guest) => ({
@@ -980,15 +988,25 @@ export async function listOwnerEventRegistrations(
           phone: null,
           isGuest: false,
         }
-      : {
-          id: registration.guestReservation!.id,
-          name: registration.guestReservation!.name,
-          playerName: null,
-          image: null,
-          email: registration.guestReservation!.email,
-          phone: registration.guestReservation!.phone,
-          isGuest: true,
-        },
+      : registration.guestReservation
+        ? {
+            id: registration.guestReservation.id,
+            name: registration.guestReservation.name,
+            playerName: null,
+            image: null,
+            email: registration.guestReservation.email,
+            phone: registration.guestReservation.phone,
+            isGuest: true,
+          }
+        : {
+            id: `deleted:${registration.id}`,
+            name: "Deleted player",
+            playerName: null,
+            image: null,
+            email: "",
+            phone: null,
+            isGuest: false,
+          },
     payment: registration.payment
       ? {
           id: registration.payment.id,
@@ -1221,15 +1239,25 @@ export async function getOwnerEventDetails(
             phone: null,
             isGuest: false,
           }
-        : {
-            id: registration.guestReservation!.id,
-            name: registration.guestReservation!.name,
-            playerName: null,
-            image: null,
-            email: registration.guestReservation!.email,
-            phone: registration.guestReservation!.phone,
-            isGuest: true,
-          },
+        : registration.guestReservation
+          ? {
+              id: registration.guestReservation.id,
+              name: registration.guestReservation.name,
+              playerName: null,
+              image: null,
+              email: registration.guestReservation.email,
+              phone: registration.guestReservation.phone,
+              isGuest: true,
+            }
+          : {
+              id: `deleted:${registration.id}`,
+              name: "Deleted player",
+              playerName: null,
+              image: null,
+              email: "",
+              phone: null,
+              isGuest: false,
+            },
       payment: registration.payment
         ? {
             id: registration.payment.id,

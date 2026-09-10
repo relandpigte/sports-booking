@@ -779,9 +779,12 @@ async function notifyPlayerOfPaymentConfirmation(
   const guestToken = payment.guestReservation
     ? await issueGuestAccessToken(payment.guestReservation.id)
     : null;
+  const recipientEmail =
+    payment.user?.email ?? payment.guestReservation?.email;
+  if (!recipientEmail) return "skipped";
   const paymentMode = payment.collectionMode;
   return notifyPlayerBookingConfirmed({
-    to: payment.user?.email ?? payment.guestReservation!.email,
+    to: recipientEmail,
     playerName:
       payment.user?.playerName ??
       payment.user?.name ??

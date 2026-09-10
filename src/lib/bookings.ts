@@ -213,14 +213,23 @@ function mapBooking(row: BookingRow): BookingView {
       : null,
     player: user
       ? { ...user, guest: false }
-      : {
-          id: `guest:${guestReservation!.id}`,
-          name: guestReservation!.name,
-          playerName: null,
-          phone: guestReservation!.phone,
-          email: guestReservation!.email,
-          guest: true,
-        },
+      : guestReservation
+        ? {
+            id: `guest:${guestReservation.id}`,
+            name: guestReservation.name,
+            playerName: null,
+            phone: guestReservation.phone,
+            email: guestReservation.email,
+            guest: true,
+          }
+        : {
+            id: `deleted:${row.id}`,
+            name: "Deleted player",
+            playerName: null,
+            phone: null,
+            email: null,
+            guest: false,
+          },
   };
 }
 

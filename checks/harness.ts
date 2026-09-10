@@ -12,6 +12,8 @@
 import { createRequire } from "node:module";
 import path from "node:path";
 
+import type { Prisma, PrismaClient } from "@prisma/client";
+
 let passed = 0;
 const failures: string[] = [];
 
@@ -47,6 +49,19 @@ export function report(): void {
   console.log(`${passed} passed, ${failures.length} failed`);
   for (const failure of failures) console.log(`  FAIL: ${failure}`);
   if (failures.length) process.exitCode = 1;
+}
+
+// Partner deletion cascades through venues while player deletion retains
+// transaction rows by nulling their owner. PostgreSQL can reject both paths in
+// one mixed-role DELETE, so fixture cleanup deliberately removes partners first.
+export async function deleteFixtureUsers(
+  prisma: PrismaClient,
+  where: Prisma.UserWhereInput
+): Promise<void> {
+  await prisma.user.deleteMany({
+    where: { AND: [where, { role: "PARTNER" }] },
+  });
+  await prisma.user.deleteMany({ where });
 }
 
 // Wraps a check so a thrown error is reported rather than printed as an

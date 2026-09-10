@@ -6,7 +6,7 @@ import crypto from "node:crypto";
 
 import { PrismaClient } from "@prisma/client";
 
-import { ok, run, stubRequestContext } from "./harness";
+import { deleteFixtureUsers, ok, run, stubRequestContext } from "./harness";
 import { installPaymongoMock } from "./paymongo-mock";
 import {
   BOOKING_HOLD_MINUTES,
@@ -22,10 +22,8 @@ const SECOND_PLAYER_EMAIL = "check-qr-flow-player-2@example.test";
 const DATE = "2099-12-20";
 
 async function cleanup() {
-  await prisma.user.deleteMany({
-    where: {
-      email: { in: [PARTNER_EMAIL, PLAYER_EMAIL, SECOND_PLAYER_EMAIL] },
-    },
+  await deleteFixtureUsers(prisma, {
+    email: { in: [PARTNER_EMAIL, PLAYER_EMAIL, SECOND_PLAYER_EMAIL] },
   });
 }
 

@@ -4,7 +4,7 @@
 //   npm run check:staffing
 import { Prisma, PrismaClient } from "@prisma/client";
 
-import { ok, run, stubRequestContext } from "./harness";
+import { deleteFixtureUsers, ok, run, stubRequestContext } from "./harness";
 import {
   hasStaffAccess,
   type PartnerWorkspace,
@@ -19,7 +19,7 @@ const emails = [
 ];
 
 async function cleanup() {
-  await prisma.user.deleteMany({ where: { email: { in: emails } } });
+  await deleteFixtureUsers(prisma, { email: { in: emails } });
 }
 
 async function check() {

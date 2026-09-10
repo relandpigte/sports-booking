@@ -4,7 +4,7 @@
 //   npm run check:manual-payments
 import { PrismaClient } from "@prisma/client";
 
-import { ok, run, stubRequestContext } from "./harness";
+import { deleteFixtureUsers, ok, run, stubRequestContext } from "./harness";
 import {
   isPartnerPaymentReady,
   type PartnerPaymentSetup,
@@ -19,8 +19,8 @@ const VALID_PNG_DATA_URL =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADklEQVQImWP4DwUMMAYAj4IP8cvlVgcAAAAASUVORK5CYII=";
 
 async function cleanup() {
-  await prisma.user.deleteMany({
-    where: { email: { in: [PARTNER_EMAIL, PLAYER_EMAIL] } },
+  await deleteFixtureUsers(prisma, {
+    email: { in: [PARTNER_EMAIL, PLAYER_EMAIL] },
   });
 }
 

@@ -3,7 +3,7 @@
 //   npm run check:open-play
 import { Prisma, PrismaClient } from "@prisma/client";
 
-import { ok, run, stubRequestContext } from "./harness";
+import { deleteFixtureUsers, ok, run, stubRequestContext } from "./harness";
 import { manilaInstant, manilaToday } from "@/lib/time";
 
 const prisma = new PrismaClient();
@@ -37,8 +37,8 @@ async function cleanup() {
   await prisma.openPlayQueue.deleteMany({
     where: { hub: { owner: { email: PARTNER_EMAIL } } },
   });
-  await prisma.user.deleteMany({
-    where: { email: { in: [PARTNER_EMAIL, ...PLAYER_EMAILS] } },
+  await deleteFixtureUsers(prisma, {
+    email: { in: [PARTNER_EMAIL, ...PLAYER_EMAILS] },
   });
 }
 

@@ -9,7 +9,7 @@ import crypto from "node:crypto";
 
 import { PrismaClient } from "@prisma/client";
 
-import { ok, run } from "./harness";
+import { deleteFixtureUsers, ok, run } from "./harness";
 import {
   installPaymongoMock,
   mockPaidEvent,
@@ -32,8 +32,8 @@ async function cleanup() {
       },
     });
   }
-  await prisma.user.deleteMany({
-    where: { email: { in: [EMAIL, TRAINER_EMAIL] } },
+  await deleteFixtureUsers(prisma, {
+    email: { in: [EMAIL, TRAINER_EMAIL] },
   });
 }
 

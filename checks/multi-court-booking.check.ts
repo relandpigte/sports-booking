@@ -5,7 +5,7 @@ import crypto from "node:crypto";
 
 import { PrismaClient } from "@prisma/client";
 
-import { ok, run, stubRequestContext } from "./harness";
+import { deleteFixtureUsers, ok, run, stubRequestContext } from "./harness";
 import { installPaymongoMock, payMockIntent } from "./paymongo-mock";
 import {
   BOOKING_HOLD_MINUTES,
@@ -26,8 +26,8 @@ const operatingHours = Object.fromEntries(
 ) as OperatingHours;
 
 async function cleanup() {
-  await prisma.user.deleteMany({
-    where: { email: { in: [PARTNER_EMAIL, PLAYER_EMAIL] } },
+  await deleteFixtureUsers(prisma, {
+    email: { in: [PARTNER_EMAIL, PLAYER_EMAIL] },
   });
 }
 

@@ -5,7 +5,7 @@ import crypto from "node:crypto";
 
 import { Prisma, PrismaClient } from "@prisma/client";
 
-import { ok, run, stubRequestContext } from "./harness";
+import { deleteFixtureUsers, ok, run, stubRequestContext } from "./harness";
 import { type OperatingHours, WEEKDAYS } from "@/lib/constants";
 import { addDays, manilaInstant } from "@/lib/time";
 
@@ -26,8 +26,8 @@ const operatingHours = Object.fromEntries(
 ) as OperatingHours;
 
 async function cleanup() {
-  await prisma.user.deleteMany({
-    where: { email: { in: [PARTNER_EMAIL, ...PLAYER_EMAILS] } },
+  await deleteFixtureUsers(prisma, {
+    email: { in: [PARTNER_EMAIL, ...PLAYER_EMAILS] },
   });
 }
 

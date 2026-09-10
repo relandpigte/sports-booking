@@ -3,7 +3,7 @@
 //   npm run check:partner-bookings
 import { PrismaClient } from "@prisma/client";
 
-import { ok, run, stubRequestContext } from "./harness";
+import { deleteFixtureUsers, ok, run, stubRequestContext } from "./harness";
 import { addDays, manilaInstant, manilaToday } from "@/lib/time";
 
 const prisma = new PrismaClient();
@@ -19,7 +19,7 @@ const emails = [
 ];
 
 async function cleanup() {
-  await prisma.user.deleteMany({ where: { email: { in: emails } } });
+  await deleteFixtureUsers(prisma, { email: { in: emails } });
 }
 
 async function check() {

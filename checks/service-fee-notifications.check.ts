@@ -3,7 +3,7 @@
 //   npm run check:settlement-notifications
 import { PrismaClient } from "@prisma/client";
 
-import { ok, run } from "./harness";
+import { deleteFixtureUsers, ok, run } from "./harness";
 import { ensureServiceFeeCharge } from "@/lib/service-fees";
 import { addDaysTo } from "@/lib/time";
 
@@ -19,8 +19,8 @@ type CapturedRequest = {
 };
 
 async function cleanup() {
-  await prisma.user.deleteMany({
-    where: { email: { in: [EMAIL, TRAINER_EMAIL] } },
+  await deleteFixtureUsers(prisma, {
+    email: { in: [EMAIL, TRAINER_EMAIL] },
   });
 }
 

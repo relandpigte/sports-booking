@@ -3,7 +3,7 @@
 //   npm run check:messages
 import { PrismaClient } from "@prisma/client";
 
-import { ok, run, stubRequestContext } from "./harness";
+import { deleteFixtureUsers, ok, run, stubRequestContext } from "./harness";
 import { manilaInstant } from "@/lib/time";
 
 const prisma = new PrismaClient();
@@ -11,8 +11,8 @@ const EMAIL_PREFIX = "check-messages-";
 const DATE = "2099-10-20";
 
 async function cleanup() {
-  await prisma.user.deleteMany({
-    where: { email: { startsWith: EMAIL_PREFIX } },
+  await deleteFixtureUsers(prisma, {
+    email: { startsWith: EMAIL_PREFIX },
   });
 }
 

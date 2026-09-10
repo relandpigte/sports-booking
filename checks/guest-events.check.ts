@@ -8,7 +8,12 @@ import path from "node:path";
 
 import { PrismaClient } from "@prisma/client";
 
-import { ok, run, stubPublicGuestRequestContext } from "./harness";
+import {
+  deleteFixtureUsers,
+  ok,
+  run,
+  stubPublicGuestRequestContext,
+} from "./harness";
 import { manilaInstant } from "@/lib/time";
 
 const prisma = new PrismaClient();
@@ -21,8 +26,8 @@ async function cleanup() {
   await prisma.guestReservation.deleteMany({
     where: { email: GUEST_EMAIL },
   });
-  await prisma.user.deleteMany({
-    where: { email: { in: [PARTNER_EMAIL, DUAL_EMAIL] } },
+  await deleteFixtureUsers(prisma, {
+    email: { in: [PARTNER_EMAIL, DUAL_EMAIL] },
   });
 }
 

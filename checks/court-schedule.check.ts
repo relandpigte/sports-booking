@@ -3,7 +3,7 @@
 //   npm run check:schedule
 import { PrismaClient } from "@prisma/client";
 
-import { ok, run, stubRequestContext } from "./harness";
+import { deleteFixtureUsers, ok, run, stubRequestContext } from "./harness";
 import { WEEKDAYS, type OperatingHours } from "@/lib/constants";
 import {
   buildSlots,
@@ -33,8 +33,8 @@ function nextMonday(): string {
 }
 
 async function check() {
-  await prisma.user.deleteMany({
-    where: { email: { in: [PARTNER_EMAIL, PLAYER_EMAIL] } },
+  await deleteFixtureUsers(prisma, {
+    email: { in: [PARTNER_EMAIL, PLAYER_EMAIL] },
   });
 
   const partner = await prisma.user.create({

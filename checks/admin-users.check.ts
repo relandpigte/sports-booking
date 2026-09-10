@@ -3,7 +3,7 @@
 //   npm run check:admin-users
 import { PrismaClient } from "@prisma/client";
 
-import { ok, run, stubRequestContext } from "./harness";
+import { deleteFixtureUsers, ok, run, stubRequestContext } from "./harness";
 
 const prisma = new PrismaClient();
 const EMAIL_PREFIX = "check-admin-page-";
@@ -22,8 +22,8 @@ async function cleanup() {
   await prisma.partnerImpersonationSession.deleteMany({
     where: { tokenHash: { startsWith: EMAIL_PREFIX } },
   });
-  await prisma.user.deleteMany({
-    where: { email: { startsWith: EMAIL_PREFIX } },
+  await deleteFixtureUsers(prisma, {
+    email: { startsWith: EMAIL_PREFIX },
   });
 }
 

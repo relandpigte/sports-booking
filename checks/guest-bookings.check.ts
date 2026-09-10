@@ -4,7 +4,7 @@
 //   npm run check:guest-bookings
 import { PrismaClient } from "@prisma/client";
 
-import { ok, run, stubRequestContext } from "./harness";
+import { deleteFixtureUsers, ok, run, stubRequestContext } from "./harness";
 import { newGuestAccessToken } from "@/lib/guest-bookings";
 
 const prisma = new PrismaClient();
@@ -15,8 +15,8 @@ async function cleanup() {
   await prisma.guestReservation.deleteMany({
     where: { email: PLAYER_EMAIL },
   });
-  await prisma.user.deleteMany({
-    where: { email: { in: [PARTNER_EMAIL, PLAYER_EMAIL] } },
+  await deleteFixtureUsers(prisma, {
+    email: { in: [PARTNER_EMAIL, PLAYER_EMAIL] },
   });
 }
 

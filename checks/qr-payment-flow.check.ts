@@ -154,6 +154,7 @@ async function check() {
           guest.holdExpiresAt?.getTime() === registration.holdExpiresAt?.getTime()
       ) &&
       registration.payment?.method === "QRPH" &&
+      registration.payment.environment === "TEST" &&
       Number(registration.payment.venueAmount) === 1_500 &&
       Number(registration.payment.platformFee) === eventPaymentFeeFor(3) &&
       registration.payment.providerPaymentId?.startsWith("pi_") === true &&

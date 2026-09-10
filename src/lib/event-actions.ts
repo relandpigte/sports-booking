@@ -950,6 +950,9 @@ export async function registerForEventAction(
         processingFeeResponsibility: manualPayment ? "PLAYER" : "BUNAL",
         method: manualPayment ? "MANUAL" : "QRPH",
         collectionMode: manualPayment ? "MANUAL" : "AUTOMATIC",
+        environment: manualPayment
+          ? "UNKNOWN"
+          : (paymentSetup!.gateway!.environment ?? "UNKNOWN"),
         status: "PENDING",
         expiresAt: holdExpiresAt,
         provider: manualPayment
@@ -1407,6 +1410,9 @@ export async function registerGuestForEventAction(
         processingFeeResponsibility: manualPayment ? "PLAYER" : "BUNAL",
         method: manualPayment ? "MANUAL" : "QRPH",
         collectionMode: manualPayment ? "MANUAL" : "AUTOMATIC",
+        environment: manualPayment
+          ? "UNKNOWN"
+          : (paymentSetup!.gateway!.environment ?? "UNKNOWN"),
         status: "PENDING",
         expiresAt: holdExpiresAt,
         provider: manualPayment ? "manual" : paymentSetup!.gateway!.provider,
@@ -1738,6 +1744,9 @@ export async function addEventGuestSlotsAction(
         processingFeeResponsibility: manualPayment ? "PLAYER" : "BUNAL",
         method: manualPayment ? "MANUAL" : "QRPH",
         collectionMode: manualPayment ? "MANUAL" : "AUTOMATIC",
+        environment: manualPayment
+          ? "UNKNOWN"
+          : (paymentSetup!.gateway!.environment ?? "UNKNOWN"),
         status: "PENDING",
         expiresAt: holdExpiresAt,
         provider: manualPayment

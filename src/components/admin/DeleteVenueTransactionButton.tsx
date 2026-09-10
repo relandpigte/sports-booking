@@ -16,12 +16,14 @@ export function DeleteVenueTransactionButton({
   payer,
   venue,
   amount,
+  environment,
 }: {
   paymentId: string;
   reference: string;
   payer: string;
   venue: string;
   amount: number;
+  environment: "TEST" | "UNKNOWN";
 }) {
   const [state, action, pending] = useActionState(
     deleteVenueTransactionAction,
@@ -80,6 +82,12 @@ export function DeleteVenueTransactionButton({
             change. It does not refund money through PayMongo or a manual
             payment channel.
           </p>
+          {environment === "UNKNOWN" ? (
+            <p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs font-semibold leading-5 text-amber-800">
+              This transaction could not be verified as test data. Confirm its
+              reference before deleting it.
+            </p>
+          ) : null}
           <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900">
             <input
               type="checkbox"

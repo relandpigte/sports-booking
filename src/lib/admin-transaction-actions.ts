@@ -50,6 +50,7 @@ export async function deleteVenueTransactionAction(
             venueAmount: true,
             platformFee: true,
             status: true,
+            environment: true,
             providerRef: true,
             manualPaymentRef: true,
             providerPaymentId: true,
@@ -68,6 +69,12 @@ export async function deleteVenueTransactionAction(
           },
         });
         if (!payment) return { message: "Transaction not found." };
+        if (payment.environment === "LIVE") {
+          return {
+            message:
+              "Live transactions are protected and cannot be deleted from this tool.",
+          };
+        }
 
         const otherRegistrationPayments = new Set(
           payment.eventRegistration?.guests
@@ -134,6 +141,7 @@ export async function deleteVenueTransactionAction(
               venueAmount: Number(payment.venueAmount),
               platformFee: Number(payment.platformFee),
               status: payment.status,
+              environment: payment.environment,
               bookingCount: payment.bookings.length,
               eventGuestCount: payment.eventGuestSlots.length,
               serviceFeeEntryCount: payment.serviceFeeEntries.length,

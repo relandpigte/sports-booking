@@ -3,9 +3,20 @@ import "server-only";
 import type {
   ManualPaymentNetwork,
   PartnerPaymentMode,
+  TransactionEnvironment,
 } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
+import { keyMode } from "@/lib/payments/paymongo-core";
+
+function transactionEnvironmentForKey(
+  publicKey: string
+): TransactionEnvironment {
+  const mode = keyMode(publicKey);
+  if (mode === "test") return "TEST";
+  if (mode === "live") return "LIVE";
+  return "UNKNOWN";
+}
 
 export type ManualPaymentMethodView = {
   id: string;
@@ -23,7 +34,11 @@ export type PartnerPaymentSetup = {
   mode: PartnerPaymentMode;
   automaticReady: boolean;
   manualReady: boolean;
-  gateway: { id: string; provider: string } | null;
+  gateway: {
+    id: string;
+    provider: string;
+    environment?: TransactionEnvironment;
+  } | null;
 };
 
 export function isPartnerPaymentReady(setup: PartnerPaymentSetup): boolean {
@@ -40,7 +55,12 @@ export async function getPartnerPaymentSetup(
     select: {
       partnerPaymentMode: true,
       partnerGateway: {
-        select: { id: true, provider: true, disconnectedAt: true },
+        select: {
+          id: true,
+          provider: true,
+          publicKey: true,
+          disconnectedAt: true,
+        },
       },
       manualPaymentMethods: {
         where: { active: true },
@@ -54,6 +74,9 @@ export async function getPartnerPaymentSetup(
       ? {
           id: partner.partnerGateway.id,
           provider: partner.partnerGateway.provider,
+          environment: transactionEnvironmentForKey(
+            partner.partnerGateway.publicKey
+          ),
         }
       : null;
   return {

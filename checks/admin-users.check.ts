@@ -186,6 +186,7 @@ async function check() {
       venueAmount: 500,
       platformFee: 25,
       method: "QRPH",
+      environment: "TEST",
       status: "SUCCEEDED",
       expiresAt: new Date("2099-01-01T00:00:00.000Z"),
       provider: "paymongo",
@@ -350,6 +351,7 @@ async function check() {
     "admins can find an anonymized venue transaction by its reference",
     transactionPage.total === 1 &&
       transactionPage.items[0]?.id === paidPayment.id &&
+      transactionPage.items[0]?.environment === "TEST" &&
       transactionPage.items[0]?.payer === "Deleted player"
   );
 
@@ -405,6 +407,37 @@ async function check() {
       revenueAfterTransactionDelete.totals.count === 0 &&
       revenueAfterTransactionDelete.totals.gross === 0 &&
       auditMetadata?.paymentId === paidPayment.id
+  );
+
+  const livePayment = await prisma.bookingPayment.create({
+    data: {
+      partnerId: establishedPartner.id,
+      gatewayId: gateway.id,
+      hubId: establishedPartner.hubs[0].id,
+      amount: 525,
+      venueAmount: 500,
+      platformFee: 25,
+      method: "QRPH",
+      environment: "LIVE",
+      status: "FAILED",
+      provider: "paymongo",
+      expiresAt: new Date("2099-01-01T02:15:00.000Z"),
+    },
+    select: { id: true },
+  });
+  const liveTransactionForm = new FormData();
+  liveTransactionForm.set("paymentId", livePayment.id);
+  liveTransactionForm.set("confirmed", "on");
+  const liveTransactionDelete = await deleteVenueTransactionAction(
+    {},
+    liveTransactionForm
+  );
+  ok(
+    "the test-data tool protects transactions classified as live",
+    liveTransactionDelete.message?.includes("Live transactions") === true &&
+      (await prisma.bookingPayment.count({
+        where: { id: livePayment.id },
+      })) === 1
   );
 
   const emptyDeleteResult = await deleteUserAction(

@@ -12,6 +12,15 @@ const statusTone: Record<string, BadgeTone> = {
   REFUNDED: "neutral",
 };
 
+const environmentMeta: Record<
+  string,
+  { label: string; tone: BadgeTone }
+> = {
+  TEST: { label: "Test", tone: "primary" },
+  LIVE: { label: "Live", tone: "success" },
+  UNKNOWN: { label: "Unknown", tone: "warn" },
+};
+
 const formatDateTime = (date: Date) =>
   new Intl.DateTimeFormat("en-PH", {
     dateStyle: "medium",
@@ -47,7 +56,9 @@ export function AdminVenueTransactions({
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
               Find a specific court or event payment and permanently remove it
-              from revenue and fee reports.
+              from revenue and fee reports. Test payments are deletable, live
+              payments are protected, and unknown payments require careful
+              review.
             </p>
           </div>
           <form
@@ -97,6 +108,7 @@ export function AdminVenueTransactions({
                 <th className="px-3 py-3" scope="col">Player</th>
                 <th className="px-3 py-3" scope="col">Venue / item</th>
                 <th className="px-3 py-3" scope="col">Status</th>
+                <th className="px-3 py-3" scope="col">Environment</th>
                 <th className="px-3 py-3 text-right" scope="col">Amount</th>
                 <th className="px-3 py-3" scope="col">Date</th>
                 <th className="px-5 py-3 text-right" scope="col">Action</th>
@@ -133,6 +145,17 @@ export function AdminVenueTransactions({
                       {transaction.status.toLowerCase()}
                     </Badge>
                   </td>
+                  <td className="px-3 py-3">
+                    <Badge
+                      tone={
+                        environmentMeta[transaction.environment]?.tone ??
+                        "neutral"
+                      }
+                    >
+                      {environmentMeta[transaction.environment]?.label ??
+                        transaction.environment.toLowerCase()}
+                    </Badge>
+                  </td>
                   <td className="px-3 py-3 text-right">
                     <p className="font-black tabular-nums text-navy">
                       {formatPHP(transaction.amount)}
@@ -145,13 +168,23 @@ export function AdminVenueTransactions({
                     {formatDateTime(transaction.paidAt ?? transaction.createdAt)}
                   </td>
                   <td className="px-5 py-2 text-right">
-                    <DeleteVenueTransactionButton
-                      paymentId={transaction.id}
-                      reference={transaction.reference}
-                      payer={transaction.payer}
-                      venue={transaction.venue}
-                      amount={transaction.amount}
-                    />
+                    {transaction.environment === "LIVE" ? (
+                      <span
+                        title="Live transactions cannot be deleted from this test-data tool."
+                        className="inline-flex min-h-9 items-center px-3 text-xs font-bold text-slate-400"
+                      >
+                        Protected
+                      </span>
+                    ) : (
+                      <DeleteVenueTransactionButton
+                        paymentId={transaction.id}
+                        reference={transaction.reference}
+                        payer={transaction.payer}
+                        venue={transaction.venue}
+                        amount={transaction.amount}
+                        environment={transaction.environment}
+                      />
+                    )}
                   </td>
                 </tr>
               ))}

@@ -800,6 +800,14 @@ enum PaymentStatus {
   REFUNDED
 }
 
+// Snapshotted when a venue payment is created. UNKNOWN covers manual
+// collection and legacy rows whose PayMongo key mode cannot be proven.
+enum TransactionEnvironment {
+  TEST
+  LIVE
+  UNKNOWN
+}
+
 enum ServiceFeeEntryType {
   CHARGE
   PROCESSING_CREDIT
@@ -939,6 +947,7 @@ model BookingPayment {
   currency                    String                      @default("PHP")
   method                      PaymentMethodType
   collectionMode              PaymentCollectionMode       @default(AUTOMATIC)
+  environment                 TransactionEnvironment      @default(UNKNOWN)
   status                      PaymentStatus               @default(PENDING)
 
   // The hold this payment is racing — a snapshot of the bookings'
@@ -1003,6 +1012,7 @@ model BookingPayment {
   @@index([manualPaymentMethodId])
   @@index([partnerId, manualSubmittedAt])
   @@index([status, expiresAt])
+  @@index([environment, createdAt])
 }
 
 // One anonymous checkout reservation. Contact details are snapshots, not

@@ -411,6 +411,9 @@ export async function createBookingAction(
             processingFeeResponsibility: manualPayment ? "PLAYER" : "BUNAL",
             method: manualPayment ? "MANUAL" : "QRPH",
             collectionMode: manualPayment ? "MANUAL" : "AUTOMATIC",
+            environment: manualPayment
+              ? "UNKNOWN"
+              : (paymentSetup.gateway!.environment ?? "UNKNOWN"),
             status: "PENDING",
             expiresAt: holdExpiresAt!,
             provider: manualPayment

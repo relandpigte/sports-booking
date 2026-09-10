@@ -5,6 +5,7 @@ import type {
   PaymentMethodType,
   PaymentStatus,
   Prisma,
+  TransactionEnvironment,
 } from "@prisma/client";
 
 import { requireAdmin } from "@/lib/admin";
@@ -25,6 +26,7 @@ export type AdminVenueTransaction = {
   status: PaymentStatus;
   method: PaymentMethodType;
   collectionMode: PaymentCollectionMode;
+  environment: TransactionEnvironment;
   paidAt: Date | null;
   createdAt: Date;
 };
@@ -48,6 +50,7 @@ const transactionSelect = {
   status: true,
   method: true,
   collectionMode: true,
+  environment: true,
   paidAt: true,
   createdAt: true,
   partner: { select: { name: true, email: true } },
@@ -132,6 +135,7 @@ function mapTransaction(row: TransactionRow): AdminVenueTransaction {
     status: row.status,
     method: row.method,
     collectionMode: row.collectionMode,
+    environment: row.environment,
     paidAt: row.paidAt,
     createdAt: row.createdAt,
   };

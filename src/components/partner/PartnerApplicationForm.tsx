@@ -14,6 +14,7 @@ import {
   submitPartnerApplicationAction,
   type PartnerApplicationFormState,
 } from "@/lib/partner-onboarding-actions";
+import { registrationFullName } from "@/lib/registration-state";
 
 const initialState: PartnerApplicationFormState = {};
 
@@ -22,6 +23,7 @@ export function PartnerApplicationForm({
   existingHub,
 }: {
   user: {
+    name: string | null;
     playerName: string | null;
     phone: string | null;
     facebookPage: string | null;
@@ -74,7 +76,9 @@ export function PartnerApplicationForm({
             label="Full Name"
             name="fullName"
             autoComplete="name"
-            defaultValue={state.values?.fullName ?? user.playerName ?? ""}
+            defaultValue={
+              state.values?.fullName ?? registrationFullName(user)
+            }
             error={state.errors?.fullName}
           />
           <Input

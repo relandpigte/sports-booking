@@ -9,7 +9,10 @@ import {
   registrationMethodFromMarker,
   registrationEventData,
 } from "@/lib/registration-tracking";
-import { isIncompleteGoogleRegistration } from "@/lib/registration-state";
+import {
+  isIncompleteGoogleRegistration,
+  registrationFullName,
+} from "@/lib/registration-state";
 import {
   generateSuggestedPassword,
   SUGGESTED_PASSWORD_LENGTH,
@@ -97,6 +100,18 @@ ok(
       passwordHash: null,
       accounts: googleAccount,
     })
+);
+
+ok(
+  "Google names prefill the partner full-name field",
+  registrationFullName({
+    name: "Google Account Name",
+    playerName: null,
+  }) === "Google Account Name" &&
+    registrationFullName({
+      name: "Google Account Name",
+      playerName: "Saved Owner Name",
+    }) === "Saved Owner Name"
 );
 
 ok(

@@ -15,3 +15,10 @@ export function isIncompleteGoogleRegistration(
     user.accounts.some((account) => account.provider === "google");
   return googleOnly && user.registrationCompletedAt === null;
 }
+
+export function registrationFullName(user: {
+  name: string | null;
+  playerName: string | null;
+}): string {
+  return user.playerName?.trim() || user.name?.trim() || "";
+}

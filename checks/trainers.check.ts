@@ -450,6 +450,57 @@ async function check() {
       deletionMetadata?.paymentId === deletionCandidate.payment!.id
   );
 
+  const declinedDeletionCandidate = await prisma.trainerSession.create({
+    data: {
+      publicId: "check-trainer-admin-delete-declined",
+      trainerProfileId: profile.id,
+      playerId: player.id,
+      date: FUTURE_DATE,
+      startHour: 19,
+      endHour: 20,
+      hours: 1,
+      startsAt: manilaInstant(FUTURE_DATE, 19),
+      endsAt: manilaInstant(FUTURE_DATE, 20),
+      status: "DECLINED",
+      hourlyRate: 500,
+      trainerAmount: 500,
+      platformFee: 15,
+      totalAmount: 515,
+      requestExpiresAt: new Date(),
+      declinedAt: new Date(),
+      declineReason: "Unavailable for this check.",
+    },
+  });
+  const deleteDeclinedBookingForm = new FormData();
+  deleteDeclinedBookingForm.set("sessionId", declinedDeletionCandidate.id);
+  deleteDeclinedBookingForm.set("confirmed", "on");
+  const declinedDeletionResult =
+    await adminTrainerTransactions.deleteTrainerTransactionAction(
+      {},
+      deleteDeclinedBookingForm
+    );
+  const declinedDeletionAudit = await prisma.securityEvent.findFirst({
+    where: {
+      userId: admin.id,
+      type: "ADMIN_TRAINER_BOOKING_DELETED",
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  const declinedDeletionMetadata = declinedDeletionAudit?.metadata as Record<
+    string,
+    unknown
+  > | null;
+  ok(
+    "an admin can delete a declined trainer booking without a payment",
+    !declinedDeletionResult.message &&
+      (await prisma.trainerSession.count({
+        where: { id: declinedDeletionCandidate.id },
+      })) === 0 &&
+      declinedDeletionMetadata?.trainerSessionId ===
+        declinedDeletionCandidate.id &&
+      declinedDeletionMetadata.paymentId === null
+  );
+
   await prisma.user.update({ where: { id: trainerUser.id }, data: { privateProfile: true } });
   ok("making the player profile private immediately pauses trainer discovery", (await trainers.getPublicTrainer("coach-check")) === null);
   ok("the confirmed fixture remains tied to the trainer profile", confirmed.trainerProfileId === profile.id);

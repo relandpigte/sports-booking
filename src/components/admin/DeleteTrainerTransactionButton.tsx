@@ -19,7 +19,7 @@ export function DeleteTrainerTransactionButton({
   amount,
 }: {
   sessionId: string;
-  paymentId: string;
+  paymentId: string | null;
   reference: string;
   trainer: string;
   player: string;
@@ -31,6 +31,8 @@ export function DeleteTrainerTransactionButton({
   );
   const [confirmed, setConfirmed] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const hasPayment = Boolean(paymentId);
+  const dialogId = paymentId ?? sessionId;
 
   function openDialog() {
     setConfirmed(false);
@@ -48,20 +50,24 @@ export function DeleteTrainerTransactionButton({
       </button>
       <dialog
         ref={dialogRef}
-        aria-labelledby={`delete-trainer-transaction-title-${paymentId}`}
+        aria-labelledby={`delete-trainer-transaction-title-${dialogId}`}
         className="m-auto w-[min(92vw,30rem)] rounded-2xl border border-red-100 bg-white p-0 shadow-2xl backdrop:bg-navy/60"
       >
         <form action={action} className="p-6">
           <input type="hidden" name="sessionId" value={sessionId} />
-          <input type="hidden" name="paymentId" value={paymentId} />
+          {paymentId ? (
+            <input type="hidden" name="paymentId" value={paymentId} />
+          ) : null}
           <p className="text-xs font-black uppercase tracking-[0.16em] text-red-600">
-            Trainer transaction deletion
+            {hasPayment
+              ? "Trainer transaction deletion"
+              : "Trainer booking deletion"}
           </p>
           <h2
-            id={`delete-trainer-transaction-title-${paymentId}`}
+            id={`delete-trainer-transaction-title-${dialogId}`}
             className="mt-2 text-xl font-black text-navy"
           >
-            Delete this trainer transaction?
+            Delete this trainer {hasPayment ? "transaction" : "booking"}?
           </h2>
           <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 rounded-xl bg-slate-50 p-4 text-sm">
             <dt className="text-slate-500">Reference</dt>
@@ -77,11 +83,18 @@ export function DeleteTrainerTransactionButton({
               {formatPHP(amount)}
             </dd>
           </dl>
-          <p className="mt-4 text-sm leading-6 text-red-700">
-            This permanently removes the payment, linked trainer booking,
-            reserved schedule slots, conversation, and service-fee records. It
-            does not refund PayMongo or a manual payment.
-          </p>
+          {hasPayment ? (
+            <p className="mt-4 text-sm leading-6 text-red-700">
+              This permanently removes the payment, linked trainer booking,
+              reserved schedule slots, conversation, and service-fee records.
+              It does not refund PayMongo or a manual payment.
+            </p>
+          ) : (
+            <p className="mt-4 text-sm leading-6 text-red-700">
+              No payment was created. This permanently removes the declined
+              trainer booking and any linked schedule or conversation records.
+            </p>
+          )}
           <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900">
             <input
               type="checkbox"
@@ -91,8 +104,9 @@ export function DeleteTrainerTransactionButton({
               className="mt-0.5 h-4 w-4 shrink-0 accent-red-600"
             />
             <span className="font-bold">
-              I understand this permanently deletes the trainer transaction
-              and its booking history.
+              I understand this permanently deletes the trainer {hasPayment
+                ? "transaction and its booking history"
+                : "booking history"}.
             </span>
           </label>
           {state.message ? (
@@ -114,7 +128,9 @@ export function DeleteTrainerTransactionButton({
               disabled={pending || !confirmed}
               className="min-h-10 rounded-lg bg-red-600 px-4 text-sm font-black text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {pending ? "Deleting…" : "Delete transaction"}
+              {pending
+                ? "Deleting…"
+                : `Delete ${hasPayment ? "transaction" : "booking"}`}
             </button>
           </div>
         </form>

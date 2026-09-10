@@ -206,20 +206,16 @@ export function AdminTrainerBookings({
                     </p>
                   </td>
                   <td className="px-5 py-2 text-right">
-                    {booking.paymentId ? (
-                      <DeleteTrainerTransactionButton
-                        sessionId={booking.id}
-                        paymentId={booking.paymentId}
-                        reference={booking.paymentReference ?? booking.paymentId}
-                        trainer={booking.trainer}
-                        player={booking.player}
-                        amount={booking.totalAmount}
-                      />
-                    ) : (
-                      <span className="inline-flex min-h-9 items-center px-3 text-xs font-semibold text-slate-400">
-                        No transaction
-                      </span>
-                    )}
+                    <DeleteTrainerTransactionButton
+                      sessionId={booking.id}
+                      paymentId={booking.paymentId}
+                      reference={
+                        booking.paymentReference ?? booking.publicId
+                      }
+                      trainer={booking.trainer}
+                      player={booking.player}
+                      amount={booking.totalAmount}
+                    />
                   </td>
                 </tr>
               ))}

@@ -14,7 +14,7 @@ export type DeleteTrainerTransactionState = {
 
 const DeleteTrainerTransactionSchema = z.object({
   sessionId: z.string().trim().min(1).max(191),
-  paymentId: z.string().trim().min(1).max(191),
+  paymentId: z.string().trim().min(1).max(191).optional(),
   confirmed: z.literal("on"),
 });
 
@@ -31,7 +31,7 @@ export async function deleteTrainerTransactionAction(
 
   const parsed = DeleteTrainerTransactionSchema.safeParse({
     sessionId: formData.get("sessionId"),
-    paymentId: formData.get("paymentId"),
+    paymentId: String(formData.get("paymentId") ?? "").trim() || undefined,
     confirmed: formData.get("confirmed"),
   });
   if (!parsed.success) {
@@ -66,34 +66,50 @@ export async function deleteTrainerTransactionAction(
             },
           },
         });
-        if (!session || session.payment?.id !== parsed.data.paymentId) {
+        if (!session) {
+          return { message: "Trainer booking not found." };
+        }
+        if (
+          parsed.data.paymentId &&
+          session.payment?.id !== parsed.data.paymentId
+        ) {
           return { message: "Trainer transaction not found." };
+        }
+        if (!parsed.data.paymentId && session.payment) {
+          return {
+            message:
+              "This booking now has a payment. Refresh the page before deleting it.",
+          };
         }
 
         await tx.trainerSession.delete({ where: { id: session.id } });
         await tx.securityEvent.create({
           data: {
             userId: admin.id,
-            type: "ADMIN_TRAINER_TRANSACTION_DELETED",
+            type: session.payment
+              ? "ADMIN_TRAINER_TRANSACTION_DELETED"
+              : "ADMIN_TRAINER_BOOKING_DELETED",
             metadata: {
               trainerSessionId: session.id,
-              paymentId: session.payment.id,
+              paymentId: session.payment?.id ?? null,
               publicId: session.publicId,
               trainerId: session.trainer.userId,
               playerId: session.playerId,
               reference:
-                session.payment.providerRef ??
-                session.payment.manualPaymentRef ??
-                session.payment.providerPaymentId ??
-                session.payment.id,
+                session.payment?.providerRef ??
+                session.payment?.manualPaymentRef ??
+                session.payment?.providerPaymentId ??
+                session.payment?.id ??
+                session.publicId,
               totalAmount: Number(session.totalAmount),
               trainerAmount: Number(session.trainerAmount),
               platformFee: Number(session.platformFee),
               sessionStatus: session.status,
-              paymentStatus: session.payment.status,
+              paymentStatus: session.payment?.status ?? null,
               slotCount: session.slots.length,
               conversationDeleted: Boolean(session.conversation),
-              serviceFeeEntryCount: session.payment.serviceFeeEntries.length,
+              serviceFeeEntryCount:
+                session.payment?.serviceFeeEntries.length ?? 0,
             },
           },
         });
@@ -105,14 +121,14 @@ export async function deleteTrainerTransactionAction(
     if (result.message) return result;
   } catch (error) {
     console.error(
-      "Admin trainer transaction deletion failed:",
+      "Admin trainer booking deletion failed:",
       error instanceof Prisma.PrismaClientKnownRequestError
         ? `${error.code}: ${error.message}`
         : error
     );
     return {
       message:
-        "The trainer transaction could not be deleted. No changes were saved; please try again.",
+        "The trainer booking could not be deleted. No changes were saved; please try again.",
     };
   }
 

@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 
+import { AdminVenueTransactions } from "@/components/admin/AdminVenueTransactions";
 import { PlatformGatewayPanel } from "@/components/admin/PlatformGatewayPanel";
 import { requireAdmin } from "@/lib/admin";
+import { listAdminVenueTransactions } from "@/lib/admin-transactions";
 import {
   getPlatformGatewayView,
   platformWebhookUrlReachable,
@@ -12,15 +14,29 @@ export const metadata: Metadata = {
   title: "Payment Collection — Bunal.club",
 };
 
-export default async function AdminPaymentsPage() {
+function firstValue(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+
+export default async function AdminPaymentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await requireAdmin();
-  const [gateway, webhookUrlReachable] = await Promise.all([
+  const params = await searchParams;
+  const query = firstValue(params.q).trim().slice(0, 100);
+  const requestedPage = Number.parseInt(firstValue(params.page), 10);
+  const page =
+    Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const [gateway, webhookUrlReachable, transactions] = await Promise.all([
     getPlatformGatewayView(),
     platformWebhookUrlReachable(),
+    listAdminVenueTransactions({ query, page }),
   ]);
 
   return (
-    <div>
+    <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">
           Payment collection
@@ -31,13 +47,14 @@ export default async function AdminPaymentsPage() {
         </p>
       </div>
 
-      <div className="mt-6">
+      <div>
         <PlatformGatewayPanel
           gateway={gateway}
           webhookUrl={appUrl("/api/billing/webhook/paymongo")}
           webhookUrlReachable={webhookUrlReachable}
         />
       </div>
+      <AdminVenueTransactions result={transactions} query={query} />
     </div>
   );
 }

@@ -348,25 +348,22 @@ async function check() {
     rejectedDualOwner
   );
 
-  let rejectedOwnerlessPayment = false;
-  try {
-    await prisma.bookingPayment.create({
-      data: {
-        partnerId: partner.id,
-        hubId: hub.id,
-        amount: 100,
-        method: "MANUAL",
-        collectionMode: "MANUAL",
-        provider: "manual",
-        expiresAt: accessExpiresAt,
-      },
-    });
-  } catch {
-    rejectedOwnerlessPayment = true;
-  }
+  const ownerlessPayment = await prisma.bookingPayment.create({
+    data: {
+      partnerId: partner.id,
+      hubId: hub.id,
+      amount: 100,
+      method: "MANUAL",
+      collectionMode: "MANUAL",
+      provider: "manual",
+      expiresAt: accessExpiresAt,
+    },
+    select: { userId: true, guestReservationId: true },
+  });
   ok(
-    "the database rejects a payment without an account or guest owner",
-    rejectedOwnerlessPayment
+    "the database permits ownerless historical payments after account deletion",
+    ownerlessPayment.userId === null &&
+      ownerlessPayment.guestReservationId === null
   );
 }
 

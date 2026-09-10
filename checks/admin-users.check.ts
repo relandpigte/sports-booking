@@ -339,6 +339,74 @@ async function check() {
       retainedRevenue.totals.count === 1
   );
 
+  const { listAdminVenueTransactions } = await import(
+    "@/lib/admin-transactions"
+  );
+  const transactionPage = await listAdminVenueTransactions({
+    query: paidPayment.id,
+    page: 1,
+  });
+  ok(
+    "admins can find an anonymized venue transaction by its reference",
+    transactionPage.total === 1 &&
+      transactionPage.items[0]?.id === paidPayment.id &&
+      transactionPage.items[0]?.payer === "Deleted player"
+  );
+
+  const { deleteVenueTransactionAction } = await import(
+    "@/lib/admin-transaction-actions"
+  );
+  const unconfirmedTransactionForm = new FormData();
+  unconfirmedTransactionForm.set("paymentId", paidPayment.id);
+  const unconfirmedTransactionDelete = await deleteVenueTransactionAction(
+    {},
+    unconfirmedTransactionForm
+  );
+  ok(
+    "transaction deletion requires explicit acknowledgement",
+    Boolean(unconfirmedTransactionDelete.message) &&
+      (await prisma.bookingPayment.count({
+        where: { id: paidPayment.id },
+      })) === 1
+  );
+
+  const transactionForm = new FormData();
+  transactionForm.set("paymentId", paidPayment.id);
+  transactionForm.set("confirmed", "on");
+  const transactionDelete = await deleteVenueTransactionAction(
+    {},
+    transactionForm
+  );
+  const revenueAfterTransactionDelete = await venueRevenue({
+    partnerId: establishedPartner.id,
+    range: { from: "2098-12-01", to: "2098-12-01", grain: "day" },
+  });
+  const transactionAudit = await prisma.securityEvent.findFirst({
+    where: {
+      userId: admin.id,
+      type: "ADMIN_VENUE_TRANSACTION_DELETED",
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  const auditMetadata = transactionAudit?.metadata as Record<
+    string,
+    unknown
+  > | null;
+  ok(
+    "an admin can delete one retained transaction and its linked revenue records",
+    !transactionDelete.message &&
+      (await prisma.bookingPayment.count({
+        where: { id: paidPayment.id },
+      })) === 0 &&
+      (await prisma.booking.count({ where: { id: paidBooking.id } })) === 0 &&
+      (await prisma.serviceFeeEntry.count({
+        where: { id: paidFeeEntry.id },
+      })) === 0 &&
+      revenueAfterTransactionDelete.totals.count === 0 &&
+      revenueAfterTransactionDelete.totals.gross === 0 &&
+      auditMetadata?.paymentId === paidPayment.id
+  );
+
   const emptyDeleteResult = await deleteUserAction(
     {},
     deletionForm(emptyPartner.id, emptyPartnerEmail.toUpperCase())

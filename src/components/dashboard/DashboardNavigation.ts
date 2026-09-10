@@ -130,7 +130,7 @@ const adminItems: DashboardNavigationItem[] = [
   },
   {
     href: "/dashboard/admin/payments",
-    label: "Payment setup",
+    label: "Payments",
     icon: "payment",
   },
   {

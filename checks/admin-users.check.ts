@@ -446,11 +446,11 @@ async function check() {
     liveTransactionForm
   );
   ok(
-    "the test-data tool protects transactions classified as live",
-    liveTransactionDelete.message?.includes("Live transactions") === true &&
+    "an admin can delete a transaction classified as live after confirmation",
+    !liveTransactionDelete.message &&
       (await prisma.bookingPayment.count({
         where: { id: livePayment.id },
-      })) === 1
+      })) === 0
   );
 
   const emptyDeleteResult = await deleteUserAction(

@@ -23,7 +23,7 @@ export function DeleteVenueTransactionButton({
   payer: string;
   venue: string;
   amount: number;
-  environment: "TEST" | "UNKNOWN";
+  environment: "TEST" | "LIVE" | "UNKNOWN";
 }) {
   const [state, action, pending] = useActionState(
     deleteVenueTransactionAction,
@@ -54,7 +54,7 @@ export function DeleteVenueTransactionButton({
         <form action={action} className="p-6">
           <input type="hidden" name="paymentId" value={paymentId} />
           <p className="text-xs font-black uppercase tracking-[0.16em] text-red-600">
-            Test-data cleanup
+            Transaction deletion
           </p>
           <h2
             id={`delete-transaction-title-${paymentId}`}
@@ -82,7 +82,13 @@ export function DeleteVenueTransactionButton({
             change. It does not refund money through PayMongo or a manual
             payment channel.
           </p>
-          {environment === "UNKNOWN" ? (
+          {environment === "LIVE" ? (
+            <p className="mt-3 rounded-xl bg-red-50 p-3 text-xs font-semibold leading-5 text-red-800">
+              This transaction is classified as LIVE. Verify the reference and
+              any external payment before permanently removing its local
+              financial history.
+            </p>
+          ) : environment === "UNKNOWN" ? (
             <p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs font-semibold leading-5 text-amber-800">
               This transaction could not be verified as test data. Confirm its
               reference before deleting it.
@@ -97,8 +103,8 @@ export function DeleteVenueTransactionButton({
               className="mt-0.5 h-4 w-4 shrink-0 accent-red-600"
             />
             <span className="font-bold">
-              I understand this is permanent and should only be used for test
-              data.
+              I understand this permanently deletes the transaction and changes
+              financial reports.
             </span>
           </label>
           {state.message ? (

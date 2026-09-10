@@ -246,6 +246,22 @@ async function check() {
     where: { trainerId: trainerUser.id, type: "CHARGE" },
   });
   stubRequestContext(admin);
+  const adminTrainerBookings = await import("@/lib/admin-trainer-bookings");
+  const visibleTrainerBookings =
+    await adminTrainerBookings.listAdminTrainerBookings({
+      query: "Coach Check",
+      status: "CONFIRMED",
+      from: FUTURE_DATE,
+      to: FUTURE_DATE,
+      page: 1,
+    });
+  ok(
+    "admins can find trainer bookings by trainer, status, and date",
+    visibleTrainerBookings.items.some((item) => item.id === confirmed.id) &&
+      visibleTrainerBookings.items.every(
+        (item) => item.status === "CONFIRMED" && item.date === FUTURE_DATE
+      )
+  );
   const trainerFees = await import("@/lib/trainer-service-fees");
   const [adminBalances, adminTransactions] = await Promise.all([
     trainerFees.listAdminTrainerServiceFeeBreakdown(),

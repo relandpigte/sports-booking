@@ -77,16 +77,15 @@ export function AdminVenueTransactions({
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
-              Test-data tools
+              Transaction management
             </p>
             <h2 className="mt-1 text-lg font-black text-navy">
               Venue transactions
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
               Find a specific court or event payment and permanently remove it
-              from revenue and fee reports. Test payments are deletable, live
-              payments are protected, and unknown payments require careful
-              review.
+              from revenue and fee reports. Every environment is deletable;
+              verify live and unknown references carefully before continuing.
             </p>
           </div>
           <form
@@ -228,23 +227,14 @@ export function AdminVenueTransactions({
                     {formatDateTime(transaction.paidAt ?? transaction.createdAt)}
                   </td>
                   <td className="px-5 py-2 text-right">
-                    {transaction.environment === "LIVE" ? (
-                      <span
-                        title="Live transactions cannot be deleted from this test-data tool."
-                        className="inline-flex min-h-9 items-center px-3 text-xs font-bold text-slate-400"
-                      >
-                        Protected
-                      </span>
-                    ) : (
-                      <DeleteVenueTransactionButton
-                        paymentId={transaction.id}
-                        reference={transaction.reference}
-                        payer={transaction.payer}
-                        venue={transaction.venue}
-                        amount={transaction.amount}
-                        environment={transaction.environment}
-                      />
-                    )}
+                    <DeleteVenueTransactionButton
+                      paymentId={transaction.id}
+                      reference={transaction.reference}
+                      payer={transaction.payer}
+                      venue={transaction.venue}
+                      amount={transaction.amount}
+                      environment={transaction.environment}
+                    />
                   </td>
                 </tr>
               ))}

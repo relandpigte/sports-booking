@@ -69,13 +69,6 @@ export async function deleteVenueTransactionAction(
           },
         });
         if (!payment) return { message: "Transaction not found." };
-        if (payment.environment === "LIVE") {
-          return {
-            message:
-              "Live transactions are protected and cannot be deleted from this tool.",
-          };
-        }
-
         const otherRegistrationPayments = new Set(
           payment.eventRegistration?.guests
             .map((guest) => guest.bookingPaymentId)

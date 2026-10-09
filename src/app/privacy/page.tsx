@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function PrivacyPage() {
   return (
     <PageShell maxWidth="max-w-none" padded={false} alwaysPublic>
-      <LegalLayout title="Privacy Policy" updated="September 9, 2026">
+      <LegalLayout title="Privacy Policy" updated="October 8, 2026">
         <p>
           This Privacy Policy explains how Bunal.club (&quot;we&quot;,
           &quot;us&quot;) collects, uses, and protects your personal
@@ -106,16 +106,18 @@ export default function PrivacyPage() {
         <LegalSection heading="4. Payments">
           <p>
             For automatic checkout, Bunal.club never sees or stores your QR Ph
-            account credentials. Court and event payments are processed by
-            PayMongo and proceeds go directly into the venue&apos;s connected
-            account. For manual checkout, Bunal.club stores the receipt image,
-            optional transaction reference, and a snapshot of the venue&apos;s
-            displayed payment instructions so the venue or trainer can review
-            the booking. Manual venue and event payments have no Bunal.club
-            service fee. Trainer-session payments similarly go to the
-            trainer&apos;s selected PayMongo or manual destination; trainer
-            service fees are tracked separately for remittance. Bunal.club
-            never holds player funds in transit.
+            account credentials. Court, event, and trainer-session payments
+            made by QR Ph are processed by PayMongo and received into
+            Bunal.club&apos;s own PayMongo account. Bunal.club holds each
+            venue&apos;s or trainer&apos;s share until its next scheduled
+            payout, and keeps a record of every payment, refund, and payout.
+            To send those payouts, we store the GCash, Maya, or bank account
+            name and number that a venue partner or trainer provides. For
+            manual checkout, the player pays the venue or trainer directly;
+            Bunal.club stores the receipt image, optional transaction
+            reference, and a snapshot of the displayed payment instructions so
+            the venue or trainer can review the booking. Manual payments have
+            no Bunal.club service fee.
           </p>
         </LegalSection>
 
@@ -161,7 +163,8 @@ export default function PrivacyPage() {
           <ul className="list-disc pl-5">
             <li>
               <span className="font-medium text-gray-800">PayMongo</span> —
-              to process court and event payments (see Payments above).
+              to process court, event, and trainer-session payments (see
+              Payments above).
             </li>
             <li>
               <span className="font-medium text-gray-800">Resend</span> — to

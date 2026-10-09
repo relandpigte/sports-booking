@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function TermsPage() {
   return (
     <PageShell maxWidth="max-w-none" padded={false} alwaysPublic>
-      <LegalLayout title="Terms & Conditions" updated="August 21, 2026">
+      <LegalLayout title="Terms & Conditions" updated="October 8, 2026">
         <p>
           Welcome to Bunal.club. These Terms &amp; Conditions
           (&quot;Terms&quot;) govern your access to and use of the
@@ -44,16 +44,21 @@ export default function TermsPage() {
           <p>
             Court bookings are subject to real-time availability and the
             rules of the participating venue. When a venue takes payment
-            online, the venue selects either automatic PayMongo QR Ph or
+            online, the venue selects either automatic QR Ph or
             partner-reviewed manual transfer. Selected hours are held for a
-            limited window while you pay. Automatic checkout includes the
-            all-inclusive Bunal.club service fee with no additional PayMongo
-            processing fee. Manual checkout charges only the venue&apos;s
-            advertised amount, requires an on-time receipt upload, and remains
-            pending until venue approval; no Bunal.club or PayMongo fee is
-            added.
-            Automatic refunds are returned through PayMongo; manual refunds
-            are returned by the venue through the original network.
+            limited window while you pay. Automatic QR Ph payments are
+            processed by PayMongo and collected by Bunal.club on the
+            venue&apos;s behalf; Bunal.club then pays the venue its advertised
+            amount on a regular payout schedule. Automatic court checkout adds
+            one flat Bunal.club service fee per checkout, and event checkout
+            adds a payment fee per registered player; both are shown before you
+            pay, with no additional processing fee. Manual checkout charges
+            only the venue&apos;s advertised amount, is paid directly to the
+            venue, requires an on-time receipt upload, and remains pending
+            until venue approval; no Bunal.club fee is added.
+            Automatic refunds are returned through PayMongo to the original
+            payment method; manual refunds are returned by the venue through
+            the original network.
             Any displayed Bunal.club checkout service fee is non-refundable;
             all other refund and no-show handling follows the venue&apos;s policy.
           </p>
@@ -86,8 +91,11 @@ export default function TermsPage() {
             of credentials, fitness, safety, or results. Players remain
             responsible for deciding whether a trainer and meeting arrangement
             are suitable. A trainer has 12 hours to accept a request; after
-            acceptance, the player has one hour to pay. Checkout adds a 3%
-            Bunal.club service fee. A player cancelling at least 24 hours before
+            acceptance, the player has one hour to pay. Automatic QR Ph
+            checkout adds one flat Bunal.club service fee per session and is
+            collected by Bunal.club on the trainer&apos;s behalf; a payment
+            made directly to a trainer carries no Bunal.club fee. A player
+            cancelling at least 24 hours before
             the session receives the trainer subtotal while the service fee is
             retained; later player cancellations are non-refundable. A trainer
             cancellation returns the full collected amount, including the

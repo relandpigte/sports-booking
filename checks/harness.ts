@@ -249,3 +249,34 @@ export function stubPublicGuestRequestContext(options: {
     recordImpersonatedAction: async () => undefined,
   });
 }
+
+// Points platform collection at an environment key instead of whatever
+// PayMongo account the development database happens to have connected. Every
+// automatic checkout is charged through Bunal.club's own account, so a check
+// that creates one needs this; pair it with installPaymongoMock().
+export const CHECK_PLATFORM_SECRET_KEY = "sk_test_platform_collection_check";
+export const CHECK_PLATFORM_WEBHOOK_SECRET = "whsk_platform_collection_check";
+
+export function enablePlatformCollection(): void {
+  process.env.PLATFORM_GATEWAY_ENV_OVERRIDE = "1";
+  process.env.PAYMONGO_SECRET_KEY = CHECK_PLATFORM_SECRET_KEY;
+  process.env.BILLING_WEBHOOK_SECRET = CHECK_PLATFORM_WEBHOOK_SECRET;
+}
+
+// A venue or trainer is ready for automatic checkout once it has somewhere to
+// be paid. Deleting the fixture user cascades this row away.
+export async function seedPayoutAccount(
+  prisma: PrismaClient,
+  userId: string
+): Promise<void> {
+  await prisma.payoutAccount.upsert({
+    where: { userId },
+    update: {},
+    create: {
+      userId,
+      network: "GCASH",
+      accountName: "Check Payout Account",
+      accountNumber: "09170000000",
+    },
+  });
+}

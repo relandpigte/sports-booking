@@ -140,10 +140,11 @@ export const BOOKING_HOLD_MINUTES = 15;
 // session is claimed and never shortens the main hold.
 export const PAYMENT_COMPLETION_GRACE_MINUTES = 5;
 
-// PayMongo's published QR Ph rate is 1.34% before 12% VAT. New all-inclusive
-// payments use this as the processing-cost estimate until PayMongo reports the
-// exact deduction. Historical player-paid rows still use the gross-up helpers.
-// Negotiated pricing can override the VAT-inclusive decimal rate.
+// PayMongo's published QR Ph rate is 1.34% before 12% VAT. Bunal.club absorbs
+// this cost out of its service fee, and uses the rate as an estimate until
+// PayMongo reports the exact deduction. Historical player-paid rows still use
+// the gross-up helpers. Negotiated pricing can override the VAT-inclusive
+// decimal rate.
 export const DEFAULT_PAYMONGO_QRPH_PROCESSING_RATE = 0.0134 * 1.12;
 
 export function paymongoQrPhProcessingRate(): number {
@@ -179,28 +180,41 @@ export function paymongoQrPhTotalFor(subtotal: number): number {
   return (subtotalCentavos + feeCentavos) / 100;
 }
 
-// Bunal.club's percentage fee for automatic PayMongo checkout, added ON TOP of
-// the venue's court total. Manual partner payments are fee-free.
-export const SERVICE_FEE_RATE = 0.03;
-export const SERVICE_FEE_PERCENT = SERVICE_FEE_RATE * 100;
+// Bunal.club's flat fee for one automatic court checkout, added ON TOP of the
+// venue's court total and charged once however many courts or hours the
+// player selected. Manual venue payments are fee-free.
+export const BOOKING_SERVICE_FEE = 25;
 
-// Percentage-based court booking surfaces compute the fee through here so the
-// quote and payment ledger agree. Events use the flat helpers below.
+// Every court booking surface computes the fee through here so the quote and
+// the payment ledger agree. A selection with nothing to pay carries no fee.
+// Events use the per-player helpers below.
 export function bookingServiceFeeFor(courtTotal: number): number {
-  if (courtTotal <= 0) return 0;
-  const courtCentavos = Math.round(courtTotal * 100);
-  return Math.round(courtCentavos * SERVICE_FEE_RATE) / 100;
+  return courtTotal > 0 ? BOOKING_SERVICE_FEE : 0;
 }
 
-// The booking subtotal before PayMongo's separately snapshotted processing fee.
+// The same flat fee for one automatic trainer-session checkout. A trainer who
+// collects manually is paid directly by the player, so there is no fee.
+export const TRAINER_SERVICE_FEE = 25;
+
+export function trainerServiceFeeFor(
+  trainerAmount: number,
+  paymentMode: "AUTOMATIC" | "MANUAL"
+): number {
+  return paymentMode === "AUTOMATIC" && trainerAmount > 0
+    ? TRAINER_SERVICE_FEE
+    : 0;
+}
+
+// What the player pays for a court checkout: the venue's total plus the fee.
 export function grossFor(courtTotal: number): number {
   const courtCentavos = Math.round(courtTotal * 100);
   const feeCentavos = Math.round(bookingServiceFeeFor(courtTotal) * 100);
   return (courtCentavos + feeCentavos) / 100;
 }
 
-// Automatic event checkout uses a flat fee per paid spot rather than the
-// percentage used for court bookings. Manual event payments remain fee-free.
+// Automatic event checkout charges per paid spot rather than once per
+// checkout, so a group registration scales with its size. Manual event
+// payments remain fee-free.
 export const EVENT_PAYMENT_FEE_PER_PLAYER = 5;
 
 export function eventPaymentFeeFor(paidSpots: number): number {
@@ -223,7 +237,7 @@ export const VENUE_GATEWAYS = [
   {
     value: "paymongo",
     label: "PayMongo",
-    hint: "QR Ph payments. Booking subtotals land in your account; remit Bunal.club service fees from Payments.",
+    hint: "QR Ph payments taken through a venue's own PayMongo account. Used only for payments made before Bunal.club began collecting them.",
   },
 ] as const;
 

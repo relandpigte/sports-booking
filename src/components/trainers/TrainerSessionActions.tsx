@@ -341,8 +341,7 @@ export function TrainerPendingManualRefund({
       />
       <p className="mt-2 text-sm leading-6 text-amber-800">
         Return the trainer subtotal through the original payment network, then
-        record it here. The 3% Bunal fee remains charged for a player
-        cancellation.
+        record it here.
       </p>
       <div className="mt-3 max-w-xl">
         <Input label="Refund reference or note" name="reason" required />

@@ -4,6 +4,10 @@ import { Prisma, type EventRegistrationStatus, type EventStatus } from "@prisma/
 
 import type { OperatingHours } from "@/lib/constants";
 import { prisma } from "@/lib/db";
+import {
+  venueReadinessSelect,
+  venueSetupReady,
+} from "@/lib/payment-readiness";
 import { getViewer } from "@/lib/dal";
 import { buildSlots } from "@/lib/slots";
 import { weeklyEventDates } from "@/lib/event-recurrence";
@@ -264,13 +268,7 @@ const eventSelect = {
       owner: {
         select: {
           partnerStatus: true,
-          partnerPaymentMode: true,
-          partnerGateway: { select: { disconnectedAt: true } },
-          manualPaymentMethods: {
-            where: { active: true },
-            take: 1,
-            select: { id: true },
-          },
+          ...venueReadinessSelect,
         },
       },
     },
@@ -421,10 +419,7 @@ function mapPublicEvent(row: EventRow, now = new Date()): PublicEventView {
       name: row.hub.name,
       logo: row.hub.logo,
       address: row.hub.address,
-      verified:
-        row.hub.owner.partnerPaymentMode === "MANUAL"
-          ? row.hub.owner.manualPaymentMethods.length > 0
-          : row.hub.owner.partnerGateway?.disconnectedAt === null,
+      verified: venueSetupReady(row.hub.owner),
       paymentMode: row.hub.owner.partnerPaymentMode,
     },
     courts: row.courts.map(({ court }) => court),
@@ -802,17 +797,7 @@ export async function listEventFormHubs(
       id: true,
       name: true,
       games: true,
-      owner: {
-        select: {
-          partnerGateway: { select: { disconnectedAt: true } },
-          partnerPaymentMode: true,
-          manualPaymentMethods: {
-            where: { active: true },
-            take: 1,
-            select: { id: true },
-          },
-        },
-      },
+      owner: { select: venueReadinessSelect },
       courts: {
         orderBy: { createdAt: "asc" },
         select: { id: true, name: true, courtType: true },
@@ -823,10 +808,7 @@ export async function listEventFormHubs(
     id: row.id,
     name: row.name,
     games: row.games,
-    paymentReady:
-      row.owner.partnerPaymentMode === "MANUAL"
-        ? row.owner.manualPaymentMethods.length > 0
-        : row.owner.partnerGateway?.disconnectedAt === null,
+    paymentReady: venueSetupReady(row.owner),
     paymentMode: row.owner.partnerPaymentMode,
     courts: row.courts,
   }));

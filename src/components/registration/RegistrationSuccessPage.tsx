@@ -74,8 +74,8 @@ export function RegistrationSuccessPage({
               <span className="text-accent">booked in seconds.</span>
             </h2>
             <p className="mt-4 max-w-sm text-sm leading-relaxed text-white/70">
-              Find a hub near you, pick the hours you want, and pay the venue
-              directly.
+              Find a hub near you, pick the hours you want, and pay securely
+              online.
             </p>
 
             <ul className="mt-8 flex flex-wrap gap-2">

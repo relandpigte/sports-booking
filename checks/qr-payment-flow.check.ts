@@ -6,7 +6,14 @@ import crypto from "node:crypto";
 
 import { PrismaClient } from "@prisma/client";
 
-import { deleteFixtureUsers, ok, run, stubRequestContext } from "./harness";
+import {
+  deleteFixtureUsers,
+  enablePlatformCollection,
+  ok,
+  run,
+  seedPayoutAccount,
+  stubRequestContext,
+} from "./harness";
 import { installPaymongoMock } from "./paymongo-mock";
 import {
   BOOKING_HOLD_MINUTES,
@@ -29,8 +36,9 @@ async function cleanup() {
 
 async function check() {
   process.env.APP_URL = "https://checks.bunal.club";
+  // Paid registrations are charged through Bunal.club's own account.
+  enablePlatformCollection();
   const paymongo = installPaymongoMock();
-  const { CRYPTO_PURPOSE, encrypt, secretHint } = await import("@/lib/crypto");
 
   await cleanup();
   const partner = await prisma.user.create({
@@ -61,23 +69,8 @@ async function check() {
     },
     select: { id: true, email: true, role: true },
   });
-  await prisma.partnerGateway.create({
-    data: {
-      userId: partner.id,
-      provider: "paymongo",
-      publicKey: "pk_test_qr_flow",
-      secretKeyEnc: encrypt(
-        "sk_test_qr_flow",
-        CRYPTO_PURPOSE.gatewaySecretKey
-      ),
-      webhookSecretEnc: encrypt(
-        "whsk_qr_flow",
-        CRYPTO_PURPOSE.gatewayWebhookSecret
-      ),
-      secretKeyHint: secretHint("sk_test_qr_flow"),
-      webhookToken: crypto.randomBytes(24).toString("base64url"),
-    },
-  });
+  // All a venue needs for automatic checkout: somewhere to be paid out.
+  await seedPayoutAccount(prisma, partner.id);
   const hub = await prisma.hub.create({
     data: {
       ownerId: partner.id,

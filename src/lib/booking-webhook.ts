@@ -12,6 +12,9 @@ import type { ProviderWebhookEvent } from "@/lib/payments/types";
 
 export type VenueEventResult = { applied: boolean; reason?: string };
 
+// Matches the refund claim window in booking-payments.ts.
+const REFUND_IN_FLIGHT_MS = 5 * 60_000;
+
 // Applies a VERIFIED event from a partner's own gateway.
 //
 // Shared by the webhook route and the local stub approval, so both take the
@@ -56,10 +59,24 @@ export async function handleVenueEvent(args: {
 
   // Scoped to THIS gateway, so partner A can never settle partner B's payment
   // by quoting its provider payment id.
-  const payment = await prisma.bookingPayment.findFirst({
-    where: args.knownPaymentId
+  return applyVenuePaymentEvent(
+    args.knownPaymentId
       ? { id: args.knownPaymentId, gatewayId }
       : { providerPaymentId: event.providerPaymentId, gatewayId },
+    event
+  );
+}
+
+// Applies a verified, already de-duplicated event to the one payment `where`
+// selects. The caller supplies the scope — a venue's own gateway, or
+// Bunal.club's platform account — so an event can only ever reach a payment
+// taken through the account that signed it.
+export async function applyVenuePaymentEvent(
+  where: Prisma.BookingPaymentWhereInput,
+  event: ProviderWebhookEvent
+): Promise<VenueEventResult> {
+  const payment = await prisma.bookingPayment.findFirst({
+    where,
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
@@ -68,6 +85,7 @@ export async function handleVenueEvent(args: {
       processingFee: true,
       processingFeeResponsibility: true,
       providerPaymentId: true,
+      refundStartedAt: true,
     },
   });
   if (!payment) return { applied: false, reason: "unknown payment" };
@@ -140,7 +158,7 @@ export async function handleVenueEvent(args: {
     return { applied: true };
   }
 
-  // payment.refunded — the partner refunded from their gateway's own dashboard
+  // payment.refunded — the refund was issued from the gateway's own dashboard
   // rather than from here. Mirror it onto the ledger WITHOUT calling refund
   // again, which would take the money back twice.
   //
@@ -148,6 +166,17 @@ export async function handleVenueEvent(args: {
   // money decision, and only the cancel flow decides the court is free again.
   if (payment.status !== "SUCCEEDED") {
     return { applied: false, reason: "not paid" };
+  }
+  // A refund this app requested is recorded by the request itself, with the
+  // exact amount it asked for. The event carries the payment's amount, not
+  // the refund's, so letting it win the race would record the wrong figure.
+  // Only a live request counts: an abandoned claim must not hide a refund
+  // that was later issued from the gateway's dashboard.
+  if (
+    payment.refundStartedAt &&
+    Date.now() - payment.refundStartedAt.getTime() < REFUND_IN_FLIGHT_MS
+  ) {
+    return { applied: false, reason: "refund in progress" };
   }
   await markBookingPaymentRefunded({
     paymentId: payment.id,

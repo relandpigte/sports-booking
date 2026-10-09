@@ -2,7 +2,7 @@
 
 All outbound Bunal.club email must use `transactionalEmailContent` from
 `src/lib/email-html.ts`. One shared renderer keeps account, booking, partner,
-trainer, payment, security, invitation, and settlement messages visually and
+trainer, payment, payout, security, invitation, and settlement messages visually and
 structurally consistent.
 
 ## Brand contract
@@ -38,6 +38,17 @@ return transactionalEmailContent({
   note: "Keep your receipt for reference.",
 });
 ```
+
+Two optional fields carry structured facts, rendered between the paragraphs
+and the action in both the HTML and plain-text parts:
+
+- `details` — label/value rows (amount, date, reference).
+- `lineItems` — a heading, rows of `{ title, detail, amount }`, and a total.
+  Pass amounts already formatted so both parts show the same figure.
+
+The payout email (`src/lib/payout-email.ts`) uses both. It caps the statement
+at `PAYOUT_EMAIL_MAX_LINES` and folds the remainder into one row so the rows
+still add up to the total.
 
 Dynamic values must be passed as plain strings, never pre-rendered HTML. The
 renderer escapes all user and business data. Keep one primary action per email

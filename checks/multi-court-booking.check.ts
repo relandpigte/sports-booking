@@ -5,7 +5,14 @@ import crypto from "node:crypto";
 
 import { PrismaClient } from "@prisma/client";
 
-import { deleteFixtureUsers, ok, run, stubRequestContext } from "./harness";
+import {
+  deleteFixtureUsers,
+  enablePlatformCollection,
+  ok,
+  run,
+  seedPayoutAccount,
+  stubRequestContext,
+} from "./harness";
 import { installPaymongoMock, payMockIntent } from "./paymongo-mock";
 import {
   BOOKING_HOLD_MINUTES,
@@ -33,6 +40,8 @@ async function cleanup() {
 
 async function check() {
   process.env.APP_URL = "https://checks.bunal.club";
+  // New court checkouts are charged through Bunal.club's own account.
+  enablePlatformCollection();
   const paymongo = installPaymongoMock();
   const { CRYPTO_PURPOSE, encrypt } = await import("@/lib/crypto");
   await cleanup();
@@ -55,6 +64,10 @@ async function check() {
     },
     select: { id: true, email: true, role: true },
   });
+  // All the venue needs for automatic checkout today.
+  await seedPayoutAccount(prisma, partner.id);
+  // Its own PayMongo account, from before Bunal.club collected payments. Only
+  // the pre-cutover event payment near the end of this check still uses it.
   const gateway = await prisma.partnerGateway.create({
     data: {
       userId: partner.id,
@@ -194,7 +207,7 @@ async function check() {
   );
 
   const payment = await prisma.bookingPayment.findFirst({
-    where: { userId: player.id, hubId: hub.id, gatewayId: gateway.id },
+    where: { userId: player.id, hubId: hub.id, collectedBy: "PLATFORM" },
     include: {
       bookings: { orderBy: [{ courtId: "asc" }, { startHour: "asc" }] },
     },
@@ -376,6 +389,8 @@ async function check() {
     select: { id: true },
   });
   const eventHoldExpiresAt = new Date(Date.now() + 15 * 60_000);
+  // A checkout started on the venue's own keys before the cutover. It must
+  // still be cancellable through those keys.
   const eventPayment = await prisma.bookingPayment.create({
     data: {
       partnerId: partner.id,

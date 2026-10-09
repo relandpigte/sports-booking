@@ -29,6 +29,10 @@ import {
   type ServiceFeeOverdueEmailContentInput,
 } from "@/lib/service-fee-notification-email";
 import {
+  payoutEmailContent,
+  type PayoutEmailContentInput,
+} from "@/lib/payout-email";
+import {
   staffInvitationEmailContent,
   type StaffInvitationEmailContentInput,
 } from "@/lib/staff-invitation-email";
@@ -344,5 +348,20 @@ export async function sendServiceFeeOverdueEmail(
         ? "trainer-service-fee-overdue"
         : "partner-service-fee-overdue",
     description: "Service-fee overdue email delivery",
+  });
+}
+
+export async function sendPayoutEmail(
+  input: PayoutEmailContentInput & { to: string; idempotencyKey: string }
+): Promise<void> {
+  const content = payoutEmailContent(input);
+  await deliverEmail({
+    to: input.to,
+    subject: content.subject,
+    html: content.html,
+    text: content.text,
+    idempotencyKey: input.idempotencyKey,
+    category: input.kind === "SENT" ? "payout-sent" : "payout-account-changed",
+    description: "Payout email delivery",
   });
 }

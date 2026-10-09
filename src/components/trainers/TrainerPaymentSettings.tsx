@@ -11,13 +11,18 @@ import {
 
 import { PaymentWorkspace } from "@/components/partner/PaymentWorkspace";
 import { ReceiptUpload } from "@/components/partner/ReceiptUpload";
+import {
+  PayoutAccountPanel,
+  type PayoutAccountPanelAccount,
+} from "@/components/payments/PayoutAccountPanel";
 import { ServiceFeeManualDestinations } from "@/components/payments/ServiceFeeManualDestinations";
 import { ServiceFeeSettlementTabs } from "@/components/payments/ServiceFeeSettlementTabs";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { TRAINER_SERVICE_FEE } from "@/lib/constants";
 import { formatPHP } from "@/lib/currency";
+import { saveTrainerPayoutAccountAction } from "@/lib/payout-actions";
 import {
-  connectTrainerGatewayAction,
   deleteTrainerManualMethodAction,
   saveTrainerManualMethodAction,
   saveTrainerPaymentModeAction,
@@ -29,11 +34,6 @@ import {
 const initial: TrainerPaymentState = {};
 
 type PaymentMode = "AUTOMATIC" | "MANUAL";
-
-type TrainerGatewayView = {
-  accountLabel: string | null;
-  disconnectedAt: Date | null;
-} | null;
 
 type TrainerManualMethodView = {
   id: string;
@@ -104,23 +104,33 @@ function Result({ state }: { state: TrainerPaymentState }) {
 
 export function TrainerPaymentSettings({
   mode,
-  gateway,
+  payoutAccount,
+  payouts,
   methods,
   serviceFees,
   paymongoSettlementEnabled,
   settlementInstructions,
 }: {
   mode: PaymentMode;
-  gateway: TrainerGatewayView;
+  payoutAccount: PayoutAccountPanelAccount | null;
+  // The payout statement, rendered on the server.
+  payouts: ReactNode;
   methods: TrainerManualMethodView[];
   serviceFees: TrainerServiceFeeView;
   paymongoSettlementEnabled: boolean;
   settlementInstructions: string;
 }) {
-  const connected = Boolean(gateway && !gateway.disconnectedAt);
+  const payoutReady = payoutAccount != null;
   const activeManualMethods = methods.filter((method) => method.active).length;
   const checkoutReady =
-    mode === "AUTOMATIC" ? connected : activeManualMethods > 0;
+    mode === "AUTOMATIC" ? payoutReady : activeManualMethods > 0;
+  // Fees only accrued while players paid the trainer directly. A trainer who
+  // never used that model has nothing to settle and never sees the tab.
+  const hasEarlierFees =
+    serviceFees.accrued > 0 ||
+    serviceFees.pending > 0 ||
+    serviceFees.settlements.length > 0 ||
+    serviceFees.waivers.length > 0;
   const settlementStatus =
     serviceFees.blocked
       ? { value: "Requests paused", tone: "warning" as const }
@@ -134,8 +144,13 @@ export function TrainerPaymentSettings({
 
   return (
     <PaymentWorkspace
-      initialTab={checkoutReady ? "settlement" : "checkout"}
-      settlementFirst={checkoutReady}
+      initialTab={
+        !checkoutReady
+          ? "checkout"
+          : serviceFees.blocked || serviceFees.inEnforcementGrace
+            ? "settlement"
+            : "payouts"
+      }
       summary={[
         {
           label: "Checkout mode",
@@ -147,8 +162,8 @@ export function TrainerPaymentSettings({
           label: "Payment destination",
           value:
             mode === "AUTOMATIC"
-              ? connected
-                ? "PayMongo connected"
+              ? payoutReady
+                ? "Payout account on file"
                 : "Needs setup"
               : activeManualMethods > 0
                 ? `${activeManualMethods} active destination${activeManualMethods === 1 ? "" : "s"}`
@@ -159,7 +174,7 @@ export function TrainerPaymentSettings({
           tone: checkoutReady ? "success" : "warning",
         },
         {
-          label: "Service-fee balance",
+          label: "Earlier service fees",
           value: formatPHP(serviceFees.due),
           detail:
             serviceFees.pending > 0
@@ -186,16 +201,19 @@ export function TrainerPaymentSettings({
       checkout={
         <TrainerCheckoutConfiguration
           mode={mode}
-          gateway={gateway}
+          payoutAccount={payoutAccount}
           methods={methods}
         />
       }
+      payouts={payouts}
       settlement={
-        <TrainerSettlementPanel
-          serviceFees={serviceFees}
-          paymongoSettlementEnabled={paymongoSettlementEnabled}
-          settlementInstructions={settlementInstructions}
-        />
+        hasEarlierFees ? (
+          <TrainerSettlementPanel
+            serviceFees={serviceFees}
+            paymongoSettlementEnabled={paymongoSettlementEnabled}
+            settlementInstructions={settlementInstructions}
+          />
+        ) : undefined
       }
     />
   );
@@ -203,11 +221,11 @@ export function TrainerPaymentSettings({
 
 function TrainerCheckoutConfiguration({
   mode,
-  gateway,
+  payoutAccount,
   methods,
 }: {
   mode: PaymentMode;
-  gateway: TrainerGatewayView;
+  payoutAccount: PayoutAccountPanelAccount | null;
   methods: TrainerManualMethodView[];
 }) {
   const [selectedMode, setSelectedMode] = useState<PaymentMode>(mode);
@@ -250,8 +268,8 @@ function TrainerCheckoutConfiguration({
         </div>
         <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500">
           {selectedMode === "AUTOMATIC"
-            ? "3% all-inclusive Bunal fee with no additional processing fee. Successful payments confirm automatically."
-            : "Players upload a receipt for your review. A 3% Bunal fee applies with no PayMongo processing fee."}
+            ? `Players pay by QR Ph and are confirmed automatically. They pay a ₱${TRAINER_SERVICE_FEE} service fee per session on top of your rate. Bunal.club collects the payment and sends your full rate every Monday and Thursday.`
+            : "Players transfer your rate straight to your own account and upload a receipt for your review. No Bunal.club fee applies."}
         </p>
       </section>
 
@@ -262,7 +280,12 @@ function TrainerCheckoutConfiguration({
         hidden={selectedMode !== "AUTOMATIC"}
         className="space-y-3"
       >
-        <TrainerAutomaticSettings mode={mode} gateway={gateway} />
+        <PayoutAccountPanel
+          account={payoutAccount}
+          action={saveTrainerPayoutAccountAction}
+          earner="trainer"
+        />
+        <ModeActivation mode="AUTOMATIC" activeMode={mode} />
       </div>
 
       <div
@@ -320,101 +343,6 @@ function ModeTab({
         <span className="size-1.5 rounded-full bg-primary" />
       )}
     </button>
-  );
-}
-
-function TrainerAutomaticSettings({
-  mode,
-  gateway,
-}: {
-  mode: PaymentMode;
-  gateway: TrainerGatewayView;
-}) {
-  const [state, action, connecting] = useActionState(
-    connectTrainerGatewayAction,
-    initial
-  );
-  const connected = Boolean(gateway && !gateway.disconnectedAt);
-
-  return (
-    <>
-      <section className="rounded-2xl border border-[#dfe7e2] bg-white p-4 shadow-sm shadow-navy/5 sm:p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold text-navy">
-              Automatic payments · PayMongo
-            </h2>
-            <p className="mt-1 text-sm leading-6 text-slate-500">
-              Players pay your account directly. The 3% Bunal fee is tracked
-              for remittance.
-            </p>
-          </div>
-          {connected && (
-            <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-bold text-green-700">
-              Connected
-            </span>
-          )}
-        </div>
-
-        {connected ? (
-          <div className="mt-5 grid gap-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4 lg:grid-cols-2">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                Account
-              </p>
-              <p className="mt-2 text-sm font-bold text-navy">
-                {gateway?.accountLabel ?? "PayMongo"}
-              </p>
-              <p className="mt-2 text-xs leading-5 text-slate-500">
-                Secure webhook confirmations are active for trainer-session
-                payments.
-              </p>
-            </div>
-            <div className="rounded-xl border border-ocean/20 bg-ocean-soft p-4">
-              <p className="text-sm font-bold text-navy">
-                QR Ph-only checkout
-              </p>
-              <p className="mt-2 text-xs leading-5 text-slate-500">
-                Player payments confirm automatically after PayMongo processes
-                the QR.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <form action={action} className="mt-5 grid gap-4 sm:grid-cols-2">
-            <input type="hidden" name="provider" value="paymongo" />
-            <Input
-              label="Publishable key"
-              name="publicKey"
-              required
-              error={state.errors?.publicKey}
-              placeholder="pk_test_…"
-            />
-            <Input
-              label="Secret key"
-              name="secretKey"
-              type="password"
-              required
-              error={state.errors?.secretKey}
-              placeholder="sk_test_…"
-            />
-            <div className="sm:col-span-2">
-              <Input
-                label="Existing webhook secret (optional)"
-                name="webhookSecret"
-                type="password"
-                error={state.errors?.webhookSecret}
-              />
-            </div>
-            <Button disabled={connecting} className="sm:w-auto">
-              {connecting ? "Connecting…" : "Connect PayMongo"}
-            </Button>
-          </form>
-        )}
-        <Result state={state} />
-      </section>
-      <ModeActivation mode="AUTOMATIC" activeMode={mode} />
-    </>
   );
 }
 
@@ -1019,8 +947,9 @@ function TrainerSettlementPanel({
             Bunal.club service-fee settlement
           </h2>
           <p className="mt-1 text-sm leading-6 text-slate-500">
-            The displayed 3% less PayMongo processing absorbed by Bunal.club
-            is remitted here. You keep your full advertised trainer rate.
+            Service fees from sessions players paid you for directly, before
+            Bunal.club began collecting automatic payments. New sessions add
+            nothing here.
           </p>
         </div>
         <span

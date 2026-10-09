@@ -3,7 +3,7 @@
 //   npm run check:trainers
 import { PrismaClient } from "@prisma/client";
 
-import { ok, run, stubRequestContext } from "./harness";
+import { ok, run, seedPayoutAccount, stubRequestContext } from "./harness";
 import { addDaysTo, manilaInstant } from "@/lib/time";
 
 const prisma = new PrismaClient();
@@ -52,8 +52,14 @@ async function check() {
   });
 
   const trainers = await import("@/lib/trainers");
-  ok("a ₱500 trainer hour adds a ₱15 Bunal fee", trainers.trainerServiceFeeFor(500) === 15);
-  ok("trainer gross is the rate plus exactly 3%", 500 + trainers.trainerServiceFeeFor(500) === 515);
+  ok(
+    "an automatic ₱500 trainer hour adds the flat ₱25 fee",
+    trainers.trainerServiceFeeFor(500, "AUTOMATIC") === 25
+  );
+  ok(
+    "a manual trainer session carries no Bunal fee",
+    trainers.trainerServiceFeeFor(500, "MANUAL") === 0
+  );
   ok("weekly hours honor unavailable and extra-available exceptions", JSON.stringify(trainers.trainerAvailableHours({ weeklyRules: [{ dayOfWeek: 2, startHour: 9, endHour: 13 }], exceptions: [{ date: FUTURE_DATE, startHour: 10, endHour: 11, type: "UNAVAILABLE" }, { date: FUTURE_DATE, startHour: 15, endHour: 16, type: "AVAILABLE" }] }, FUTURE_DATE)) === JSON.stringify([9, 11, 12, 15]));
   ok("only consecutive available whole hours can be requested", trainers.rangeAvailable([9, 10, 11], 9, 12) && !trainers.rangeAvailable([9, 11], 9, 12));
   ok("an approved, public, payment-ready trainer is discoverable", (await trainers.getPublicTrainer("coach-check"))?.id === profile.id);
@@ -499,6 +505,155 @@ async function check() {
       declinedDeletionMetadata?.trainerSessionId ===
         declinedDeletionCandidate.id &&
       declinedDeletionMetadata.paymentId === null
+  );
+
+  // --- Automatic sessions are collected by Bunal.club ----------------------
+  // The row shape below is exactly what accepting an automatic request
+  // writes: the player pays the rate plus the flat fee, and the processing
+  // cost Bunal.club absorbs is recorded WITHOUT being part of that total.
+  await seedPayoutAccount(prisma, trainerUser.id);
+  const platformSession = await prisma.trainerSession.create({
+    data: {
+      publicId: "check-trainer-platform",
+      trainerProfileId: profile.id,
+      playerId: player.id,
+      date: FUTURE_DATE,
+      startHour: 15,
+      endHour: 16,
+      hours: 1,
+      startsAt: manilaInstant(FUTURE_DATE, 15),
+      endsAt: manilaInstant(FUTURE_DATE, 16),
+      status: "AWAITING_PAYMENT",
+      hourlyRate: 500,
+      trainerAmount: 500,
+      platformFee: 25,
+      processingFee: 7.88,
+      processingFeeResponsibility: "BUNAL",
+      totalAmount: 525,
+      requestExpiresAt: new Date(Date.now() + 60_000),
+      paymentExpiresAt: new Date(Date.now() + 60 * 60_000),
+      payment: {
+        create: {
+          trainerId: trainerUser.id,
+          playerId: player.id,
+          collectedBy: "PLATFORM",
+          amount: 525,
+          trainerAmount: 500,
+          platformFee: 25,
+          processingFee: 7.88,
+          processingFeeResponsibility: "BUNAL",
+          method: "QRPH",
+          collectionMode: "AUTOMATIC",
+          status: "PENDING",
+          expiresAt: new Date(Date.now() + 60 * 60_000),
+          provider: "paymongo",
+          providerPaymentId: "pi_check_trainer_platform",
+          chargeStartedAt: new Date(),
+        },
+      },
+    },
+    include: { payment: true },
+  });
+  ok(
+    "an automatic session stores an absorbed processing fee outside the player's total",
+    Number(platformSession.totalAmount) === 525 &&
+      Number(platformSession.payment!.amount) === 525 &&
+      Number(platformSession.payment!.processingFee) === 7.88
+  );
+
+  const settlement = await import("@/lib/trainer-payment-settlement");
+  const platformScope = {
+    providerPaymentId: "pi_check_trainer_platform",
+    collectedBy: "PLATFORM" as const,
+  };
+  const underpaid = await settlement.applyTrainerPaymentEvent(platformScope, {
+    eventId: "evt_check_trainer_underpaid",
+    type: "payment.succeeded",
+    providerPaymentId: "pi_check_trainer_platform",
+    reference: "pay_check_trainer",
+    failureCode: null,
+    failureMessage: null,
+    amountCentavos: 100,
+    raw: {},
+  });
+  ok(
+    "a platform event reporting the wrong amount does not confirm the session",
+    !underpaid.handled &&
+      (await prisma.trainerSession.findUnique({ where: { id: platformSession.id } }))
+        ?.status === "AWAITING_PAYMENT"
+  );
+  const platformPaid = await settlement.applyTrainerPaymentEvent(platformScope, {
+    eventId: "evt_check_trainer_paid",
+    type: "payment.succeeded",
+    providerPaymentId: "pi_check_trainer_platform",
+    reference: "pay_check_trainer",
+    failureCode: null,
+    failureMessage: null,
+    amountCentavos: 52_500,
+    feeCentavos: 788,
+    raw: {},
+  });
+  const platformPayoutLines = () =>
+    prisma.payoutEntry.findMany({
+      where: { trainerPaymentId: platformSession.payment!.id },
+      orderBy: { createdAt: "asc" },
+    });
+  ok(
+    "a platform-collected payment confirms the session",
+    platformPaid.handled &&
+      (await prisma.trainerSession.findUnique({ where: { id: platformSession.id } }))
+        ?.status === "CONFIRMED"
+  );
+  const trainerEarning = await platformPayoutLines();
+  ok(
+    "Bunal.club owes the trainer their full session rate",
+    trainerEarning.length === 1 &&
+      trainerEarning[0].type === "EARNING" &&
+      trainerEarning[0].recipientKind === "TRAINER" &&
+      trainerEarning[0].recipientId === trainerUser.id &&
+      Number(trainerEarning[0].amount) === 500
+  );
+  ok(
+    "and the trainer owes no service fee on a payment Bunal.club collected",
+    (await prisma.trainerServiceFeeEntry.count({
+      where: { trainerPaymentId: platformSession.payment!.id },
+    })) === 0
+  );
+  ok(
+    "an event scoped to a trainer's own gateway cannot reach a platform payment",
+    !(
+      await settlement.applyTrainerPaymentEvent(
+        { providerPaymentId: "pi_check_trainer_platform", gatewayId: "no-such-gateway" },
+        {
+          eventId: "evt_check_trainer_cross",
+          type: "payment.refunded",
+          providerPaymentId: "pi_check_trainer_platform",
+          reference: "pay_check_trainer",
+          failureCode: null,
+          failureMessage: null,
+          raw: {},
+        }
+      )
+    ).handled
+  );
+  const dashboardRefund = await settlement.applyTrainerPaymentEvent(platformScope, {
+    eventId: "evt_check_trainer_refunded",
+    type: "payment.refunded",
+    providerPaymentId: "pi_check_trainer_platform",
+    reference: "pay_check_trainer",
+    failureCode: null,
+    failureMessage: null,
+    amountCentavos: 52_500,
+    raw: {},
+  });
+  const trainerAfterRefund = await platformPayoutLines();
+  ok(
+    "a refund from PayMongo's dashboard takes the trainer's share back, and no more",
+    dashboardRefund.handled &&
+      (await prisma.trainerPayment.findUnique({ where: { id: platformSession.payment!.id } }))
+        ?.status === "REFUNDED" &&
+      trainerAfterRefund.length === 2 &&
+      Number(trainerAfterRefund[1].amount) === -500
   );
 
   await prisma.user.update({ where: { id: trainerUser.id }, data: { privateProfile: true } });

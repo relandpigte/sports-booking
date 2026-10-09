@@ -462,8 +462,9 @@ export function TrainerServiceFeeSettlements({
       <section className="mt-5">
         <h2 className="text-sm font-semibold text-navy">Trainer fee status</h2>
         <p className="mt-0.5 max-w-3xl text-xs text-gray-500">
-          Paid training sessions accrue a 3% Bunal.club fee less processing
-          absorbed by the platform before remittance.
+          Fees from sessions players paid trainers for directly, before
+          Bunal.club began collecting automatic payments. New sessions accrue
+          nothing here.
         </p>
         <dl className="mt-3 grid grid-cols-2 overflow-hidden rounded-xl border border-gray-200 bg-white lg:grid-cols-6">
           <div className="border-b border-r border-gray-200 px-4 py-3 lg:border-b-0">

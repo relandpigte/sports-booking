@@ -226,9 +226,8 @@ function AutomaticTrainerPayment({
           <form action={payAction} className="space-y-4">
             <input type="hidden" name="paymentId" value={payment.id} />
             <p className="rounded-xl border border-gray-200 px-4 py-3 text-sm leading-6 text-gray-600">
-              Pay by <span className="font-semibold text-gray-900">QR Ph</span>{" "}
-              through PayMongo. The exact-amount code appears here and confirms
-              automatically.
+              Pay by <span className="font-semibold text-gray-900">QR Ph</span>.
+              The exact-amount code appears here and confirms automatically.
             </p>
             {(payment.failureMessage || payState.message || payState.success) && (
               <Result
@@ -250,8 +249,8 @@ function AutomaticTrainerPayment({
                   : `Generate QR Ph code · ${formatPHP(payment.amount)}`}
             </button>
             <p className="text-center text-xs text-slate-400">
-              The trainer fee goes directly to the trainer&apos;s connected
-              PayMongo account.
+              Bunal.club collects this payment securely and pays the trainer
+              their full session rate.
             </p>
           </form>
         )}
@@ -378,8 +377,8 @@ function ManualTrainerPayment({
                 </div>
               )}
               <p className="border-t border-navy/10 pt-4 text-xs leading-5 text-slate-500">
-                The total includes Bunal.club&apos;s 3% non-refundable service
-                fee. No PayMongo processing fee is added.
+                Transfer the exact total shown. Payments made directly to the
+                trainer carry no Bunal.club fee.
               </p>
             </dl>
           </div>
@@ -448,7 +447,12 @@ function SessionSummary({
             label="Trainer session"
             amount={payment.trainerAmount}
           />
-          <SummaryLine label="Bunal fee (3%)" amount={payment.platformFee} />
+          {payment.platformFee > 0 && (
+            <SummaryLine
+              label="Service fee (non-refundable)"
+              amount={payment.platformFee}
+            />
+          )}
           {payment.processingFeeResponsibility === "PLAYER" &&
             payment.processingFee > 0 && (
             <SummaryLine

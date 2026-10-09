@@ -73,8 +73,8 @@ export default async function AdminPaymentsPage({
           Payment collection
         </h1>
         <p className="mt-1 text-sm text-gray-500">
-          Connect the Bunal.club PayMongo account used to collect partner
-          service-fee settlements.
+          Connect the Bunal.club PayMongo account that collects automatic
+          player payments for every venue and trainer.
         </p>
       </div>
 

@@ -4,7 +4,10 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import type { ManualPaymentNetwork, PartnerPaymentMode } from "@prisma/client";
 
 import { ReceiptUpload } from "@/components/partner/ReceiptUpload";
-import { GatewayPanel } from "@/components/partner/GatewayPanel";
+import {
+  PayoutAccountPanel,
+  type PayoutAccountPanelAccount,
+} from "@/components/payments/PayoutAccountPanel";
 import { Badge } from "@/components/ui/Badge";
 import {
   deleteManualPaymentMethodAction,
@@ -13,9 +16,10 @@ import {
   type ManualPaymentFormState,
 } from "@/lib/manual-payment-actions";
 import type { ManualPaymentMethodView } from "@/lib/manual-payments";
-import type { GatewayView } from "@/lib/partner-gateway";
+import { savePayoutAccountAction } from "@/lib/payout-actions";
 import {
-  SERVICE_FEE_PERCENT,
+  BOOKING_SERVICE_FEE,
+  EVENT_PAYMENT_FEE_PER_PLAYER,
 } from "@/lib/constants";
 
 const initialState: ManualPaymentFormState = {};
@@ -519,12 +523,15 @@ function Field({ label, name, defaultValue, placeholder, error }: { label: strin
 export function CheckoutModeSettings({
   mode,
   methods,
-  gateway,
+  payoutAccount,
+  canEditPayoutAccount,
   readOnly = false,
 }: {
   mode: PartnerPaymentMode;
   methods: ManualPaymentMethodView[];
-  gateway: GatewayView | null;
+  payoutAccount: PayoutAccountPanelAccount | null;
+  // Only the owner, or an admin assisting them, decides where money is sent.
+  canEditPayoutAccount: boolean;
   readOnly?: boolean;
 }) {
   const [selectedMode, setSelectedMode] = useState<PartnerPaymentMode>(mode);
@@ -537,12 +544,12 @@ export function CheckoutModeSettings({
             <h2 className="text-base font-semibold text-navy">Checkout configuration</h2>
             <p className="mt-1 text-sm text-slate-500">View-only payment access</p>
           </div>
-          <Badge tone="success">{mode === "MANUAL" ? "Manual" : "PayMongo"} active</Badge>
+          <Badge tone="success">{mode === "MANUAL" ? "Manual" : "Automatic QR Ph"} active</Badge>
         </div>
         <dl className="mt-4 grid gap-3 sm:grid-cols-2">
           <div className="rounded-xl bg-slate-50 p-3.5">
-            <dt className="text-xs font-bold uppercase tracking-wide text-slate-400">PayMongo</dt>
-            <dd className="mt-1 font-bold text-navy">{gateway?.connected ? "Connected" : "Not connected"}</dd>
+            <dt className="text-xs font-bold uppercase tracking-wide text-slate-400">Payout account</dt>
+            <dd className="mt-1 font-bold text-navy">{payoutAccount ? "On file" : "Not added"}</dd>
           </div>
           <div className="rounded-xl bg-slate-50 p-3.5">
             <dt className="text-xs font-bold uppercase tracking-wide text-slate-400">Manual destinations</dt>
@@ -616,8 +623,8 @@ export function CheckoutModeSettings({
         </div>
         <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500">
           {selectedMode === "AUTOMATIC"
-            ? `${SERVICE_FEE_PERCENT}% for court bookings and ₱5 per event player, with no additional processing fee. Successful payments confirm automatically.`
-            : "Players transfer only your advertised price and upload a receipt in 15 minutes. No Bunal or PayMongo fee applies."}
+            ? `Players pay by QR Ph and are confirmed automatically. They pay a ₱${BOOKING_SERVICE_FEE} service fee per court checkout, or ₱${EVENT_PAYMENT_FEE_PER_PLAYER} per event player, on top of your price. Bunal.club collects the payment and sends your full advertised amount every Monday and Thursday.`
+            : "Players transfer only your advertised price straight to your own account and upload a receipt in 15 minutes. No Bunal.club fee applies."}
         </p>
       </section>
 
@@ -628,7 +635,13 @@ export function CheckoutModeSettings({
         hidden={selectedMode !== "AUTOMATIC"}
         className="space-y-3"
       >
-        <GatewayPanel gateway={gateway} />
+        <PayoutAccountPanel
+          account={payoutAccount}
+          action={savePayoutAccountAction}
+          earner="venue"
+          readOnly={!canEditPayoutAccount}
+          readOnlyReason="Only the venue owner can change where payouts are sent."
+        />
         <ModeActivation mode="AUTOMATIC" activeMode={mode} />
       </div>
 

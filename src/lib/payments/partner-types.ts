@@ -48,10 +48,12 @@ export interface VenueGateway {
   // Cancels an unpaid provider request before local inventory is released.
   // A successful charge wins the race and is returned instead of cancelled.
   cancelCharge(providerPaymentId: string): Promise<CancelChargeResult>;
+  // `idempotencyKey` lets a retried refund request collapse into the first.
   refund(
     providerPaymentId: string,
     amount: Money,
-    reason?: string
+    reason?: string,
+    idempotencyKey?: string
   ): Promise<RefundResult>;
 
   // Verified against THIS partner's webhook secret. Raw body — byte-exact.
@@ -60,3 +62,10 @@ export interface VenueGateway {
     headers: Headers
   ): Promise<ProviderWebhookEvent | null>;
 }
+
+// The money operations alone, without the connect and webhook steps that only
+// make sense for an account a venue or trainer owns.
+export type PaymentRail = Pick<
+  VenueGateway,
+  "charge" | "getCharge" | "cancelCharge" | "refund"
+>;

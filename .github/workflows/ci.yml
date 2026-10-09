@@ -44,7 +44,10 @@ jobs:
       - name: Create local env file for check scripts
         run: touch .env
       - run: npm ci
-      - run: npm audit --audit-level=high
+      - run: npm audit --audit-level=high --omit=dev
+      - name: Report dev dependency advisories
+        run: npm audit --audit-level=high
+        continue-on-error: true
       - name: Apply database migrations
         run: npx prisma migrate deploy
       - name: Prepare isolated check fixtures

@@ -445,3 +445,41 @@ export function mockPaymentPaidEvent(
     },
   });
 }
+
+// A refund issued from PayMongo's own dashboard, as the webhook reports it.
+// Distinct event id from the `payment.paid` for the same intent: PayMongo
+// sends each as its own event, and the replay guard must treat them so.
+export function mockPaymentRefundedEvent(
+  intentId: string,
+  paymentId: string,
+  amount: number
+): string {
+  return JSON.stringify({
+    data: {
+      id: `evt_refunded_${intentId}`,
+      attributes: {
+        type: "payment.refunded",
+        data: {
+          id: paymentId,
+          type: "payment",
+          attributes: {
+            amount,
+            status: "refunded",
+            payment_intent_id: intentId,
+            source: { type: "qrph" },
+          },
+        },
+      },
+    },
+  });
+}
+
+// Every request made with one account's secret key. The mock does not tell
+// accounts apart, so this is how a check proves WHICH account was charged.
+export function requestsFor(
+  state: MockState,
+  secretKey: string
+): MockState["requests"] {
+  const auth = `Basic ${Buffer.from(`${secretKey}:`).toString("base64")}`;
+  return state.requests.filter((request) => request.auth === auth);
+}

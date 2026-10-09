@@ -76,12 +76,13 @@ export function PartnerOnboardingLayout({ children }: { children: ReactNode }) {
                 Players see current availability and reserve without the
                 back-and-forth messaging.
               </Benefit>
-              <Benefit icon="payment" title="Direct PayMongo payments">
-                Booking proceeds go through the payment account your venue
-                connects.
+              <Benefit icon="payment" title="Payouts twice a week">
+                Players pay by QR Ph and Bunal.club sends your full court rate
+                to your GCash, Maya, or bank account every Monday and Thursday.
+                No PayMongo account needed.
               </Benefit>
               <Benefit icon="chart" title="Operational clarity">
-                Manage hubs, bookings, court revenue, and service fees from one
+                Manage hubs, bookings, court revenue, and payouts from one
                 dashboard.
               </Benefit>
             </ul>

@@ -132,9 +132,10 @@ function check() {
     pricingReply.category === "pricing" &&
       pricingReply.text.includes("Creating and listing your venue") &&
       pricingReply.text.includes("no setup or subscription fee") &&
-      pricingReply.text.includes("3% fee") &&
+      pricingReply.text.includes("flat ₱25 fee per court booking") &&
       pricingReply.text.includes("₱5 payment fee per player") &&
-      pricingReply.text.includes("no additional processing fee")
+      pricingReply.text.includes("no additional processing fee") &&
+      pricingReply.text.includes("every Monday and Thursday")
   );
   const bookingManagementReply = facebookReplyForMessage(
     {

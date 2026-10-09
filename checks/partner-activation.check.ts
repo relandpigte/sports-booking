@@ -5,7 +5,13 @@ import crypto from "node:crypto";
 
 import { PrismaClient } from "@prisma/client";
 
-import { ok, run, stubRequestContext } from "./harness";
+import {
+  enablePlatformCollection,
+  ok,
+  run,
+  seedPayoutAccount,
+  stubRequestContext,
+} from "./harness";
 
 const prisma = new PrismaClient();
 const EMAIL = "check-pending-partner@example.test";
@@ -16,6 +22,9 @@ async function cleanup() {
 
 async function check() {
   await cleanup();
+  // Automatic checkout is collected by Bunal.club's account, so "bookable"
+  // depends on it being connected as well as on the venue's own setup.
+  enablePlatformCollection();
   const originalApiKey = process.env.RESEND_API_KEY;
   const originalEmailFrom = process.env.EMAIL_FROM;
   const originalFetch = globalThis.fetch;
@@ -122,7 +131,7 @@ async function check() {
     const comingSoonHub = await listedHub();
     ok("activated partner with a court is listed", Boolean(comingSoonHub));
     ok(
-      "hub without PayMongo is publicly coming soon",
+      "hub without a payout account is publicly coming soon",
       comingSoonHub?.comingSoon === true &&
         comingSoonHub.bookable === false &&
         comingSoonHub.verified === false
@@ -157,9 +166,21 @@ async function check() {
         webhookToken: crypto.randomBytes(18).toString("base64url"),
       },
     });
+    // The venue's own PayMongo keys used to be what verified it. They no
+    // longer are: automatic payments are collected by Bunal.club, and a venue
+    // with keys but nowhere to be paid out stays Coming soon.
+    const keysOnlyHub = await listedHub();
+    ok(
+      "a connected PayMongo account alone no longer verifies a hub",
+      keysOnlyHub?.comingSoon === true &&
+        keysOnlyHub.bookable === false &&
+        keysOnlyHub.verified === false
+    );
+
+    await seedPayoutAccount(prisma, partner.id);
     const verifiedHub = await listedHub();
     ok(
-      "connected hub becomes bookable and verified",
+      "a hub with a payout account becomes bookable and verified",
       verifiedHub?.bookable === true &&
         verifiedHub.comingSoon === false &&
         verifiedHub.verified === true

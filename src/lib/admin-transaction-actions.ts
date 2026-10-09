@@ -7,6 +7,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/admin";
 import { prisma } from "@/lib/db";
 import { isPartnerImpersonationActive } from "@/lib/impersonation";
+import { releaseUnbatchedPayoutEntries } from "@/lib/payouts";
 
 export type DeleteVenueTransactionState = {
   message?: string;
@@ -81,6 +82,16 @@ export async function deleteVenueTransactionAction(
           return {
             message:
               "Delete this registration's additional guest transactions first.",
+          };
+        }
+
+        const released = await releaseUnbatchedPayoutEntries(tx, {
+          bookingPaymentId: payment.id,
+        });
+        if (!released.ok) {
+          return {
+            message:
+              "This transaction is part of a venue payout and can no longer be deleted.",
           };
         }
 

@@ -5,7 +5,7 @@ import crypto from "node:crypto";
 
 import { PrismaClient } from "@prisma/client";
 
-import { ok, run, stubRequestContext } from "./harness";
+import { ok, run, seedPayoutAccount, stubRequestContext } from "./harness";
 import {
   calculateServiceFeeBalance,
   ensureServiceFeeCharge,
@@ -53,6 +53,9 @@ async function check() {
     },
     select: { id: true },
   });
+  // The venue is verified under today's model — a payout account on file —
+  // while the balance under test was accrued through its own PayMongo keys.
+  await seedPayoutAccount(prisma, partner.id);
   const gateway = await prisma.partnerGateway.create({
     data: {
       userId: partner.id,

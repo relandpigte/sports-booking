@@ -7,16 +7,11 @@ import type {
 } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
-import { keyMode } from "@/lib/payments/paymongo-core";
-
-function transactionEnvironmentForKey(
-  publicKey: string
-): TransactionEnvironment {
-  const mode = keyMode(publicKey);
-  if (mode === "test") return "TEST";
-  if (mode === "live") return "LIVE";
-  return "UNKNOWN";
-}
+import {
+  venueCheckoutReady,
+  venueReadinessSelect,
+} from "@/lib/payment-readiness";
+import { getPlatformCollectionStatus } from "@/lib/platform-gateway";
 
 export type ManualPaymentMethodView = {
   id: string;
@@ -32,59 +27,80 @@ export type ManualPaymentMethodView = {
 
 export type PartnerPaymentSetup = {
   mode: PartnerPaymentMode;
-  automaticReady: boolean;
+  // The partner has finished their side of automatic checkout: a payout
+  // account is on file.
+  payoutAccountReady: boolean;
   manualReady: boolean;
-  gateway: {
-    id: string;
-    provider: string;
-    environment?: TransactionEnvironment;
-  } | null;
+  // A NEW automatic payment can be taken right now — the payout account is on
+  // file AND Bunal.club's own PayMongo account is connected.
+  automaticReady: boolean;
+  // The key mode of the platform account, snapshotted onto each payment.
+  platformEnvironment: TransactionEnvironment;
 };
 
+// Whether the partner has completed the setup for the mode they selected.
+// This is what "Verified" means; it deliberately ignores the platform account
+// so a venue's own onboarding state never changes underneath it.
 export function isPartnerPaymentReady(setup: PartnerPaymentSetup): boolean {
   return setup.mode === "MANUAL"
     ? setup.manualReady
-    : setup.automaticReady;
+    : setup.payoutAccountReady;
 }
 
 export async function getPartnerPaymentSetup(
   partnerId: string
 ): Promise<PartnerPaymentSetup> {
-  const partner = await prisma.user.findUnique({
-    where: { id: partnerId },
-    select: {
-      partnerPaymentMode: true,
-      partnerGateway: {
-        select: {
-          id: true,
-          provider: true,
-          publicKey: true,
-          disconnectedAt: true,
-        },
-      },
-      manualPaymentMethods: {
-        where: { active: true },
-        take: 1,
-        select: { id: true },
-      },
-    },
-  });
-  const gateway =
-    partner?.partnerGateway && partner.partnerGateway.disconnectedAt == null
-      ? {
-          id: partner.partnerGateway.id,
-          provider: partner.partnerGateway.provider,
-          environment: transactionEnvironmentForKey(
-            partner.partnerGateway.publicKey
-          ),
-        }
-      : null;
-  return {
-    mode: partner?.partnerPaymentMode ?? "AUTOMATIC",
-    automaticReady: gateway != null,
-    manualReady: (partner?.manualPaymentMethods.length ?? 0) > 0,
-    gateway,
+  const [partner, platform] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: partnerId },
+      select: venueReadinessSelect,
+    }),
+    getPlatformCollectionStatus(),
+  ]);
+  const owner = {
+    partnerPaymentMode: partner?.partnerPaymentMode ?? "AUTOMATIC",
+    payoutAccount: partner?.payoutAccount ?? null,
+    manualPaymentMethods: partner?.manualPaymentMethods ?? [],
   };
+  return {
+    mode: owner.partnerPaymentMode,
+    payoutAccountReady: owner.payoutAccount != null,
+    manualReady: owner.manualPaymentMethods.length > 0,
+    automaticReady: venueCheckoutReady(
+      { ...owner, partnerPaymentMode: "AUTOMATIC" },
+      platform.ready
+    ),
+    platformEnvironment: platform.environment,
+  };
+}
+
+// The columns that say which rail a new court or event payment runs on. Every
+// creator spreads this one object, so the rail can never be half-set: a manual
+// transfer is collected directly by the venue, and an automatic payment is
+// collected by Bunal.club's account and owed back as a payout.
+export function checkoutRailColumns(
+  setup: Pick<PartnerPaymentSetup, "platformEnvironment">,
+  manualPayment: boolean
+) {
+  return manualPayment
+    ? ({
+        gatewayId: null,
+        collectedBy: "DIRECT",
+        processingFeeResponsibility: "PLAYER",
+        method: "MANUAL",
+        collectionMode: "MANUAL",
+        environment: "UNKNOWN",
+        provider: "manual",
+      } as const)
+    : ({
+        gatewayId: null,
+        collectedBy: "PLATFORM",
+        processingFeeResponsibility: "BUNAL",
+        method: "QRPH",
+        collectionMode: "AUTOMATIC",
+        environment: setup.platformEnvironment,
+        provider: "paymongo",
+      } as const);
 }
 
 export async function getPartnerManualPaymentSettings(partnerId: string) {

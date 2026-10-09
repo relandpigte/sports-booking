@@ -6,7 +6,10 @@ import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/lib/db";
 import { lockPlayerBookingHours } from "@/lib/booking-locks";
-import { getPartnerPaymentSetup } from "@/lib/manual-payments";
+import {
+  checkoutRailColumns,
+  getPartnerPaymentSetup,
+} from "@/lib/manual-payments";
 import { getViewer } from "@/lib/dal";
 import { firstErrors } from "@/lib/zod-errors";
 import {
@@ -398,7 +401,7 @@ export async function createBookingAction(
         const payment = await tx.bookingPayment.create({
           data: {
             partnerId: hub.ownerId,
-            gatewayId: manualPayment ? null : paymentSetup.gateway!.id,
+            ...checkoutRailColumns(paymentSetup, manualPayment),
             userId: viewer?.id ?? null,
             guestReservationId,
             hubId: hub.id,
@@ -408,17 +411,8 @@ export async function createBookingAction(
               manualPayment ? 0 : bookingServiceFeeFor(total)
             ),
             processingFee: new Prisma.Decimal(0),
-            processingFeeResponsibility: manualPayment ? "PLAYER" : "BUNAL",
-            method: manualPayment ? "MANUAL" : "QRPH",
-            collectionMode: manualPayment ? "MANUAL" : "AUTOMATIC",
-            environment: manualPayment
-              ? "UNKNOWN"
-              : (paymentSetup.gateway!.environment ?? "UNKNOWN"),
             status: "PENDING",
             expiresAt: holdExpiresAt!,
-            provider: manualPayment
-              ? "manual"
-              : paymentSetup.gateway!.provider,
           },
           select: { id: true },
         });

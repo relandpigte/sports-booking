@@ -14,8 +14,15 @@ import {
 } from "@/lib/constants";
 import { getViewer } from "@/lib/dal";
 import { prisma } from "@/lib/db";
+import {
+  venueReadinessSelect,
+  venueSetupReady,
+} from "@/lib/payment-readiness";
 import { getEventCourtAvailability } from "@/lib/events";
-import { getPartnerPaymentSetup } from "@/lib/manual-payments";
+import {
+  checkoutRailColumns,
+  getPartnerPaymentSetup,
+} from "@/lib/manual-payments";
 import {
   chargeBookingPayment,
   recoverPaidEventRegistration,
@@ -336,17 +343,7 @@ export async function saveEventAction(
       id: true,
       games: true,
       courts: { select: { id: true, sport: true } },
-      owner: {
-        select: {
-          partnerPaymentMode: true,
-          partnerGateway: { select: { disconnectedAt: true } },
-          manualPaymentMethods: {
-            where: { active: true },
-            take: 1,
-            select: { id: true },
-          },
-        },
-      },
+      owner: { select: venueReadinessSelect },
     },
   });
   if (!hub) return { errors: { hubId: "Hub not found." } };
@@ -476,9 +473,7 @@ export async function saveEventAction(
   if (
     willPublish &&
     values.registrationFee > 0 &&
-    (hub.owner.partnerPaymentMode === "MANUAL"
-      ? hub.owner.manualPaymentMethods.length === 0
-      : hub.owner.partnerGateway?.disconnectedAt !== null)
+    !venueSetupReady(hub.owner)
   ) {
     return {
       errors: {
@@ -934,7 +929,7 @@ export async function registerForEventAction(
     const payment = await tx.bookingPayment.create({
       data: {
         partnerId: event.hub.ownerId,
-        gatewayId: manualPayment ? null : paymentSetup!.gateway!.id,
+        ...checkoutRailColumns(paymentSetup!, manualPayment),
         userId: viewer.id,
         hubId: event.hubId,
         amount: new Prisma.Decimal(
@@ -947,17 +942,8 @@ export async function registerForEventAction(
           manualPayment ? 0 : eventPaymentFeeFor(requestedSpots)
         ),
         processingFee: new Prisma.Decimal(0),
-        processingFeeResponsibility: manualPayment ? "PLAYER" : "BUNAL",
-        method: manualPayment ? "MANUAL" : "QRPH",
-        collectionMode: manualPayment ? "MANUAL" : "AUTOMATIC",
-        environment: manualPayment
-          ? "UNKNOWN"
-          : (paymentSetup!.gateway!.environment ?? "UNKNOWN"),
         status: "PENDING",
         expiresAt: holdExpiresAt,
-        provider: manualPayment
-          ? "manual"
-          : paymentSetup!.gateway!.provider,
       },
       select: { id: true },
     });
@@ -1394,7 +1380,7 @@ export async function registerGuestForEventAction(
     const payment = await tx.bookingPayment.create({
       data: {
         partnerId: event.hub.ownerId,
-        gatewayId: manualPayment ? null : paymentSetup!.gateway!.id,
+        ...checkoutRailColumns(paymentSetup!, manualPayment),
         guestReservationId: ownerId,
         hubId: event.hubId,
         amount: new Prisma.Decimal(
@@ -1407,15 +1393,8 @@ export async function registerGuestForEventAction(
           manualPayment ? 0 : eventPaymentFeeFor(requestedSpots)
         ),
         processingFee: new Prisma.Decimal(0),
-        processingFeeResponsibility: manualPayment ? "PLAYER" : "BUNAL",
-        method: manualPayment ? "MANUAL" : "QRPH",
-        collectionMode: manualPayment ? "MANUAL" : "AUTOMATIC",
-        environment: manualPayment
-          ? "UNKNOWN"
-          : (paymentSetup!.gateway!.environment ?? "UNKNOWN"),
         status: "PENDING",
         expiresAt: holdExpiresAt,
-        provider: manualPayment ? "manual" : paymentSetup!.gateway!.provider,
       },
       select: { id: true },
     });
@@ -1728,7 +1707,7 @@ export async function addEventGuestSlotsAction(
     const payment = await tx.bookingPayment.create({
       data: {
         partnerId: event.hub.ownerId,
-        gatewayId: manualPayment ? null : paymentSetup!.gateway!.id,
+        ...checkoutRailColumns(paymentSetup!, manualPayment),
         userId: viewer.id,
         hubId: event.hubId,
         amount: new Prisma.Decimal(
@@ -1741,17 +1720,8 @@ export async function addEventGuestSlotsAction(
           manualPayment ? 0 : eventPaymentFeeFor(guests.names.length)
         ),
         processingFee: new Prisma.Decimal(0),
-        processingFeeResponsibility: manualPayment ? "PLAYER" : "BUNAL",
-        method: manualPayment ? "MANUAL" : "QRPH",
-        collectionMode: manualPayment ? "MANUAL" : "AUTOMATIC",
-        environment: manualPayment
-          ? "UNKNOWN"
-          : (paymentSetup!.gateway!.environment ?? "UNKNOWN"),
         status: "PENDING",
         expiresAt: holdExpiresAt,
-        provider: manualPayment
-          ? "manual"
-          : paymentSetup!.gateway!.provider,
       },
       select: { id: true },
     });

@@ -2,9 +2,9 @@
 
 Bunal.club is a Next.js 16 application for discovering sports venues, booking
 courts, joining events, hiring trainers, and running live open-play queues in
-the Philippines. Venue and trainer payments go directly to each provider
-through PayMongo or a reviewed manual-transfer flow; Bunal.club records its
-service fees in a separate settlement ledger.
+the Philippines. Automatic QR Ph payments are collected by Bunal.club through
+PayMongo and paid out to each venue and trainer every Monday and Thursday; a
+reviewed manual-transfer flow lets players pay a provider directly instead.
 
 ## Main capabilities
 
@@ -39,7 +39,7 @@ login throttling, and authenticator MFA.
 
 - Node.js 22
 - PostgreSQL 16 or a compatible hosted PostgreSQL service
-- PayMongo accounts for automatic payments
+- One PayMongo account, owned by Bunal.club, for automatic payments
 - Resend for transactional email
 - A Vercel project for the production deployment
 
@@ -95,8 +95,9 @@ npm run check:security
 ## Vercel deployment
 
 Production runs in Vercel's Singapore region. The hourly
-`/api/bookings/sweep` cron expires stale records, reconciles settlement
-checkouts, sends reminders, and performs security and open-play maintenance.
+`/api/bookings/sweep` cron expires stale records, reconciles payments and
+settlement checkouts, creates the Monday and Thursday payouts, sends
+reminders, and performs security and open-play maintenance.
 
 Configure all production secrets in Vercel and redeploy after changing them.
 Important deployment values include:
@@ -116,7 +117,7 @@ essential security or cron value is missing.
 ## Documentation
 
 - [Authentication and database setup](docs/auth-and-database.md)
-- [Payments and settlement flows](docs/payments.md)
+- [Payments, payouts, and fees](docs/payments.md)
 - [Security operations](docs/security-operations.md)
 - [Messages](docs/messages.md)
 - [Email templates](docs/email-templates.md)

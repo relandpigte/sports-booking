@@ -1,9 +1,23 @@
+export type TransactionalEmailDetail = { label: string; value: string };
+
+// An itemised statement. Amounts arrive already formatted so the HTML and
+// plain-text parts can never disagree about a figure.
+export type TransactionalEmailLineItems = {
+  heading: string;
+  rows: Array<{ title: string; detail?: string | null; amount: string }>;
+  totalLabel: string;
+  totalAmount: string;
+};
+
 export type TransactionalEmailOptions = {
   preheader: string;
   eyebrow: string;
   heading: string;
   recipientName?: string;
   paragraphs: string[];
+  // Optional label/value facts shown under the paragraphs.
+  details?: TransactionalEmailDetail[];
+  lineItems?: TransactionalEmailLineItems;
   actionLabel: string;
   actionUrl: string;
   note: string;
@@ -32,6 +46,8 @@ export function transactionalEmailText({
   subject,
   recipientName,
   paragraphs,
+  details,
+  lineItems,
   actionLabel,
   actionUrl,
   note,
@@ -40,6 +56,19 @@ export function transactionalEmailText({
     subject,
     recipientName ? `Hi ${recipientName},` : null,
     ...paragraphs,
+    details?.length
+      ? details.map((row) => `${row.label}: ${row.value}`).join("\n")
+      : null,
+    lineItems
+      ? [
+          lineItems.heading,
+          ...lineItems.rows.map(
+            (row) =>
+              `- ${row.title}${row.detail ? ` (${row.detail})` : ""}: ${row.amount}`
+          ),
+          `${lineItems.totalLabel}: ${lineItems.totalAmount}`,
+        ].join("\n")
+      : null,
     `${actionLabel}: ${actionUrl}`,
     note,
     "Bunal.club — Play · Compete · Connect",
@@ -64,6 +93,8 @@ export function transactionalEmailHtml({
   heading,
   recipientName,
   paragraphs,
+  details,
+  lineItems,
   actionLabel,
   actionUrl,
   note,
@@ -81,6 +112,26 @@ export function transactionalEmailHtml({
         `<p style="margin:14px 0 0;color:#52606d;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.65;">${escapeEmailHtml(paragraph)}</p>`
     )
     .join("");
+  const detailTable = details?.length
+    ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;margin-top:22px;border-collapse:collapse;border-top:1px solid #dfe7e2;">${details
+        .map(
+          (row) =>
+            `<tr><td valign="top" style="width:42%;padding:10px 12px 10px 0;border-bottom:1px solid #dfe7e2;color:#7a8591;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;">${escapeEmailHtml(row.label)}</td><td valign="top" style="padding:10px 0;border-bottom:1px solid #dfe7e2;color:#10243a;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;line-height:1.5;word-break:break-word;">${escapeEmailHtml(row.value)}</td></tr>`
+        )
+        .join("")}</table>`
+    : "";
+  const lineItemTable = lineItems
+    ? `<p style="margin:28px 0 0;color:#10243a;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:800;line-height:1.4;">${escapeEmailHtml(lineItems.heading)}</p><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;margin-top:8px;border-collapse:collapse;">${lineItems.rows
+        .map(
+          (row) =>
+            `<tr><td valign="top" style="padding:10px 12px 10px 0;border-bottom:1px solid #dfe7e2;font-family:Arial,Helvetica,sans-serif;"><span style="display:block;color:#14202c;font-size:14px;font-weight:700;line-height:1.45;">${escapeEmailHtml(row.title)}</span>${
+              row.detail
+                ? `<span style="display:block;margin-top:2px;color:#7a8591;font-size:12px;line-height:1.5;">${escapeEmailHtml(row.detail)}</span>`
+                : ""
+            }</td><td valign="top" align="right" style="padding:10px 0;border-bottom:1px solid #dfe7e2;color:#14202c;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;line-height:1.45;white-space:nowrap;">${escapeEmailHtml(row.amount)}</td></tr>`
+        )
+        .join("")}<tr><td valign="top" style="padding:12px 12px 0 0;color:#10243a;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:800;line-height:1.45;">${escapeEmailHtml(lineItems.totalLabel)}</td><td valign="top" align="right" style="padding:12px 0 0;color:#16803c;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:800;line-height:1.3;white-space:nowrap;">${escapeEmailHtml(lineItems.totalAmount)}</td></tr></table>`
+    : "";
 
   return `<!doctype html>
 <html lang="en">
@@ -124,6 +175,8 @@ export function transactionalEmailHtml({
                 <h1 style="margin:0;color:#10243a;font-family:Arial,Helvetica,sans-serif;font-size:28px;font-weight:800;letter-spacing:-0.5px;line-height:1.2;">${escapeEmailHtml(heading)}</h1>
                 ${greeting}
                 ${body}
+                ${detailTable}
+                ${lineItemTable}
                 <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-top:28px;border-collapse:separate;">
                   <tr>
                     <td align="center" bgcolor="#16803c" class="email-button-cell" style="border-radius:10px;background:#16803c;">

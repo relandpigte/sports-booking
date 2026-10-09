@@ -40,6 +40,12 @@ export async function deleteUserData(
     // cascading service-fee entries so venue reports no longer count it.
     await tx.booking.deleteMany({ where: { userId: target.id } });
     await tx.eventRegistration.deleteMany({ where: { userId: target.id } });
+    // A venue must not be paid out for a transaction that is being erased as
+    // test data. Lines already in a payout keep their history and simply lose
+    // the link to the deleted payment.
+    await tx.payoutEntry.deleteMany({
+      where: { bookingPayment: { userId: target.id }, payoutId: null },
+    });
     await tx.bookingPayment.deleteMany({ where: { userId: target.id } });
   }
 
@@ -134,6 +140,14 @@ export async function deleteUserData(
   await tx.platformGateway.updateMany({
     where: { connectedById: target.id },
     data: { connectedById: null },
+  });
+  await tx.payout.updateMany({
+    where: { paidById: target.id },
+    data: { paidById: null },
+  });
+  await tx.payoutAccount.updateMany({
+    where: { updatedById: target.id },
+    data: { updatedById: null },
   });
   await tx.courtBlock.updateMany({
     where: { createdById: target.id },

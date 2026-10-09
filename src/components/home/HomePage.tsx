@@ -6,7 +6,11 @@ import { FacebookAnnouncementBanner } from "@/components/FacebookAnnouncementBan
 import { Logo } from "@/components/Logo";
 import { SiteFooter } from "@/components/SiteFooter";
 import { PublicInstallBanner } from "@/components/pwa/PublicInstallBanner";
-import { BOOKING_HOLD_MINUTES } from "@/lib/constants";
+import {
+  BOOKING_HOLD_MINUTES,
+  BOOKING_SERVICE_FEE,
+  EVENT_PAYMENT_FEE_PER_PLAYER,
+} from "@/lib/constants";
 
 type IconName =
   | "calendar"
@@ -66,7 +70,7 @@ const FEATURES: {
     icon: "shield",
     title: "Flexible payments",
     description:
-      "Choose automatic PayMongo QR Ph or fee-free manual collection with receipt review.",
+      "Choose automatic QR Ph with payouts twice a week, or fee-free manual collection with receipt review.",
   },
   {
     icon: "message",
@@ -95,22 +99,32 @@ const FAQS = [
   {
     question: "Does Bunal.club charge partners a monthly fee?",
     answer:
-      "No. There are no plans, subscriptions, or monthly charges. Automatic PayMongo court bookings use a 3% service fee, while event registrations use a ₱5 payment fee per player. Manual venue payments are fee-free.",
+`No. There are no plans, subscriptions, or monthly charges, and venues never pay a fee. With automatic QR Ph checkout the player pays a flat ₱${BOOKING_SERVICE_FEE} service fee per court booking, or ₱${EVENT_PAYMENT_FEE_PER_PLAYER} per event player. Manual venue payments are fee-free.`,
   },
   {
     question: "How much is the booking service fee?",
     answer:
-      "Automatic PayMongo court checkout has one all-inclusive 3% service fee; event checkout has a flat ₱5 payment fee per player. Partner-reviewed manual payments have no Bunal payment fee.",
+`Automatic QR Ph court checkout adds one flat ₱${BOOKING_SERVICE_FEE} service fee per booking, however many courts or hours you reserve. Event checkout adds ₱${EVENT_PAYMENT_FEE_PER_PLAYER} per player. There is no separate processing fee, and partner-reviewed manual payments have no Bunal.club fee.`,
   },
   {
     question: "Where does the player's court payment go?",
     answer:
-      "Manual payments go directly to the venue's listed account with no added fee. Automatic booking proceeds go to the venue's connected PayMongo account, and the venue retains its advertised court rate.",
+      "Manual payments go directly to the venue's listed account with no added fee. Automatic QR Ph payments are collected securely by Bunal.club, which pays the venue its full advertised rate every Monday and Thursday.",
   },
   {
     question: "Which payment methods can players use?",
     answer:
-      "Venues can use automatic PayMongo QR Ph checkout or partner-reviewed manual GCash, Maya, bank-transfer, and custom payment networks.",
+      "Venues can use automatic QR Ph checkout or partner-reviewed manual GCash, Maya, bank-transfer, and custom payment networks.",
+  },
+  {
+    question: "Do venues need a PayMongo account?",
+    answer:
+      "No. Bunal.club handles QR Ph collection. A venue only adds the GCash, Maya, or bank account where it wants to receive its payouts.",
+  },
+  {
+    question: "When do venues get paid for automatic bookings?",
+    answer:
+      "Every Monday and Thursday. Each payout covers all payments received up to the end of the day before, sent to the venue's GCash, Maya, or bank account.",
   },
 ];
 
@@ -310,7 +324,7 @@ function BookingPreview() {
             <div className="text-right">
               <p className="text-xs text-slate-500">Automatic Bunal fee</p>
               <p className="mt-0.5 text-sm font-bold text-navy">
-                3% via PayMongo
+                ₱{BOOKING_SERVICE_FEE} per booking
               </p>
             </div>
           </div>
@@ -423,7 +437,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
               </h1>
               <p className="mt-6 max-w-xl text-base leading-7 text-white/70 sm:text-lg sm:leading-8">
                 Discover local hubs, choose live available hours, and complete
-                your booking through automatic QR Ph or the venue&apos;s listed
+                your booking with secure QR Ph or the venue&apos;s listed
                 manual payment account.
               </p>
 
@@ -448,7 +462,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                   "No monthly partner fee",
                   "0% Bunal fee on manual payments",
                   "Live availability",
-                  "Secure PayMongo QR Ph",
+                  "Secure QR Ph checkout",
                 ].map((item) => (
                   <span key={item} className="inline-flex items-center gap-1.5">
                     <Icon name="check" className="h-4 w-4 text-accent" />
@@ -531,12 +545,12 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                 </p>
                 <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between lg:gap-12">
                   <h2 className="max-w-2xl text-3xl font-black tracking-[-0.04em] text-navy sm:text-4xl lg:text-5xl">
-                    Book your court. Pay the venue directly.
+                    Book your court. Pay in seconds.
                   </h2>
                   <p className="max-w-xl text-base leading-7 text-slate-600 sm:text-lg">
-                    Bunal.club keeps discovery, live availability, payment
-                    verification, and confirmation together without holding
-                    the venue&apos;s court revenue.
+                    Bunal.club keeps discovery, live availability, payment,
+                    and confirmation together, then pays venues their full
+                    court rate twice a week.
                   </p>
                 </div>
               </div>
@@ -569,8 +583,8 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                       },
                       {
                         number: "3",
-                        title: "Pay the venue directly",
-                        copy: "Pay the venue owner’s connected PayMongo account or listed manual payment account. Your booking is confirmed after verification.",
+                        title: "Pay and get confirmed",
+                        copy: "Scan a secure QR Ph code and your booking confirms automatically, or transfer to the venue’s listed account and upload your receipt.",
                         icon: "check" as const,
                         iconClassName: "bg-accent-soft text-primary",
                         numberClassName: "bg-primary ring-primary/20",
@@ -618,20 +632,21 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                   <div className="grid gap-7 px-6 py-7 sm:px-8 sm:py-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center lg:px-10">
                     <div>
                       <span className="inline-flex rounded-full bg-accent px-3 py-1.5 text-xs font-black text-navy">
-                        Direct to venue
+                        Venues paid in full
                       </span>
                       <h3 className="mt-4 text-xl font-black tracking-[-0.02em] text-white sm:text-2xl">
-                        Your court payment goes to the venue owner.
+                        The venue receives its full advertised rate.
                       </h3>
                       <p className="mt-2 max-w-2xl text-sm leading-6 text-white/70">
-                        Bunal.club does not hold the venue&apos;s court revenue.
-                        Automatic PayMongo checkout shows our separate 3% fee;
-                        manual venue payments have no Bunal fee.
+                        Bunal.club collects automatic QR Ph payments and pays
+                        each venue every Monday and Thursday. Our flat ₱
+                        {BOOKING_SERVICE_FEE} booking fee is shown separately at
+                        checkout; manual venue payments have no Bunal fee.
                       </p>
                     </div>
 
                     <div
-                      aria-label="Payment moves from the player to the venue owner"
+                      aria-label="The player pays, and the venue is paid its full rate"
                       className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-4"
                     >
                       <div className="text-center">
@@ -698,9 +713,9 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
               <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-slate-600 sm:text-lg">
                 Each venue chooses how it collects payments. Manual checkout
                 charges only the advertised venue or event amount, with no
-                Bunal.club or PayMongo fee. Automatic PayMongo QR Ph adds the
-                displayed service and processing fees, then confirms payment
-                automatically.
+                Bunal.club fee. Automatic QR Ph adds one flat ₱
+                {BOOKING_SERVICE_FEE} service fee per court booking, then
+                confirms payment automatically.
               </p>
             </div>
 
@@ -724,7 +739,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                 {
                   icon: "shield" as const,
                   label: "Secure dynamic QR",
-                  copy: "PayMongo generates the single-use QR; payment details never pass through Bunal.club.",
+                  copy: "Each checkout gets a single-use QR Ph code processed by PayMongo; your bank details never pass through Bunal.club.",
                 },
               ].map((item) => (
                 <article
@@ -752,7 +767,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                       Automatic payment
                     </p>
                     <h3 className="mt-2 text-2xl font-black text-navy">
-                      PayMongo checkout uses QR Ph.
+                      Automatic checkout uses QR Ph.
                     </h3>
                   </div>
                   <p className="max-w-xs text-sm leading-6 text-slate-500">
@@ -843,8 +858,9 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                   </h3>
                   <p className="mt-4 text-sm leading-6 text-white/65 sm:text-base sm:leading-7">
                     Manual payments go to your listed account with no Bunal.club
-                    fee. Automatic booking proceeds go to your connected
-                    PayMongo account with the service fee shown separately.
+                    fee. Automatic QR Ph payments are collected for you and
+                    sent to your GCash, Maya, or bank account every Monday and
+                    Thursday. No PayMongo account needed.
                   </p>
                 </div>
 
@@ -853,17 +869,17 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                     {
                       number: "01",
                       title: "Choose a mode",
-                      copy: "Use manual collection or automatic PayMongo QR Ph.",
+                      copy: "Use manual collection or automatic QR Ph.",
                     },
                     {
                       number: "02",
                       title: "Player pays",
-                      copy: "Manual checkout charges the advertised amount only.",
+                      copy: "Your advertised rate, plus a small player-paid fee on QR Ph.",
                     },
                     {
                       number: "03",
-                      title: "You confirm",
-                      copy: "Review manual proof or let PayMongo verify automatically.",
+                      title: "You get paid",
+                      copy: "Review manual proof yourself, or receive QR Ph payouts twice a week.",
                     },
                   ].map((step) => (
                     <li
@@ -893,8 +909,9 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
               </p>
               <p className="inline-flex items-center gap-2">
                 <Icon name="card" className="h-4 w-4 text-primary" />
-                Automatic checkout has one all-inclusive 3% Bunal.club fee
-                with no additional processing fee.
+                Automatic checkout has one flat ₱{BOOKING_SERVICE_FEE}{" "}
+                Bunal.club fee per court booking, with no additional
+                processing fee.
               </p>
             </div>
           </div>
@@ -959,7 +976,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                   {
                     icon: "shield" as const,
                     title: "Owner-only protection",
-                    copy: "Team administration, whole-hub creation or deletion, and settlements remain with the owner.",
+                    copy: "Team administration, whole-hub creation or deletion, and the payout account remain with the owner.",
                   },
                 ].map((item) => (
                   <li key={item.title} className="flex items-start gap-3">
@@ -1101,7 +1118,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
               <SectionHeading
                 eyebrow="For venue partners"
                 title="Your courts. Your payment mode. Your revenue."
-                description="Collect through fee-free manual accounts or automatic PayMongo QR Ph while keeping your advertised venue and event rates."
+                description="Collect through fee-free manual accounts or automatic QR Ph while keeping your full advertised venue and event rates."
               />
 
               <div className="mt-8 grid gap-3 sm:grid-cols-2">
@@ -1109,7 +1126,8 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                   "No plan or subscription",
                   "No monthly platform charge",
                   "0% Bunal fee on manual payments",
-                  "Publish a Coming soon hub before PayMongo",
+                  "No PayMongo account needed",
+                  "Payouts every Monday and Thursday",
                   "Reports and booking breakdown",
                 ].map((item) => (
                   <div
@@ -1147,9 +1165,10 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                   Keep your advertised venue and event rate.
                 </h3>
                 <p className="mt-3 text-sm leading-6 text-slate-600">
-                  Manual payments have no Bunal.club or PayMongo fee. Automatic
-                  court payments use a 3% fee, while event registrations use a
-                  ₱5 payment fee per player, shown clearly at checkout.
+                  Venues never pay Bunal.club a fee. With automatic QR Ph the
+                  player pays a flat ₱{BOOKING_SERVICE_FEE} per court booking,
+                  or ₱{EVENT_PAYMENT_FEE_PER_PLAYER} per event player, shown
+                  clearly at checkout.
                 </p>
               </div>
 
@@ -1160,19 +1179,22 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                   </p>
                   <p className="mt-3 text-4xl font-black text-primary">0%</p>
                   <p className="mt-1 text-xs leading-5 text-slate-600">
-                    No Bunal.club or PayMongo fee. The player pays the
-                    advertised amount directly to your listed account.
+                    No Bunal.club fee. The player pays the advertised amount
+                    directly to your listed account.
                   </p>
                 </div>
 
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
                   <p className="text-xs font-bold uppercase tracking-[0.16em] text-ocean">
-                    Automatic PayMongo
+                    Automatic QR Ph
                   </p>
-                  <p className="mt-3 text-4xl font-black text-navy">3% / ₱5</p>
+                  <p className="mt-3 text-4xl font-black text-navy">
+                    ₱{BOOKING_SERVICE_FEE} / ₱{EVENT_PAYMENT_FEE_PER_PLAYER}
+                  </p>
                   <p className="mt-1 text-xs leading-5 text-slate-500">
-                    A 3% court-booking fee or ₱5 per paid event player.
-                    PayMongo QR Ph processing is included.
+                    Paid by the player: ₱{BOOKING_SERVICE_FEE} per court
+                    booking, or ₱{EVENT_PAYMENT_FEE_PER_PLAYER} per paid event
+                    player. Payment processing is included.
                   </p>
                   <p className="mt-4 rounded-xl bg-white px-3 py-2.5 text-xs font-bold leading-5 text-primary">
                     Players see the complete total before opening QR Ph.
@@ -1180,8 +1202,9 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                 </div>
 
                 <p className="text-[11px] leading-5 text-slate-400 sm:col-span-2">
-                  Bunal.club absorbs automatic checkout processing from its
-                  service fee. Venues keep their complete advertised rate.
+                  Bunal.club collects automatic payments, absorbs the
+                  processing cost, and pays you your complete advertised rate
+                  every Monday and Thursday.
                 </p>
               </div>
 
@@ -1203,7 +1226,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                 {
                   eyebrow: "Players",
                   title: "Book with confidence",
-                  copy: "Browse hubs, see live hours, choose the venue's payment mode, and manage upcoming games.",
+                  copy: "Browse hubs, see live hours, pay by QR Ph or the venue's listed account, and manage upcoming games.",
                   href: "/register",
                   cta: "Create player account",
                   icon: "users" as const,
@@ -1211,7 +1234,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                 {
                   eyebrow: "Partners",
                   title: "Run your venue clearly",
-                  copy: "Manage courts, bookings, fee-free manual payments, optional PayMongo, and reports.",
+                  copy: "Manage courts, bookings, twice-weekly QR Ph payouts, fee-free manual payments, and reports.",
                   href: "/register/partner",
                   cta: "Apply as partner",
                   icon: "court" as const,

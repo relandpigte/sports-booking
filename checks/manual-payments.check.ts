@@ -29,9 +29,10 @@ async function check() {
     values: Partial<PartnerPaymentSetup>
   ): PartnerPaymentSetup => ({
     mode: "AUTOMATIC",
+    payoutAccountReady: false,
     automaticReady: false,
     manualReady: false,
-    gateway: null,
+    platformEnvironment: "TEST",
     ...values,
   });
   ok(
@@ -43,20 +44,15 @@ async function check() {
     !isPartnerPaymentReady(
       setup({
         mode: "MANUAL",
+        payoutAccountReady: true,
         automaticReady: true,
         manualReady: false,
-        gateway: { id: "gateway", provider: "paymongo" },
       })
     )
   );
   ok(
-    "automatic checkout is ready with a connected gateway",
-    isPartnerPaymentReady(
-      setup({
-        automaticReady: true,
-        gateway: { id: "gateway", provider: "paymongo" },
-      })
-    )
+    "automatic checkout is set up once a payout account is on file",
+    isPartnerPaymentReady(setup({ payoutAccountReady: true }))
   );
   ok(
     "automatic checkout ignores an inactive manual configuration",

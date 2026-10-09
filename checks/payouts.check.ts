@@ -11,6 +11,7 @@
 // recipient, so running one in the future would sweep up real balances. A run
 // in January 2001 can only ever see this check's own lines.
 import { PrismaClient } from "@prisma/client";
+import sharp from "sharp";
 
 import { ok, run, stubRequestContext } from "./harness";
 
@@ -68,6 +69,7 @@ async function check() {
     getPayoutDetail,
     getPayoutStatement,
     latestPayoutCutoff,
+    listAdminPayouts,
     nextPayoutCutoff,
     releaseUnbatchedPayoutEntries,
   } = await import("@/lib/payouts");
@@ -608,6 +610,91 @@ async function check() {
     repointed
       .filter((payout) => payout.status === "PAID")
       .every((payout) => payout.accountNumber === "09171234567")
+  );
+
+  // --- 8. The payout QR code -----------------------------------------------
+  const bankAccount = {
+    network: "BANK_TRANSFER",
+    bankName: "BDO",
+    accountName: "Payout Check Venue Inc",
+    accountNumber: "001234567890",
+  };
+  const storedQr = async () =>
+    (await prisma.payoutAccount.findUnique({
+      where: { userId: partner.id },
+      select: { qrImage: true },
+    }))!.qrImage;
+  const adminQr = async () =>
+    (await listAdminPayouts("VENUE")).pending.find(
+      (payout) => payout.recipientId === partner.id
+    )?.qrImage;
+
+  const badQr = await savePayoutAccountAction(
+    {},
+    accountForm({
+      ...bankAccount,
+      qrImage: "data:image/png;base64,bm90IGFuIGltYWdl",
+    })
+  );
+  ok(
+    "a file that is not an image is refused as a QR",
+    Boolean(badQr.errors?.qrImage) && (await storedQr()) === null
+  );
+
+  const uploadedQr = `data:image/png;base64,${(
+    await sharp({
+      create: { width: 320, height: 320, channels: 3, background: "#ffffff" },
+    })
+      .png()
+      .toBuffer()
+  ).toString("base64")}`;
+  const withQr = await savePayoutAccountAction(
+    {},
+    accountForm({ ...bankAccount, qrImage: uploadedQr })
+  );
+  const qrOnFile = await storedQr();
+  ok(
+    "a QR is re-encoded on the server before it is stored",
+    Boolean(withQr.success) &&
+      qrOnFile != null &&
+      qrOnFile.startsWith("data:image/webp;base64,")
+  );
+  ok(
+    "the admin sees the QR on a payout that has not been sent yet",
+    (await adminQr()) === qrOnFile
+  );
+
+  const resubmitted = await savePayoutAccountAction(
+    {},
+    accountForm({ ...bankAccount, qrImage: qrOnFile! })
+  );
+  ok(
+    "saving again without touching the QR keeps it byte for byte",
+    Boolean(resubmitted.success) && (await storedQr()) === qrOnFile
+  );
+
+  // The account and its pending payout can only disagree if something writes
+  // one without the other. Scanning the QR would then pay a different
+  // destination from the one printed beside it.
+  await prisma.payoutAccount.update({
+    where: { userId: partner.id },
+    data: { accountNumber: "009999999999" },
+  });
+  ok(
+    "a QR for a different account than the payout's is withheld",
+    (await adminQr()) === null
+  );
+  await prisma.payoutAccount.update({
+    where: { userId: partner.id },
+    data: { accountNumber: bankAccount.accountNumber },
+  });
+
+  const withoutQr = await savePayoutAccountAction({}, accountForm(bankAccount));
+  ok(
+    "removing the QR clears it for the admin too",
+    Boolean(withoutQr.success) &&
+      (await storedQr()) === null &&
+      (await adminQr()) === null
   );
 
   await cleanup();

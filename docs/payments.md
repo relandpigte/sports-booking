@@ -146,6 +146,15 @@ may change it — staff cannot, whatever their payment permission. Saving it
 requires recent MFA, is rate-limited, re-points any payout that has not been
 sent yet, and emails the owner when an existing account is changed.
 
+The owner may also upload the account's receive **QR code**. It is optional,
+re-encoded on the server like every other uploaded image, and stored on the
+`PayoutAccount` only — it is not snapshotted onto `Payout`. The admin payouts
+page shows it, collapsed, on payouts that have not been sent, and only while
+the account still matches the payout's network and number. The admin pays
+whatever the QR encodes, so adding or replacing one counts as an account change
+and emails the owner; the page reminds the admin to check the name their app
+shows against the account name before sending.
+
 ## Manual player payments
 
 Partners configure any number of active GCash, Maya, bank-transfer, or custom

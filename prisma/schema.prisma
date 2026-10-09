@@ -1079,6 +1079,10 @@ model PayoutAccount {
   bankName      String?
   accountName   String
   accountNumber String
+  // Optional receive QR for the account above, so the admin can scan instead
+  // of typing the number. Not snapshotted onto Payout: a pending payout
+  // always follows this account, and a sent one no longer needs it.
+  qrImage       String?       @db.Text
   // The owner or the admin assisting them. Scalar by design; permanent admin
   // deletion anonymizes this attribution.
   updatedById   String?

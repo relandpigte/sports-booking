@@ -4,6 +4,7 @@ import type { PayoutNetwork, PayoutRecipientKind } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
 import { requireAdmin } from "@/lib/admin";
+import { sanitizeImageDataUrl } from "@/lib/avatar";
 import { getAuthenticatedUser, getViewer, requireRecentMfa } from "@/lib/dal";
 import { prisma } from "@/lib/db";
 import { emailDeliveryConfigured, sendPayoutEmail } from "@/lib/email";
@@ -188,6 +189,32 @@ async function savePayoutAccount(input: {
   const parsed = PayoutAccountSchema.safeParse(values);
   if (!parsed.success) return { errors: firstErrors(parsed.error), values };
 
+  // The form posts the stored QR straight back when it was not touched. Keep
+  // that one byte for byte rather than re-encoding it, so an unrelated edit
+  // is never mistaken for a new QR.
+  const rawQrImage = String(input.formData.get("qrImage") ?? "")
+    .trim()
+    .slice(0, 1_200_000);
+  let qrImage: string | null = null;
+  if (rawQrImage) {
+    const stored = await prisma.payoutAccount.findUnique({
+      where: { userId: input.userId },
+      select: { qrImage: true },
+    });
+    qrImage =
+      stored?.qrImage === rawQrImage
+        ? rawQrImage
+        : await sanitizeImageDataUrl(rawQrImage, "qr");
+    if (!qrImage) {
+      return {
+        errors: {
+          qrImage: "Upload a valid JPG, PNG, or WebP QR image under 800KB.",
+        },
+        values,
+      };
+    }
+  }
+
   // Changing where money goes is the highest-value edit on the account, so it
   // is throttled per recipient regardless of who is making it.
   if (
@@ -222,12 +249,18 @@ async function savePayoutAccount(input: {
         bankName: true,
         accountName: true,
         accountNumber: true,
+        qrImage: true,
       },
     });
     await tx.payoutAccount.upsert({
       where: { userId: input.userId },
-      create: { userId: input.userId, updatedById: input.actorId, ...destination },
-      update: { updatedById: input.actorId, ...destination },
+      create: {
+        userId: input.userId,
+        updatedById: input.actorId,
+        ...destination,
+        qrImage,
+      },
+      update: { updatedById: input.actorId, ...destination, qrImage },
     });
     await tx.payout.updateMany({
       where: {
@@ -247,7 +280,10 @@ async function savePayoutAccount(input: {
         (previous.network !== destination.network ||
           previous.bankName !== destination.bankName ||
           previous.accountName !== destination.accountName ||
-          previous.accountNumber !== destination.accountNumber),
+          previous.accountNumber !== destination.accountNumber ||
+          // The admin pays whatever the QR encodes, so a new or replaced QR
+          // redirects money just as a new number does. Removing one cannot.
+          (qrImage != null && previous.qrImage !== qrImage)),
       user: owner,
     };
   });

@@ -352,6 +352,7 @@ export type PayoutAccountView = {
   bankName: string | null;
   accountName: string;
   accountNumber: string;
+  qrImage: string | null;
   updatedAt: Date;
 };
 
@@ -365,6 +366,7 @@ export async function getPayoutAccount(
       bankName: true,
       accountName: true,
       accountNumber: true,
+      qrImage: true,
       updatedAt: true,
     },
   });
@@ -507,12 +509,50 @@ function toAdminPayoutView(
   };
 }
 
+// A payout the admin still has to send also carries the recipient's QR, read
+// from their payout account rather than snapshotted. Saving the account
+// re-points every pending payout in the same transaction, so the two agree;
+// the QR is withheld if they ever do not, because scanning it would send the
+// money somewhere other than the destination shown beside it.
+export type AdminPendingPayoutView = AdminPayoutView & {
+  qrImage: string | null;
+};
+
+const adminPendingPayoutSelect = {
+  ...payoutViewSelect,
+  recipientId: true,
+  recipient: {
+    select: {
+      name: true,
+      email: true,
+      payoutAccount: {
+        select: { network: true, accountNumber: true, qrImage: true },
+      },
+    },
+  },
+} as const;
+
+function toAdminPendingPayoutView(
+  row: Prisma.PayoutGetPayload<{ select: typeof adminPendingPayoutSelect }>
+): AdminPendingPayoutView {
+  const account = row.recipient.payoutAccount;
+  return {
+    ...toAdminPayoutView(row),
+    qrImage:
+      account != null &&
+      account.network === row.network &&
+      account.accountNumber === row.accountNumber
+        ? account.qrImage
+        : null,
+  };
+}
+
 export async function listAdminPayouts(recipientKind: PayoutRecipientKind) {
   const [pending, paid] = await Promise.all([
     prisma.payout.findMany({
       where: { recipientKind, status: "PENDING" },
       orderBy: [{ cutoffAt: "asc" }, { createdAt: "asc" }],
-      select: adminPayoutSelect,
+      select: adminPendingPayoutSelect,
     }),
     prisma.payout.findMany({
       where: { recipientKind, status: "PAID" },
@@ -522,7 +562,7 @@ export async function listAdminPayouts(recipientKind: PayoutRecipientKind) {
     }),
   ]);
   return {
-    pending: pending.map(toAdminPayoutView),
+    pending: pending.map(toAdminPendingPayoutView),
     paid: paid.map(toAdminPayoutView),
   };
 }

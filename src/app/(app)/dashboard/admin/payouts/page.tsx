@@ -14,6 +14,7 @@ import {
   listAdminUpcomingPayouts,
   nextPayoutCutoff,
   type AdminPayoutView,
+  type AdminPendingPayoutView,
 } from "@/lib/payouts";
 
 export const metadata: Metadata = {
@@ -64,6 +65,33 @@ function Destination({ payout }: { payout: AdminPayoutView }) {
         </dd>
       </div>
     </dl>
+  );
+}
+
+// Closed by default so that only the payout being sent has a scannable code
+// on screen; a phone camera takes whichever QR it sees first.
+function DestinationQr({ payout }: { payout: AdminPendingPayoutView }) {
+  if (!payout.qrImage) return null;
+  return (
+    <details className="mt-3 border-t border-gray-200 pt-3">
+      <summary className="cursor-pointer text-sm font-semibold text-primary">
+        Show QR code
+      </summary>
+      <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-start">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={payout.qrImage}
+          alt={`Payout QR code for ${payout.recipientName}`}
+          className="max-h-[36rem] w-auto max-w-full shrink-0 rounded-lg border border-gray-200 bg-white object-contain p-2 sm:max-w-sm"
+        />
+        <p className="max-w-sm text-xs leading-5 text-gray-500">
+          Uploaded by the recipient. After scanning, check that your app shows{" "}
+          <span className="font-semibold text-navy">{payout.accountName}</span>{" "}
+          before you send. If the name is different, use the account number
+          above instead.
+        </p>
+      </div>
+    </details>
   );
 }
 
@@ -198,6 +226,7 @@ export default async function AdminPayoutsPage({
                 </div>
                 <div className="mt-4 rounded-xl bg-gray-50 p-3.5">
                   <Destination payout={payout} />
+                  <DestinationQr payout={payout} />
                 </div>
                 <div className="mt-4">
                   <MarkPayoutPaidForm

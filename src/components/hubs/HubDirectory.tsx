@@ -476,14 +476,14 @@ function EmptyDirectoryState() {
               Put your courts where players can find them.
             </h3>
             <p className="mt-4 text-sm leading-6 text-white/65">
-              Set up your venue, receive bookings online, and have player
-              payments sent to your connected PayMongo account.
+              Set up your venue, receive bookings online, and get paid to your
+              GCash, Maya, or bank account every Monday and Thursday.
             </p>
 
             <ol className="mt-8 space-y-5">
               <PartnerStep
                 number="1"
-                text="Choose PayMongo or manual transfers"
+                text="Choose automatic QR Ph or manual transfers"
               />
               <PartnerStep number="2" text="Add your hub, courts, and rates" />
               <PartnerStep
@@ -499,9 +499,9 @@ function EmptyDirectoryState() {
               List your venue
             </Link>
             <p className="mt-4 text-xs text-white/45">
-              No monthly subscription. Automatic PayMongo court bookings carry
-              a 3% fee and event registrations carry a ₱5 fee per player;
-              manual venue payments are fee-free.
+              No monthly subscription and no PayMongo account needed. With
+              automatic QR Ph, players pay a flat ₱25 per court booking or ₱5
+              per event player; manual venue payments are fee-free.
             </p>
           </div>
         </aside>

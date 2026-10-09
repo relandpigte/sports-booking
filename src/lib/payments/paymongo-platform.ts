@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  loadPlatformCredentialsForExistingPayment,
   loadPlatformGatewayCredentials,
   platformGatewayConfigured,
 } from "@/lib/platform-gateway";
@@ -15,6 +16,7 @@ import {
   parsePaymongoEvent,
   verifyPaymongoSignature,
 } from "./paymongo-core";
+import { mapPaymongoPaymentEvent } from "./paymongo-venue";
 
 export const platformPaymongoConfigured = platformGatewayConfigured;
 
@@ -66,7 +68,7 @@ async function createPlatformServiceFeeCheckout(
     // partner and trainer service-fee settlements.
     paymentMethodTypes: ["qrph"],
     // Partners and trainers pay exactly the displayed balance. Bunal.club
-    // absorbs this collection fee as part of the all-inclusive 3% policy.
+    // absorbs this collection fee.
     passOnFees: false,
     idempotencyKey:
       input.accountType === "partner"
@@ -124,28 +126,91 @@ export async function getServiceFeeCheckout(providerPaymentId: string) {
   return getCheckoutSession(secretKey, providerPaymentId);
 }
 
-export async function verifyPlatformPaymongoWebhook(
+// What a delivery to Bunal.club's own PayMongo webhook turned out to be.
+//
+// The one account now receives two unrelated kinds of money: hosted-checkout
+// service-fee settlements from partners and trainers, and direct QR Ph
+// payments from players. They are told apart by the resource the event
+// names — a checkout session or a payment intent — never by guessing.
+export type PlatformWebhookDelivery =
+  // Unsigned, mis-signed, or unparseable. The only case answered with 400.
+  | { kind: "invalid" }
+  // Correctly signed but nothing this app acts on. Answered with 200 so
+  // PayMongo does not retry a delivery that can never be processed.
+  | { kind: "ignored" }
+  | { kind: "settlement"; event: ProviderWebhookEvent }
+  | { kind: "payment"; event: ProviderWebhookEvent };
+
+export async function readPlatformPaymongoWebhook(
   rawBody: string,
   headers: Headers
-): Promise<ProviderWebhookEvent | null> {
+): Promise<PlatformWebhookDelivery> {
   let webhookSecret: string | null;
+  let connected: boolean;
   try {
-    ({ webhookSecret } = await loadPlatformGatewayCredentials());
+    // A player payment taken before the account was disconnected must still
+    // settle, so verification does not require a live connection.
+    ({ webhookSecret, connected } =
+      await loadPlatformCredentialsForExistingPayment());
   } catch {
-    return null;
+    return { kind: "invalid" };
   }
-  if (!webhookSecret) return null;
+  // No secret means no verification is possible. Never fall through to an
+  // HMAC with an empty key.
+  if (!webhookSecret) return { kind: "invalid" };
   const valid = verifyPaymongoSignature(
     webhookSecret,
     rawBody,
     headers.get("paymongo-signature"),
     Math.floor(Date.now() / 1000)
   );
-  if (!valid) return null;
+  if (!valid) return { kind: "invalid" };
 
-  const event = parsePaymongoEvent(rawBody);
-  if (!event) return null;
+  const parsed = parsePaymongoEvent(rawBody);
+  if (!parsed) return { kind: "invalid" };
 
+  const attributes = parsed.attributes as {
+    checkout_session_id?: string;
+    payment_intent_id?: string;
+  };
+  const settlementEvent =
+    parsed.type === "checkout_session.payment.paid" ||
+    (parsed.type === "payment.failed" && Boolean(attributes.checkout_session_id));
+
+  if (settlementEvent) {
+    // Settlement collection stops with the connection, as it always has.
+    if (!connected) return { kind: "invalid" };
+    const event = mapPlatformSettlementEvent(parsed, rawBody);
+    return event ? { kind: "settlement", event } : { kind: "ignored" };
+  }
+
+  if (
+    attributes.payment_intent_id &&
+    (parsed.type === "payment.paid" ||
+      parsed.type === "payment.failed" ||
+      parsed.type === "payment.refunded")
+  ) {
+    const event = mapPaymongoPaymentEvent(parsed, rawBody);
+    return event ? { kind: "payment", event } : { kind: "ignored" };
+  }
+
+  return { kind: "ignored" };
+}
+
+// The service-fee settlement view of a platform delivery. Kept for callers
+// that only handle settlements.
+export async function verifyPlatformPaymongoWebhook(
+  rawBody: string,
+  headers: Headers
+): Promise<ProviderWebhookEvent | null> {
+  const delivery = await readPlatformPaymongoWebhook(rawBody, headers);
+  return delivery.kind === "settlement" ? delivery.event : null;
+}
+
+function mapPlatformSettlementEvent(
+  event: NonNullable<ReturnType<typeof parsePaymongoEvent>>,
+  rawBody: string
+): ProviderWebhookEvent | null {
   if (event.type === "checkout_session.payment.paid") {
     const session = event.attributes as {
       payments?: {

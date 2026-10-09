@@ -130,7 +130,7 @@ export async function savePartnerPaymentModeAction(
     success:
       mode === "MANUAL"
         ? "Manual payments are active for all new bookings and paid events."
-        : "Automatic PayMongo payments are active for all new bookings and paid events.",
+        : "Automatic QR Ph payments are active for all new bookings and paid events.",
   };
 }
 

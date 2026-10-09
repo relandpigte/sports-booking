@@ -8,7 +8,7 @@ import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { requestTrainerSessionAction, type TrainerActionState } from "@/lib/trainer-actions";
 import { formatHourLabel } from "@/lib/time";
-import { bookingServiceFeeFor } from "@/lib/constants";
+import { trainerServiceFeeFor } from "@/lib/constants";
 
 const initialState: TrainerActionState = {};
 const starts = Array.from({ length: 24 }, (_, hour) => ({ value: String(hour), label: formatHourLabel(hour) }));
@@ -17,12 +17,15 @@ const ends = Array.from({ length: 24 }, (_, index) => ({ value: String(index + 1
 export function TrainerRequestForm({
   trainerProfileId,
   hourlyRate,
+  paymentMode,
   earliestBookingAt,
   minDate,
   maxDate,
 }: {
   trainerProfileId: string;
   hourlyRate: number;
+  // The trainer's collection mode decides whether a service fee applies.
+  paymentMode: "AUTOMATIC" | "MANUAL";
   earliestBookingAt: string;
   minDate: string;
   maxDate: string;
@@ -54,7 +57,7 @@ export function TrainerRequestForm({
   );
   const hours = Math.max(1, Number(endHour) - Number(startHour));
   const trainerAmount = Math.round(hourlyRate * hours * 100) / 100;
-  const bunalFee = bookingServiceFeeFor(trainerAmount);
+  const bunalFee = trainerServiceFeeFor(trainerAmount, paymentMode);
 
   return (
     <form action={action} className="rounded-2xl border border-[#dfe7e2] bg-white p-5">
@@ -138,12 +141,14 @@ export function TrainerRequestForm({
           <dt>Trainer · {hours} {hours === 1 ? "hour" : "hours"}</dt>
           <dd className="font-semibold">₱{trainerAmount.toFixed(2)}</dd>
         </div>
-        <div className="flex justify-between gap-4 py-1">
-          <dt>Bunal fee (3%)</dt>
-          <dd className="font-semibold">₱{bunalFee.toFixed(2)}</dd>
-        </div>
+        {bunalFee > 0 && (
+          <div className="flex justify-between gap-4 py-1">
+            <dt>Service fee (per session)</dt>
+            <dd className="font-semibold">₱{bunalFee.toFixed(2)}</dd>
+          </div>
+        )}
         <div className="mt-2 flex justify-between gap-4 border-t border-[#dfe7e2] pt-3 font-extrabold text-navy">
-          <dt>Total before payment processing</dt>
+          <dt>Total</dt>
           <dd className="shrink-0">₱{(trainerAmount + bunalFee).toFixed(2)}</dd>
         </div>
       </dl>

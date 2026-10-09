@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 
-type PaymentWorkspaceTab = "checkout" | "settlement";
+type PaymentWorkspaceTab = "checkout" | "payouts" | "settlement";
 
 type PaymentSummaryItem = {
   label: string;
@@ -18,23 +18,40 @@ const toneClasses = {
   danger: "text-red-600",
 };
 
+const TAB_LABEL: Record<PaymentWorkspaceTab, string> = {
+  checkout: "Player checkout",
+  payouts: "Payouts",
+  // Fees accrued while players paid the venue's own PayMongo account. New
+  // payments are collected by Bunal.club and accrue nothing here.
+  settlement: "Earlier service fees",
+};
+
 export function PaymentWorkspace({
   initialTab = "checkout",
-  settlementFirst = false,
   summary,
   checkout,
+  payouts,
   settlement,
 }: {
   initialTab?: PaymentWorkspaceTab;
-  settlementFirst?: boolean;
   summary: PaymentSummaryItem[];
   checkout: ReactNode;
-  settlement: ReactNode;
+  payouts: ReactNode;
+  // Omitted for a partner with no balance or history from before platform
+  // collection, so a new venue never sees a settlement screen at all.
+  settlement?: ReactNode;
 }) {
-  const [activeTab, setActiveTab] = useState<PaymentWorkspaceTab>(initialTab);
-  const orderedTabs: PaymentWorkspaceTab[] = settlementFirst
-    ? ["settlement", "checkout"]
-    : ["checkout", "settlement"];
+  const tabs: PaymentWorkspaceTab[] = settlement
+    ? ["checkout", "payouts", "settlement"]
+    : ["checkout", "payouts"];
+  const [activeTab, setActiveTab] = useState<PaymentWorkspaceTab>(
+    tabs.includes(initialTab) ? initialTab : "checkout"
+  );
+  const panels: Record<PaymentWorkspaceTab, ReactNode> = {
+    checkout,
+    payouts,
+    settlement,
+  };
 
   return (
     <div className="mt-6">
@@ -73,47 +90,31 @@ export function PaymentWorkspace({
         role="tablist"
         aria-label="Payment workspace"
       >
-        {orderedTabs.map((tab) => (
+        {tabs.map((tab) => (
           <WorkspaceTab
             key={tab}
             active={activeTab === tab}
-            controls={
-              tab === "checkout"
-                ? "player-checkout-panel"
-                : "service-fee-settlement-panel"
-            }
-            id={
-              tab === "checkout"
-                ? "player-checkout-tab"
-                : "service-fee-settlement-tab"
-            }
+            controls={`payment-${tab}-panel`}
+            id={`payment-${tab}-tab`}
             onClick={() => setActiveTab(tab)}
           >
-            {tab === "checkout"
-              ? "Player checkout"
-              : "Service-fee settlement"}
+            {TAB_LABEL[tab]}
           </WorkspaceTab>
         ))}
       </div>
 
-      <div
-        id="player-checkout-panel"
-        role="tabpanel"
-        aria-labelledby="player-checkout-tab"
-        hidden={activeTab !== "checkout"}
-        className="mt-5"
-      >
-        {checkout}
-      </div>
-      <div
-        id="service-fee-settlement-panel"
-        role="tabpanel"
-        aria-labelledby="service-fee-settlement-tab"
-        hidden={activeTab !== "settlement"}
-        className="mt-5"
-      >
-        {settlement}
-      </div>
+      {tabs.map((tab) => (
+        <div
+          key={tab}
+          id={`payment-${tab}-panel`}
+          role="tabpanel"
+          aria-labelledby={`payment-${tab}-tab`}
+          hidden={activeTab !== tab}
+          className="mt-5"
+        >
+          {panels[tab]}
+        </div>
+      ))}
     </div>
   );
 }

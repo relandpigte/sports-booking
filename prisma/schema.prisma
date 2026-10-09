@@ -157,6 +157,35 @@ enum ManualPaymentNetwork {
   OTHER
 }
 
+// Who received the player's money. DIRECT covers both a venue's or trainer's
+// own PayMongo account and partner-reviewed manual transfers. PLATFORM rows
+// were charged through Bunal.club's account and are owed back as a payout.
+enum PaymentCollector {
+  DIRECT
+  PLATFORM
+}
+
+enum PayoutNetwork {
+  GCASH
+  MAYA
+  BANK_TRANSFER
+}
+
+enum PayoutRecipientKind {
+  VENUE
+  TRAINER
+}
+
+enum PayoutEntryType {
+  EARNING
+  REFUND
+}
+
+enum PayoutStatus {
+  PENDING
+  PAID
+}
+
 model User {
   id                      String             @id @default(cuid())
   name                    String?
@@ -263,6 +292,10 @@ model User {
   staffActivityOwned      PartnerStaffActivity[]       @relation("PartnerStaffActivityOwner")
   staffActivityPerformed  PartnerStaffActivity[]       @relation("PartnerStaffActivityActor")
   guestBunalQSession      GuestBunalQOrganizerSession?
+
+  payoutAccount PayoutAccount?
+  payoutEntries PayoutEntry[]
+  payouts       Payout[]
 }
 
 // A trainer is a capability attached to a PLAYER account. The account keeps
@@ -447,6 +480,8 @@ model TrainerPayment {
   trainerId                   String
   playerId                    String
   gatewayId                   String?
+  // PLATFORM rows have no gateway: Bunal.club's own account took the charge.
+  collectedBy                 PaymentCollector            @default(DIRECT)
   manualPaymentMethodId       String?
   amount                      Decimal                     @db.Decimal(10, 2)
   trainerAmount               Decimal                     @db.Decimal(10, 2)
@@ -498,11 +533,13 @@ model TrainerPayment {
   gateway             TrainerGateway?             @relation(fields: [gatewayId], references: [id])
   manualPaymentMethod TrainerManualPaymentMethod? @relation(fields: [manualPaymentMethodId], references: [id], onDelete: SetNull)
   serviceFeeEntries   TrainerServiceFeeEntry[]
+  payoutEntries       PayoutEntry[]
 
   @@index([trainerId, createdAt])
   @@index([playerId, createdAt])
   @@index([providerPaymentId])
   @@index([status, expiresAt])
+  @@index([collectedBy, status])
 }
 
 model TrainerServiceFeeEntry {
@@ -893,18 +930,23 @@ model PartnerManualPaymentMethod {
 }
 
 // Bunal.club's own PayMongo account, configured by an admin. This is a
-// singleton in practice (`provider` is unique), separate from partner-owned
-// gateways because it receives service-fee remittances rather than booking
-// revenue.
+// singleton in practice (`provider` is unique). It collects every automatic
+// court, event, and trainer payment — later paid out to the venue or trainer —
+// and still receives legacy service-fee remittances.
 model PlatformGateway {
   id       String @id @default(cuid())
   provider String @unique @default("paymongo")
 
   // AES-256-GCM ciphertext. Neither value is ever selected into a client view.
-  secretKeyEnc     String  @db.Text
-  webhookSecretEnc String  @db.Text
+  secretKeyEnc     String                 @db.Text
+  webhookSecretEnc String                 @db.Text
   secretKeyHint    String
-  webhookUrl       String? @db.Text
+  webhookUrl       String?                @db.Text
+  // Bumped when the subscribed event list changes, so an older registration
+  // is upgraded before the next charge rather than silently missing events.
+  webhookVersion   Int                    @default(1)
+  // The key mode at connection time, snapshotted onto each payment it takes.
+  environment      TransactionEnvironment @default(UNKNOWN)
 
   accountLabel   String?
   connectedById  String?
@@ -922,11 +964,13 @@ model BookingPayment {
   // check shouldn't need a join.
   partnerId          String
   gatewayId          String?
+  // PLATFORM rows have no gateway: Bunal.club's own account took the charge.
+  collectedBy        PaymentCollector @default(DIRECT)
   userId             String? // null for guest checkout or an anonymized deleted player
   // A guest cart owns the same payment ledger without creating a User row.
   // New payments require one owner. Historical rows may have neither after
   // permanent account deletion, but can never point at both owner types.
-  guestReservationId String? @unique
+  guestReservationId String?          @unique
   // A scalar with no relation ON PURPOSE: deleting a hub must not destroy a
   // financial record.
   hubId              String
@@ -984,12 +1028,15 @@ model BookingPayment {
   manualReviewedById    String?
   manualReviewNote      String?   @db.Text
 
-  paidAt         DateTime?
-  refundedAt     DateTime?
-  refundedAmount Decimal?  @db.Decimal(10, 2)
-  refundRef      String?
-  refundReason   String?   @db.Text
-  refundedById   String?
+  paidAt          DateTime?
+  refundedAt      DateTime?
+  refundedAmount  Decimal?  @db.Decimal(10, 2)
+  refundRef       String?
+  refundReason    String?   @db.Text
+  refundedById    String?
+  // Claimed before the gateway refund is requested so two concurrent refunds
+  // cannot both reach PayMongo. Released when the request fails.
+  refundStartedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1003,6 +1050,7 @@ model BookingPayment {
   eventRegistration   EventRegistration?
   eventGuestSlots     EventGuestSlot[]
   serviceFeeEntries   ServiceFeeEntry[]
+  payoutEntries       PayoutEntry[]
 
   @@index([partnerId, createdAt])
   @@index([userId, createdAt])
@@ -1013,6 +1061,109 @@ model BookingPayment {
   @@index([partnerId, manualSubmittedAt])
   @@index([status, expiresAt])
   @@index([environment, createdAt])
+  @@index([collectedBy, status])
+}
+
+// --- Bunal.club paying venues and trainers ---------------------------------
+// Automatic payments land in Bunal.club's own PayMongo account. The venue's or
+// trainer's share is owed back and sent by manual transfer every Monday and
+// Thursday.
+
+// Where a venue partner or trainer wants payouts sent. One per account; a
+// partner without one cannot open automatic checkout.
+model PayoutAccount {
+  id            String        @id @default(cuid())
+  userId        String        @unique
+  network       PayoutNetwork
+  // Required for BANK_TRANSFER; unused for the e-wallets.
+  bankName      String?
+  accountName   String
+  accountNumber String
+  // The owner or the admin assisting them. Scalar by design; permanent admin
+  // deletion anonymizes this attribution.
+  updatedById   String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// One line of what Bunal.club owes a recipient. EARNING is the venue's or
+// trainer's share of a settled platform-collected payment; REFUND is the
+// negative entry written when that share is later returned to the player.
+//
+// `payoutId` is null until a payout run batches the entry. Entries that sum to
+// zero or less stay unbatched and are summed again on the next run, which is
+// how a refund after payout is deducted from the following one.
+model PayoutEntry {
+  id               String              @id @default(cuid())
+  recipientId      String
+  recipientKind    PayoutRecipientKind
+  bookingPaymentId String?
+  trainerPaymentId String?
+  type             PayoutEntryType
+  amount           Decimal             @db.Decimal(10, 2)
+  // When the money moved: paidAt for an earning, refundedAt for a refund. A
+  // payout run includes entries effective before its cutoff.
+  effectiveAt      DateTime
+  payoutId         String?
+  createdAt        DateTime            @default(now())
+
+  recipient      User            @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  // SetNull on purpose: what Bunal.club owes or has paid a recipient must
+  // survive the deletion of the payment it came from — a trainer payment
+  // cascades away with the player who made it. Deleting the recipient removes
+  // the whole ledger.
+  bookingPayment BookingPayment? @relation(fields: [bookingPaymentId], references: [id], onDelete: SetNull)
+  trainerPayment TrainerPayment? @relation(fields: [trainerPaymentId], references: [id], onDelete: SetNull)
+  payout         Payout?         @relation(fields: [payoutId], references: [id], onDelete: NoAction)
+
+  @@unique([bookingPaymentId, type])
+  @@unique([trainerPaymentId, type])
+  @@index([recipientId, recipientKind, payoutId, effectiveAt])
+  @@index([payoutId])
+}
+
+// One manual transfer from Bunal.club to a recipient for one payout run. The
+// destination is snapshotted so a later account edit cannot rewrite history.
+model Payout {
+  id            String              @id @default(cuid())
+  recipientId   String
+  recipientKind PayoutRecipientKind
+  // Start of the Monday or Thursday (Asia/Manila) this run covers up to.
+  cutoffAt      DateTime
+  amount        Decimal             @db.Decimal(10, 2)
+  currency      String              @default("PHP")
+  status        PayoutStatus        @default(PENDING)
+
+  network       PayoutNetwork
+  bankName      String?
+  accountName   String
+  accountNumber String
+
+  reference String?
+  note      String?   @db.Text
+  paidAt    DateTime?
+  // Scalar by design; permanent admin deletion anonymizes this attribution.
+  paidById  String?
+
+  // What the admin wrote TO the recipient, unlike `note`, which is internal.
+  // Stored so a resent email carries the same words.
+  recipientMessage String?   @db.Text
+  // Set when the payout email was actually delivered to the provider. Null
+  // means the recipient may never have been told.
+  emailedAt        DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  recipient User          @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  entries   PayoutEntry[]
+
+  // One payout per recipient per run: concurrent sweeps collide here.
+  @@unique([recipientId, recipientKind, cutoffAt])
+  @@index([status, cutoffAt])
+  @@index([recipientId, recipientKind, createdAt])
 }
 
 // One anonymous checkout reservation. Contact details are snapshots, not

@@ -93,8 +93,10 @@ export function PlatformGatewayPanel({
             PayMongo collection account
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-gray-500">
-            Partner and trainer service-fee settlements paid through QR Ph are
-            deposited directly into this PayMongo account.
+            Every automatic QR Ph payment from players is collected by this
+            PayMongo account, then paid out to venues and trainers each Monday
+            and Thursday. Automatic checkout is unavailable across the whole
+            site while it is disconnected.
           </p>
         </div>
         {connected ? (
@@ -132,17 +134,19 @@ export function PlatformGatewayPanel({
               </dd>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <dt className="text-gray-500">Automatic settlement</dt>
+              <dt className="text-gray-500">Payment confirmations</dt>
               <dd
                 className={
-                  gateway.webhookConnected
+                  gateway.webhookConnected && gateway.webhookCurrent
                     ? "font-medium text-green-700"
                     : "font-medium text-amber-700"
                 }
               >
-                {gateway.webhookConnected
-                  ? "Webhook configured"
-                  : "Return check only"}
+                {!gateway.webhookConnected
+                  ? "Return check only"
+                  : gateway.webhookCurrent
+                    ? "Webhook configured"
+                    : "Reconnect to enable player payments"}
               </dd>
             </div>
           </dl>
@@ -159,9 +163,9 @@ export function PlatformGatewayPanel({
             role="alert"
             className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800"
           >
-            This URL is not reaching the settlement webhook. Funds can still
-            arrive in PayMongo, but automatic settlement confirmation and
-            checkout returns will be unreliable. Update <code>APP_URL</code>{" "}
+            This URL is not reaching the payment webhook. Funds can still
+            arrive in PayMongo, but bookings and settlements will not confirm
+            reliably. Update <code>APP_URL</code>{" "}
             to the live HTTPS site, restart the app, then replace this
             connection.
           </p>

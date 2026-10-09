@@ -10,6 +10,12 @@ import type {
 } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
+import {
+  venueCheckoutReady,
+  venueReadinessSelect,
+  venueSetupReady,
+} from "@/lib/payment-readiness";
+import { getPlatformCollectionStatus } from "@/lib/platform-gateway";
 import { getViewer } from "@/lib/dal";
 import { requireActivePartner } from "@/lib/hubs";
 import { buildSlots, type Slot } from "@/lib/slots";
@@ -473,13 +479,7 @@ export const getCourtForBooking = cache(async (courtId: string) => {
               name: true,
               playerName: true,
               partnerStatus: true,
-              partnerPaymentMode: true,
-              partnerGateway: { select: { disconnectedAt: true } },
-              manualPaymentMethods: {
-                where: { active: true },
-                take: 1,
-                select: { id: true },
-              },
+              ...venueReadinessSelect,
             },
           },
         },
@@ -488,11 +488,11 @@ export const getCourtForBooking = cache(async (courtId: string) => {
   });
   if (!row) return null;
   const approved = row.hub.owner.partnerStatus === "ACTIVE";
-  const connected = row.hub.owner.partnerGateway?.disconnectedAt === null;
-  const paymentReady =
-    row.hub.owner.partnerPaymentMode === "MANUAL"
-      ? row.hub.owner.manualPaymentMethods.length > 0
-      : connected;
+  const paymentReady = venueSetupReady(row.hub.owner);
+  const checkoutReady = venueCheckoutReady(
+    row.hub.owner,
+    (await getPlatformCollectionStatus()).ready
+  );
   const overdue =
     approved && paymentReady
       ? await isServiceFeeOverdue(row.hub.ownerId)
@@ -520,7 +520,7 @@ export const getCourtForBooking = cache(async (courtId: string) => {
         playerName: row.hub.owner.playerName,
       },
       operatingHours: (row.hub.operatingHours as OperatingHours | null) ?? null,
-      bookable: approved && paymentReady && !overdue,
+      bookable: approved && checkoutReady && !overdue,
     },
   };
 });

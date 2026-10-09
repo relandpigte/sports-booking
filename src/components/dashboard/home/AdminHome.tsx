@@ -14,12 +14,14 @@ export function AdminHome({
   counts,
   pendingPartners,
   pendingSettlements,
+  pendingPayouts,
   analytics,
 }: {
   name: string | null;
   counts: Record<Role, number>;
   pendingPartners: number;
   pendingSettlements: number;
+  pendingPayouts: number;
   analytics: AnalyticsKpis;
 }) {
   const total = counts.ADMIN + counts.PLAYER + counts.PARTNER;
@@ -126,6 +128,22 @@ export function AdminHome({
               </div>
               <span className="flex h-9 min-w-9 items-center justify-center rounded-full bg-white px-3 text-sm font-black text-navy shadow-sm">
                 {pendingPartners}
+              </span>
+            </Link>
+
+            <Link
+              href="/dashboard/admin/payouts"
+              className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-[#f7faf8] p-4 transition-colors hover:border-primary/30"
+            >
+              <div>
+                <p className="font-semibold text-navy">Payouts to send</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Transfer each venue and trainer its share, then record the
+                  reference.
+                </p>
+              </div>
+              <span className="flex h-9 min-w-9 items-center justify-center rounded-full bg-white px-3 text-sm font-black text-navy shadow-sm">
+                {pendingPayouts}
               </span>
             </Link>
 

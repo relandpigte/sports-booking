@@ -28,9 +28,13 @@ import {
   TrainerWeeklyRuleSchema,
 } from "@/lib/trainer-validation";
 import {
+  trainerCheckoutReady,
+  trainerSetupReady,
+} from "@/lib/payment-readiness";
+import { getPlatformCollectionStatus } from "@/lib/platform-gateway";
+import {
   getTrainerAvailability,
   rangeAvailable,
-  trainerPaymentReady,
   trainerServiceFeeFor,
 } from "@/lib/trainers";
 import { isTrainerServiceFeeOverdue } from "@/lib/trainer-service-fees";
@@ -92,7 +96,7 @@ async function playerTrainer(viewerId: string) {
           phone: true,
           image: true,
           privateProfile: true,
-          trainerGateway: { select: { disconnectedAt: true } },
+          payoutAccount: { select: { id: true } },
           trainerManualMethods: {
             where: { active: true },
             take: 1,
@@ -306,12 +310,12 @@ export async function submitTrainerApplicationAction(
           },
         ]
       : []),
-    ...(!trainerPaymentReady(profile)
+    ...(!trainerSetupReady(profile)
       ? [
           {
             label:
               profile.paymentMode === "AUTOMATIC"
-                ? "Connect your Trainer PayMongo account."
+                ? "Add the account your payouts should be sent to."
                 : "Add an active manual payment destination.",
             actionLabel: "Set up payments",
             href: "/dashboard/trainer/payments",
@@ -378,13 +382,19 @@ export async function requestTrainerSessionAction(
           name: true,
           playerName: true,
           privateProfile: true,
-          trainerGateway: { select: { disconnectedAt: true } },
+          payoutAccount: { select: { id: true } },
           trainerManualMethods: { where: { active: true }, take: 1, select: { id: true } },
         },
       },
     },
   });
-  if (!profile || profile.status !== "ACTIVE" || profile.user.privateProfile || !profile.hourlyRate || !trainerPaymentReady(profile)) {
+  if (
+    !profile ||
+    profile.status !== "ACTIVE" ||
+    profile.user.privateProfile ||
+    !profile.hourlyRate ||
+    !trainerCheckoutReady(profile, (await getPlatformCollectionStatus()).ready)
+  ) {
     return { message: "This trainer is not accepting requests right now." };
   }
   if (await isTrainerServiceFeeOverdue(profile.userId)) {
@@ -401,7 +411,9 @@ export async function requestTrainerSessionAction(
   const hours = parsed.data.endHour - parsed.data.startHour;
   const hourlyRate = Number(profile.hourlyRate);
   const trainerAmount = Math.round(hourlyRate * hours * 100) / 100;
-  const platformFee = trainerServiceFeeFor(trainerAmount);
+  // A quote: the fee follows the trainer's collection mode, which is read
+  // again — and the amounts re-snapshotted — when the trainer accepts.
+  const platformFee = trainerServiceFeeFor(trainerAmount, profile.paymentMode);
   const totalAmount = Math.round((trainerAmount + platformFee) * 100) / 100;
   const requestExpiresAt = new Date(Date.now() + TRAINER_REQUEST_HOLD_HOURS * 3_600_000);
   let sessionId: string;
@@ -513,7 +525,7 @@ export async function decideTrainerSessionAction(
               email: true,
               name: true,
               playerName: true,
-              trainerGateway: { select: { id: true, disconnectedAt: true } },
+              payoutAccount: { select: { id: true } },
               trainerManualMethods: {
                 where: { active: true },
                 orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
@@ -550,15 +562,32 @@ export async function decideTrainerSessionAction(
     revalidateTrainerPaths();
     return { success: "Request declined and the player notified." };
   }
-  if (!trainerPaymentReady(session.trainer)) {
+  if (!trainerSetupReady(session.trainer)) {
     return { message: "Your selected payment setup is not ready." };
+  }
+  if (
+    !trainerCheckoutReady(
+      session.trainer,
+      (await getPlatformCollectionStatus()).ready
+    )
+  ) {
+    return {
+      message:
+        "Online payments are temporarily unavailable. Try accepting this request again shortly.",
+    };
   }
   const paymentExpiresAt = new Date(Date.now() + TRAINER_PAYMENT_HOLD_MINUTES * 60_000);
   const automatic = session.trainer.paymentMode === "AUTOMATIC";
-  const processingFee = automatic
-    ? paymongoQrPhProcessingCostFor(Number(session.totalAmount))
-    : 0;
-  const amount = Number(session.totalAmount);
+  // The collection mode decides the fee, and it is only final now: the trainer
+  // may have switched modes since the player's quote. Re-snapshot the fee and
+  // total so the session, the payment, and the checkout screen always agree.
+  const trainerAmount = Number(session.trainerAmount);
+  const platformFee = trainerServiceFeeFor(
+    trainerAmount,
+    session.trainer.paymentMode
+  );
+  const amount = Math.round((trainerAmount + platformFee) * 100) / 100;
+  const processingFee = automatic ? paymongoQrPhProcessingCostFor(amount) : 0;
   const manual = session.trainer.user.trainerManualMethods[0] ?? null;
   const payment = await prisma.$transaction(async (tx) => {
     const updated = await tx.trainerSession.updateMany({
@@ -567,6 +596,7 @@ export async function decideTrainerSessionAction(
         status: "AWAITING_PAYMENT",
         acceptedAt: new Date(),
         paymentExpiresAt,
+        platformFee: new Prisma.Decimal(platformFee),
         processingFee: new Prisma.Decimal(processingFee),
         processingFeeResponsibility: automatic ? "BUNAL" : "PLAYER",
         totalAmount: new Prisma.Decimal(amount),
@@ -578,11 +608,15 @@ export async function decideTrainerSessionAction(
         trainerSessionId: session.id,
         trainerId: viewer.id,
         playerId: session.playerId,
-        gatewayId: automatic ? session.trainer.user.trainerGateway?.id : null,
+        // Automatic payments are collected by Bunal.club's own account and
+        // owed back to the trainer as a payout. A manual transfer goes to the
+        // trainer directly.
+        gatewayId: null,
+        collectedBy: automatic ? "PLATFORM" : "DIRECT",
         manualPaymentMethodId: manual?.id,
         amount: new Prisma.Decimal(amount),
         trainerAmount: session.trainerAmount,
-        platformFee: session.platformFee,
+        platformFee: new Prisma.Decimal(platformFee),
         processingFee: new Prisma.Decimal(processingFee),
         processingFeeResponsibility: automatic ? "BUNAL" : "PLAYER",
         method: automatic ? "QRPH" : (manual?.network ?? "MANUAL"),
@@ -782,7 +816,7 @@ export async function decideTrainerApplicationAction(formData: FormData) {
           username: true,
           image: true,
           phone: true,
-          trainerGateway: { select: { disconnectedAt: true } },
+          payoutAccount: { select: { id: true } },
           trainerManualMethods: { where: { active: true }, take: 1, select: { id: true } },
         },
       },
@@ -791,7 +825,7 @@ export async function decideTrainerApplicationAction(formData: FormData) {
   if (!profile) return;
   const approving = parsed.data.action === "APPROVE";
   if (approving) {
-    const complete = profile.status === "PENDING" && profile.bio && profile.sports.length > 0 && profile.specialties.length > 0 && profile.experience && profile.area && profile.locationDetails && profile.hourlyRate && profile.facebookPage && profile.user.username && profile.user.image && profile.user.phone && profile.weeklyRules.length > 0 && trainerPaymentReady(profile);
+    const complete = profile.status === "PENDING" && profile.bio && profile.sports.length > 0 && profile.specialties.length > 0 && profile.experience && profile.area && profile.locationDetails && profile.hourlyRate && profile.facebookPage && profile.user.username && profile.user.image && profile.user.phone && profile.weeklyRules.length > 0 && trainerSetupReady(profile);
     if (!complete) return;
   }
   const changed = await prisma.trainerProfile.updateMany({

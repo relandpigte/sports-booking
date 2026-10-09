@@ -139,6 +139,11 @@ const adminItems: DashboardNavigationItem[] = [
     icon: "payment",
   },
   {
+    href: "/dashboard/admin/payouts",
+    label: "Payouts",
+    icon: "payment",
+  },
+  {
     href: "/dashboard/admin/settlements",
     label: "Settlements",
     icon: "booking",

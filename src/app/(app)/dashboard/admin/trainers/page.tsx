@@ -9,7 +9,7 @@ import { requireAdmin } from "@/lib/admin";
 import { formatPHP } from "@/lib/currency";
 import { prisma } from "@/lib/db";
 import { decideTrainerApplicationAction } from "@/lib/trainer-actions";
-import { trainerPaymentReady } from "@/lib/trainers";
+import { trainerSetupReady } from "@/lib/payment-readiness";
 
 export const metadata: Metadata = { title: "Trainer Reviews — Bunal.club" };
 
@@ -22,7 +22,7 @@ const trainerReviewInclude = {
       phone: true,
       image: true,
       username: true,
-      trainerGateway: { select: { disconnectedAt: true } },
+      payoutAccount: { select: { id: true } },
       trainerManualMethods: {
         where: { active: true },
         select: { id: true },
@@ -254,7 +254,7 @@ function TrainerReviewRow({
 }) {
   const name =
     profile.user.playerName ?? profile.user.name ?? profile.user.email;
-  const paymentReady = trainerPaymentReady(profile);
+  const paymentReady = trainerSetupReady(profile);
   const readiness = trainerReadiness(profile, paymentReady);
   const approvalReady =
     profile.status === "PENDING" &&

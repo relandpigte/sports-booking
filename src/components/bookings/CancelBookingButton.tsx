@@ -80,8 +80,9 @@ export function CancelBookingButton({
           />
           <span>
             Refund {amountLabel ?? "the refundable amount"}. The Bunal.club
-            service fee stays charged; the money goes back through your
-            gateway.
+            service fee stays charged. The refund returns to the player&apos;s
+            original payment method; if this booking was already in a payout,
+            the amount is deducted from your next one.
           </span>
         </label>
       )}

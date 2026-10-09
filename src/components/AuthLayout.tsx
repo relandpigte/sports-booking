@@ -51,7 +51,7 @@ export function AuthLayout({
             </h2>
             <p className="mt-4 max-w-sm text-sm leading-relaxed text-white/70">
               Find a hub near you, pick the hours you want — they don&apos;t
-              have to run back to back — and pay the venue directly.
+              have to run back to back — and pay securely online.
             </p>
 
             <ul className="mt-8 flex flex-wrap gap-2">

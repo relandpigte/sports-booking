@@ -86,7 +86,7 @@ export function CourtPaymentFeeBreakdown({
         <p className="mt-1 text-sm leading-6 text-slate-500">
           {audience === "owner"
             ? "Audit every court checkout by partner and hub, including the gross Bunal fee, absorbed PayMongo processing, and resulting net revenue."
-            : "Each payment shows the player total, your complete court revenue, the gross Bunal fee, PayMongo processing absorbed by Bunal, and the resulting net fee included in settlement."}
+            : "Each payment shows the player total, your complete court revenue, the gross Bunal fee, and the PayMongo processing Bunal.club absorbs. Your court revenue is what you are paid out."}
         </p>
       </div>
       <div className="mt-5 flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-[#fbfcfb] p-3">

@@ -79,8 +79,8 @@ export function PayBookingPanel({
         )}
 
         <p className="rounded-xl border border-gray-200 px-3 py-3 text-sm text-gray-600">
-          Pay by <span className="font-medium text-gray-900">QR Ph</span> through
-          PayMongo. The exact-amount code appears here and confirms automatically.
+          Pay by <span className="font-medium text-gray-900">QR Ph</span>. The
+          exact-amount code appears here and confirms automatically.
         </p>
 
         <Button type="submit" disabled={pending || !isOnline}>
@@ -92,7 +92,8 @@ export function PayBookingPanel({
         </Button>
 
         <p className="text-center text-xs text-gray-400">
-          The court fee goes directly to {venueName}.
+          Bunal.club collects this payment securely and pays {venueName} its
+          full court rate.
         </p>
       </form>
       <CancelBookingHoldButton paymentId={paymentId} />

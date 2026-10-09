@@ -5,9 +5,11 @@ import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader"
 import { CheckoutModeSettings } from "@/components/partner/ManualPaymentSettings";
 import { PaymentWorkspace } from "@/components/partner/PaymentWorkspace";
 import { ServiceFeePanel } from "@/components/partner/ServiceFeePanel";
+import { PayoutStatement } from "@/components/payments/PayoutStatement";
 import { formatPHP } from "@/lib/currency";
-import { getGatewayView } from "@/lib/partner-gateway";
 import { platformPaymongoConfigured } from "@/lib/payments/paymongo-platform";
+import { getPayoutStatement } from "@/lib/payouts";
+import { getPlatformCollectionStatus } from "@/lib/platform-gateway";
 import {
   pollLatestServiceFeeCheckout,
   pollServiceFeeCheckout,
@@ -44,20 +46,36 @@ export default async function PaymentsPage({
       await pollLatestServiceFeeCheckout(workspace.partnerId);
     }
   }
-  const [gateway, serviceFees, paymentSettings] = await Promise.all([
-    getGatewayView(workspace.partnerId),
+  const [statement, serviceFees, paymentSettings, platform] = await Promise.all([
+    getPayoutStatement(workspace.partnerId, "VENUE"),
     getPartnerServiceFeeView(workspace.partnerId),
     getPartnerManualPaymentSettings(workspace.partnerId),
+    getPlatformCollectionStatus(),
   ]);
   const paymongoSettlementEnabled = await platformPaymongoConfigured();
+  // The venue's own setup. Bunal.club's collection account is reported
+  // separately below so its state is never mistaken for something the partner
+  // has to fix.
   const checkoutReady =
     paymentSettings.mode === "MANUAL"
       ? paymentSettings.methods.some((method) => method.active)
-      : gateway?.connected === true;
-  const settlementFirst = canSettle && !impersonation && checkoutReady;
+      : statement.account != null;
+  const collectionPaused =
+    paymentSettings.mode === "AUTOMATIC" && checkoutReady && !platform.ready;
   const activeManualMethods = paymentSettings.methods.filter(
     (method) => method.active
   ).length;
+  // Service fees only accrued while players paid the venue's own PayMongo
+  // account. A venue that never used that model has nothing to settle.
+  const hasEarlierFees =
+    serviceFees.balance.earned > 0 ||
+    serviceFees.balance.pending > 0 ||
+    serviceFees.settlements.length > 0 ||
+    serviceFees.waivers.length > 0;
+  const pendingPayoutTotal = statement.pending.reduce(
+    (sum, payout) => sum + payout.amount,
+    0
+  );
   const settlementStatus = serviceFees.balance.blocked
     ? { value: "Overdue", tone: "danger" as const }
     : serviceFees.balance.inEnforcementGrace
@@ -71,16 +89,16 @@ export default async function PaymentsPage({
       <DashboardPageHeader
         eyebrow="Payment workspace"
         title="Payments"
-        description="Configure player checkout, payment destinations, and service-fee settlements."
+        description="Choose how players pay, set where your payouts go, and track what Bunal.club has sent you."
       />
       {impersonation && (
         <div className="mt-5 rounded-2xl border border-ocean/20 bg-ocean-soft p-4">
           <p className="font-bold text-navy">Full configuration assistance</p>
           <p className="mt-1 text-sm leading-6 text-slate-600">
-            You can edit checkout mode, manual payment networks, and the
-            PayMongo connection for this partner. Every change is audited and
-            requires your recent admin MFA. Settlement payments remain
-            protected because they move funds rather than edit settings.
+            You can edit checkout mode, manual payment networks, and the payout
+            account for this partner. Every change is audited and requires your
+            recent admin MFA. Settlement payments remain protected because they
+            move funds rather than edit settings.
           </p>
         </div>
       )}
@@ -100,7 +118,7 @@ export default async function PaymentsPage({
             {checkoutReady
               ? paymentSettings.mode === "MANUAL"
                 ? "Manual checkout is ready"
-                : "PayMongo is connected"
+                : "Your payout account is on file"
               : "Finish a payment setup to open online bookings"}
           </p>
           <p
@@ -110,7 +128,7 @@ export default async function PaymentsPage({
           >
             {checkoutReady
               ? "Your verified venues can accept player payments and online bookings."
-              : "Your published hubs can remain visible as Coming soon. Connect PayMongo or add manual payment networks, then select the mode you want for new reservations."}
+              : "Your published hubs can remain visible as Coming soon. Add your payout account for automatic QR Ph, or add manual payment networks, then select the mode you want for new reservations."}
           </p>
           {checkoutReady && (
             <Link
@@ -122,17 +140,34 @@ export default async function PaymentsPage({
           )}
         </div>
       )}
+      {collectionPaused && (
+        <div
+          role="status"
+          className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3"
+        >
+          <p className="text-sm font-semibold text-amber-800">
+            Automatic checkout is paused by Bunal.club
+          </p>
+          <p className="mt-0.5 text-sm text-amber-700">
+            Your setup is complete. Online QR Ph payments are temporarily
+            unavailable on our side, so players cannot book online until it is
+            restored. Nothing here needs your attention.
+          </p>
+        </div>
+      )}
       <PaymentWorkspace
         initialTab={
           settlement
             ? "settlement"
-            : setup === "hub"
+            : setup === "hub" || !checkoutReady
               ? "checkout"
-              : settlementFirst
+              : // An overdue balance from the earlier model still pauses
+                // bookings, so it stays the first thing the owner sees.
+                serviceFees.balance.blocked ||
+                  serviceFees.balance.inEnforcementGrace
                 ? "settlement"
-                : "checkout"
+                : "payouts"
         }
-        settlementFirst={settlementFirst}
         summary={[
           {
             label: "Checkout mode",
@@ -150,41 +185,53 @@ export default async function PaymentsPage({
                 ? activeManualMethods > 0
                   ? `${activeManualMethods} active network${activeManualMethods === 1 ? "" : "s"}`
                   : "Needs setup"
-                : gateway?.connected
-                  ? "PayMongo connected"
+                : statement.account
+                  ? "Payout account on file"
                   : "Needs setup",
             detail: checkoutReady ? "Ready to receive player payments" : "Complete setup to open bookings",
             tone: checkoutReady ? "success" : "warning",
           },
           {
-            label: "Service-fee balance",
-            value: formatPHP(serviceFees.balance.amountDue),
+            label: statement.upcoming < 0 ? "To be deducted" : "Next payout",
+            value: formatPHP(Math.abs(statement.upcoming)),
             detail:
-              serviceFees.balance.pending > 0
-                ? `${formatPHP(serviceFees.balance.pending)} under review`
-                : serviceFees.balance.waived > 0
-                  ? `${formatPHP(serviceFees.balance.paid)} settled · ${formatPHP(serviceFees.balance.waived)} waived`
-                  : `${formatPHP(serviceFees.balance.paid)} settled`,
-            tone: serviceFees.balance.amountDue > 0 ? "warning" : "default",
+              statement.upcoming < 0
+                ? "Refunds after an earlier payout"
+                : `Scheduled ${formatSummaryDate(statement.nextCutoffAt)}`,
+            tone: statement.upcoming < 0 ? "warning" : "default",
           },
-          {
-            label: "Settlement status",
-            value: settlementStatus.value,
-            detail: serviceFees.balance.nextDueAt
-              ? `Due ${formatSummaryDate(serviceFees.balance.nextDueAt)}`
-              : "No upcoming deadline",
-            tone: settlementStatus.tone,
-          },
+          // An unpaid balance from the earlier model can still pause bookings,
+          // so it takes this tile until it is cleared.
+          serviceFees.balance.amountDue > 0
+            ? {
+                label: "Earlier service fees",
+                value: formatPHP(serviceFees.balance.amountDue),
+                detail:
+                  settlementStatus.value === "Current" &&
+                  serviceFees.balance.nextDueAt
+                    ? `Due ${formatSummaryDate(serviceFees.balance.nextDueAt)}`
+                    : settlementStatus.value,
+                tone: settlementStatus.tone,
+              }
+            : {
+                label: "Being sent",
+                value: formatPHP(pendingPayoutTotal),
+                detail: `${formatPHP(statement.paidTotal)} paid to date`,
+                tone: "default" as const,
+              },
         ]}
         checkout={
           <CheckoutModeSettings
             mode={paymentSettings.mode}
             methods={paymentSettings.methods}
-            gateway={gateway}
+            payoutAccount={statement.account}
+            canEditPayoutAccount={workspace.kind !== "STAFF"}
             readOnly={!canManage}
           />
         }
+        payouts={<PayoutStatement statement={statement} />}
         settlement={
+          hasEarlierFees ? (
           <ServiceFeePanel
             balance={serviceFees.balance}
             settlements={serviceFees.settlements}
@@ -196,6 +243,7 @@ export default async function PaymentsPage({
             }
             readOnly={!canSettle || Boolean(impersonation)}
           />
+          ) : undefined
         }
       />
     </div>

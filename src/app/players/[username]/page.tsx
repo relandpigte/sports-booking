@@ -186,6 +186,7 @@ export default async function PublicPlayerPage({ params }: { params: Promise<{ u
                 <TrainerRequestForm
                   trainerProfileId={trainer.id}
                   hourlyRate={Number(trainer.hourlyRate)}
+                  paymentMode={trainer.paymentMode}
                   earliestBookingAt={earliestBookingAt.toISOString()}
                   minDate={manilaDateOf(earliestBookingAt)}
                   maxDate={addDays(manilaToday(), TRAINER_BOOKING_WINDOW_DAYS)}

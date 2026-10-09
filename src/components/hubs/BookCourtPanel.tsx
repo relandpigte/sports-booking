@@ -39,7 +39,6 @@ import {
   BOOKING_HOLD_MINUTES,
   bookingServiceFeeFor,
   grossFor,
-  SERVICE_FEE_PERCENT,
   type OperatingHours,
 } from "@/lib/constants";
 
@@ -424,7 +423,7 @@ export function BookCourtPanel({
                   {requiresOnlinePayment && serviceFee > 0 && (
                     <div className="flex items-center justify-between gap-3 text-navy/65">
                       <span>
-                        Service fee ({SERVICE_FEE_PERCENT}%, non-refundable)
+                        Service fee (per checkout, non-refundable)
                       </span>
                       <span className="shrink-0 font-semibold text-navy">
                         {formatPHP(serviceFee)}

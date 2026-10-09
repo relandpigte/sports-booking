@@ -184,7 +184,8 @@ export function AdminVenueTransactions({
                       {transaction.reference}
                     </p>
                     <p className="mt-1 text-[10px] uppercase tracking-wide text-slate-400">
-                      {transaction.collectionMode.toLowerCase()} · {transaction.method.toLowerCase().replaceAll("_", " ")}
+                      {transaction.collectionMode.toLowerCase()} · {transaction.method.toLowerCase().replaceAll("_", " ")} ·{" "}
+                      {transaction.collectedBy === "PLATFORM" ? "held by Bunal" : "paid to venue"}
                     </p>
                   </td>
                   <td className="px-3 py-3">

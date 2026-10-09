@@ -1,60 +1,150 @@
 # Payments
 
-Bunal.club has no partner plans, subscriptions, or monthly charges. Partners use
-the application for free. Each partner selects one account-wide collection mode
-for all new court bookings, paid event registrations, and paid guest add-ons:
-automatic PayMongo QR Ph or partner-reviewed manual transfer.
+Bunal.club has no partner plans, subscriptions, or monthly charges. Each
+partner and trainer selects one collection mode for everything they sell:
+automatic PayMongo QR Ph, or a manual transfer they review themselves.
+
+Automatic payments are collected by **Bunal.club's own PayMongo account** and
+paid out to the venue or trainer by manual transfer every Monday and Thursday.
+A venue never creates a PayMongo account or handles API keys; its only setup
+step is saying where its payouts should go.
 
 ## Partner activation
 
 Public partner registrations start in `DRAFT`. The partner submits owner and
 first-hub details to move into `PENDING`. An admin reviews the application in
-`/users`, then activates the partner. An `ACTIVE` partner can manage hubs before connecting PayMongo.
-After it has at least one court, the hub appears in the public directory as
-Coming soon. Completing the selected automatic or manual payment setup verifies
-the hub and opens online bookings.
+`/users`, then activates the partner. After an `ACTIVE` partner's hub has at
+least one court it appears in the public directory as Coming soon. Completing
+the setup for the selected mode verifies the hub and opens online bookings:
+
+- **Automatic:** a payout account is on file.
+- **Manual:** at least one active manual payment destination exists.
+
+`src/lib/payment-readiness.ts` is the single definition of both. It keeps two
+questions apart:
+
+- *Setup ready* — the venue or trainer has finished their side. This is what
+  **Verified** means.
+- *Checkout ready* — a new payment can be taken right now. For automatic mode
+  that additionally requires Bunal.club's PayMongo account to be connected.
+
+A verified venue stays listed while the platform account is disconnected; only
+booking pauses, and the owner is told it is not something they need to fix.
 
 ## Pricing
 
-In automatic mode, the player pays the venue's court rate plus one all-inclusive 3% service fee. The fee is
-calculated from the complete court total and charged once across the player's
-whole selection, including selections that contain gaps and create separate
-booking sessions. Each `BookingPayment`
-snapshots:
+The fee is always paid by the player, on top of the advertised price.
 
-- `venueAmount` — the advertised court total.
-- `platformFee` — the service fee quoted for this booking.
-- `amount` — the court amount plus the service fee (the booking subtotal).
-- `processingFee` — the PayMongo QR Ph fee absorbed from Bunal.club's service fee.
+| Checkout | Automatic QR Ph | Manual |
+| --- | --- | --- |
+| Court booking | ₱25 per checkout | No fee |
+| Trainer session | ₱25 per session | No fee |
+| Paid event | ₱5 per paid spot | No fee |
 
-These values and the processing-fee responsibility are stored so historical
-reports and refunds do not change when either fee schedule changes. New player
-payments use direct PayMongo Payment Intents for exactly the venue amount plus
-the applicable court or event payment fee. PayMongo deducts its exact reported
-fee from the partner account;
-Bunal.club records an equal processing credit against the partner's service-fee
-balance. `PAYMONGO_QRPH_PROCESSING_RATE` remains the VAT-inclusive fallback when
-PayMongo does not report the exact fee.
+The court fee is charged **once per checkout**, however many courts or hours
+the player selected, including selections with gaps that create separate
+booking sessions. Fee arithmetic lives in `src/lib/constants.ts`
+(`BOOKING_SERVICE_FEE`, `TRAINER_SERVICE_FEE`, `EVENT_PAYMENT_FEE_PER_PLAYER`
+and their helpers); reuse it rather than recomputing.
 
-The migration marks every pre-existing booking, event, and trainer payment as
-`PLAYER` responsibility. That keeps pending checkouts, completed-payment
-reports, refunds, and existing settlement balances on their original rules.
-Only automatic payments created after deployment use `BUNAL` responsibility.
+Each `BookingPayment` snapshots:
 
-In manual mode, the player pays only `venueAmount`. Both `platformFee` and
-`processingFee` are zero, so neither the player nor the partner owes a
-Bunal.club fee for that transaction. The partner reviews the receipt before
-the booking or event capacity is confirmed.
+- `venueAmount` — the advertised court or registration total. This is what the
+  venue is paid out.
+- `platformFee` — the service fee quoted for this checkout.
+- `amount` — what the player pays: `venueAmount + platformFee`.
+- `processingFee` — PayMongo's QR Ph fee. Bunal.club absorbs it out of its
+  service fee, so it is recorded but never added to the charge.
+- `collectedBy` — `PLATFORM` when Bunal.club's account took the money,
+  `DIRECT` when the venue received it (a manual transfer, or a payment taken
+  through the venue's own PayMongo keys before platform collection).
+
+`TrainerPayment` snapshots the same fields with `trainerAmount`. A trainer's
+fee is quoted when the player requests a session and re-snapshotted when the
+trainer accepts, because that is when the trainer's collection mode is read.
+
+Because Bunal.club absorbs processing, a large checkout can cost more to
+process than the flat fee earns. `PAYMONGO_QRPH_PROCESSING_RATE` is the
+VAT-inclusive estimate used until PayMongo reports the exact fee.
 
 For open play and other paid events, the registration fee is per person. A
 lead player may include named guests in the first checkout, so a ₱100 event
-with two guests has a `₱100 × 3` venue subtotal. Automatic checkout adds a
-flat ₱5 payment fee for each paid spot, making that group's total ₱315;
-manual checkout adds neither a payment nor processing fee. The entire group is
-capacity-checked under one
-event lock and is held only when every requested spot is available. Confirmed
-players can add more named guests later through an incremental payment; an
-expired or failed add-on never changes the already-confirmed registration.
+with two guests has a `₱100 × 3` venue subtotal and a ₱315 automatic total.
+The entire group is capacity-checked under one event lock and is held only when
+every requested spot is available. Confirmed players can add more named guests
+later through an incremental payment; an expired or failed add-on never changes
+the already-confirmed registration.
+
+## Payouts
+
+### What is owed
+
+`PayoutEntry` is the ledger of what Bunal.club owes each venue and trainer. It
+is written only for platform-collected payments:
+
+- `EARNING` — `+venueAmount` (or `+trainerAmount`) when the payment settles and
+  the booking, registration, or session is confirmed.
+- `REFUND` — the negative entry written when that share is returned to the
+  player, capped at what was earned.
+
+Both writers (`ensurePayoutEarning`, `ensurePayoutRefund` in
+`src/lib/payouts.ts`) are idempotent through the unique `(payment, type)` key
+and read the amounts from the payment row itself. A payment that lost its hold
+and was refunded before confirmation writes nothing.
+
+### The Monday and Thursday run
+
+The hourly sweep calls `createDuePayouts()`. It computes the most recent
+Monday or Thursday at 00:00 Asia/Manila and, for each recipient, batches every
+unbatched entry effective **before** that instant into one `PENDING` `Payout`.
+So each payout covers everything paid up to the end of the previous day,
+including bookings that have not been played yet.
+
+- The cutoff is derived from the clock, so a missed cron run self-heals on the
+  next one.
+- `@@unique([recipientId, recipientKind, cutoffAt])` makes concurrent sweeps
+  safe: one creates the payout, the other skips.
+- A recipient whose entries sum to zero or less gets no payout. The entries
+  stay unbatched and are summed again next run. **This is how a refund issued
+  after a payout is deducted from the following one.**
+- A recipient with no payout account is skipped and reported; their balance
+  waits.
+
+### Sending and recording
+
+Payouts are manual transfers. An admin opens `/dashboard/admin/payouts`, sends
+each amount to the snapshotted GCash, Maya, or bank destination, and records
+the transfer reference. Marking a payout paid requires recent admin MFA, is a
+compare-and-set on `PENDING`, and writes a `SecurityEvent`.
+
+Marking a payout paid also emails the recipient. The email states the exact
+amount, the date sent, the destination (network, account name, and the last
+four digits only), the transfer reference, the last day the payout covers, and
+one line per booking, event, session, or refund, adding up to the amount sent.
+The admin can add an optional **message to the recipient**, which is stored in
+`Payout.recipientMessage`; the **internal note** is never emailed.
+
+- **Preview.** "Preview email" renders the same email without recording
+  anything. Preview, send, and resend all build it through one function in
+  `src/lib/payout-actions.ts` from `getPayoutDetail()`, so the preview cannot
+  drift from what is sent.
+- **Delivery is reported, not assumed.** `Payout.emailedAt` is set only when
+  the provider accepts the message. The transfer is recorded either way: a
+  failed email never undoes a payout. The Sent list shows "Not emailed" until
+  it goes out.
+- **Resend.** "Resend email" on a sent payout sends it again with the stored
+  reference, message, and sent date.
+
+Venues see their statement under **Dashboard → Payments → Payouts**; trainers
+under **Trainer → Payments**.
+
+### The payout account
+
+One `PayoutAccount` per user: network (GCash, Maya, or bank transfer), account
+name, and account number. Only the venue owner, or an admin assisting them,
+may change it — staff cannot, whatever their payment permission. Saving it
+requires recent MFA, is rate-limited, re-points any payout that has not been
+sent yet, and emails the owner when an existing account is changed.
 
 ## Manual player payments
 
@@ -68,7 +158,7 @@ For every manual checkout:
 1. The requested court hours or event capacity are held for 15 minutes.
 2. The player chooses one of the partner's destinations, transfers the venue
    or event's advertised amount, uploads a receipt image, and may add a
-   transaction reference. No Bunal.club or PayMongo fee is added.
+   transaction reference. No Bunal.club fee is added.
 3. Before submitting proof, the player may cancel a court or event checkout to
    release the held hours or event spots immediately. An active automatic QR
    intent is cancelled at PayMongo before local capacity is reopened.
@@ -82,154 +172,90 @@ For every manual checkout:
 
 Manual refunds happen outside Bunal.club through the original network. After
 returning the venue amount, the partner records the refund and optional
-reference on the booking or event payment. Because manual payments are
-fee-free, the venue amount is the full checkout amount.
+reference on the booking or event payment. Manual payments never enter the
+payout ledger: the money was never Bunal.club's to send.
 
 Venue partners may also add named complimentary guests from the event player
 list. These organizer-managed spots confirm immediately, count against event
-capacity, and have no registration or Bunal service fee in either collection
-mode. Organizers may add players up to the event's remaining capacity in batches
-of at most 50 names. They are labeled separately from player-paid registrations
-and can be removed by the organizer to release capacity. Historical organizer-
-player service-fee entries remain auditable and reverse normally when an
-associated player is removed or the event is cancelled.
+capacity, and have no registration or service fee in either collection mode.
+Organizers may add players up to the event's remaining capacity in batches of
+at most 50 names.
 
-## Partner gateway setup
+## Bunal.club's PayMongo account
 
-Each venue uses its own PayMongo account so player booking proceeds go directly
-to that partner. The admin activates the partner in `/users`; the partner may
-then create its hub and courts before connecting an account. Complete hubs are
-published as Coming soon, but booking remains unavailable. Connecting an active
-gateway changes the public hub to Verified and enables online reservations.
+An admin connects the account under `/dashboard/admin/payments`. The action
+validates the secret key, registers the signed webhook for every event the
+account needs, and stores both credentials encrypted with AES-256-GCM.
 
-### Partner onboarding steps
+- **Automatic checkout is closed across the whole site while this account is
+  disconnected.** In production only a dashboard connection counts; the
+  environment-key fallback does not enable player checkout, because its
+  webhook cannot be upgraded or verified.
+- Replacing the key is refused if the new key cannot read payments the account
+  already collected, since those could then neither settle nor be refunded.
+- Disconnecting is refused while a player is mid-payment. Payments already
+  collected can still be polled, cancelled, and refunded afterwards.
+- The dashboard checks that `APP_URL` reaches the public webhook route and
+  refuses a new connection when it does not.
 
-1. Create a PayMongo account at
-   [dashboard.paymongo.com/signup](https://dashboard.paymongo.com/signup) and
-   complete PayMongo's business verification. Test keys are available for
-   sandbox setup; the account and required payment channels must be activated
-   before accepting real payments.
-2. In the PayMongo dashboard, open **Developers → API Keys**. Copy a matching
-   pair:
-   - Test setup: `pk_test_…` and `sk_test_…`
-   - Live payments: `pk_live_…` and `sk_live_…`
-3. In Bunal.club, open **Partner dashboard → Payments → Getting paid by
-   players**. Paste the public key into **Publishable key**, paste the matching
-   secret into **Secret key**, and select **Connect account**.
-4. The application verifies the credentials and registers the partner-specific
-   `payment.paid`, `payment.failed`, `payment.refunded`, and legacy
-   `checkout_session.payment.paid` webhook events automatically.
-   Complete a test booking before going live.
-5. After PayMongo activates the live account, use **Replace keys** and replace
-   both test keys with the live pair. Never mix test and live credentials.
+One webhook route, `/api/billing/webhook/paymongo`, receives two unrelated
+kinds of money and tells them apart by the resource the event names:
 
-The secret key controls the partner's PayMongo account and must be treated like
-a password. Never send it through chat or email, store it in source control, or
-place it in client-side code. If it is exposed, regenerate it in PayMongo and
-replace it in Bunal.club immediately. See PayMongo's
-[official API-key guide](https://docs.paymongo.com/do/docs/account-settings-api-keys).
+- a **payment intent** — a player's court, event, or trainer payment, handled
+  by `src/lib/platform-webhook.ts`;
+- a **checkout session** — a partner's or trainer's legacy service-fee
+  settlement, handled by `handleServiceFeeProviderEvent`.
 
-After the partner submits the form, the application:
-
-1. Verifies the credentials with PayMongo.
-2. Registers the partner-specific webhook.
-3. Encrypts the secret and webhook signing key with AES-256-GCM.
-4. Stores only a safe key hint for display.
-
-The required environment variables are:
+Only an invalid signature is answered with 400. A correctly signed event the
+app has nothing to do with gets 200 so PayMongo does not retry it forever.
+`ProviderEvent` deduplicates deliveries.
 
 | Variable | Purpose |
 | --- | --- |
-| `ENCRYPTION_KEY` | Encrypts partner gateway credentials. |
+| `ENCRYPTION_KEY` | Encrypts PayMongo credentials. |
 | `ENCRYPTION_KEYS_PREVIOUS` | Optional old keys used during rotation. |
-| `APP_URL` | Public HTTPS origin used for redirects and webhook URLs. |
-| `BOOKING_SWEEP_SECRET` | Bearer token for the expired-hold sweep. |
-| `CRON_SECRET` | Random Bearer token automatically attached by Vercel's hourly maintenance cron. |
-| `PAYMONGO_QRPH_PROCESSING_RATE` | Optional VAT-inclusive decimal rate for direct QR fee gross-up; defaults to `0.015008`. |
-| `PAYMONGO_SECRET_KEY` | Optional legacy fallback for Bunal.club's service-fee PayMongo account. |
-| `BILLING_WEBHOOK_SECRET` | Optional webhook secret paired with the environment fallback. |
-| `SERVICE_FEE_PAYMENT_INSTRUCTIONS` | Fallback manual remittance details shown to partners. |
+| `APP_URL` | Public HTTPS origin used for redirects and the webhook URL. |
+| `BOOKING_SWEEP_SECRET` | Bearer token for manual sweep runs. |
+| `CRON_SECRET` | Bearer token Vercel attaches to the hourly cron. |
+| `PAYMONGO_QRPH_PROCESSING_RATE` | Optional VAT-inclusive rate for estimating the absorbed processing cost; defaults to `0.015008`. |
+| `PAYMONGO_SECRET_KEY`, `BILLING_WEBHOOK_SECRET` | Legacy fallback for service-fee settlements only. Does not enable player checkout in production. |
+| `SERVICE_FEE_PAYMENT_INSTRUCTIONS` | Fallback remittance details for legacy service-fee balances. |
 
 PayMongo cannot deliver webhooks to localhost. Use an HTTPS tunnel such as
 Cloudflare Tunnel or ngrok for local webhook testing.
 
-## Service-fee remittance
-
-The partner's PayMongo account receives the booking subtotal and PayMongo
-deducts its processing fee. After a successful automatic booking is confirmed,
-`ServiceFeeEntry` rows record both the snapshotted court or event payment fee
-and an equal negative processing credit. The partner therefore remits only
-Bunal's net fee and keeps the complete advertised venue amount. Manual partner payments do
-not create service-fee entries.
-That service fee is non-refundable: an automatic-checkout refund returns the
-venue amount, retains the service fee, and does not create a negative ledger
-entry. There is no separately charged processing fee to refund.
-Partners remit the outstanding balance from `/dashboard/payments`. The primary
-flow opens an exact-amount QR Ph-only PayMongo hosted checkout in Bunal.club's
-own account. A signed
-`checkout_session.payment.paid` webhook marks the settlement paid
-automatically. The partner pays exactly the displayed settlement balance and
-Bunal.club absorbs that checkout's processing fee; the browser return leg also
-checks PayMongo in case it arrives before the webhook. Manual transfer
-reference and receipt submission remains available as a fallback, with admins
-reviewing those submissions in `/dashboard/admin/settlements`.
-The exact fee PayMongo deducts from an automatic partner or trainer settlement
-is stored on that settlement for margin auditing and reconciliation.
-An already-open hosted settlement keeps the provider settings and amount it was
-created with; the no-additional-fee rule applies when a new settlement checkout
-is created.
-
-An admin connects Bunal.club's collection account under
-`/dashboard/admin/payments`. The action validates the secret key, registers the
-signed settlement webhook, and stores both credentials encrypted at rest. Once
-that dashboard record exists it is authoritative, including when disconnected;
-an old environment key cannot silently reactivate collection. Replacing a key
-also verifies that it can still read every active settlement checkout. The
-dashboard checks that `APP_URL` reaches the public webhook route and refuses a
-new connection when it does not, preventing an expired tunnel URL from looking
-healthy.
-
-`PAYMONGO_SECRET_KEY` and `BILLING_WEBHOOK_SECRET` remain as a migration
-fallback for deployments that have not connected through the dashboard. The
-legacy CLI can register that fallback webhook after setting `APP_URL`:
-
-```bash
-npm run paymongo:webhook
-```
-
-Paste the returned signing secret into `BILLING_WEBHOOK_SECRET`, then restart
-the server or redeploy.
-
-Fees settle weekly with a seven-day payment grace period after each week
-closes. When that deadline passes, the balance is overdue but the partner gets
-a final three-day enforcement grace before new paid bookings pause and its hubs
-leave the public directory. Manual settlement proof is displayed as under
-review but does not reduce the balance or bypass an existing restriction until
-an admin approves it. Only one manual proof may be under review at a time, and
-receipt submissions are rate-limited. The authenticated maintenance sweep
-emails an active partner during the 24 hours before a balance is due, again
-when it becomes overdue, and at most once every 24 hours afterward until it is
-paid or settlement proof is submitted. The same sweep reconciles expired or
-abandoned PayMongo settlement sessions. Concurrent sweeps claim each reminder
-atomically, and a failed email releases the claim so the next sweep can retry
-safely.
-
 ## Booking settlement
 
-A paid booking or event group begins as a 15-minute hold. The app creates the payment ledger
-before either displaying manual destinations or calling PayMongo. Automatic
-payments claim the charge atomically to prevent duplicate
-Payment Intents. It creates a single-use QR Ph Payment Method with the same
-expiry, stores PayMongo's Base64 QR image, and renders it directly on the court
-or event payment screen. A signed `payment.paid` webhook marks the payment
-successful and confirms the associated booking. Five-second polling is a
-browser fallback, while `ProviderEvent` prevents webhook replay. Existing
-hosted Checkout Sessions remain readable and refundable during rollout.
+A paid booking or event group begins as a 15-minute hold. The app creates the
+payment ledger before either displaying manual destinations or calling
+PayMongo. Automatic payments claim the charge atomically to prevent duplicate
+Payment Intents, create a single-use QR Ph Payment Method with the same
+expiry, store PayMongo's Base64 QR image, and render it on the payment screen.
+A signed `payment.paid` webhook marks the payment successful and confirms the
+booking. Five-second polling from the open page is a fallback.
 
-Vercel calls the cleanup endpoint hourly at 10 minutes past the hour, as
-configured in `vercel.json`. Set `CRON_SECRET` in the production Vercel project
-to a random value of at least 16 characters. For an additional external or
-manual run, use `BOOKING_SWEEP_SECRET`:
+Every money operation resolves its PayMongo account through
+`src/lib/payment-rails.ts`: Bunal.club's account for `PLATFORM` rows, the
+venue's or trainer's stored keys for a `DIRECT` row that has a gateway.
+
+## Refunds
+
+The service fee is non-refundable. An automatic court or event refund returns
+`venueAmount` to the player from Bunal.club's PayMongo account and writes a
+payout `REFUND`. Trainer sessions keep their existing rules: a trainer-initiated
+cancellation returns the full amount including the fee; a player cancelling at
+least 24 hours ahead receives the trainer subtotal; later player cancellations
+are non-refundable.
+
+A refund is claimed on the payment row before PayMongo is asked, so two
+cancellations landing together request one refund. A refund issued from the
+PayMongo dashboard instead is mirrored onto the ledger by the
+`payment.refunded` webhook.
+
+## The hourly sweep
+
+Vercel calls `/api/bookings/sweep` hourly at 10 minutes past the hour, as
+configured in `vercel.json`, using `CRON_SECRET`. For a manual run:
 
 ```bash
 curl -X POST \
@@ -238,14 +264,42 @@ curl -X POST \
 ```
 
 Availability does not depend on the cron: expired holds stop blocking slots
-based on the current time. The sweep removes stale rows and closes their ledger
-records. BunalQ automatic run closure does depend on the hourly sweep. Submitted
-manual proofs are excluded from expiry and continue counting against court or
-event capacity until a partner reviews them.
+based on the current time. These do depend on it:
+
+- **Payout creation.** No sweep, no Monday or Thursday payouts.
+- **In-flight reconciliation.** A QR Ph payment whose webhook was lost and
+  whose page was closed is polled here. Without it the player's money would
+  sit in Bunal.club's account with no booking. A paid intent settles, or is
+  refunded automatically if its hold was lost.
+- BunalQ automatic run closure, service-fee reminders, and security cleanup.
+
+Submitted manual proofs are excluded from expiry and continue counting against
+court or event capacity until a partner reviews them.
+
+## Payments taken before platform collection
+
+Until the cutover, each venue and trainer connected its own PayMongo account,
+received player payments directly, and remitted a 3% service fee to Bunal.club
+weekly. That model no longer takes new payments, but its records are live:
+
+- A `DIRECT` payment with a `gatewayId` is still polled, settled by its own
+  webhook (`/api/venue-payments/webhook/[token]`,
+  `/api/trainer-payments/webhook/[token]`), cancelled, and refunded through the
+  venue's or trainer's stored keys, even if that account was disconnected.
+- Their fees live in `ServiceFeeEntry` / `TrainerServiceFeeEntry`. Outstanding
+  balances are settled through the existing screen, now labelled **Earlier
+  service fees**, and are **not** netted against payouts.
+- The weekly due date, seven-day grace, three-day enforcement grace, reminder
+  emails, and the pause on bookings and directory listing for an overdue
+  balance all still apply until the balance is cleared.
+- The settlement tab is hidden for an account with no such history.
+
+Platform-collected payments never create service-fee entries: Bunal.club
+already holds the fee.
 
 ## Verification
 
-Run `npm run check:money`, `npm run check:fee`,
-`npm run check:settlement`, and `npm run check:paymongo`.
-Checks use a real non-production PostgreSQL database and mock PayMongo only at
-the network boundary.
+Run `npm run check:money`, `npm run check:fee`, `npm run check:payouts`,
+`npm run check:platform-collection`, and `npm run check:readiness`. Checks use
+a real non-production PostgreSQL database and mock PayMongo only at the network
+boundary.

@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 
 import { prisma } from "@/lib/db";
-import { handleTrainerPaymentEvent } from "@/lib/trainer-payment-actions";
+import { handleTrainerPaymentEvent } from "@/lib/trainer-payment-settlement";
 import { loadTrainerGatewayCredentials } from "@/lib/trainer-gateway";
 import { getVenueGateway } from "@/lib/payments/venue";
 

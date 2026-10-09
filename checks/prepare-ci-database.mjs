@@ -77,6 +77,18 @@ async function main() {
     },
   });
 
+  // What verifies a venue for automatic checkout: somewhere to be paid out.
+  await prisma.payoutAccount.upsert({
+    where: { userId: partner.id },
+    update: {},
+    create: {
+      userId: partner.id,
+      network: "GCASH",
+      accountName: "CI Partner",
+      accountNumber: "09170000000",
+    },
+  });
+
   const hub = await prisma.hub.upsert({
     where: { slug: FIXTURES.hubSlug },
     update: { ownerId: partner.id },

@@ -1,5 +1,12 @@
-// The venue money path — a player paying a venue — end to end against
-// Postgres, with PayMongo mocked at the network boundary.
+// The pre-cutover venue money path — a player paying a venue through the
+// venue's OWN PayMongo account — end to end against Postgres, with PayMongo
+// mocked at the network boundary.
+//
+// New automatic payments are collected by Bunal.club's account instead (see
+// platform-collection.check.ts). Payments taken this way before the cutover
+// are still polled, settled, cancelled, and refunded through the venue's
+// stored keys, and still owe the 3% service fee they were quoted, so this
+// rail has to keep working exactly as it did.
 //
 //   npm run check:money
 //
@@ -20,8 +27,6 @@ import {
 import {
   BOOKING_HOLD_MINUTES,
   PAYMENT_COMPLETION_GRACE_MINUTES,
-  bookingServiceFeeFor,
-  grossFor,
   paymongoQrPhProcessingCostFor,
   paymongoQrPhProcessingFeeFor,
   paymongoQrPhTotalFor,
@@ -100,15 +105,17 @@ async function check() {
   ) {
     const expiresAt = new Date(Date.now() + holdMs);
     const venueAmount = 250 * hours.length;
+    // What these rows were quoted at the time: a 3% fee on the court total.
+    const platformFee = Math.round(venueAmount * 3) / 100;
     const payment = await prisma.bookingPayment.create({
       data: {
         partnerId: owner.userId,
         gatewayId: owner.gatewayId,
         userId: player!.id,
         hubId: court!.hubId,
-        amount: grossFor(venueAmount),
+        amount: venueAmount + platformFee,
         venueAmount,
-        platformFee: bookingServiceFeeFor(venueAmount),
+        platformFee,
         processingFeeResponsibility: "BUNAL",
         method: "QRPH",
         status: "PENDING",

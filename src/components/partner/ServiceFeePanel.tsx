@@ -76,13 +76,13 @@ export function ServiceFeePanel({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-gray-900">
-            Bunal.club service-fee settlement
+            Earlier service fees
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-gray-500">
-            Automatic payments accrue the displayed court or event payment fee
-            less the PayMongo processing absorbed by Bunal.club. Complimentary
-            players added by event staff accrue no payment fee. Remit the net
-            balance; you retain exactly your advertised rates.
+            Service fees from bookings players paid into your own PayMongo
+            account, before Bunal.club began collecting automatic payments.
+            New bookings add nothing here. Settle any remaining balance to keep
+            your venues open for booking.
           </p>
         </div>
         {balance.blocked ? (

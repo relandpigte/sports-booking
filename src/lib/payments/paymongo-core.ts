@@ -390,20 +390,27 @@ export async function createRefund(
   secretKey: string,
   paymentId: string,
   amountPesos: number,
-  reason?: string
+  reason?: string,
+  idempotencyKey?: string
 ): Promise<{ id: string; status?: string; amount?: number }> {
-  const data = await paymongoRequest(secretKey, "POST", "/refunds", {
-    data: {
-      attributes: {
-        amount: toCentavos(amountPesos),
-        payment_id: paymentId,
-        // PayMongo's enum. A venue cancellation is the customer asking, as far
-        // as the gateway is concerned.
-        reason: "requested_by_customer",
-        notes: reason?.slice(0, 255),
+  const data = await paymongoRequest(
+    secretKey,
+    "POST",
+    "/refunds",
+    {
+      data: {
+        attributes: {
+          amount: toCentavos(amountPesos),
+          payment_id: paymentId,
+          // PayMongo's enum. A venue cancellation is the customer asking, as
+          // far as the gateway is concerned.
+          reason: "requested_by_customer",
+          notes: reason?.slice(0, 255),
+        },
       },
     },
-  });
+    { idempotencyKey }
+  );
   const attrs = data.attributes as { status?: string; amount?: number };
   return { id: data.id, status: attrs.status, amount: attrs.amount };
 }
@@ -412,18 +419,23 @@ export async function createRefund(
 
 export const PAYMONGO_WEBHOOK_VERSION = 2;
 
-export const PLATFORM_WEBHOOK_EVENTS = [
-  // The one that settles. A hosted checkout reports completion against the
-  // SESSION, not the payment, so this is the event carrying the id we stored.
+export const VENUE_WEBHOOK_EVENTS = [
+  // A hosted checkout reports completion against the SESSION, not the
+  // payment, so this is the event carrying the id we stored for one.
   "checkout_session.payment.paid",
   "payment.failed",
   "payment.refunded",
-];
-
-export const VENUE_WEBHOOK_EVENTS = [
-  ...PLATFORM_WEBHOOK_EVENTS,
+  // Settles a direct QR Ph Payment Intent.
   "payment.paid",
 ];
+
+// Bunal.club's own account takes direct QR Ph payments for venues and
+// trainers as well as hosted service-fee checkouts, so it needs every event.
+export const PLATFORM_WEBHOOK_EVENTS = VENUE_WEBHOOK_EVENTS;
+
+// Version 1 registrations predate `payment.paid`. Separate from
+// PAYMONGO_WEBHOOK_VERSION so bumping it never re-registers partner gateways.
+export const PLATFORM_WEBHOOK_VERSION = 2;
 
 type WebhookResource = {
   id: string;

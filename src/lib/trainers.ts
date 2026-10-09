@@ -2,11 +2,9 @@ import "server-only";
 
 import { Prisma } from "@prisma/client";
 
-import {
-  TRAINER_BOOKING_WINDOW_DAYS,
-  bookingServiceFeeFor,
-} from "@/lib/constants";
+import { TRAINER_BOOKING_WINDOW_DAYS } from "@/lib/constants";
 import { prisma } from "@/lib/db";
+import { trainerSetupReady } from "@/lib/payment-readiness";
 import { emailDeliveryConfigured, sendTrainerLifecycleEmail } from "@/lib/email";
 import {
   isTrainerServiceFeeOverdue,
@@ -26,25 +24,11 @@ const weekdayIndex = {
   sat: 6,
 } as const;
 
-export function trainerServiceFeeFor(amount: number): number {
-  return bookingServiceFeeFor(amount);
-}
+// The fee itself lives in constants so the request form can quote it too.
+export { trainerServiceFeeFor } from "@/lib/constants";
 
 export function trainerPaymentSecondsLeft(expiresAt: Date): number {
   return Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
-}
-
-export function trainerPaymentReady(profile: {
-  paymentMode: "AUTOMATIC" | "MANUAL";
-  user: {
-    trainerGateway: { disconnectedAt: Date | null } | null;
-    trainerManualMethods: Array<{ id: string }>;
-  };
-}): boolean {
-  return profile.paymentMode === "AUTOMATIC"
-    ? profile.user.trainerGateway?.disconnectedAt == null &&
-        profile.user.trainerGateway != null
-    : profile.user.trainerManualMethods.length > 0;
 }
 
 type ScheduleProfile = {
@@ -122,7 +106,7 @@ const publicTrainerSelect = {
       playerName: true,
       image: true,
       privateProfile: true,
-      trainerGateway: { select: { disconnectedAt: true } },
+      payoutAccount: { select: { id: true } },
       trainerManualMethods: {
         where: { active: true },
         take: 1,
@@ -142,7 +126,9 @@ function isPublicTrainer(profile: PublicTrainer): boolean {
     !profile.user.privateProfile &&
     Boolean(profile.user.username) &&
     profile.hourlyRate != null &&
-    trainerPaymentReady({ paymentMode: profile.paymentMode, user: profile.user })
+    // Listed once the trainer's own setup is done. Whether a request can be
+    // paid for right now is checked when the player submits one.
+    trainerSetupReady({ paymentMode: profile.paymentMode, user: profile.user })
   );
 }
 

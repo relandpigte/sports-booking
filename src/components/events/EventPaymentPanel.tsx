@@ -71,8 +71,8 @@ export function EventPaymentPanel({
       )}
 
       <p className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-600">
-        Pay with PayMongo&apos;s secure, exact-amount QR Ph code. Confirmation
-        happens automatically and payment details never pass through Bunal.club.
+        Pay with a secure, exact-amount QR Ph code. Confirmation happens
+        automatically and your bank details never pass through Bunal.club.
       </p>
 
       <Button type="submit" disabled={pending} className="rounded-2xl py-4">
@@ -82,7 +82,8 @@ export function EventPaymentPanel({
       </Button>
 
       <p className="text-center text-xs text-slate-400">
-        The registration fee goes directly to {venueName}.
+        Bunal.club collects this payment securely and pays {venueName} the
+        full registration fee.
       </p>
     </form>
   );

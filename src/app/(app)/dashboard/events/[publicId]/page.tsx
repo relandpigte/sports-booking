@@ -480,8 +480,9 @@ export default async function PartnerEventDetailsPage({
                 />
               </div>
               <p className="mt-4 text-xs leading-5 text-slate-400">
-                PayMongo&apos;s pass-on processing fee is paid separately by
-                the player and is not included in these stored subtotals.
+                Automatic registrations are collected by Bunal.club and your
+                registration revenue is included in your next Monday or
+                Thursday payout. Payment fees are paid by the player.
               </p>
             </section>
           </div>

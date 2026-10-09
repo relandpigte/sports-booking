@@ -16,18 +16,18 @@ import {
   paymongoQrPhProcessingFeeFor,
 } from "@/lib/constants";
 import { prisma } from "@/lib/db";
+import { railForBookingPayment } from "@/lib/payment-rails";
 import {
-  loadGatewayCredentials,
-  loadGatewayCredentialsForCharge,
-} from "@/lib/partner-gateway";
-import { getVenueGateway, UnknownVenueGateway } from "@/lib/payments/venue";
+  recordRefundLedger,
+  recordSettlementLedger,
+} from "@/lib/payment-ledger";
+import { UnknownVenueGateway, type PaymentRail } from "@/lib/payments/venue";
 import type { ChargeResult } from "@/lib/payments/types";
 import {
   formatManilaDate,
   formatManilaDateLong,
   formatSlotRange,
 } from "@/lib/time";
-import { ensureServiceFeeCharge } from "@/lib/service-fees";
 import {
   getActiveManualPaymentMethods,
   type ManualPaymentMethodView,
@@ -887,7 +887,7 @@ async function settleBookingPaymentState(
       registration.status === "CONFIRMED" &&
       pendingGuests.length === 0
     ) {
-      await prisma.$transaction((tx) => ensureServiceFeeCharge(tx, payment));
+      await prisma.$transaction((tx) => recordSettlementLedger(tx, payment));
       return { status: "already" };
     }
 
@@ -983,7 +983,7 @@ async function settleBookingPaymentState(
           });
           if (updatedGuests.count !== pendingGuests.length) throw new LostHold();
         }
-        await ensureServiceFeeCharge(tx, payment);
+        await recordSettlementLedger(tx, payment);
       });
     } catch (error) {
       if (!(error instanceof LostHold)) throw error;
@@ -1039,7 +1039,7 @@ async function settleBookingPaymentState(
         (guest) => guest.status === "CONFIRMED"
       )
     ) {
-      await prisma.$transaction((tx) => ensureServiceFeeCharge(tx, payment));
+      await prisma.$transaction((tx) => recordSettlementLedger(tx, payment));
       return { status: "already" };
     }
 
@@ -1087,7 +1087,7 @@ async function settleBookingPaymentState(
             },
           });
           if (updated.count !== pendingGuests.length) throw new LostHold();
-          await ensureServiceFeeCharge(tx, payment);
+          await recordSettlementLedger(tx, payment);
         });
         return {
           status: "confirmed",
@@ -1124,7 +1124,7 @@ async function settleBookingPaymentState(
   if (pending.length === 0) {
     // Repairs the narrow crash window where confirmation committed but fee
     // accrual did not. The unique ledger key keeps this retry idempotent.
-    await prisma.$transaction((tx) => ensureServiceFeeCharge(tx, payment));
+    await prisma.$transaction((tx) => recordSettlementLedger(tx, payment));
     return { status: "already" };
   }
 
@@ -1157,7 +1157,7 @@ async function settleBookingPaymentState(
         },
       });
 
-      await ensureServiceFeeCharge(tx, payment);
+      await recordSettlementLedger(tx, payment);
     });
   } catch (error) {
     if (!(error instanceof LostHold)) throw error;
@@ -1297,7 +1297,7 @@ export async function recoverPaidEventRegistration(
         registration.status === "CONFIRMED" &&
         paymentGuests.every((guest) => guest.status === "CONFIRMED")
       ) {
-        await ensureServiceFeeCharge(tx, registration.payment);
+        await recordSettlementLedger(tx, registration.payment);
         return { status: "confirmed", registrationId: registration.id };
       }
       if (registration.status !== "EXPIRED") {
@@ -1348,7 +1348,7 @@ export async function recoverPaidEventRegistration(
         where: { id: registration.payment.id, status: "SUCCEEDED" },
         data: { failureCode: null, failureMessage: null },
       });
-      await ensureServiceFeeCharge(tx, registration.payment);
+      await recordSettlementLedger(tx, registration.payment);
       return { status: "confirmed", registrationId: registration.id };
     });
   } catch (error) {
@@ -1438,7 +1438,7 @@ async function recoverPaidEventGuestSlots(
           select: { eventRegistrationId: true },
         });
         if (!confirmed) return { status: "not-recoverable" };
-        await ensureServiceFeeCharge(tx, initialPayment);
+        await recordSettlementLedger(tx, initialPayment);
         return {
           status: "confirmed",
           registrationId: confirmed.eventRegistrationId,
@@ -1486,7 +1486,7 @@ async function recoverPaidEventGuestSlots(
         where: { id: payment.id },
         data: { failureCode: null, failureMessage: null },
       });
-      await ensureServiceFeeCharge(tx, payment);
+      await recordSettlementLedger(tx, payment);
       return { status: "confirmed", registrationId: registration.id };
     });
   } catch (error) {
@@ -1539,7 +1539,7 @@ export async function chargeBookingPayment(
 
   const payment = await prisma.bookingPayment.findFirst({
     where: { id: paymentId, ...paymentOwnerWhere(args) },
-    select: { ...paymentSelect, gatewayId: true },
+    select: { ...paymentSelect, gatewayId: true, collectedBy: true },
   });
   if (!payment) return { status: "missing" };
   if (payment.status === "SUCCEEDED" || payment.status === "REFUNDED") {
@@ -1646,11 +1646,11 @@ export async function chargeBookingPayment(
 
   let result: ChargeResult;
   try {
-    if (!payment.gatewayId) {
-      throw new Error("Automatic payment is missing its venue gateway.");
+    const rail = await railForBookingPayment(payment, "charge");
+    if (!rail) {
+      throw new Error("Automatic payment has no payment account to charge.");
     }
-    const creds = await loadGatewayCredentialsForCharge(payment.gatewayId);
-    result = await getVenueGateway(creds).charge({
+    result = await rail.charge({
       amount: {
         amount: Number(payment.amount) + playerProcessingFee,
         currency: "PHP",
@@ -1722,7 +1722,13 @@ export async function pollBookingPayment(
 ): Promise<SettleOutcome | { status: "unresolved" }> {
   const payment = await prisma.bookingPayment.findUnique({
     where: { id: paymentId },
-    select: { id: true, status: true, gatewayId: true, providerPaymentId: true },
+    select: {
+      id: true,
+      status: true,
+      gatewayId: true,
+      collectedBy: true,
+      providerPaymentId: true,
+    },
   });
   if (!payment) return { status: "missing" };
   if (payment.status === "SUCCEEDED") return settleBookingPayment(payment.id);
@@ -1730,9 +1736,9 @@ export async function pollBookingPayment(
     return { status: "unresolved" };
   }
 
-  if (!payment.gatewayId) return { status: "unresolved" };
-  const creds = await loadGatewayCredentials(payment.gatewayId);
-  const result = await getVenueGateway(creds).getCharge(payment.providerPaymentId);
+  const rail = await railForBookingPayment(payment, "existing");
+  if (!rail) return { status: "unresolved" };
+  const result = await rail.getCharge(payment.providerPaymentId);
   if (result.status === "pending") return { status: "unresolved" };
 
   await recordBookingChargeResult(payment.id, result);
@@ -1767,6 +1773,7 @@ export async function cancelAutomaticBookingHold(
       status: true,
       collectionMode: true,
       gatewayId: true,
+      collectedBy: true,
       providerPaymentId: true,
       bookings: { select: { id: true } },
       eventRegistration: {
@@ -1793,9 +1800,12 @@ export async function cancelAutomaticBookingHold(
   if (payment.status !== "PENDING") {
     return { status: "closed", hubId: payment.hubId, eventPublicId };
   }
+  const rail =
+    payment.collectionMode === "AUTOMATIC"
+      ? await railForBookingPayment(payment, "existing")
+      : null;
   if (
-    payment.collectionMode !== "AUTOMATIC" ||
-    !payment.gatewayId ||
+    !rail ||
     !payment.providerPaymentId ||
     !payment.providerPaymentId.startsWith("pi_") ||
     (payment.bookings.length === 0 &&
@@ -1811,10 +1821,7 @@ export async function cancelAutomaticBookingHold(
     };
   }
 
-  const creds = await loadGatewayCredentials(payment.gatewayId);
-  const cancelled = await getVenueGateway(creds).cancelCharge(
-    payment.providerPaymentId
-  );
+  const cancelled = await rail.cancelCharge(payment.providerPaymentId);
   if (cancelled.status === "succeeded") {
     await recordBookingChargeResult(payment.id, {
       status: "succeeded",
@@ -1994,8 +2001,14 @@ async function recordAutomaticRefundFailure(
   });
 }
 
-// Works for a DISCONNECTED gateway too: the ciphertext is deliberately kept on
-// disconnect precisely so a partner can still refund what they already took.
+// How long a refund request may stay unanswered before another attempt may
+// take it over. Longer than any provider timeout, so a live request is never
+// raced; short enough that a crashed one does not strand the player.
+const REFUND_CLAIM_MINUTES = 5;
+
+// Works for a DISCONNECTED account too: a venue's ciphertext is deliberately
+// kept on disconnect, and the platform account stays readable, precisely so
+// money that was already taken can still be returned.
 export async function refundBookingPayment(args: {
   paymentId: string;
   reason?: string;
@@ -2012,7 +2025,9 @@ export async function refundBookingPayment(args: {
       processingFeeResponsibility: true,
       collectionMode: true,
       gatewayId: true,
+      collectedBy: true,
       providerPaymentId: true,
+      refundStartedAt: true,
     },
   });
   if (!payment) return { ok: false, message: "Payment not found." };
@@ -2044,14 +2059,9 @@ export async function refundBookingPayment(args: {
       )
       .toFixed(2)
   );
-  if (!payment.gatewayId) {
-    return { ok: false, message: "That automatic payment has no gateway." };
-  }
-  const creds = await loadGatewayCredentials(payment.gatewayId);
-
-  let gateway;
+  let rail: PaymentRail | null;
   try {
-    gateway = getVenueGateway(creds);
+    rail = await railForBookingPayment(payment, "existing");
   } catch (error) {
     // A payment taken through a gateway this app no longer supports. There is
     // nothing to call, and pretending otherwise would 500 a partner mid-refund.
@@ -2063,14 +2073,64 @@ export async function refundBookingPayment(args: {
     }
     throw error;
   }
+  if (!rail) {
+    return {
+      ok: false,
+      message: "That automatic payment has no payment account to refund from.",
+    };
+  }
 
-  const result = await gateway.refund(
-    payment.providerPaymentId,
-    { amount, currency: "PHP" },
-    args.reason
+  // Claim before asking the provider, so two cancellations landing together
+  // cannot both request a refund. A claim older than the window belongs to a
+  // request that never reported back and may be taken over.
+  const claimedAt = new Date();
+  const staleBefore = new Date(
+    claimedAt.getTime() - REFUND_CLAIM_MINUTES * 60_000
   );
+  const takingOver =
+    payment.refundStartedAt != null && payment.refundStartedAt < staleBefore;
+  const claim = await prisma.bookingPayment.updateMany({
+    where: {
+      id: payment.id,
+      status: "SUCCEEDED",
+      refundStartedAt: takingOver ? payment.refundStartedAt : null,
+    },
+    data: { refundStartedAt: claimedAt },
+  });
+  if (claim.count !== 1) {
+    return {
+      ok: false,
+      message: "A refund for this payment is already in progress.",
+    };
+  }
+  const releaseClaim = () =>
+    prisma.bookingPayment.updateMany({
+      where: { id: payment.id, status: "SUCCEEDED", refundStartedAt: claimedAt },
+      data: { refundStartedAt: null },
+    });
+
+  // A taken-over request reuses the abandoned attempt's key: if that attempt
+  // did reach the provider, this one collapses into it instead of refunding
+  // twice. A fresh attempt after a clean failure gets a fresh key.
+  const attempt = (
+    takingOver ? payment.refundStartedAt! : claimedAt
+  ).getTime();
+
+  let result;
+  try {
+    result = await rail.refund(
+      payment.providerPaymentId,
+      { amount, currency: "PHP" },
+      args.reason,
+      `refund:${payment.id}:${attempt}`
+    );
+  } catch (error) {
+    await releaseClaim();
+    throw error;
+  }
 
   if (result.status === "failed") {
+    await releaseClaim();
     return {
       ok: false,
       message: result.message || "The refund was rejected by the payment provider.",
@@ -2124,15 +2184,68 @@ export async function markBookingPaymentRefunded(args: {
         paidAt: true,
       },
     });
-    // Retain the service fee on every refund path. This also records the fee
-    // for a paid checkout whose court hold was lost before confirmation.
-    if (payment) await ensureServiceFeeCharge(tx, payment);
+    // Retain the service fee on every refund path. On the direct rail this
+    // also records the fee for a paid checkout whose court hold was lost
+    // before confirmation; on the platform rail it takes the venue's share
+    // back off what Bunal.club owes it.
+    if (payment) await recordRefundLedger(tx, payment);
   });
 }
 
 // ---------------------------------------------------------------------------
 // The sweep
 // ---------------------------------------------------------------------------
+
+// A charge that was started and has heard nothing for this long is asked
+// about directly rather than waiting on a webhook.
+const IN_FLIGHT_RECONCILE_AFTER_MINUTES = 2;
+const IN_FLIGHT_RECONCILE_BATCH = 50;
+
+// Asks the provider about every payment that started a charge and never
+// reported back. A QR Ph payment is confirmed by a webhook or by the player's
+// open page polling; if the delivery was lost and the page was closed, nothing
+// else would ever settle it — and the money would sit in the account that
+// collected it with no booking to show for it.
+//
+// A paid intent settles (or auto-refunds if the hold was lost). An expired one
+// releases its claim so expireBookingHolds can reap it in the same run.
+export async function reconcileInFlightBookingPayments(
+  now: Date = new Date()
+): Promise<{ checked: number; settled: number; failed: number }> {
+  const payments = await prisma.bookingPayment.findMany({
+    where: {
+      status: "PENDING",
+      collectionMode: "AUTOMATIC",
+      providerPaymentId: { not: null },
+      chargeStartedAt: {
+        lt: new Date(
+          now.getTime() - IN_FLIGHT_RECONCILE_AFTER_MINUTES * 60_000
+        ),
+      },
+    },
+    orderBy: { chargeStartedAt: "asc" },
+    take: IN_FLIGHT_RECONCILE_BATCH,
+    select: { id: true },
+  });
+
+  const result = { checked: payments.length, settled: 0, failed: 0 };
+  for (const payment of payments) {
+    try {
+      const outcome = await pollBookingPayment(payment.id);
+      if (outcome.status === "confirmed" || outcome.status === "already") {
+        result.settled += 1;
+      }
+    } catch (error) {
+      // One unreachable account must not stop the rest of the run.
+      result.failed += 1;
+      console.error(
+        "In-flight payment reconciliation failed:",
+        error instanceof Error ? error.message : "Unknown error"
+      );
+    }
+  }
+  return result;
+}
 
 // Hygiene ONLY. Every read is already time-based (see liveBookingWhere and the
 // slot predicate in bookings.ts), so an abandoned hold stops blocking the grid

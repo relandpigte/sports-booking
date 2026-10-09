@@ -32,7 +32,7 @@ const labels: Record<StaffModule, { name: string; description: string }> = {
   },
   payments: {
     name: "Payments",
-    description: "Checkout mode, PayMongo, and manual payment destinations.",
+    description: "Checkout mode, manual payment destinations, and the payout statement.",
   },
   openPlay: {
     name: "BunalQ",

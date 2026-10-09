@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
+import { PayoutStatement } from "@/components/payments/PayoutStatement";
 import { TrainerPaymentSettings } from "@/components/trainers/TrainerPaymentSettings";
 import { TrainerTabs } from "@/components/trainers/TrainerTabs";
 import { TrainerWorkspaceHeader } from "@/components/trainers/TrainerWorkspaceHeader";
@@ -8,6 +9,7 @@ import { Badge } from "@/components/ui/Badge";
 import { getCurrentUser } from "@/lib/dal";
 import { prisma } from "@/lib/db";
 import { platformPaymongoConfigured } from "@/lib/payments/paymongo-platform";
+import { getPayoutStatement } from "@/lib/payouts";
 import {
   calculateTrainerServiceFeeBalance,
   listTrainerServiceFeeWaivers,
@@ -43,7 +45,7 @@ export default async function TrainerPaymentsPage({
   } else {
     await pollLatestTrainerServiceFeeCheckout(user.id);
   }
-  const [balance, settlements, waivers, paymongoSettlementEnabled] = await Promise.all([
+  const [balance, settlements, waivers, paymongoSettlementEnabled, statement] = await Promise.all([
     calculateTrainerServiceFeeBalance(prisma, user.id),
     prisma.trainerServiceFeeSettlement.findMany({
       where: { trainerId: user.id },
@@ -59,10 +61,8 @@ export default async function TrainerPaymentsPage({
     }),
     listTrainerServiceFeeWaivers(user.id, 12),
     platformPaymongoConfigured(),
+    getPayoutStatement(user.id, "TRAINER"),
   ]);
-  const gateway = profile.user.trainerGateway
-    ? { accountLabel: profile.user.trainerGateway.accountLabel, disconnectedAt: profile.user.trainerGateway.disconnectedAt }
-    : null;
   const methods = profile.user.trainerManualMethods.map(
     ({
       id,
@@ -84,11 +84,10 @@ export default async function TrainerPaymentsPage({
       qrImage,
     })
   );
-  const connected = Boolean(gateway && !gateway.disconnectedAt);
   const activeManualMethods = methods.filter((method) => method.active).length;
   const checkoutReady =
     profile.paymentMode === "AUTOMATIC"
-      ? connected
+      ? statement.account != null
       : activeManualMethods > 0;
 
   return (
@@ -96,7 +95,7 @@ export default async function TrainerPaymentsPage({
       <TrainerWorkspaceHeader
         eyebrow="Payment workspace"
         title="Payments"
-        description="Configure player checkout, payment destinations, and service-fee settlements."
+        description="Choose how players pay, set where your payouts go, and track what Bunal.club has sent you."
         badge={
           <Badge tone={checkoutReady ? "success" : "warn"}>
             {checkoutReady ? "Checkout ready" : "Setup required"}
@@ -107,7 +106,7 @@ export default async function TrainerPaymentsPage({
           checkoutReady
             ? "Your current checkout mode is ready to receive player payments."
             : profile.paymentMode === "AUTOMATIC"
-              ? "Connect PayMongo before accepting automatic player payments."
+              ? "Add your payout account before accepting automatic player payments."
               : "Add an active payment destination before accepting manual transfers."
         }
         icon="payments"
@@ -117,7 +116,8 @@ export default async function TrainerPaymentsPage({
       </div>
       <TrainerPaymentSettings
         mode={profile.paymentMode}
-        gateway={gateway}
+        payoutAccount={statement.account}
+        payouts={<PayoutStatement statement={statement} />}
         methods={methods}
         paymongoSettlementEnabled={paymongoSettlementEnabled}
         settlementInstructions={

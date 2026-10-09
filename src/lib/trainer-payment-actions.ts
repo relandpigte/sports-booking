@@ -10,22 +10,27 @@ import { CRYPTO_PURPOSE, encrypt, isEncryptionConfigured, secretHint } from "@/l
 import { getViewer, requireRecentMfa } from "@/lib/dal";
 import { requireAdmin } from "@/lib/admin";
 import { prisma } from "@/lib/db";
-import { emailDeliveryConfigured, sendTrainerLifecycleEmail } from "@/lib/email";
 import { appUrl } from "@/lib/urls";
-import { loadTrainerGatewayCredentials } from "@/lib/trainer-gateway";
-import { getVenueGateway } from "@/lib/payments/venue";
+import { getVenueGateway, type PaymentRail } from "@/lib/payments/venue";
 import { platformPaymongoConfigured } from "@/lib/payments/paymongo-platform";
+import { railForTrainerPayment } from "@/lib/payment-rails";
+import { ensurePayoutRefund } from "@/lib/payouts";
+import {
+  confirmTrainerPayment,
+  reconcileTrainerPayment,
+  revalidateTrainerPayments,
+  sendLifecycle,
+} from "@/lib/trainer-payment-settlement";
 import {
   PAYMONGO_WEBHOOK_VERSION,
   VENUE_WEBHOOK_EVENTS,
   registerPaymongoWebhook,
 } from "@/lib/payments/paymongo-core";
-import type { ProviderWebhookEvent } from "@/lib/payments/types";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { startTrainerServiceFeeCheckout } from "@/lib/trainer-service-fee-payments";
 import { ConnectGatewaySchema } from "@/lib/validation";
 import { firstErrors } from "@/lib/zod-errors";
-import { formatManilaDateLong, formatSlotRange } from "@/lib/time";
+import { formatSlotRange } from "@/lib/time";
 
 export type TrainerPaymentState = {
   errors?: Record<string, string>;
@@ -46,14 +51,6 @@ function value(formData: FormData, key: string, max = 200) {
   return String(formData.get(key) ?? "").trim().slice(0, max);
 }
 
-function revalidateTrainerPayments(paymentId?: string) {
-  revalidatePath("/dashboard/trainer");
-  revalidatePath("/dashboard/trainer/payments");
-  revalidatePath("/dashboard/trainer/sessions");
-  revalidatePath("/dashboard/bookings");
-  if (paymentId) revalidatePath(`/dashboard/trainer-payments/${paymentId}`);
-}
-
 async function trainerOwner() {
   const viewer = await getViewer();
   if (!viewer || viewer.role !== "PLAYER") return null;
@@ -62,65 +59,6 @@ async function trainerOwner() {
     select: { id: true, userId: true },
   });
   return profile ? { viewer, profile } : null;
-}
-
-async function sendLifecycle(input: Parameters<typeof sendTrainerLifecycleEmail>[0]) {
-  if (!emailDeliveryConfigured() || input.to.endsWith("@example.com")) return;
-  try {
-    await sendTrainerLifecycleEmail(input);
-  } catch (error) {
-    console.error(
-      "Trainer payment email failed:",
-      error instanceof Error ? error.message : "Unknown error"
-    );
-  }
-}
-
-async function ensureTrainerFeeEntries(
-  tx: Prisma.TransactionClient,
-  payment: {
-    id: string;
-    trainerId: string;
-    platformFee: Prisma.Decimal;
-    processingFee: Prisma.Decimal;
-    processingFeeResponsibility: "PLAYER" | "BUNAL";
-  }
-) {
-  await tx.trainerServiceFeeEntry.upsert({
-    where: {
-      trainerPaymentId_type: {
-        trainerPaymentId: payment.id,
-        type: "CHARGE",
-      },
-    },
-    create: {
-      trainerId: payment.trainerId,
-      trainerPaymentId: payment.id,
-      type: "CHARGE",
-      amount: payment.platformFee,
-    },
-    update: {},
-  });
-  if (
-    payment.processingFeeResponsibility === "BUNAL" &&
-    Number(payment.processingFee) > 0
-  ) {
-    await tx.trainerServiceFeeEntry.upsert({
-      where: {
-        trainerPaymentId_type: {
-          trainerPaymentId: payment.id,
-          type: "PROCESSING_CREDIT",
-        },
-      },
-      create: {
-        trainerId: payment.trainerId,
-        trainerPaymentId: payment.id,
-        type: "PROCESSING_CREDIT",
-        amount: payment.processingFee.negated(),
-      },
-      update: { amount: payment.processingFee.negated() },
-    });
-  }
 }
 
 export async function connectTrainerGatewayAction(
@@ -198,11 +136,11 @@ export async function saveTrainerPaymentModeAction(
   const mode = value(formData, "mode", 20);
   if (mode !== "AUTOMATIC" && mode !== "MANUAL") return { message: "Choose a valid payment mode." };
   if (mode === "AUTOMATIC") {
-    const ready = await prisma.trainerGateway.findFirst({
-      where: { userId: owner.viewer.id, disconnectedAt: null },
+    const ready = await prisma.payoutAccount.findUnique({
+      where: { userId: owner.viewer.id },
       select: { id: true },
     });
-    if (!ready) return { message: "Connect PayMongo before selecting Automatic." };
+    if (!ready) return { message: "Add your payout account before selecting Automatic." };
   } else {
     const count = await prisma.trainerManualPaymentMethod.count({
       where: { trainerId: owner.viewer.id, active: true },
@@ -211,7 +149,7 @@ export async function saveTrainerPaymentModeAction(
   }
   await prisma.trainerProfile.update({ where: { id: owner.profile.id }, data: { paymentMode: mode } });
   revalidateTrainerPayments();
-  return { success: mode === "AUTOMATIC" ? "Automatic PayMongo payments selected." : "Manual transfer selected." };
+  return { success: mode === "AUTOMATIC" ? "Automatic QR Ph payments selected." : "Manual transfer selected." };
 }
 
 export async function saveTrainerManualMethodAction(
@@ -327,119 +265,6 @@ export async function deleteTrainerManualMethodAction(
   return { success: "Payment destination deleted." };
 }
 
-async function confirmTrainerPayment(
-  paymentId: string,
-  providerRef?: string | null,
-  manualReview?: {
-    reviewedById: string;
-    note: string | null;
-  }
-) {
-  const now = new Date();
-  const current = await prisma.trainerPayment.findUnique({
-    where: { id: paymentId },
-    include: { session: true },
-  });
-  if (
-    current?.status === "PENDING" &&
-    current.collectionMode === "AUTOMATIC" &&
-    current.expiresAt <= now
-  ) {
-    const claimed = await prisma.trainerPayment.updateMany({
-      where: { id: current.id, status: "PENDING", refundStartedAt: null },
-      data: { refundStartedAt: now },
-    });
-    if (claimed.count === 1 && current.gatewayId && current.providerPaymentId) {
-      const gateway = getVenueGateway(await loadTrainerGatewayCredentials(current.gatewayId));
-      const refund = await gateway.refund(current.providerPaymentId, { amount: Number(current.amount), currency: "PHP" }, "Trainer-session payment completed after the hold expired.");
-      if (refund.status !== "failed") {
-        await prisma.$transaction([
-          prisma.trainerPayment.update({ where: { id: current.id }, data: { status: "REFUNDED", refundedAt: now, refundedAmount: current.amount, refundRef: refund.refundId, refundReason: "Payment completed after the trainer-session hold expired." } }),
-          prisma.trainerSession.update({ where: { id: current.trainerSessionId }, data: { status: "EXPIRED" } }),
-          prisma.trainerSessionSlot.deleteMany({ where: { trainerSessionId: current.trainerSessionId } }),
-        ]);
-      } else {
-        await prisma.trainerPayment.update({ where: { id: current.id }, data: { refundStartedAt: null, failureCode: "late_refund_failed", failureMessage: refund.message } });
-      }
-    }
-    revalidateTrainerPayments(paymentId);
-    return null;
-  }
-  const result = await prisma.$transaction(async (tx) => {
-    const payment = await tx.trainerPayment.findUnique({
-      where: { id: paymentId },
-      include: {
-        session: true,
-        trainer: { select: { email: true, name: true, playerName: true } },
-        player: { select: { email: true, name: true, playerName: true } },
-      },
-    });
-    if (!payment) return null;
-    if (payment.status === "SUCCEEDED") {
-      await ensureTrainerFeeEntries(tx, payment);
-      return payment;
-    }
-    if (payment.status !== "PENDING") return null;
-    if (!["AWAITING_PAYMENT", "PAYMENT_REVIEW"].includes(payment.session.status)) return null;
-    await tx.trainerPayment.update({
-      where: { id: payment.id },
-      data: {
-        status: "SUCCEEDED",
-        paidAt: now,
-        providerRef: providerRef ?? payment.providerRef,
-        ...(manualReview
-          ? {
-              manualReviewedAt: payment.manualReviewedAt ?? now,
-              manualReviewedById: manualReview.reviewedById,
-              manualReviewNote: manualReview.note,
-            }
-          : {}),
-      },
-    });
-    await tx.trainerSession.update({
-      where: { id: payment.trainerSessionId },
-      data: { status: "CONFIRMED", confirmedAt: now },
-    });
-    await ensureTrainerFeeEntries(tx, payment);
-    await tx.chatConversation.upsert({
-      where: { trainerSessionId: payment.trainerSessionId },
-      create: { kind: "TRAINER_SESSION", trainerSessionId: payment.trainerSessionId },
-      update: {},
-    });
-    return payment;
-  }, {
-    maxWait: 10_000,
-    timeout: 30_000,
-  });
-  if (result) {
-    const sessionLabel = `${formatManilaDateLong(result.session.date)}, ${formatSlotRange(result.session.startHour, result.session.endHour)}`;
-    await Promise.all([
-      sendLifecycle({
-        to: result.player.email,
-        recipientName: result.player.playerName ?? result.player.name ?? "Player",
-        subject: "Trainer session confirmed",
-        heading: "Your training session is confirmed",
-        message: sessionLabel,
-        actionUrl: appUrl("/dashboard/bookings"),
-        actionLabel: "View booking",
-        idempotencyKey: `trainer-paid-${result.id}-player`,
-      }),
-      sendLifecycle({
-        to: result.trainer.email,
-        recipientName: result.trainer.playerName ?? result.trainer.name ?? "Trainer",
-        subject: "Trainer session paid",
-        heading: "The player's payment is confirmed",
-        message: sessionLabel,
-        actionUrl: appUrl("/dashboard/trainer/sessions"),
-        actionLabel: "View session",
-        idempotencyKey: `trainer-paid-${result.id}-trainer`,
-      }),
-    ]);
-  }
-  revalidateTrainerPayments(paymentId);
-  return result;
-}
-
 export async function payTrainerSessionAction(
   _previous: TrainerPaymentState,
   formData: FormData
@@ -461,9 +286,25 @@ export async function payTrainerSessionAction(
     where: { id: paymentId },
     include: { session: true },
   });
-  if (!payment?.gatewayId) return { message: "The trainer's gateway is unavailable." };
-  const gateway = getVenueGateway(await loadTrainerGatewayCredentials(payment.gatewayId));
-  const result = await gateway.charge({
+  if (!payment) return { message: "This payment is unavailable or expired." };
+  let rail: PaymentRail | null = null;
+  try {
+    rail = await railForTrainerPayment(payment, "charge");
+  } catch (error) {
+    console.error(
+      "Trainer payment account unavailable:",
+      error instanceof Error ? error.message : "Unknown error"
+    );
+  }
+  if (!rail) {
+    // Release the claim so the player can retry once checkout is restored.
+    await prisma.trainerPayment.update({
+      where: { id: payment.id },
+      data: { chargeStartedAt: null },
+    });
+    return { message: "Online payment is temporarily unavailable. Please try again shortly." };
+  }
+  const result = await rail.charge({
     amount: { amount: Number(payment.amount), currency: "PHP" },
     description: `Trainer session — ${payment.session.date}, ${formatSlotRange(payment.session.startHour, payment.session.endHour)}`,
     idempotencyKey: `${payment.id}:${payment.attempt}`,
@@ -625,44 +466,6 @@ export async function reviewTrainerManualPaymentAction(
   return { success: "Payment declined and the hours released." };
 }
 
-export async function handleTrainerPaymentEvent(args: {
-  gatewayId: string;
-  webhookToken: string;
-  event: ProviderWebhookEvent;
-}) {
-  const { event } = args;
-  if (!event) return { handled: false };
-  const endpoint = await prisma.trainerGateway.findFirst({
-    where: { id: args.gatewayId, webhookToken: args.webhookToken },
-    select: { id: true },
-  });
-  if (!endpoint) return { handled: false };
-  const payment = await prisma.trainerPayment.findFirst({
-    where: { gatewayId: args.gatewayId, providerPaymentId: event.providerPaymentId },
-    select: { id: true, amount: true, status: true },
-  });
-  if (!payment) return { handled: false };
-  if (event.type === "payment.succeeded") {
-    const expected = Math.round(Number(payment.amount) * 100);
-    if (event.amountCentavos != null && event.amountCentavos !== expected) {
-      return { handled: false, reason: "amount_mismatch" };
-    }
-    if (event.feeCentavos != null) {
-      await prisma.trainerPayment.update({
-        where: { id: payment.id },
-        data: { processingFee: new Prisma.Decimal(event.feeCentavos / 100) },
-      });
-    }
-    await confirmTrainerPayment(payment.id, event.reference);
-    return { handled: true };
-  }
-  if (event.type === "payment.failed" && payment.status === "PENDING") {
-    await prisma.trainerPayment.update({ where: { id: payment.id }, data: { failureCode: event.failureCode, failureMessage: event.failureMessage, chargeStartedAt: null, raw: event.raw as Prisma.InputJsonValue } });
-    return { handled: true };
-  }
-  return { handled: false };
-}
-
 export async function getTrainerPaymentStatus(paymentId: string) {
   const viewer = await getViewer();
   if (!viewer || viewer.role !== "PLAYER") return null;
@@ -682,26 +485,10 @@ export async function pollTrainerPayment(paymentId: string) {
   if (!viewer || viewer.role !== "PLAYER") return;
   const payment = await prisma.trainerPayment.findFirst({
     where: { id: paymentId, playerId: viewer.id },
-    select: { id: true, status: true, gatewayId: true, providerPaymentId: true },
+    select: { id: true, status: true, gatewayId: true, collectedBy: true, providerPaymentId: true },
   });
-  if (!payment || payment.status !== "PENDING" || !payment.gatewayId || !payment.providerPaymentId) return;
-  const gateway = getVenueGateway(await loadTrainerGatewayCredentials(payment.gatewayId));
-  const result = await gateway.getCharge(payment.providerPaymentId);
-  if (result.status === "succeeded") {
-    await prisma.trainerPayment.update({
-      where: { id: payment.id },
-      data: {
-        providerRef: result.reference,
-        ...(result.feeCentavos != null
-          ? { processingFee: new Prisma.Decimal(result.feeCentavos / 100) }
-          : {}),
-        raw: result.raw as Prisma.InputJsonValue,
-      },
-    });
-    await confirmTrainerPayment(payment.id, result.reference);
-  } else if (result.status === "failed") {
-    await prisma.trainerPayment.update({ where: { id: payment.id }, data: { failureCode: result.code, failureMessage: result.message, chargeStartedAt: null, raw: result.raw as Prisma.InputJsonValue } });
-  }
+  if (!payment) return;
+  await reconcileTrainerPayment(payment);
 }
 
 export async function refundTrainerSessionAction(
@@ -753,12 +540,19 @@ export async function refundTrainerSessionAction(
   if (claimed.count !== 1) return { message: "This refund is already processing." };
   let refundRef = `manual:${Date.now()}`;
   if (session.payment.collectionMode === "AUTOMATIC") {
-    if (!session.payment.gatewayId || !session.payment.providerPaymentId) {
+    const rail = session.payment.providerPaymentId
+      ? await railForTrainerPayment(session.payment, "existing")
+      : null;
+    if (!rail || !session.payment.providerPaymentId) {
       await prisma.trainerPayment.update({ where: { id: session.payment.id }, data: { refundStartedAt: null } });
       return { message: "Gateway payment reference is missing." };
     }
-    const gateway = getVenueGateway(await loadTrainerGatewayCredentials(session.payment.gatewayId));
-    const refund = await gateway.refund(session.payment.providerPaymentId, { amount: refundAmount, currency: "PHP" }, reason);
+    const refund = await rail.refund(
+      session.payment.providerPaymentId,
+      { amount: refundAmount, currency: "PHP" },
+      reason,
+      `trainer-refund:${session.payment.id}`
+    );
     if (refund.status === "failed") {
       await prisma.trainerPayment.update({ where: { id: session.payment.id }, data: { refundStartedAt: null } });
       return { message: refund.message };
@@ -776,7 +570,16 @@ export async function refundTrainerSessionAction(
       data: { status: "REFUNDED", refundedAt: now, cancelledAt: now, cancelledBy: fullRefund ? "PARTNER" : "PLAYER", cancelReason: reason },
     });
     await tx.trainerSessionSlot.deleteMany({ where: { trainerSessionId: session.id } });
-    if (fullRefund) {
+    // On the platform rail the trainer's share comes back off what Bunal.club
+    // owes them, whoever asked for the refund. A no-op for every other payment.
+    await ensurePayoutRefund(tx, { trainerPaymentId: session.payment!.id });
+    // The fee reversal only applies where a fee was actually owed: payments the
+    // trainer collected directly. Platform-collected payments never accrued one.
+    const feeCharged = await tx.trainerServiceFeeEntry.findUnique({
+      where: { trainerPaymentId_type: { trainerPaymentId: session.payment!.id, type: "CHARGE" } },
+      select: { id: true },
+    });
+    if (fullRefund && feeCharged) {
       await tx.trainerServiceFeeEntry.upsert({
         where: { trainerPaymentId_type: { trainerPaymentId: session.payment!.id, type: "REFUND" } },
         create: { trainerId: session.trainer.userId, trainerPaymentId: session.payment!.id, type: "REFUND", amount: new Prisma.Decimal(-Number(session.payment!.platformFee)) },

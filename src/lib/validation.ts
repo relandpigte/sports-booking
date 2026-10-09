@@ -355,6 +355,74 @@ export const ConnectPlatformGatewaySchema = z.object({
     }),
 });
 
+// Where Bunal.club sends a venue's or trainer's share. Every field needed to
+// make the transfer is required, because a payout with a missing account
+// number cannot be sent at all.
+export const PayoutAccountSchema = z
+  .object({
+    network: z.enum(["GCASH", "MAYA", "BANK_TRANSFER"], {
+      error: "Choose GCash, Maya, or bank transfer",
+    }),
+    bankName: z
+      .string()
+      .trim()
+      .max(80, { error: "Bank name is too long" })
+      .optional()
+      .transform((v) => (v ? v : undefined)),
+    accountName: z
+      .string()
+      .trim()
+      .min(2, { error: "Enter the name on the account" })
+      .max(120, { error: "Account name is too long" }),
+    accountNumber: z
+      .string()
+      .trim()
+      .min(6, { error: "Enter the full account or mobile number" })
+      .max(40, { error: "Account number is too long" })
+      .regex(/^[0-9][0-9 -]*[0-9]$/, {
+        error: "Use digits only for the account or mobile number",
+      }),
+  })
+  .superRefine((value, ctx) => {
+    if (value.network === "BANK_TRANSFER" && !value.bankName) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["bankName"],
+        message: "Enter the bank name",
+      });
+    }
+    const digits = value.accountNumber.replace(/\D/g, "");
+    if (value.network !== "BANK_TRANSFER" && !/^09\d{9}$/.test(digits)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["accountNumber"],
+        message: "Enter the 11-digit mobile number, starting with 09",
+      });
+    }
+  });
+
+export const MarkPayoutPaidSchema = z.object({
+  payoutId: z.string().trim().min(1).max(191),
+  reference: z
+    .string()
+    .trim()
+    .min(3, { error: "Enter the transfer reference" })
+    .max(120, { error: "Reference is too long" }),
+  note: z
+    .string()
+    .trim()
+    .max(500)
+    .optional()
+    .transform((v) => (v ? v : undefined)),
+  // Written to the recipient and included in the payout email, unlike `note`.
+  message: z
+    .string()
+    .trim()
+    .max(1000, { error: "Keep the message under 1,000 characters" })
+    .optional()
+    .transform((v) => (v ? v : undefined)),
+});
+
 // Just the payment: PayMongo's own page collects the method and the card.
 export const PayBookingSchema = z.object({
   paymentId: z.string().min(1),

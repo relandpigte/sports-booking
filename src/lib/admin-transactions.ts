@@ -2,6 +2,7 @@ import "server-only";
 
 import type {
   PaymentCollectionMode,
+  PaymentCollector,
   PaymentMethodType,
   PaymentStatus,
   Prisma,
@@ -26,6 +27,8 @@ export type AdminVenueTransaction = {
   status: PaymentStatus;
   method: PaymentMethodType;
   collectionMode: PaymentCollectionMode;
+  // Whose account took the money: Bunal.club's, or the venue's own.
+  collectedBy: PaymentCollector;
   environment: TransactionEnvironment;
   paidAt: Date | null;
   createdAt: Date;
@@ -50,6 +53,7 @@ const transactionSelect = {
   status: true,
   method: true,
   collectionMode: true,
+  collectedBy: true,
   environment: true,
   paidAt: true,
   createdAt: true,
@@ -135,6 +139,7 @@ function mapTransaction(row: TransactionRow): AdminVenueTransaction {
     status: row.status,
     method: row.method,
     collectionMode: row.collectionMode,
+    collectedBy: row.collectedBy,
     environment: row.environment,
     paidAt: row.paidAt,
     createdAt: row.createdAt,

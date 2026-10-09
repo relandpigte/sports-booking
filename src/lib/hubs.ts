@@ -10,6 +10,12 @@ import type {
 
 import { prisma } from "@/lib/db";
 import { requireActivePartner, requirePartner } from "@/lib/dal";
+import {
+  venueCheckoutReady,
+  venueReadinessSelect,
+  venueSetupReady,
+} from "@/lib/payment-readiness";
+import { getPlatformCollectionStatus } from "@/lib/platform-gateway";
 import { isServiceFeeOverdue } from "@/lib/service-fees";
 import { buildSlots, weekdayIndexForDate } from "@/lib/slots";
 import type { CourtScheduleRule } from "@/lib/slots";
@@ -169,28 +175,14 @@ export async function listPublicHubs(
     select: {
       ...hubSelect,
       ownerId: true,
-      owner: {
-        select: {
-          partnerPaymentMode: true,
-          partnerGateway: { select: { disconnectedAt: true } },
-          manualPaymentMethods: {
-            where: { active: true },
-            take: 1,
-            select: { id: true },
-          },
-        },
-      },
+      owner: { select: venueReadinessSelect },
     },
   });
+  const platform = await getPlatformCollectionStatus();
   const paymentReadyOwnerIds = [
     ...new Set(
       rows
-        .filter(
-          (row) =>
-            row.owner.partnerPaymentMode === "MANUAL"
-              ? row.owner.manualPaymentMethods.length > 0
-              : row.owner.partnerGateway?.disconnectedAt === null
-        )
+        .filter((row) => venueSetupReady(row.owner))
         .map((row) => row.ownerId)
     ),
   ];
@@ -202,24 +194,18 @@ export async function listPublicHubs(
     )
   );
   return rows
-    .filter((row) => {
-      const paymentReady =
-        row.owner.partnerPaymentMode === "MANUAL"
-          ? row.owner.manualPaymentMethods.length > 0
-          : row.owner.partnerGateway?.disconnectedAt === null;
-      return !paymentReady || !overdueByOwner.get(row.ownerId);
-    })
+    .filter(
+      (row) => !venueSetupReady(row.owner) || !overdueByOwner.get(row.ownerId)
+    )
     .map(({ ownerId: _ownerId, owner, ...row }) => {
-      const connected = owner.partnerGateway?.disconnectedAt === null;
-      const paymentReady =
-        owner.partnerPaymentMode === "MANUAL"
-          ? owner.manualPaymentMethods.length > 0
-          : connected;
+      const setupReady = venueSetupReady(owner);
       return {
         ...mapHub(row),
-        bookable: paymentReady,
-        comingSoon: !paymentReady,
-        verified: paymentReady,
+        // Verified is the venue's own setup. Whether it can take a booking
+        // this minute also depends on Bunal.club's collection account.
+        bookable: venueCheckoutReady(owner, platform.ready),
+        comingSoon: !setupReady,
+        verified: setupReady,
       };
     });
 }
@@ -351,15 +337,9 @@ const publicHubSelect = {
     select: {
       facebookPage: true,
       partnerStatus: true,
-      partnerPaymentMode: true,
-      // Only whether one is connected. Nothing secret is selected — see the
-      // comment on GatewayView.
-      partnerGateway: { select: { disconnectedAt: true } },
-      manualPaymentMethods: {
-        where: { active: true },
-        take: 1,
-        select: { id: true },
-      },
+      // Only whether the selected payment mode is set up. No account details
+      // are selected.
+      ...venueReadinessSelect,
     },
   },
 } as const;
@@ -386,6 +366,9 @@ export type PublicHub = Hub & {
     | "gateway"
     | "setup"
     | "settlement"
+    // The venue is fully set up, but Bunal.club's own collection account is
+    // not connected, so no automatic payment can be taken for anyone.
+    | "platform"
     | null;
   ownerId: string;
 };
@@ -404,14 +387,16 @@ export const getPublicHub = cache(
     const { owner, ownerId, ...rest } = row;
     const approved = owner.partnerStatus === "ACTIVE";
     const inactive = owner.partnerStatus === "DEACTIVATED";
-    const connected = owner.partnerGateway?.disconnectedAt === null;
-    const manualReady = owner.manualPaymentMethods.length > 0;
-    const paymentReady =
-      owner.partnerPaymentMode === "MANUAL" ? manualReady : connected;
+    const paymentReady = venueSetupReady(owner);
     const setupComplete = rest.courts.length > 0;
     const overdue =
       approved && paymentReady ? await isServiceFeeOverdue(ownerId) : false;
-    const bookable = approved && paymentReady && setupComplete && !overdue;
+    // The venue has done everything on its side.
+    const verified = approved && paymentReady && setupComplete && !overdue;
+    const platformReady =
+      owner.partnerPaymentMode === "MANUAL" ||
+      (await getPlatformCollectionStatus()).ready;
+    const bookable = verified && platformReady;
     const comingSoon = approved && !paymentReady && setupComplete;
     return {
       ...mapHub(rest),
@@ -419,9 +404,11 @@ export const getPublicHub = cache(
         ? facebookPageUrl(owner.facebookPage)
         : null,
       bookable,
-      publiclyListed: bookable || comingSoon,
+      // A verified venue stays listed while Bunal.club's collection account
+      // is down; only booking pauses.
+      publiclyListed: verified || comingSoon,
       comingSoon,
-      verified: bookable,
+      verified,
       paymentRequired: bookable,
       paymentMode: owner.partnerPaymentMode,
       blockedBy: inactive
@@ -434,7 +421,9 @@ export const getPublicHub = cache(
               ? "setup"
               : overdue
                 ? "settlement"
-                : null,
+                : !platformReady
+                  ? "platform"
+                  : null,
       ownerId,
     };
   }

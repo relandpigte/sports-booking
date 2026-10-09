@@ -70,7 +70,7 @@ export function PartnerHome({
     },
     {
       label: "Payments",
-      desc: "Choose automatic or manual player payments and manage settlements.",
+      desc: "Choose automatic or manual player payments and track your payouts.",
       href: "/dashboard/payments",
       action: "Manage payments",
       icon: "payment",
@@ -254,7 +254,8 @@ export function PartnerHome({
                 Configure payments
               </h3>
               <p className="mt-1 text-sm leading-6 text-slate-500">
-                Select PayMongo QR Ph or add manual transfer destinations.
+                Add your payout account for automatic QR Ph, or add manual
+                transfer destinations.
               </p>
               <p className="mt-4 text-xs font-bold uppercase tracking-[0.12em] text-primary">
                 {isPaymentReady ? "Manage payments →" : "Set up now →"}

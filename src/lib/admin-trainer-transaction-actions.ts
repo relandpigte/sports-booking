@@ -7,6 +7,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/admin";
 import { prisma } from "@/lib/db";
 import { isPartnerImpersonationActive } from "@/lib/impersonation";
+import { releaseUnbatchedPayoutEntries } from "@/lib/payouts";
 
 export type DeleteTrainerTransactionState = {
   message?: string;
@@ -80,6 +81,18 @@ export async function deleteTrainerTransactionAction(
             message:
               "This booking now has a payment. Refresh the page before deleting it.",
           };
+        }
+
+        if (session.payment) {
+          const released = await releaseUnbatchedPayoutEntries(tx, {
+            trainerPaymentId: session.payment.id,
+          });
+          if (!released.ok) {
+            return {
+              message:
+                "This transaction is part of a trainer payout and can no longer be deleted.",
+            };
+          }
         }
 
         await tx.trainerSession.delete({ where: { id: session.id } });

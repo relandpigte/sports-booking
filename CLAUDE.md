@@ -17,8 +17,9 @@ npm run db:studio              # Prisma Studio
 ```
 
 CI (`.github/workflows/ci.yml`) uses Node 22 and npm, and runs
-`npm audit --audit-level=high`, `prisma migrate deploy`, lint, build, then
-`npm run check`.
+`npm audit --audit-level=high --omit=dev`, `prisma migrate deploy`, lint,
+build, then `npm run check`. The audit gate covers production dependencies
+only; dev-dependency advisories are printed by a separate non-blocking step.
 
 **Schema changes need a committed migration.** Production deploys run
 `prisma migrate deploy` before the build (`scripts/vercel-build.mjs`, via

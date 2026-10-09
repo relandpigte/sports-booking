@@ -208,6 +208,38 @@ export async function fileToQrDataUrl(file: File): Promise<string> {
   }
 }
 
+// A payout QR is scanned by an admin off a screen rather than imported by a
+// player, so the whole image is kept. A receive-QR poster places its code
+// above centre, where the focused crop cuts into it, and the masked name
+// printed beneath the code lets the admin confirm who they are paying.
+export async function fileToPayoutQrDataUrl(file: File): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+
+  try {
+    const longSide = Math.max(bitmap.width, bitmap.height);
+    let scale = Math.min(1, 1400 / longSide);
+    for (;;) {
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Canvas not supported");
+      context.imageSmoothingQuality = "high";
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+
+      const png = await canvasToBlob(canvas, "image/png");
+      if (png && png.size <= QR_UPLOAD_TARGET_BYTES) {
+        return blobToDataUrl(png);
+      }
+      scale *= 0.8;
+      if (longSide * scale < 320) break;
+    }
+    throw new Error("QR image could not be prepared below the upload limit.");
+  } finally {
+    bitmap.close();
+  }
+}
+
 // Existing manual-payment methods may still contain a full portrait payment
 // card. Focus it at download time too, so players save a scanner-friendly PNG
 // without requiring every partner to upload the image again immediately.

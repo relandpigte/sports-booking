@@ -284,7 +284,7 @@ export default async function EventDetailPage({
                     Confirmed roster
                   </div>
 
-                  <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4">
+                  <div className="grid min-w-0 grid-cols-2 gap-2 lg:grid-cols-4">
                     {featuredAttendees.map((player) => {
                       const displayName = player.playerName ?? player.name ?? "Player";
                       return (
@@ -337,7 +337,7 @@ export default async function EventDetailPage({
                         </svg>
                       </summary>
 
-                      <div className="mt-3 grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4">
+                      <div className="mt-3 grid min-w-0 grid-cols-2 gap-2 lg:grid-cols-4">
                         {remainingAttendees.map((player) => {
                           const displayName = player.playerName ?? player.name ?? "Player";
                           return (
@@ -456,8 +456,11 @@ function EventAttendeeChip({
   return (
     <div className="flex min-w-0 items-center gap-2 rounded-xl border border-white/80 bg-white/90 p-2.5 shadow-sm shadow-navy/5">
       <Avatar src={image} name={displayName} size={32} />
-      <div className="flex min-w-0 flex-1 items-center gap-1.5">
-        <p className="min-w-0 truncate text-sm font-bold text-navy">
+      <div className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
+        <p
+          className="line-clamp-2 w-full break-words text-sm font-bold leading-tight text-navy"
+          title={displayName}
+        >
           {displayName}
         </p>
         {isGuest ? (

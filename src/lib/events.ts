@@ -12,6 +12,7 @@ import { getViewer } from "@/lib/dal";
 import { buildSlots } from "@/lib/slots";
 import { weeklyEventDates } from "@/lib/event-recurrence";
 import { manilaNowHour, manilaToday } from "@/lib/time";
+import { courtDisplayOrder, eventCourtDisplayOrder } from "@/lib/court-order";
 
 export type EventCourtView = {
   id: string;
@@ -279,7 +280,7 @@ const eventSelect = {
         select: { id: true, name: true, courtType: true },
       },
     },
-    orderBy: { court: { createdAt: "asc" } },
+    orderBy: eventCourtDisplayOrder,
   },
   registrations: {
     select: {
@@ -631,7 +632,7 @@ const playerEventRegistrationSelect = {
       cancelReason: true,
       hub: { select: { name: true, logo: true } },
       courts: {
-        orderBy: { court: { createdAt: "asc" as const } },
+        orderBy: eventCourtDisplayOrder,
         select: {
           court: { select: { id: true, name: true, courtType: true } },
         },
@@ -799,7 +800,7 @@ export async function listEventFormHubs(
       games: true,
       owner: { select: venueReadinessSelect },
       courts: {
-        orderBy: { createdAt: "asc" },
+        orderBy: courtDisplayOrder,
         select: { id: true, name: true, courtType: true },
       },
     },
@@ -1077,7 +1078,7 @@ export async function getOwnerEventDetails(
         },
       },
       courts: {
-        orderBy: { court: { createdAt: "asc" } },
+        orderBy: eventCourtDisplayOrder,
         select: {
           court: {
             select: {
@@ -1428,7 +1429,7 @@ export async function getEventCourtAvailability(args: {
     select: {
       operatingHours: true,
       courts: {
-        orderBy: { createdAt: "asc" },
+        orderBy: courtDisplayOrder,
         select: {
           id: true,
           name: true,

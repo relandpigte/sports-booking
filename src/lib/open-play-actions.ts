@@ -38,6 +38,7 @@ import {
   type OpenPlayActionState,
 } from "@/lib/open-play-shared";
 import { recordPartnerActivity } from "@/lib/staffing";
+import { courtDisplayOrder } from "@/lib/court-order";
 
 const idSchema = z.string().trim().min(1).max(64);
 const publicIdSchema = z.string().trim().min(1).max(120);
@@ -543,7 +544,11 @@ export async function prepareOpenPlayAction(
             },
           },
         },
-        courts: { include: { court: { select: { id: true, createdAt: true } } } },
+        courts: {
+          include: {
+            court: { select: { id: true, sortOrder: true, createdAt: true } },
+          },
+        },
       },
     });
     if (!event) return { kind: "missing" as const };
@@ -570,7 +575,9 @@ export async function prepareOpenPlayAction(
     }
     if (!sessionId) {
       const courts = [...event.courts].sort(
-        (left, right) => left.court.createdAt.getTime() - right.court.createdAt.getTime()
+        (left, right) =>
+          left.court.sortOrder - right.court.sortOrder ||
+          left.court.createdAt.getTime() - right.court.createdAt.getTime()
       );
       const session = await tx.openPlaySession.create({
         data: {
@@ -1771,7 +1778,7 @@ export async function createQuickQueueAction(
         id: true,
         courts: {
           where: { id: { in: parsed.data.courtIds } },
-          orderBy: { createdAt: "asc" },
+          orderBy: courtDisplayOrder,
           select: { id: true, sport: true },
         },
       },
@@ -1936,10 +1943,11 @@ export async function createGuestQuickQueueAction(
         games: ["pickleball"],
         guestBunalQOnly: true,
         courts: {
-          create: courtRows.map((court) => ({
+          create: courtRows.map((court, sortOrder) => ({
             id: court.id,
             name: court.name,
             sport: "pickleball",
+            sortOrder,
           })),
         },
       },

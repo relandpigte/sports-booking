@@ -4,7 +4,7 @@ import { useActionState, useMemo, useState } from "react";
 
 import {
   CourtAvailabilityBrowser,
-  type CourtAvailabilityView,
+  useAvailabilityView,
 } from "@/components/hubs/CourtAvailabilityBrowser";
 import { DateStrip } from "@/components/hubs/DateStrip";
 import { usePwa } from "@/components/pwa/PwaProvider";
@@ -80,7 +80,7 @@ export function RescheduleBookingPanel({
     )
   );
   const [reason, setReason] = useState("");
-  const [view, setView] = useState<CourtAvailabilityView>("list");
+  const [view, setView] = useAvailabilityView();
   // The current hours are only a starting point. The first slot tap replaces
   // them, which keeps a partner from accidentally doubling the duration.
   const [touched, setTouched] = useState(false);

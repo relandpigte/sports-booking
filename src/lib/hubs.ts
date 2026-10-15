@@ -21,6 +21,7 @@ import { buildSlots, weekdayIndexForDate } from "@/lib/slots";
 import type { CourtScheduleRule } from "@/lib/slots";
 import { manilaNowHour, manilaToday } from "@/lib/time";
 import { facebookPageUrl } from "@/lib/social";
+import { courtDisplayOrder } from "@/lib/court-order";
 
 export type Court = {
   id: string;
@@ -118,7 +119,7 @@ const hubSelect = {
         },
       },
     },
-    orderBy: { createdAt: "asc" },
+    orderBy: courtDisplayOrder,
   },
 } as const;
 

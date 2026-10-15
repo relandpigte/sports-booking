@@ -498,6 +498,103 @@ export function chooseAutomaticMatch(input: {
   );
 }
 
+// Auto-pick only looks this far down the eligible queue, so filling one open
+// spot can favor a closer skill balance without passing over the players who
+// have waited longest.
+export const OPEN_SLOT_PICK_WINDOW = 4;
+
+export type OpenSlotTeammate = {
+  id: string;
+  team: number;
+  skillLevel: string;
+  lastResult: OpenPlayLastResult;
+};
+
+function mostCommon<T>(values: T[]): T | undefined {
+  const counts = new Map<T, number>();
+  let best: T | undefined;
+  for (const value of values) {
+    const count = (counts.get(value) ?? 0) + 1;
+    counts.set(value, count);
+    if (best === undefined || count > counts.get(best)!) best = value;
+  }
+  return best;
+}
+
+export function chooseOpenSlotReplacement(input: {
+  mode: OpenPlayMatchingMode;
+  queued: MatchCandidate[];
+  team: 1 | 2;
+  remaining: OpenSlotTeammate[];
+  teammateHistory?: TeammateHistory;
+  completedGames?: CompletedGameForHistory[];
+}): MatchCandidate | null {
+  let pool = [...input.queued].sort(
+    (left, right) => left.queuePosition - right.queuePosition
+  );
+  // Taking one half of a fixed pair would split it, so pairs are a last resort.
+  const unpaired = pool.filter((player) => !player.pairId);
+  if (unpaired.length > 0) pool = unpaired;
+
+  const groupKey =
+    input.mode === "SKILL_SEPARATED"
+      ? (player: { skillLevel: string }) => player.skillLevel
+      : input.mode === "WINNERS_LOSERS"
+        ? (player: { lastResult: OpenPlayLastResult }) => player.lastResult
+        : null;
+  if (groupKey) {
+    const target = mostCommon(input.remaining.map(groupKey));
+    const sameGroup = pool.filter((player) => groupKey(player) === target);
+    if (sameGroup.length > 0) pool = sameGroup;
+  }
+
+  if (input.mode === "ROUND_ROBIN") {
+    const { gamesPlayed } = buildRoundRobinHistory(input.completedGames ?? []);
+    const fewest = Math.min(
+      ...pool.map((player) => gamesPlayed.get(player.id) ?? 0)
+    );
+    pool = pool.filter(
+      (player) => (gamesPlayed.get(player.id) ?? 0) === fewest
+    );
+  }
+
+  const shortlist = pool.slice(0, OPEN_SLOT_PICK_WINDOW);
+  if (shortlist.length === 0) return null;
+
+  const history =
+    input.teammateHistory ?? { counts: new Map(), mostRecent: new Map() };
+  const teammate = input.remaining.find((player) => player.team === input.team);
+  const teamSkill = (team: number) =>
+    input.remaining
+      .filter((player) => player.team === team)
+      .reduce((total, player) => total + (skillScore[player.skillLevel] ?? 2), 0);
+  const otherTeam = input.team === 1 ? 2 : 1;
+
+  const ranked = shortlist.map((player) => ({
+    player,
+    immediateRepeat: teammate
+      ? Number(history.mostRecent.get(teammate.id) === player.id) +
+        Number(history.mostRecent.get(player.id) === teammate.id)
+      : 0,
+    usage: teammate
+      ? history.counts.get(pairKey(teammate.id, player.id)) ?? 0
+      : 0,
+    difference: Math.abs(
+      teamSkill(input.team) +
+        (skillScore[player.skillLevel] ?? 2) -
+        teamSkill(otherTeam)
+    ),
+  }));
+  ranked.sort(
+    (left, right) =>
+      left.immediateRepeat - right.immediateRepeat ||
+      left.usage - right.usage ||
+      left.difference - right.difference ||
+      left.player.queuePosition - right.player.queuePosition
+  );
+  return ranked[0].player;
+}
+
 async function cancelStagedGames(
   tx: OpenPlayTx,
   sessionId: string,
@@ -911,6 +1008,7 @@ function toSnapshot(
       status: participant.status,
       lastResult: participant.lastResult,
       queuePosition: participant.queuePosition,
+      queuedAt: participant.queuedAt?.toISOString() ?? null,
       pairId: participant.pairId,
       estimatedWaitMinutes: waits.get(participant.id) ?? null,
     })),

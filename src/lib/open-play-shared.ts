@@ -79,6 +79,7 @@ export type OpenPlaySnapshot = {
     status: OpenPlayParticipantStatus;
     lastResult: OpenPlayLastResult;
     queuePosition: number | null;
+    queuedAt: string | null;
     pairId: string | null;
     estimatedWaitMinutes: number | null;
   }>;

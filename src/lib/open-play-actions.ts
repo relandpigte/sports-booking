@@ -26,8 +26,10 @@ import { consumeRateLimit } from "@/lib/rate-limit";
 import { getSecurityRequestContext } from "@/lib/security-context";
 import { manilaToday } from "@/lib/time";
 import {
+  buildTeammateHistory,
   cancelOpenPlayUpNextGame,
   canTransitionParticipant,
+  chooseOpenSlotReplacement,
   getOpenPlayWorkspace,
   syncAutomaticOpenPlayUpNext,
 } from "@/lib/open-play";
@@ -68,6 +70,21 @@ const participantEditSchema = z.object({
   displayName: z.string().trim().min(1).max(120),
   skillLevel: z.enum(skillValues),
 });
+const fillSlotSchema = z.discriminatedUnion("pick", [
+  z.object({
+    pick: z.literal("auto"),
+    sessionId: idSchema,
+    gameId: idSchema,
+    slot: z.coerce.number().int().min(1).max(4),
+  }),
+  z.object({
+    pick: z.literal("manual"),
+    sessionId: idSchema,
+    gameId: idSchema,
+    slot: z.coerce.number().int().min(1).max(4),
+    participantId: idSchema,
+  }),
+]);
 const publicJoinSchema = z.object({
   publicId: publicIdSchema,
   displayName: z.string().trim().min(1).max(120),
@@ -695,23 +712,35 @@ async function participantTransition(
     if (!participant || !canTransitionParticipant(participant.status, operation)) {
       return { message: "That player cannot make this transition right now." };
     }
-    let refreshedUpNext = false;
+    let openedSlot = false;
     if (operation === "PAUSE" && participant.status === "STAGED") {
+      // Sitting out leaves an open spot in the announced match instead of
+      // rebuilding it; staff fill it by hand or with auto-pick. A match with
+      // nobody left in it is cancelled so Up next can prepare a new one.
       const stagedGame = await tx.openPlayGame.findFirst({
         where: {
           sessionId,
           status: "STAGED",
           players: { some: { participantId: participant.id } },
         },
-        select: { id: true },
+        select: { id: true, _count: { select: { players: true } } },
       });
-      if (
-        !stagedGame ||
-        !(await cancelOpenPlayUpNextGame(tx, sessionId, stagedGame.id))
-      ) {
+      if (!stagedGame) {
         return { message: "That upcoming match is no longer available." };
       }
-      refreshedUpNext = true;
+      if (stagedGame._count.players <= 1) {
+        await cancelOpenPlayUpNextGame(tx, sessionId, stagedGame.id);
+      } else {
+        await tx.openPlayGamePlayer.delete({
+          where: {
+            gameId_participantId: {
+              gameId: stagedGame.id,
+              participantId: participant.id,
+            },
+          },
+        });
+        openedSlot = true;
+      }
     }
     if (operation === "CHECK_IN" || operation === "RESUME") {
       const position = session.nextQueuePosition + 1;
@@ -746,7 +775,7 @@ async function participantTransition(
     return {
       queuePublicId: session.queue.publicId,
       eventPublicId: session.queue.event?.publicId ?? null,
-      refreshedUpNext,
+      openedSlot,
     };
   });
 }
@@ -765,8 +794,8 @@ async function transitionAction(
   await audit(workspace, `OPEN_PLAY_${operation}`, sessionId, { participantId });
   refresh(result.queuePublicId, result.eventPublicId);
   return {
-    success: result.refreshedUpNext
-      ? "Player sat out; Up next was updated automatically."
+    success: result.openedSlot
+      ? "Player sat out. Choose a replacement for the open spot."
       : "Player updated.",
   };
 }
@@ -1227,8 +1256,9 @@ export async function startOpenPlayMatchAction(
     if (!session || session.status !== "ACTIVE") return null;
     const staged = await tx.openPlayGame.findFirst({
       where: { id: gameId, sessionId, status: "STAGED" },
-      select: { courtId: true },
+      select: { courtId: true, _count: { select: { players: true } } },
     });
+    if (staged && staged._count.players < 4) return "incomplete" as const;
     if (
       !staged?.courtId ||
       !session.courts.some(
@@ -1255,6 +1285,9 @@ export async function startOpenPlayMatchAction(
     await bumpLiveRevision(tx, sessionId);
     return startedGameId;
   });
+  if (started === "incomplete") {
+    return { message: "Fill the open spot before starting this match." };
+  }
   if (!started) return { message: "This match cannot be started." };
   await audit(workspace, "OPEN_PLAY_MATCH_STARTED", sessionId, {
     gameId: started,
@@ -1346,6 +1379,156 @@ export async function editStagedOpenPlayMatchAction(
   await audit(workspace, "OPEN_PLAY_MATCH_EDITED", sessionId, { gameId });
   refresh(owned.queue.publicId, owned.queue.event?.publicId);
   return { success: "Up Next teams updated." };
+}
+
+export async function fillOpenPlaySlotAction(
+  _previous: OpenPlayActionState,
+  formData: FormData
+): Promise<OpenPlayActionState> {
+  const parsed = fillSlotSchema.safeParse({
+    pick: formData.get("pick"),
+    sessionId: formData.get("sessionId"),
+    gameId: formData.get("gameId"),
+    slot: formData.get("slot"),
+    participantId: formData.get("participantId") ?? undefined,
+  });
+  if (!parsed.success) return { message: "Choose a player for the open spot." };
+  const input = parsed.data;
+  const workspace = await workspaceForManage(input.sessionId);
+  if (!workspace) return { message: "BunalQ manage access is required." };
+  const owned = await ownedSession(input.sessionId, workspace);
+  if (!owned) return { message: "BunalQ run not found." };
+  // Slots 1-2 are always Team 1 and 3-4 Team 2, matching how matches are built.
+  const team: 1 | 2 = input.slot <= 2 ? 1 : 2;
+  const result = await bunalQTransaction(async (tx) => {
+    const session = await lockSession(tx, input.sessionId);
+    if (!session || session.status !== "ACTIVE") return { kind: "inactive" as const };
+    const game = await tx.openPlayGame.findFirst({
+      where: { id: input.gameId, sessionId: session.id, status: "STAGED" },
+      select: {
+        id: true,
+        players: {
+          select: {
+            participantId: true,
+            team: true,
+            slot: true,
+            participant: { select: { skillLevel: true, lastResult: true } },
+          },
+        },
+      },
+    });
+    if (!game) return { kind: "game" as const };
+    if (game.players.some((player) => player.slot === input.slot)) {
+      return { kind: "taken" as const };
+    }
+
+    let chosen: { id: string; queuePosition: number; displayName: string } | null = null;
+    if (input.pick === "manual") {
+      const participant = await tx.openPlayParticipant.findFirst({
+        where: {
+          id: input.participantId,
+          sessionId: session.id,
+          status: "QUEUED",
+          queuePosition: { not: null },
+        },
+        select: { id: true, queuePosition: true, displayName: true },
+      });
+      if (participant?.queuePosition != null) {
+        chosen = { ...participant, queuePosition: participant.queuePosition };
+      }
+    } else {
+      const [queuedRows, completedGames] = await Promise.all([
+        tx.openPlayParticipant.findMany({
+          where: {
+            sessionId: session.id,
+            status: "QUEUED",
+            queuePosition: { not: null },
+          },
+          orderBy: { queuePosition: "asc" },
+          select: {
+            id: true,
+            queuePosition: true,
+            skillLevel: true,
+            lastResult: true,
+            pairId: true,
+            displayName: true,
+          },
+        }),
+        tx.openPlayGame.findMany({
+          where: { sessionId: session.id, status: "COMPLETED" },
+          select: {
+            sequence: true,
+            completedAt: true,
+            players: { select: { participantId: true, team: true } },
+          },
+        }),
+      ]);
+      const queued = queuedRows.flatMap((row) =>
+        row.queuePosition == null
+          ? []
+          : [{ ...row, queuePosition: row.queuePosition }]
+      );
+      const pick = chooseOpenSlotReplacement({
+        mode: session.matchingMode,
+        queued,
+        team,
+        remaining: game.players.map((player) => ({
+          id: player.participantId,
+          team: player.team,
+          skillLevel: player.participant.skillLevel,
+          lastResult: player.participant.lastResult,
+        })),
+        teammateHistory: buildTeammateHistory(completedGames),
+        completedGames,
+      });
+      chosen = pick ? queued.find((row) => row.id === pick.id) ?? null : null;
+    }
+    if (!chosen) return { kind: "player" as const };
+
+    await tx.openPlayGamePlayer.create({
+      data: {
+        gameId: game.id,
+        participantId: chosen.id,
+        team,
+        slot: input.slot,
+        queuePositionBefore: chosen.queuePosition,
+      },
+    });
+    await tx.openPlayParticipant.update({
+      where: { id: chosen.id },
+      data: { status: "STAGED", queuePosition: null, queuedAt: null },
+    });
+    if (input.pick === "manual") {
+      await tx.openPlayGame.update({
+        where: { id: game.id },
+        data: { selectionMethod: "MANUAL" },
+      });
+    }
+    await bumpLiveRevision(tx, session.id);
+    return { kind: "filled" as const, participantId: chosen.id, displayName: chosen.displayName };
+  });
+  if (result.kind === "taken") {
+    return { message: "That spot was just filled. Pick another open spot." };
+  }
+  if (result.kind === "player") {
+    return {
+      message:
+        input.pick === "auto"
+          ? "No waiting player is available for this spot."
+          : "That player is no longer waiting in the queue.",
+    };
+  }
+  if (result.kind !== "filled") {
+    return { message: "That upcoming match is no longer available." };
+  }
+  await audit(workspace, "OPEN_PLAY_SLOT_FILLED", input.sessionId, {
+    gameId: input.gameId,
+    slot: input.slot,
+    participantId: result.participantId,
+    pick: input.pick,
+  });
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
+  return { success: `${result.displayName} joined Team ${team}.` };
 }
 
 export async function recordOpenPlayWinnerAction(

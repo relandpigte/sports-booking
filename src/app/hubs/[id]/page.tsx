@@ -14,7 +14,6 @@ import { getHubCourtOccupancies } from "@/lib/bookings";
 import { formatPHP } from "@/lib/currency";
 import { getActiveBookingHoldForHub } from "@/lib/booking-payments";
 import { hubPublicPath } from "@/lib/hub-slug";
-import { facebookPageLabel } from "@/lib/social";
 import {
   DEFAULT_SOCIAL_IMAGE,
   SITE_NAME,
@@ -186,6 +185,9 @@ export default async function PublicHubPage({
 
   // The partner previewing their own hub, or an admin looking at it.
   const isOwner = viewer?.id === hub.ownerId || viewer?.role === "ADMIN";
+
+  const hasContact = Boolean(hub.phone || hub.email || hub.facebookPage);
+  const showVenueInfo = Boolean(hub.about || hasContact || !hub.bookable);
 
   const hasCoords = hub.latitude != null && hub.longitude != null;
   const mapsQuery = hasCoords
@@ -411,276 +413,296 @@ export default async function PublicHubPage({
         )}
       </div>
 
-      <div className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
-        <div className="grid grid-cols-1 gap-12 lg:grid-cols-2">
-          <div className="space-y-12">
-            {(hub.about || hub.facebookPage) && (
-              <section>
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
-                  About the venue
-                </p>
-                {hub.about && (
-                  <p className="mt-4 whitespace-pre-line text-base leading-8 text-gray-600 sm:text-lg">
-                    {hub.about}
-                  </p>
-                )}
-                {hub.facebookPage && (
-                  <a
-                    href={hub.facebookPage}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-5 inline-flex min-h-11 items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-navy shadow-sm transition-colors hover:border-primary/30 hover:bg-primary-soft hover:text-primary"
-                  >
-                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#1877F2] text-white">
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                        aria-hidden="true"
-                      >
-                        <path d="M14 8.25V6.5c0-.8.53-1 1-1h2.75V2.14A36.5 36.5 0 0 0 14.82 2C11.9 2 10 3.77 10 7v1.25H7V12h3v10h4V12h3.25l.5-3.75H14Z" />
-                      </svg>
-                    </span>
-                    <span>
-                      <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                        Follow this venue
-                      </span>
-                      <span className="mt-0.5 block">
-                        {facebookPageLabel(hub.facebookPage)}
-                      </span>
-                    </span>
-                    <svg
-                      className="ml-1 text-gray-400"
-                      width="15"
-                      height="15"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
+      <div className="mt-10 sm:mt-12">
+        {/* Non-bookable hubs still render, but never expose booking controls. */}
+        {hub.bookable ? (
+          <BookCourtPanel
+            hubId={hub.id}
+            courts={hub.courts}
+            operatingHours={hours}
+            today={today}
+            nowHour={manilaNowHour()}
+            initialAvailability={
+              initialAvailability
+                ? {
+                    hubId: hub.id,
+                    date: today,
+                    courts: initialAvailability,
+                  }
+                : null
+            }
+            viewerRole={viewer?.role ?? null}
+            paymentRequired={hub.paymentRequired}
+            paymentMode={hub.paymentMode}
+            initialHold={initialHold}
+          />
+        ) : (
+          <section className="border-y border-gray-200 bg-white py-14">
+            <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
+                {hub.comingSoon ? "Opening soon" : "Online booking unavailable"}
+              </p>
+              <h2 className="mt-2 text-2xl font-bold text-navy">
+                {hub.comingSoon
+                  ? "Online booking is coming soon"
+                  : "This venue is not accepting new bookings"}
+              </h2>
+              <p className="mt-3 text-sm leading-relaxed text-gray-500">
+                {hub.comingSoon
+                  ? "The venue is finishing its payment setup. You can explore its courts and rates now, then check back soon to reserve online."
+                  : "New online reservations are paused right now. Please check back later."}
+              </p>
+              {/* Only the owner/admin needs the operational reason. */}
+              {isOwner && (
+                <p className="mt-5 rounded-xl bg-gray-50 px-4 py-3 text-sm">
+                  <span className="text-gray-500">
+                    {hub.blockedBy === "gateway"
+                      ? "Your hub is published as Coming soon. Add your payout account for automatic QR Ph, or set up manual payments, to verify the venue and open online booking."
+                      : hub.blockedBy === "setup"
+                        ? "Add at least one court, its rate, and operating hours before publishing your hub."
+                        : hub.blockedBy === "settlement"
+                          ? "New bookings are paused because a service-fee settlement is overdue."
+                          : hub.blockedBy === "inactive"
+                            ? "This partner account is deactivated. Its venues are hidden and new bookings are paused."
+                            : hub.blockedBy === "platform"
+                              ? "Your venue is fully set up. Online QR Ph checkout is temporarily paused by Bunal.club and reopens automatically — nothing here needs your attention."
+                              : "This partner account is waiting for admin verification."}
+                  </span>{" "}
+                  {hub.blockedBy === "gateway" && (
+                    <Link
+                      href="/dashboard/payments"
+                      className="font-semibold text-primary hover:underline"
                     >
-                      <path d="M15 3h6v6" />
-                      <path d="M10 14 21 3" />
-                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                    </svg>
-                  </a>
-                )}
-              </section>
-            )}
-
-          </div>
-
-          <aside>
-            <section className="divide-y divide-gray-100 rounded-2xl border border-gray-200 bg-white">
-              <div className="p-6">
-                <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
-                  Contact information
-                </h2>
-                <dl className="mt-5 space-y-5">
-                  {hub.phone && (
-                    <div className="flex items-start gap-3">
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
-                        <svg
-                          width="18"
-                          height="18"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden="true"
-                        >
-                          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-                        </svg>
-                      </span>
-                      <div className="min-w-0">
-                        <dt className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
-                          Phone
-                        </dt>
-                        <dd className="mt-1">
-                          <a
-                            href={`tel:${hub.phone}`}
-                            className="break-words text-sm font-semibold text-navy hover:text-primary"
-                          >
-                            {hub.phone}
-                          </a>
-                        </dd>
-                      </div>
-                    </div>
+                      Configure payments →
+                    </Link>
                   )}
-                  {hub.email && (
-                    <div className="flex items-start gap-3">
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
-                        <svg
-                          width="18"
-                          height="18"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden="true"
-                        >
-                          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                          <polyline points="22,6 12,13 2,6" />
-                        </svg>
-                      </span>
-                      <div className="min-w-0">
-                        <dt className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
-                          Email
-                        </dt>
-                        <dd className="mt-1">
-                          <a
-                            href={`mailto:${hub.email}`}
-                            className="break-words text-sm font-semibold text-navy hover:text-primary"
-                          >
-                            {hub.email}
-                          </a>
-                        </dd>
-                      </div>
-                    </div>
+                  {hub.blockedBy === "setup" && (
+                    <Link
+                      href={`/dashboard/hubs/${hub.id}/edit`}
+                      className="font-semibold text-primary hover:underline"
+                    >
+                      Finish hub setup →
+                    </Link>
                   )}
-                  {!hub.phone && !hub.email && (
-                    <p className="text-sm text-gray-400">
-                      No contact information provided.
-                    </p>
+                  {hub.blockedBy === "settlement" && (
+                    <Link
+                      href="/dashboard/payments"
+                      className="font-semibold text-primary hover:underline"
+                    >
+                      Submit settlement →
+                    </Link>
                   )}
-                </dl>
-              </div>
-
-              <div className="p-6">
-                <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
-                  Court details
-                </h2>
-                {hub.courts.length > 0 ? (
-                  <dl className="mt-5 space-y-4 text-sm">
-                    {hub.courts.map((court) => (
-                      <div
-                        key={court.id}
-                        className="flex items-start justify-between gap-4 border-b border-gray-100 pb-4 last:border-0 last:pb-0"
-                      >
-                        <div className="min-w-0">
-                          <dt className="font-semibold text-navy">
-                            {court.name}
-                          </dt>
-                          <dd className="mt-1 inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-gray-600">
-                            {COURT_TYPE_LABELS[court.courtType] ??
-                              court.courtType}
-                          </dd>
-                        </div>
-                        <dd className="shrink-0 text-right font-semibold text-primary">
-                          {court.hourlyRate != null
-                            ? formatPHP(court.hourlyRate)
-                            : "On request"}
-                          {court.hourlyRate != null && (
-                            <span className="block text-[10px] font-normal text-gray-400">
-                              / hour
-                            </span>
-                          )}
-                        </dd>
-                      </div>
-                    ))}
-                  </dl>
-                ) : (
-                  <p className="mt-5 text-sm text-gray-400">
-                    No courts added yet.
-                  </p>
-                )}
-              </div>
-            </section>
-          </aside>
-        </div>
+                </p>
+              )}
+            </div>
+          </section>
+        )}
       </div>
 
-      {/* Non-bookable hubs still render, but never expose booking controls. */}
-      {hub.bookable ? (
-        <BookCourtPanel
-          hubId={hub.id}
-          courts={hub.courts}
-          operatingHours={hours}
-          today={today}
-          nowHour={manilaNowHour()}
-          initialAvailability={
-            initialAvailability
-              ? {
-                  hubId: hub.id,
-                  date: today,
-                  courts: initialAvailability,
-                }
-              : null
-          }
-          viewerRole={viewer?.role ?? null}
-          paymentRequired={hub.paymentRequired}
-          paymentMode={hub.paymentMode}
-          initialHold={initialHold}
-        />
-      ) : (
-        <section className="border-y border-gray-200 bg-white py-14">
-          <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
-              {hub.comingSoon ? "Opening soon" : "Online booking unavailable"}
-            </p>
-            <h2 className="mt-2 text-2xl font-bold text-navy">
-              {hub.comingSoon
-                ? "Online booking is coming soon"
-                : "This venue is not accepting new bookings"}
+      {showVenueInfo && (
+        <section className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
+          {(hub.about || hasContact) && (
+            <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
+              {hub.about ? "About the venue" : "Contact the venue"}
             </h2>
-            <p className="mt-3 text-sm leading-relaxed text-gray-500">
-              {hub.comingSoon
-                ? "The venue is finishing its payment setup. You can explore its courts and rates now, then check back soon to reserve online."
-                : "New online reservations are paused right now. Please check back later."}
-            </p>
-            {/* Only the owner/admin needs the operational reason. */}
-            {isOwner && (
-              <p className="mt-5 rounded-xl bg-gray-50 px-4 py-3 text-sm">
-                <span className="text-gray-500">
-                  {hub.blockedBy === "gateway"
-                    ? "Your hub is published as Coming soon. Add your payout account for automatic QR Ph, or set up manual payments, to verify the venue and open online booking."
-                    : hub.blockedBy === "setup"
-                      ? "Add at least one court, its rate, and operating hours before publishing your hub."
-                      : hub.blockedBy === "settlement"
-                        ? "New bookings are paused because a service-fee settlement is overdue."
-                        : hub.blockedBy === "inactive"
-                          ? "This partner account is deactivated. Its venues are hidden and new bookings are paused."
-                          : hub.blockedBy === "platform"
-                            ? "Your venue is fully set up. Online QR Ph checkout is temporarily paused by Bunal.club and reopens automatically — nothing here needs your attention."
-                            : "This partner account is waiting for admin verification."}
-                </span>{" "}
-                {hub.blockedBy === "gateway" && (
-                  <Link
-                    href="/dashboard/payments"
-                    className="font-semibold text-primary hover:underline"
-                  >
-                    Configure payments →
-                  </Link>
-                )}
-                {hub.blockedBy === "setup" && (
-                  <Link
-                    href={`/dashboard/hubs/${hub.id}/edit`}
-                    className="font-semibold text-primary hover:underline"
-                  >
-                    Finish hub setup →
-                  </Link>
-                )}
-                {hub.blockedBy === "settlement" && (
-                  <Link
-                    href="/dashboard/payments"
-                    className="font-semibold text-primary hover:underline"
-                  >
-                    Submit settlement →
-                  </Link>
-                )}
+          )}
+
+          {hub.about ? (
+            <div className="mt-5 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-12">
+              <p className="whitespace-pre-line text-base leading-8 text-gray-600 sm:text-lg">
+                {hub.about}
               </p>
-            )}
-          </div>
+              <aside className="min-w-0 space-y-4">
+                {hasContact && (
+                  <div className="rounded-2xl border border-gray-200 bg-white p-6">
+                    <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
+                      Contact
+                    </h3>
+                    {(hub.phone || hub.email) && (
+                      <div className="mt-5 space-y-5">
+                        {hub.phone && <PhoneContact phone={hub.phone} />}
+                        {hub.email && <EmailContact email={hub.email} />}
+                      </div>
+                    )}
+                    {hub.facebookPage && (
+                      <FacebookFollowButton
+                        href={hub.facebookPage}
+                        className={`${hub.phone || hub.email ? "mt-6" : "mt-5"} w-full`}
+                      />
+                    )}
+                  </div>
+                )}
+                {!hub.bookable && <CourtDetailsCard courts={hub.courts} />}
+              </aside>
+            </div>
+          ) : (
+            // Without a description, contact details span the full width in
+            // one row instead of leaving an empty column beside a narrow card.
+            <div className={`${hasContact ? "mt-5" : ""} space-y-4`}>
+              {hasContact && (
+                <div className="flex flex-col gap-5 rounded-2xl border border-gray-200 bg-white p-6 md:flex-row md:items-center md:gap-10">
+                  {hub.phone && <PhoneContact phone={hub.phone} />}
+                  {hub.email && <EmailContact email={hub.email} />}
+                  {hub.facebookPage && (
+                    <FacebookFollowButton
+                      href={hub.facebookPage}
+                      className="w-full md:ml-auto md:w-auto"
+                    />
+                  )}
+                </div>
+              )}
+              {!hub.bookable && <CourtDetailsCard courts={hub.courts} />}
+            </div>
+          )}
         </section>
       )}
 
     </PageShell>
+  );
+}
+
+function ContactItem({
+  icon,
+  label,
+  href,
+  children,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  href: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 items-start gap-3">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
+        {icon}
+      </span>
+      <div className="min-w-0">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+          {label}
+        </p>
+        <a
+          href={href}
+          className="mt-1 block break-words text-sm font-semibold text-navy hover:text-primary"
+        >
+          {children}
+        </a>
+      </div>
+    </div>
+  );
+}
+
+const contactIconProps = {
+  width: 18,
+  height: 18,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 2,
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+  "aria-hidden": true,
+} as const;
+
+function PhoneContact({ phone }: { phone: string }) {
+  return (
+    <ContactItem
+      label="Phone"
+      href={`tel:${phone}`}
+      icon={
+        <svg {...contactIconProps}>
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+        </svg>
+      }
+    >
+      {phone}
+    </ContactItem>
+  );
+}
+
+function EmailContact({ email }: { email: string }) {
+  return (
+    <ContactItem
+      label="Email"
+      href={`mailto:${email}`}
+      icon={
+        <svg {...contactIconProps}>
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+          <polyline points="22,6 12,13 2,6" />
+        </svg>
+      }
+    >
+      {email}
+    </ContactItem>
+  );
+}
+
+function FacebookFollowButton({
+  href,
+  className = "",
+}: {
+  href: string;
+  className?: string;
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`flex min-h-12 shrink-0 items-center justify-center gap-2.5 rounded-xl bg-[#1877F2] px-5 py-3 text-sm font-semibold text-white shadow-md shadow-[#1877F2]/20 transition-colors hover:bg-[#166FE5] ${className}`}
+    >
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        aria-hidden="true"
+      >
+        <path d="M14 8.25V6.5c0-.8.53-1 1-1h2.75V2.14A36.5 36.5 0 0 0 14.82 2C11.9 2 10 3.77 10 7v1.25H7V12h3v10h4V12h3.25l.5-3.75H14Z" />
+      </svg>
+      Follow on Facebook
+      <span className="sr-only">(opens in a new tab)</span>
+    </a>
+  );
+}
+
+// The booking panel lists every court and rate; a hub that can't take
+// bookings has no other place to show them.
+function CourtDetailsCard({ courts }: { courts: Hub["courts"] }) {
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-6">
+      <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
+        Court details
+      </h3>
+      {courts.length > 0 ? (
+        <dl className="mt-5 space-y-4 text-sm">
+          {courts.map((court) => (
+            <div
+              key={court.id}
+              className="flex items-start justify-between gap-4 border-b border-gray-100 pb-4 last:border-0 last:pb-0"
+            >
+              <div className="min-w-0">
+                <dt className="font-semibold text-navy">{court.name}</dt>
+                <dd className="mt-1 inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-gray-600">
+                  {COURT_TYPE_LABELS[court.courtType] ?? court.courtType}
+                </dd>
+              </div>
+              <dd className="shrink-0 text-right font-semibold text-primary">
+                {court.hourlyRate != null
+                  ? formatPHP(court.hourlyRate)
+                  : "On request"}
+                {court.hourlyRate != null && (
+                  <span className="block text-[10px] font-normal text-gray-400">
+                    / hour
+                  </span>
+                )}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <p className="mt-5 text-sm text-gray-400">No courts added yet.</p>
+      )}
+    </div>
   );
 }

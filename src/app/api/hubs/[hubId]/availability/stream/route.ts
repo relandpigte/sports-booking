@@ -5,6 +5,7 @@ import { getHubCourtOccupancies } from "@/lib/bookings";
 import { isValidDateString } from "@/lib/time";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { securityContextFromHeaders } from "@/lib/security-context";
+import { courtDisplayOrder } from "@/lib/court-order";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,7 @@ export async function GET(
     where: { id: hubId },
     select: {
       id: true,
-      courts: { orderBy: { createdAt: "asc" }, select: { id: true } },
+      courts: { orderBy: courtDisplayOrder, select: { id: true } },
     },
   });
   if (!hub) return new Response("Hub not found", { status: 404 });

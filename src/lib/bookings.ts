@@ -22,6 +22,7 @@ import { buildSlots, type Slot } from "@/lib/slots";
 import { manilaNowHour, manilaToday } from "@/lib/time";
 import type { OperatingHours } from "@/lib/constants";
 import { isServiceFeeOverdue } from "@/lib/service-fees";
+import { courtDisplayOrder } from "@/lib/court-order";
 
 // Where a booking was before the venue moved it. Everything here is a
 // snapshot — the court may since have been renamed or deleted, and the player
@@ -343,7 +344,7 @@ export async function getHubCourtOccupancies(
     ? knownCourtIds.map((id) => ({ id }))
     : await prisma.court.findMany({
         where: { hubId },
-        orderBy: { createdAt: "asc" },
+        orderBy: courtDisplayOrder,
         select: { id: true },
       });
   const courtIds = courts.map((court) => court.id);

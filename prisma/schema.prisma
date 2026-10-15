@@ -1395,6 +1395,9 @@ model Court {
   sport      String?
   courtType  String   @default("covered") // "covered" | "open"
   hourlyRate Decimal? @db.Decimal(10, 2)
+  // Display order within the hub, chosen by the venue in the Hub form. Ties
+  // (e.g. courts created before this column existed) fall back to createdAt.
+  sortOrder  Int      @default(0)
   createdAt  DateTime @default(now())
 
   hub               Hub                     @relation(fields: [hubId], references: [id], onDelete: Cascade)

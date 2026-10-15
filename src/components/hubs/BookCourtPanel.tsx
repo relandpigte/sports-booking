@@ -17,7 +17,7 @@ import { usePwa } from "@/components/pwa/PwaProvider";
 import { DateStrip } from "@/components/hubs/DateStrip";
 import {
   CourtAvailabilityBrowser,
-  type CourtAvailabilityView,
+  useAvailabilityView,
 } from "@/components/hubs/CourtAvailabilityBrowser";
 import {
   useHubAvailabilityStream,
@@ -84,7 +84,7 @@ export function BookCourtPanel({
   const [pickedByCourt, setPickedByCourt] = useState<Record<string, number[]>>(
     {}
   );
-  const [view, setView] = useState<CourtAvailabilityView>("list");
+  const [view, setView] = useAvailabilityView();
   const [closedHoldId, setClosedHoldId] = useState<string | null>(null);
   const [state, formAction, pending] = useActionState(
     createBookingAction,

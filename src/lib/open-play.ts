@@ -17,6 +17,7 @@ import {
   OPEN_PLAY_UP_NEXT_BUFFER_SIZE,
   type OpenPlaySnapshot,
 } from "@/lib/open-play-shared";
+import { courtDisplayOrder } from "@/lib/court-order";
 
 export type MatchCandidate = {
   id: string;
@@ -1149,7 +1150,7 @@ export async function listBunalQHubs(partnerId: string) {
       name: true,
       courts: {
         where: { OR: [{ sport: "pickleball" }, { sport: null }] },
-        orderBy: { createdAt: "asc" },
+        orderBy: courtDisplayOrder,
         select: { id: true, name: true },
       },
     },

@@ -1,9 +1,41 @@
 "use client";
 
+import { useState, useSyncExternalStore } from "react";
 import type { Slot } from "@/lib/slots";
 import { formatPHP } from "@/lib/currency";
 
 export type CourtAvailabilityView = "list" | "grid";
+
+// Tablets and desktops have room to compare courts side by side, so they open
+// on the grid; phones open on the list. Matches Tailwind's `md` breakpoint.
+const wideQuery = "(min-width: 768px)";
+
+function subscribeToWideView(onChange: () => void) {
+  const query = window.matchMedia(wideQuery);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+
+function getWideViewSnapshot() {
+  return window.matchMedia(wideQuery).matches;
+}
+
+function getFalseServerSnapshot() {
+  return false;
+}
+
+// The viewer's explicit choice wins; until they make one, the view follows
+// the screen width.
+export function useAvailabilityView() {
+  const wide = useSyncExternalStore(
+    subscribeToWideView,
+    getWideViewSnapshot,
+    getFalseServerSnapshot
+  );
+  const [chosen, setChosen] = useState<CourtAvailabilityView | null>(null);
+  const view: CourtAvailabilityView = chosen ?? (wide ? "grid" : "list");
+  return [view, setChosen] as const;
+}
 
 export type BrowserCourt = {
   id: string;

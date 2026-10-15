@@ -230,8 +230,9 @@ export async function createHubAction(
         games,
         operatingHours: operatingHours as unknown as Prisma.InputJsonValue,
         courts: {
-          create: courts.map((c) => ({
+          create: courts.map((c, sortOrder) => ({
             name: c.name,
+            sortOrder,
             sport: c.sport,
             courtType: c.courtType,
             hourlyRate: c.hourlyRate,
@@ -408,7 +409,8 @@ export async function updateHubAction(
   if (toDelete.length) {
     ops.push(prisma.court.deleteMany({ where: { id: { in: toDelete } } }));
   }
-  for (const c of courts) {
+  // The form posts courts in the order the venue arranged them.
+  for (const [sortOrder, c] of courts.entries()) {
     if (c.id && existingIds.has(c.id)) {
       ops.push(
         prisma.court.update({
@@ -418,6 +420,7 @@ export async function updateHubAction(
             sport: c.sport,
             courtType: c.courtType,
             hourlyRate: c.hourlyRate,
+            sortOrder,
           },
         })
       );
@@ -430,6 +433,7 @@ export async function updateHubAction(
             sport: c.sport,
             courtType: c.courtType,
             hourlyRate: c.hourlyRate,
+            sortOrder,
           },
         })
       );

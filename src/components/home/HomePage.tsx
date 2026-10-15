@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { ClosingCta } from "@/components/ClosingCta";
 import { FacebookAnnouncementBanner } from "@/components/FacebookAnnouncementBanner";
+import { HomeMobileMenu } from "@/components/home/HomeMobileMenu";
 import { Logo } from "@/components/Logo";
 import { SiteFooter } from "@/components/SiteFooter";
 import { PublicInstallBanner } from "@/components/pwa/PublicInstallBanner";
@@ -11,6 +12,17 @@ import {
   BOOKING_SERVICE_FEE,
   EVENT_PAYMENT_FEE_PER_PLAYER,
 } from "@/lib/constants";
+
+const NAV_LINKS = [
+  ["How it works", "#how-it-works"],
+  ["Payments", "#payments"],
+  ["Features", "#features"],
+  ["Teams", "#teams"],
+  ["Events", "/events"],
+  ["BunalQ", "/bunalq"],
+  ["Rankings", "/leaderboard"],
+  ["For partners", "#partners"],
+] as const;
 
 type IconName =
   | "calendar"
@@ -364,16 +376,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
             aria-label="Main navigation"
             className="hidden items-center gap-1 lg:flex"
           >
-            {[
-              ["How it works", "#how-it-works"],
-              ["Payments", "#payments"],
-              ["Features", "#features"],
-              ["Teams", "#teams"],
-              ["Events", "/events"],
-              ["BunalQ", "/bunalq"],
-              ["Rankings", "/leaderboard"],
-              ["For partners", "#partners"],
-            ].map(([label, href]) => (
+            {NAV_LINKS.map(([label, href]) => (
               <Link
                 key={href}
                 href={href}
@@ -386,18 +389,6 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
 
           <div className="flex shrink-0 items-center gap-2">
             <Link
-              href="/bunalq"
-              className="inline-flex rounded-xl px-2.5 py-2.5 text-sm font-bold text-navy transition-colors hover:bg-primary-soft hover:text-primary lg:hidden"
-            >
-              BunalQ
-            </Link>
-            <Link
-              href="/events"
-              className="hidden rounded-xl px-2.5 py-2.5 text-sm font-bold text-navy transition-colors hover:bg-primary-soft hover:text-primary sm:inline-flex lg:hidden"
-            >
-              Events
-            </Link>
-            <Link
               href={accountHref}
               className="hidden rounded-xl px-3 py-2.5 text-sm font-bold text-navy transition-colors hover:bg-slate-50 sm:inline-flex"
             >
@@ -409,6 +400,11 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
             >
               Browse courts
             </Link>
+            <HomeMobileMenu
+              links={NAV_LINKS}
+              accountHref={accountHref}
+              accountLabel={accountLabel}
+            />
           </div>
         </div>
       </header>

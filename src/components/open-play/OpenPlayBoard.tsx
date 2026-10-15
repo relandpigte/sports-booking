@@ -29,6 +29,10 @@ function Team({
         {players.map((player) => (
           <p key={player.participantId} className="truncate text-sm font-black text-navy">{player.displayName}</p>
         ))}
+        {/* An Up next match keeps a sat-out player's spot open until staff fill it. */}
+        {Array.from({ length: Math.max(0, 2 - players.length) }, (_, index) => (
+          <p key={`open-${index}`} className="truncate text-sm font-bold text-slate-400">Open spot</p>
+        ))}
       </div>
     </div>
   );

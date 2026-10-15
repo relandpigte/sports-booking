@@ -287,57 +287,141 @@ async function check() {
   checkInNinth.set("participantId", session.participants[8].id);
   await actions.checkInOpenPlayParticipantAction({}, checkInNinth);
 
-  const stagedPlayerId = automaticGame.players[0].participantId;
-  const replacedAutomaticGameId = automaticGame.id;
-  const replacedAutomaticCourtId = automaticGame.courtId;
-  const sitOutUpNext = new FormData();
-  sitOutUpNext.set("sessionId", session.id);
-  sitOutUpNext.set("participantId", stagedPlayerId);
-  const sitOutResult = await actions.pauseOpenPlayParticipantAction(
-    {},
-    sitOutUpNext
-  );
-  const replacementGame = await prisma.openPlayGame.findFirstOrThrow({
-    where: {
-      sessionId: session.id,
-      status: "STAGED",
-      selectionMethod: "AUTOMATIC",
-      id: { not: replacedAutomaticGameId },
-    },
+  const openSlot = automaticGame.players[0];
+  const stagedPlayerId = openSlot.participantId;
+  const cancelledBeforeSitOut = await prisma.openPlayGame.count({
+    where: { sessionId: session.id, status: "CANCELLED" },
+  });
+  const sitOut = (participantId: string) => {
+    const form = new FormData();
+    form.set("sessionId", session.id);
+    form.set("participantId", participantId);
+    return actions.pauseOpenPlayParticipantAction({}, form);
+  };
+  const rejoin = (participantId: string) => {
+    const form = new FormData();
+    form.set("sessionId", session.id);
+    form.set("participantId", participantId);
+    return actions.resumeOpenPlayParticipantAction({}, form);
+  };
+  const fillSlot = (slot: number, participantId?: string) => {
+    const form = new FormData();
+    form.set("sessionId", session.id);
+    form.set("gameId", automaticGame.id);
+    form.set("slot", String(slot));
+    form.set("pick", participantId ? "manual" : "auto");
+    if (participantId) form.set("participantId", participantId);
+    return actions.fillOpenPlaySlotAction({}, form);
+  };
+  const sitOutResult = await sitOut(stagedPlayerId);
+  const gameAfterSitOut = await prisma.openPlayGame.findUniqueOrThrow({
+    where: { id: automaticGame.id },
     include: { players: true },
   });
   ok(
     "staff can sit out a player from Up next",
-    sitOutResult.success?.includes("updated automatically") === true &&
+    sitOutResult.success?.includes("open spot") === true &&
       (await prisma.openPlayParticipant.findUniqueOrThrow({
         where: { id: stagedPlayerId },
-      })).status === "PAUSED" &&
-      (await prisma.openPlayGame.findUniqueOrThrow({
-        where: { id: replacedAutomaticGameId },
-      })).status === "CANCELLED"
+      })).status === "PAUSED"
   );
   ok(
-    "sitting out a staged player automatically replaces the upcoming match",
-    replacementGame.courtId === replacedAutomaticCourtId &&
-      replacementGame.players.length === 4 &&
-      replacementGame.players.every(
-        (slot) => slot.participantId !== stagedPlayerId
+    "sitting out keeps the announced match and opens only that spot",
+    gameAfterSitOut.status === "STAGED" &&
+      gameAfterSitOut.courtId === automaticGame.courtId &&
+      gameAfterSitOut.players.length === 3 &&
+      gameAfterSitOut.players.every(
+        (slot) =>
+          slot.participantId !== stagedPlayerId &&
+          automaticGame.players.some(
+            (before) =>
+              before.participantId === slot.participantId &&
+              before.slot === slot.slot
+          )
       ) &&
+      (await prisma.openPlayGame.count({
+        where: { sessionId: session.id, status: "CANCELLED" },
+      })) === cancelledBeforeSitOut &&
       (await prisma.openPlayGame.count({
         where: { sessionId: session.id, status: "STAGED" },
       })) === 2
   );
 
-  const resumeStagedPlayer = new FormData();
-  resumeStagedPlayer.set("sessionId", session.id);
-  resumeStagedPlayer.set("participantId", stagedPlayerId);
-  await actions.resumeOpenPlayParticipantAction({}, resumeStagedPlayer);
+  const startIncomplete = new FormData();
+  startIncomplete.set("sessionId", session.id);
+  startIncomplete.set("gameId", automaticGame.id);
+  ok(
+    "a match with an open spot cannot start",
+    (await actions.startOpenPlayMatchAction({}, startIncomplete)).message?.includes(
+      "open spot"
+    ) === true &&
+      (await prisma.openPlayGame.findUniqueOrThrow({
+        where: { id: automaticGame.id },
+      })).status === "STAGED"
+  );
+  ok(
+    "a player on break cannot be picked into an open spot",
+    Boolean((await fillSlot(openSlot.slot, stagedPlayerId)).message) &&
+      (await prisma.openPlayGamePlayer.count({
+        where: { gameId: automaticGame.id },
+      })) === 3
+  );
+
+  const queuedBeforeFill = await prisma.openPlayParticipant.findMany({
+    where: { sessionId: session.id, status: "QUEUED" },
+    select: { id: true, queuePosition: true },
+  });
+  const autoPickResults = await Promise.all([
+    fillSlot(openSlot.slot),
+    fillSlot(openSlot.slot),
+  ]);
+  const autoPicked = await prisma.openPlayGamePlayer.findFirstOrThrow({
+    where: { gameId: automaticGame.id, slot: openSlot.slot },
+    include: { participant: true, game: true },
+  });
+  ok(
+    "auto-pick fills an open spot once under concurrent submissions",
+    autoPickResults.filter((result) => result.success).length === 1 &&
+      autoPickResults.filter((result) => result.message).length === 1 &&
+      (await prisma.openPlayGamePlayer.count({
+        where: { gameId: automaticGame.id },
+      })) === 4
+  );
+  ok(
+    "auto-pick seats a waiting player on the open spot's team",
+    queuedBeforeFill.some(
+      (row) =>
+        row.id === autoPicked.participantId &&
+        row.queuePosition === autoPicked.queuePositionBefore
+    ) &&
+      autoPicked.team === openSlot.team &&
+      autoPicked.participant.status === "STAGED" &&
+      autoPicked.participant.queuePosition === null &&
+      autoPicked.game.selectionMethod === "AUTOMATIC"
+  );
+
+  await rejoin(stagedPlayerId);
+  const handPickedSlot = gameAfterSitOut.players[0];
+  await sitOut(handPickedSlot.participantId);
+  const handPickResult = await fillSlot(handPickedSlot.slot, stagedPlayerId);
+  const handPicked = await prisma.openPlayGamePlayer.findFirstOrThrow({
+    where: { gameId: automaticGame.id, slot: handPickedSlot.slot },
+    include: { participant: true, game: true },
+  });
+  ok(
+    "staff can hand-pick a waiting player for an open spot",
+    Boolean(handPickResult.success) &&
+      handPicked.participantId === stagedPlayerId &&
+      handPicked.team === handPickedSlot.team &&
+      handPicked.participant.status === "STAGED" &&
+      handPicked.game.selectionMethod === "MANUAL"
+  );
+  await rejoin(handPickedSlot.participantId);
   automaticGame = await prisma.openPlayGame.findFirstOrThrow({
     where: {
-      id: replacementGame.id,
+      id: automaticGame.id,
       sessionId: session.id,
       status: "STAGED",
-      selectionMethod: "AUTOMATIC",
     },
     include: { players: true },
   });
@@ -747,6 +831,102 @@ async function check() {
     "a saved pair waits rather than splitting when only one partner is queued",
     !selectedIds(balancedIncompleteFixedPartner).includes("a") &&
       selectedIds(balancedIncompleteFixedPartner).join(",") === "w,x,y,z"
+  );
+
+  const candidate = (
+    id: string,
+    queuePosition: number,
+    skillLevel: string,
+    pairId: string | null = null
+  ) => ({ id, queuePosition, skillLevel, lastResult: "UNCLASSIFIED" as const, pairId });
+  const seated = (id: string, team: number, skillLevel: string) => ({
+    id,
+    team,
+    skillLevel,
+    lastResult: "UNCLASSIFIED" as const,
+  });
+  const balancedOpenSpot = [
+    seated("t1", 1, "advanced"),
+    seated("o1", 2, "advanced"),
+    seated("o2", 2, "beginner"),
+  ];
+  ok(
+    "auto-pick favors the player who balances team skill",
+    domain.chooseOpenSlotReplacement({
+      mode: "BALANCED",
+      team: 1,
+      remaining: balancedOpenSpot,
+      queued: [candidate("q1", 1, "advanced"), candidate("q2", 2, "beginner")],
+    })?.id === "q2"
+  );
+  ok(
+    "auto-pick only looks at the front of the queue",
+    domain.chooseOpenSlotReplacement({
+      mode: "BALANCED",
+      team: 1,
+      remaining: balancedOpenSpot,
+      queued: [
+        candidate("q1", 1, "advanced"),
+        candidate("q2", 2, "advanced"),
+        candidate("q3", 3, "advanced"),
+        candidate("q4", 4, "advanced"),
+        candidate("q5", 5, "beginner"),
+      ],
+    })?.id === "q1"
+  );
+  ok(
+    "auto-pick keeps Skill Separated matches within one skill level",
+    domain.chooseOpenSlotReplacement({
+      mode: "SKILL_SEPARATED",
+      team: 2,
+      remaining: [
+        seated("t1", 1, "beginner"),
+        seated("t2", 1, "beginner"),
+        seated("o1", 2, "beginner"),
+      ],
+      queued: [candidate("q1", 1, "advanced"), candidate("q2", 2, "beginner")],
+    })?.id === "q2"
+  );
+  ok(
+    "auto-pick avoids an immediate teammate repeat",
+    domain.chooseOpenSlotReplacement({
+      mode: "BALANCED",
+      team: 1,
+      remaining: balancedOpenSpot,
+      queued: [candidate("q1", 1, "beginner"), candidate("q2", 2, "beginner")],
+      teammateHistory: domain.buildTeammateHistory([
+        {
+          sequence: 1,
+          players: [
+            { participantId: "t1", team: 1 },
+            { participantId: "q1", team: 1 },
+            { participantId: "x", team: 2 },
+            { participantId: "y", team: 2 },
+          ],
+        },
+      ]),
+    })?.id === "q2"
+  );
+  ok(
+    "auto-pick does not split a saved pair when someone else can play",
+    domain.chooseOpenSlotReplacement({
+      mode: "BALANCED",
+      team: 1,
+      remaining: balancedOpenSpot,
+      queued: [
+        candidate("q1", 1, "beginner", "pair"),
+        candidate("q2", 2, "beginner"),
+      ],
+    })?.id === "q2"
+  );
+  ok(
+    "auto-pick returns nothing when no one is waiting",
+    domain.chooseOpenSlotReplacement({
+      mode: "BALANCED",
+      team: 1,
+      remaining: balancedOpenSpot,
+      queued: [],
+    }) === null
   );
 
   const roundRobinPartnerRotation = domain.chooseAutomaticMatch({

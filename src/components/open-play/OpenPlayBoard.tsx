@@ -139,9 +139,9 @@ export function OpenPlayBoard({ snapshot }: { snapshot: OpenPlaySnapshot }) {
             <span className="text-xs font-bold text-slate-500">{queued.length} waiting</span>
           </div>
           {queued.length > 0 ? (
-            <ol className="grid sm:grid-cols-2">
+            <ol>
               {queued.map((participant, index) => (
-                <li key={participant.id} className="flex min-w-0 items-center gap-3 border-b border-slate-100 px-4 py-2.5 sm:odd:border-r">
+                <li key={participant.id} className="flex min-w-0 items-center gap-3 border-b border-slate-100 px-4 py-2.5">
                   <span className="text-lg font-black text-slate-200">{String(index + 1).padStart(2, "0")}</span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold text-navy">{participant.displayName}</p>

@@ -2167,6 +2167,56 @@ export async function recordOpenPlayWinnerAction(
   };
 }
 
+export async function swapOpenPlayWinnerAction(
+  _previous: OpenPlayActionState,
+  formData: FormData
+): Promise<OpenPlayActionState> {
+  const workspace = await workspaceForManage(String(formData.get("sessionId") ?? ""));
+  if (!workspace) return { message: "BunalQ manage access is required." };
+  const sessionId = String(formData.get("sessionId") ?? "");
+  const gameId = String(formData.get("gameId") ?? "");
+  const owned = await ownedSession(sessionId, workspace);
+  if (!owned) return { message: "BunalQ run not found." };
+  const swapped = await bunalQTransaction(async (tx) => {
+    const session = await lockSession(tx, sessionId);
+    if (!session || session.status !== "ACTIVE") return null;
+    const game = await tx.openPlayGame.findFirst({
+      where: { id: gameId, sessionId, status: "COMPLETED", winningTeam: { in: [1, 2] } },
+      include: { players: true },
+    });
+    if (!game?.winningTeam) return null;
+    const winningTeam = game.winningTeam === 1 ? 2 : 1;
+    await tx.openPlayGame.update({ where: { id: game.id }, data: { winningTeam } });
+    // A player's last result only follows this match while it is still the
+    // latest one they finished; later results stay as recorded.
+    for (const slot of game.players) {
+      const latest = await tx.openPlayGame.findFirst({
+        where: {
+          sessionId,
+          status: "COMPLETED",
+          players: { some: { participantId: slot.participantId } },
+        },
+        orderBy: [{ completedAt: "desc" }, { sequence: "desc" }],
+        select: { id: true },
+      });
+      if (latest?.id !== game.id) continue;
+      await tx.openPlayParticipant.update({
+        where: { id: slot.participantId },
+        data: { lastResult: slot.team === winningTeam ? "WIN" : "LOSS" },
+      });
+    }
+    await bumpLiveRevision(tx, sessionId);
+    return { winningTeam };
+  });
+  if (!swapped) return { message: "This result can no longer be changed." };
+  await audit(workspace, "OPEN_PLAY_RESULT_SWAPPED", sessionId, {
+    gameId,
+    winningTeam: swapped.winningTeam,
+  });
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
+  return { success: `Team ${swapped.winningTeam} is now the winner.` };
+}
+
 export async function undoOpenPlayResultAction(
   _previous: OpenPlayActionState,
   formData: FormData

@@ -11,6 +11,7 @@ import Link from "next/link";
 
 import { CopyLiveLinkButton } from "@/components/open-play/CopyLiveLinkButton";
 import { MatchTimer } from "@/components/open-play/MatchTimer";
+import { OpenPlayCounts } from "@/components/open-play/OpenPlayCounts";
 import { OpenPlayBoard } from "@/components/open-play/OpenPlayBoard";
 import { OpenPlayLiveRefresh } from "@/components/open-play/OpenPlayLiveRefresh";
 import {
@@ -50,6 +51,7 @@ import {
   startNewOpenPlayRunAction,
   startOpenPlayMatchAction,
   startOpenPlaySessionAction,
+  swapOpenPlayWinnerAction,
   switchOpenPlayTeamsAction,
   syncOpenPlayRosterAction,
   toggleOpenPlayCourtAction,
@@ -1461,10 +1463,11 @@ function LeftPanel({
   const left = snapshot.participants
     .filter((participant) => participant.status === "CHECKED_OUT" || participant.status === "PAUSED")
     .sort(byName);
+  if (notCheckedIn.length === 0 && left.length === 0) return null;
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       {notCheckedIn.length > 0 ? (
-        <div className="mb-5">
+        <div className={left.length > 0 ? "mb-5" : ""}>
           <div className="flex items-start justify-between gap-3">
             <h2 className="pt-1 text-sm font-black text-slate-500">
               Not checked in <span className="font-bold">({notCheckedIn.length})</span>
@@ -1473,25 +1476,25 @@ function LeftPanel({
               <CheckInAllForm snapshot={snapshot} ids={notCheckedIn.map((participant) => participant.id)} />
             ) : null}
           </div>
-          <ul className="mt-3 grid gap-2 md:grid-cols-2">
+          <ul className="mt-3 grid gap-2">
             {notCheckedIn.map((participant) => (
               <LeftRow key={participant.id} snapshot={snapshot} participant={participant} onOpen={onOpen} />
             ))}
           </ul>
         </div>
       ) : null}
-      <h2 className="text-sm font-black text-slate-500">
-        Left <span className="font-bold">({left.length})</span>
-      </h2>
-      {left.length === 0 ? (
-        <p className="mt-3 text-sm text-slate-400">Players taken out of the queue appear here so they can check in again.</p>
-      ) : (
-        <ul className="mt-3 grid gap-2 md:grid-cols-2">
-          {left.map((participant) => (
-            <LeftRow key={participant.id} snapshot={snapshot} participant={participant} onOpen={onOpen} />
-          ))}
-        </ul>
-      )}
+      {left.length > 0 ? (
+        <>
+          <h2 className="text-sm font-black text-slate-500">
+            Left <span className="font-bold">({left.length})</span>
+          </h2>
+          <ul className="mt-3 grid gap-2">
+            {left.map((participant) => (
+              <LeftRow key={participant.id} snapshot={snapshot} participant={participant} onOpen={onOpen} />
+            ))}
+          </ul>
+        </>
+      ) : null}
     </section>
   );
 }
@@ -1543,16 +1546,106 @@ function RequestsPanel({
   );
 }
 
+function formatMinutesClock(milliseconds: number): string {
+  const total = Math.max(0, Math.round(milliseconds / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
+// Finished matches, newest first, numbered in the order they ended. Staff can
+// correct a result that was tapped for the wrong team.
+function MatchLog({ snapshot }: { snapshot: OpenPlaySnapshot }) {
+  const completed = snapshot.games
+    .filter((game) => game.status === "COMPLETED" && game.winningTeam)
+    .sort((left, right) =>
+      Date.parse(left.completedAt ?? "") - Date.parse(right.completedAt ?? "") ||
+      left.sequence - right.sequence
+    );
+  if (completed.length === 0) return null;
+  const durations = completed.flatMap((game) =>
+    game.startedAt && game.completedAt
+      ? [Date.parse(game.completedAt) - Date.parse(game.startedAt)]
+      : []
+  );
+  const average = durations.length
+    ? durations.reduce((sum, duration) => sum + duration, 0) / durations.length
+    : null;
+  const names = (game: Game, team: number) =>
+    game.players
+      .filter((player) => player.team === team)
+      .sort((left, right) => left.slot - right.slot)
+      .map((player) => player.displayName)
+      .join(" & ") || "—";
+  const rows = completed.map((game, index) => ({ game, number: index + 1 })).reverse();
+  return (
+    <details open className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <summary className="flex cursor-pointer list-none items-center gap-4 bg-slate-50 px-4 py-3 [&::-webkit-details-marker]:hidden">
+        <h2 className="text-sm font-black text-navy">
+          Match log <span className="font-bold text-slate-400">({completed.length})</span>
+        </h2>
+        {average !== null ? (
+          <span className="text-xs font-semibold text-slate-500">Avg game: {formatMinutesClock(average)}</span>
+        ) : null}
+        <span aria-hidden="true" className="ml-auto text-slate-400 transition group-open:rotate-180">⌄</span>
+      </summary>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[36rem] text-left text-sm">
+          <thead>
+            <tr className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              <th className="w-12 px-4 py-2"><span className="sr-only">Match</span></th>
+              <th className="px-2 py-2">Court</th>
+              <th className="px-2 py-2">Win</th>
+              <th className="px-2 py-2">Lose</th>
+              <th className="px-4 py-2"><span className="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.map(({ game, number }) => {
+              const winner = game.winningTeam ?? 1;
+              return (
+                <tr key={game.id}>
+                  <td className="px-4 py-2.5 text-xs font-bold text-slate-400">#{number}</td>
+                  <td className="px-2 py-2.5 text-xs font-semibold text-slate-600">{game.courtName ?? "—"}</td>
+                  <td className="px-2 py-2.5 font-black text-navy">
+                    <span aria-hidden="true" className="mr-1.5 text-emerald-600">✓</span>
+                    {names(game, winner)}
+                  </td>
+                  <td className="px-2 py-2.5 text-slate-500">{names(game, winner === 1 ? 2 : 1)}</td>
+                  <td className="px-4 py-2 text-right">
+                    {snapshot.status === "ACTIVE" ? (
+                      <ActionForm
+                        action={swapOpenPlayWinnerAction}
+                        values={{ sessionId: snapshot.id, gameId: game.id }}
+                        label="Swap winner"
+                        tone="quiet"
+                      />
+                    ) : null}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  );
+}
+
 function QueueTab({ snapshot }: { snapshot: OpenPlaySnapshot }) {
   const [details, setDetails] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const closeDetails = useCallback(() => setDetails(null), []);
   const closeAdding = useCallback(() => setAdding(false), []);
+  const hasLeft = snapshot.participants.some((participant) => LEFT_STATUSES.includes(participant.status));
   return (
     <div className="space-y-4">
       <RequestsPanel snapshot={snapshot} onOpen={setDetails} />
-      <QueuePanel snapshot={snapshot} onOpen={setDetails} onAdd={() => setAdding(true)} />
-      <LeftPanel snapshot={snapshot} onOpen={setDetails} />
+      {/* Queue and Left sit side by side; Queue takes the full width when
+          nobody has left. */}
+      <div className={`grid items-start gap-4 ${hasLeft ? "lg:grid-cols-2" : ""}`}>
+        <QueuePanel snapshot={snapshot} onOpen={setDetails} onAdd={() => setAdding(true)} />
+        <LeftPanel snapshot={snapshot} onOpen={setDetails} />
+      </div>
+      <MatchLog snapshot={snapshot} />
       {details ? (
         <PlayerDetailsDialog
           key={details}
@@ -1929,12 +2022,6 @@ function ConsoleHeader({
 }) {
   const [dialog, setDialog] = useState<"qr" | "settings" | null>(null);
   const closeDialog = useCallback(() => setDialog(null), []);
-  const count = (statuses: string[]) =>
-    snapshot.participants.filter((participant) => statuses.includes(participant.status)).length;
-  const liveCourts = snapshot.games.filter((game) => game.status === "ACTIVE" && game.courtId).length;
-  const players = count(["QUEUED", "STAGED", "PLAYING"]);
-  const queued = count(["QUEUED"]);
-  const requests = count(["PENDING_APPROVAL"]);
   const headerButton = "inline-flex min-h-9 items-center rounded-lg border border-white/15 bg-white/10 px-3 text-xs font-black text-white transition hover:bg-white/20";
   return (
     <header className="rounded-2xl bg-navy px-4 py-3 text-white shadow-sm sm:px-5">
@@ -1942,26 +2029,7 @@ function ConsoleHeader({
         <div className="min-w-0">
           <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
             <h1 className="min-w-0 truncate text-xl font-black tracking-tight sm:text-2xl">{snapshot.queue.title}</h1>
-            <dl className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[11px] font-bold uppercase tracking-wide text-white/55">
-              <div className="flex items-baseline gap-1.5">
-                <dt>Courts</dt>
-                <dd className="text-base font-black text-white"><span className="text-emerald-400">{liveCourts}</span> / {snapshot.courts.length}</dd>
-              </div>
-              <div className="flex items-baseline gap-1.5">
-                <dt>Players</dt>
-                <dd className="text-base font-black text-white">{players}</dd>
-              </div>
-              <div className="flex items-baseline gap-1.5">
-                <dt>Queue</dt>
-                <dd className="text-base font-black text-amber-300">{queued}</dd>
-              </div>
-              {requests > 0 ? (
-                <div className="self-center rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-black text-navy">
-                  <dt className="sr-only">Requests</dt>
-                  <dd>{requests} {requests === 1 ? "request" : "requests"}</dd>
-                </div>
-              ) : null}
-            </dl>
+            <OpenPlayCounts snapshot={snapshot} />
           </div>
           <p className="mt-1 truncate text-xs text-white/50">
             Run {snapshot.runNumber} · {snapshot.status === "ACTIVE" ? "Live" : snapshot.status === "SETUP" ? "Not started" : "Ended"} · {OPEN_PLAY_MODE_LABELS[snapshot.matchingMode]} · {header.subtitle}

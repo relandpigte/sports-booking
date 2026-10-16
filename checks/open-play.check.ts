@@ -1062,6 +1062,32 @@ async function check() {
     "a refilled live match records its result",
     Boolean((await recordControl(courtMatch.id)).success)
   );
+  const swapWinner = () =>
+    actions.swapOpenPlayWinnerAction({}, form({ sessionId: control.id, gameId: courtMatch.id }));
+  const resultBefore = await prisma.openPlayGame.findUniqueOrThrow({
+    where: { id: courtMatch.id },
+    include: { players: { include: { participant: true } } },
+  });
+  const swapResult = await swapWinner();
+  const resultAfter = await prisma.openPlayGame.findUniqueOrThrow({
+    where: { id: courtMatch.id },
+    include: { players: { include: { participant: true } } },
+  });
+  ok(
+    "Swap winner flips the recorded result and each player's last result",
+    Boolean(swapResult.success) &&
+      resultBefore.winningTeam !== null &&
+      resultAfter.winningTeam === (resultBefore.winningTeam === 1 ? 2 : 1) &&
+      resultAfter.players.every(
+        (seat) => seat.participant.lastResult === (seat.team === resultAfter.winningTeam ? "WIN" : "LOSS")
+      )
+  );
+  await swapWinner();
+  ok(
+    "swapping again restores the original winner",
+    (await prisma.openPlayGame.findUniqueOrThrow({ where: { id: courtMatch.id } })).winningTeam ===
+      resultBefore.winningTeam
+  );
   ok(
     "a player returned mid-game gets no result for that match",
     (await prisma.openPlayGamePlayer.count({

@@ -36,14 +36,6 @@ export function QuickQueueForm({ hubs }: { hubs: HubOption[] }) {
         <h2 className="font-black text-navy">Matching mode</h2>
         <div className="mt-3 grid gap-2 sm:grid-cols-2 md:grid-cols-5">{OPEN_PLAY_MODES.map((value) => <label key={value} className={`cursor-pointer rounded-xl border p-3 ${mode === value ? "border-primary bg-primary-soft ring-1 ring-primary" : "border-slate-200"}`}><input className="sr-only" type="radio" name="matchingMode" value={value} checked={mode === value} onChange={() => setMode(value)} /><span className="text-sm font-black text-navy">{OPEN_PLAY_MODE_LABELS[value]}</span><span className="mt-1 block text-xs leading-5 text-slate-500">{OPEN_PLAY_MODE_DESCRIPTIONS[value]}</span></label>)}</div>
       </section>
-      <section className="rounded-2xl border border-ocean/20 bg-ocean-soft p-5">
-        <h2 className="font-black text-navy">Public guest entry</h2>
-        <p className="mt-1 text-sm text-slate-600">Players join from the QR link without creating an account.</p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <label className="cursor-pointer rounded-xl border border-primary bg-white p-3"><input type="radio" name="admissionMode" value="APPROVAL_REQUIRED" defaultChecked /> <span className="ml-2 text-sm font-black text-navy">Organizer approval</span><span className="mt-1 block pl-6 text-xs text-slate-500">Safer default for a publicly shared link.</span></label>
-          <label className="cursor-pointer rounded-xl border border-slate-200 bg-white p-3"><input type="radio" name="admissionMode" value="INSTANT" /> <span className="ml-2 text-sm font-black text-navy">Instant entry</span><span className="mt-1 block pl-6 text-xs text-slate-500">Players enter the active wait list immediately.</span></label>
-        </div>
-      </section>
       {state.message ? <p role="alert" className="text-sm font-bold text-red-600">{state.message}</p> : null}
       {state.reloadRequired ? <button type="button" onClick={() => window.location.reload()} className="min-h-10 rounded-xl border border-red-200 bg-white px-4 text-sm font-black text-red-700">Reload page</button> : null}
       <Button disabled={pending || courts.length === 0}>{pending ? "Starting BunalQ…" : "Start Quick Queue"}</Button>

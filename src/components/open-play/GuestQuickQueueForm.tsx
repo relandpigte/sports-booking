@@ -87,39 +87,6 @@ export function GuestQuickQueueForm() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-ocean/20 bg-ocean-soft p-5">
-        <h2 className="font-black text-navy">Public guest entry</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          Players can join from your public QR link without creating an
-          account.
-        </p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <label className="cursor-pointer rounded-xl border border-primary bg-white p-3">
-            <input
-              type="radio"
-              name="admissionMode"
-              value="APPROVAL_REQUIRED"
-              defaultChecked
-            />
-            <span className="ml-2 text-sm font-black text-navy">
-              Organizer approval
-            </span>
-            <span className="mt-1 block pl-6 text-xs text-slate-500">
-              Review each player before adding them to the wait list.
-            </span>
-          </label>
-          <label className="cursor-pointer rounded-xl border border-slate-200 bg-white p-3">
-            <input type="radio" name="admissionMode" value="INSTANT" />
-            <span className="ml-2 text-sm font-black text-navy">
-              Instant entry
-            </span>
-            <span className="mt-1 block pl-6 text-xs text-slate-500">
-              Players enter the active wait list immediately.
-            </span>
-          </label>
-        </div>
-      </section>
-
       <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
         <p className="text-sm font-black text-amber-900">
           This browser is your organizer key

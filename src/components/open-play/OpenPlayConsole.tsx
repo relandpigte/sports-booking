@@ -10,6 +10,7 @@ import {
 import Link from "next/link";
 
 import { CopyLiveLinkButton } from "@/components/open-play/CopyLiveLinkButton";
+import { MatchTimer } from "@/components/open-play/MatchTimer";
 import { OpenPlayBoard } from "@/components/open-play/OpenPlayBoard";
 import { OpenPlayLiveRefresh } from "@/components/open-play/OpenPlayLiveRefresh";
 import {
@@ -68,6 +69,7 @@ import {
   useBunalQActionState,
   type BunalQAction,
 } from "@/hooks/useBunalQActionState";
+import { useNow } from "@/hooks/useNow";
 
 function Feedback({ state }: { state: OpenPlayActionState }) {
   if (!state.message && !state.success) return null;
@@ -792,22 +794,6 @@ function AddCourtControl({ snapshot }: { snapshot: OpenPlaySnapshot }) {
       </div>
     </details>
   );
-}
-
-// The current time, refreshed on an interval after mount. It starts null so
-// server and client render the same markup.
-function useNow(intervalMs: number): number | null {
-  const [now, setNow] = useState<number | null>(null);
-  useEffect(() => {
-    const tick = () => setNow(Date.now());
-    const first = window.setTimeout(tick, 0);
-    const interval = window.setInterval(tick, intervalMs);
-    return () => {
-      window.clearTimeout(first);
-      window.clearInterval(interval);
-    };
-  }, [intervalMs]);
-  return now;
 }
 
 // Waiting time as H:MM:SS, matching the clocks organizers see at the venue.
@@ -1575,22 +1561,6 @@ function QueueTab({ snapshot }: { snapshot: OpenPlaySnapshot }) {
       ) : null}
       {adding ? <AddPlayersDialog snapshot={snapshot} onClose={closeAdding} /> : null}
     </div>
-  );
-}
-
-// Minutes and seconds since the match started, e.g. 12:05 or 95:40. It ticks
-// in its own component so only the timer re-renders each second.
-function MatchTimer({ startedAt }: { startedAt: string }) {
-  const now = useNow(1_000);
-  if (now === null) return null;
-  const total = Math.max(0, Math.floor((now - Date.parse(startedAt)) / 1000));
-  return (
-    <span
-      className="font-mono text-sm font-black tabular-nums text-navy"
-      aria-label={`Playing for ${Math.floor(total / 60)} minutes`}
-    >
-      {Math.floor(total / 60)}:{String(total % 60).padStart(2, "0")}
-    </span>
   );
 }
 

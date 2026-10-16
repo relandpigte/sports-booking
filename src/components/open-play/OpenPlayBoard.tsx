@@ -3,6 +3,7 @@ import {
   OPEN_PLAY_MODE_LABELS,
   type OpenPlaySnapshot,
 } from "@/lib/open-play-shared";
+import { MatchTimer } from "@/components/open-play/MatchTimer";
 import {
   liveCourtCardClassName,
   liveCourtHeaderClassName,
@@ -80,9 +81,12 @@ export function OpenPlayBoard({ snapshot }: { snapshot: OpenPlaySnapshot }) {
               <article key={court.id} className={`overflow-hidden rounded-2xl border shadow-sm ${live ? liveCourtCardClassName : staged ? "border-violet-200 bg-white" : "border-slate-200 bg-white"}`}>
                 <div className={`flex items-center justify-between border-b px-4 py-3 ${live ? liveCourtHeaderClassName : "border-slate-200 bg-slate-50/80"}`}>
                   <h3 className="font-black text-navy">{court.name}</h3>
-                  <span className={`text-[10px] font-black uppercase tracking-[0.12em] ${live ? "text-emerald-700" : staged ? "text-violet-700" : "text-slate-400"}`}>
-                    {!court.active ? "Paused" : live ? "Playing" : staged ? "Up next" : "Open"}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {live && game?.startedAt ? <MatchTimer startedAt={game.startedAt} /> : null}
+                    <span className={`text-[10px] font-black uppercase tracking-[0.12em] ${live ? "text-emerald-700" : staged ? "text-violet-700" : "text-slate-400"}`}>
+                      {!court.active ? "Paused" : live ? "Playing" : staged ? "Up next" : "Open"}
+                    </span>
+                  </div>
                 </div>
                 <div className="p-4">
                   {game && palette ? (

@@ -1549,7 +1549,9 @@ function MatchLog({ snapshot }: { snapshot: OpenPlaySnapshot }) {
       .join(" & ") || "—";
   const rows = completed.map((game, index) => ({ game, number: index + 1 })).reverse();
   return (
-    <details open className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    // Collapsed by default so the queue stays in view; staff open it to
+    // check or correct a result.
+    <details className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <summary className="flex cursor-pointer list-none items-center gap-4 bg-slate-50 px-4 py-3 [&::-webkit-details-marker]:hidden">
         <h2 className="text-sm font-black text-navy">
           Match log <span className="font-bold text-slate-400">({completed.length})</span>

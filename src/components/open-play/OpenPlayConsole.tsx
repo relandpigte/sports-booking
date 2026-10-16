@@ -71,7 +71,7 @@ import {
 } from "@/hooks/useBunalQActionState";
 import { useNow } from "@/hooks/useNow";
 
-function Feedback({ state }: { state: OpenPlayActionState }) {
+function FeedbackMessage({ state }: { state: OpenPlayActionState }) {
   if (!state.message && !state.success) return null;
   return (
     <div className="mt-2" role="status">
@@ -95,7 +95,9 @@ function Feedback({ state }: { state: OpenPlayActionState }) {
   );
 }
 
-function AutoDismissSuccessFeedback({
+// Confirmations fade after a few seconds so they don't pile up across the
+// console; errors stay until the next attempt so they can be read.
+function Feedback({
   state,
   delay = 4_000,
 }: {
@@ -109,7 +111,7 @@ function AutoDismissSuccessFeedback({
     return () => window.clearTimeout(timeout);
   }, [delay, state]);
   if (state.success && dismissedState === state) return null;
-  return <Feedback state={state} />;
+  return <FeedbackMessage state={state} />;
 }
 
 function ActionForm({
@@ -280,7 +282,7 @@ function PairForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
         <Select name="secondId" label="Player 2" options={options} />
         <Button className="min-h-10 px-4 py-2 sm:w-auto" disabled={pending || options.length < 2}>{pending ? "Saving…" : "Save"}</Button>
       </div>
-      <AutoDismissSuccessFeedback state={state} />
+      <Feedback state={state} />
     </form>
   );
 }
@@ -468,7 +470,7 @@ function ReplaceStagedCourtMatchForm({
           </form>
         ))}
       </div>
-      <AutoDismissSuccessFeedback state={state} />
+      <Feedback state={state} />
     </div>
   );
 }
@@ -1004,7 +1006,7 @@ function PlayerDetailsDialog({
             className="mt-2 block min-h-12 w-full rounded-xl border border-slate-300 px-4 text-base font-semibold normal-case tracking-normal text-navy focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
         </label>
-        {namePending ? <p className="mt-1 text-xs text-slate-400">Saving…</p> : <AutoDismissSuccessFeedback state={nameState} />}
+        {namePending ? <p className="mt-1 text-xs text-slate-400">Saving…</p> : <Feedback state={nameState} />}
       </form>
 
       <form action={skillAction} className="mt-5">
@@ -1031,7 +1033,7 @@ function PlayerDetailsDialog({
             </button>
           ))}
         </div>
-        <AutoDismissSuccessFeedback state={skillState} />
+        <Feedback state={skillState} />
       </form>
 
       {canPair ? (
@@ -1322,7 +1324,7 @@ function AddPlayersDialog({
           <span className="truncate">Add “{query.trim()}” to the queue</span>
         </button>
       ) : null}
-      {pending ? <p className="mt-2 text-xs font-bold text-slate-400">Adding…</p> : <AutoDismissSuccessFeedback state={state} />}
+      {pending ? <p className="mt-2 text-xs font-bold text-slate-400">Adding…</p> : <Feedback state={state} />}
       {matches.length === 0 && !canAdd && !pending ? (
         <p className="py-6 text-center text-sm text-slate-500">
           No checked-out players. Type a name above to add a walk-in.

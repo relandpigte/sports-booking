@@ -1876,6 +1876,8 @@ model OpenPlaySession {
   status            OpenPlaySessionStatus @default(SETUP)
   matchingMode      OpenPlayMatchingMode  @default(BALANCED)
   nextQueuePosition Int                   @default(0)
+  // How many courtless Up next matches matchmaking keeps prepared (1-12).
+  upNextSlots       Int                   @default(2)
   // Monotonic live-board revision. Every BunalQ mutation increments this so
   // SSE polling never needs to load and serialize the full run.
   liveRevision      Int                   @default(0)

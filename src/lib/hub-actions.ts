@@ -335,13 +335,20 @@ export async function updateHubAction(
         values: formValues(formData),
       };
     }
-    const bunalQReference = await prisma.openPlaySessionCourt.findFirst({
-      where: { courtId: { in: toDelete } },
-      select: { court: { select: { name: true } } },
-    });
+    // A court removed from a run mid-session keeps its BunalQ games, so check
+    // those as well as the run's court list.
+    const bunalQReference =
+      (await prisma.openPlaySessionCourt.findFirst({
+        where: { courtId: { in: toDelete } },
+        select: { court: { select: { name: true } } },
+      })) ??
+      (await prisma.openPlayGame.findFirst({
+        where: { courtId: { in: toDelete } },
+        select: { court: { select: { name: true } } },
+      }));
     if (bunalQReference) {
       return {
-        message: `“${bunalQReference.court.name}” has BunalQ history and can't be removed. Rename it or keep it for historical records.`,
+        message: `“${bunalQReference.court?.name ?? "A court"}” has BunalQ history and can't be removed. Rename it or keep it for historical records.`,
         values: formValues(formData),
       };
     }

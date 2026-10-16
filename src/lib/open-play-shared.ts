@@ -35,7 +35,9 @@ export const OPEN_PLAY_MODES = Object.keys(
   OPEN_PLAY_MODE_LABELS
 ) as OpenPlayMatchingMode[];
 
-export const OPEN_PLAY_UP_NEXT_BUFFER_SIZE = 2;
+// A run holds at most this many courts, and at most this many Up next matches.
+export const OPEN_PLAY_MAX_COURTS = 12;
+export const OPEN_PLAY_MAX_UP_NEXT_SLOTS = 12;
 
 export type OpenPlayActionState = {
   message?: string;
@@ -49,7 +51,14 @@ export type OpenPlaySnapshot = {
   runNumber: number;
   status: OpenPlaySessionStatus;
   matchingMode: OpenPlayMatchingMode;
+  upNextSlots: number;
   updatedAt: string;
+  // Operator snapshots only: how a court can be added to this run. Guest rooms
+  // create the next numbered court; venue queues pick an eligible hub court.
+  courtAdd:
+    | null
+    | { kind: "AUTO"; remaining: number }
+    | { kind: "PICK"; courts: Array<{ id: string; name: string }> };
   queue: {
     publicId: string;
     title: string;
@@ -80,6 +89,7 @@ export type OpenPlaySnapshot = {
     lastResult: OpenPlayLastResult;
     queuePosition: number | null;
     queuedAt: string | null;
+    checkedInAt: string | null;
     pairId: string | null;
     estimatedWaitMinutes: number | null;
   }>;

@@ -1,7 +1,16 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import Link from "next/link";
 
+import { CopyLiveLinkButton } from "@/components/open-play/CopyLiveLinkButton";
+import { MatchTimer } from "@/components/open-play/MatchTimer";
 import { OpenPlayBoard } from "@/components/open-play/OpenPlayBoard";
 import { OpenPlayLiveRefresh } from "@/components/open-play/OpenPlayLiveRefresh";
 import {
@@ -13,31 +22,35 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import {
+  addOpenPlayCourtAction,
+  addOpenPlayUpNextSlotAction,
   addOpenPlayWalkInAction,
   approvePublicQueueGuestAction,
   bulkCheckInOpenPlayParticipantsAction,
-  bulkPauseOpenPlayParticipantsAction,
-  bulkRemoveOpenPlayParticipantsAction,
   changeOpenPlayModeAction,
   changeQueueAdmissionModeAction,
   checkInOpenPlayParticipantAction,
   checkOutOpenPlayParticipantAction,
   editOpenPlayParticipantAction,
   dispatchOpenPlayUpNextAction,
-  editStagedOpenPlayMatchAction,
   endOpenPlaySessionAction,
   fillOpenPlaySlotAction,
   pairOpenPlayParticipantsAction,
-  pauseOpenPlayParticipantAction,
   prepareOpenPlayAction,
   recordOpenPlayWinnerAction,
+  rebuildOpenPlayUpNextMatchAction,
+  refreshOpenPlayUpNextAction,
   rejectPublicQueueGuestAction,
+  removeOpenPlayCourtAction,
   removeOpenPlayParticipantAction,
+  removeOpenPlayUpNextSlotAction,
   replaceStagedCourtMatchAction,
   resumeOpenPlayParticipantAction,
+  returnOpenPlayParticipantToQueueAction,
   startNewOpenPlayRunAction,
   startOpenPlayMatchAction,
   startOpenPlaySessionAction,
+  switchOpenPlayTeamsAction,
   syncOpenPlayRosterAction,
   toggleOpenPlayCourtAction,
   undoOpenPlayResultAction,
@@ -46,17 +59,17 @@ import {
 import {
   OPEN_PLAY_MODE_DESCRIPTIONS,
   OPEN_PLAY_MODE_LABELS,
+  OPEN_PLAY_MAX_UP_NEXT_SLOTS,
   OPEN_PLAY_MODES,
-  OPEN_PLAY_UP_NEXT_BUFFER_SIZE,
   type OpenPlayActionState,
   type OpenPlaySnapshot,
 } from "@/lib/open-play-shared";
-import { SKILL_LEVELS } from "@/lib/constants";
+import { DEFAULT_SKILL_LEVEL, SKILL_LEVELS } from "@/lib/constants";
 import {
-  runBunalQActionSafely,
   useBunalQActionState,
   type BunalQAction,
 } from "@/hooks/useBunalQActionState";
+import { useNow } from "@/hooks/useNow";
 
 function Feedback({ state }: { state: OpenPlayActionState }) {
   if (!state.message && !state.success) return null;
@@ -180,7 +193,7 @@ function ModeForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
           {pending ? "Saving…" : "Apply mode"}
         </button>
       </div>
-      <div className="mt-4 grid gap-2 md:grid-cols-5">
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {OPEN_PLAY_MODES.map((mode, index) => (
           <label
             key={mode}
@@ -206,29 +219,6 @@ function ModeForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
             <span className="mt-1 block text-[11px] leading-5 text-slate-500">{OPEN_PLAY_MODE_DESCRIPTIONS[mode]}</span>
           </label>
         ))}
-      </div>
-      <Feedback state={state} />
-    </form>
-  );
-}
-
-function WalkInForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
-  const [state, action, pending] = useBunalQActionState(addOpenPlayWalkInAction);
-  return (
-    <form action={action} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shadow-navy/5">
-      <input type="hidden" name="sessionId" value={snapshot.id} />
-      <input type="hidden" name="publicId" value={snapshot.queue.publicId} />
-      <div>
-        <h2 className="text-xs font-black uppercase tracking-[0.16em] text-navy">Add player</h2>
-        <p className="mt-1 text-xs text-slate-500">Add a walk-in directly to this run.</p>
-      </div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)_auto] sm:items-end">
-        <label className="text-sm font-medium text-gray-800">
-          Name
-          <input name="displayName" maxLength={120} required placeholder="Player name" className="mt-1.5 block min-h-10 w-full rounded-lg border border-slate-300 px-3 text-sm font-semibold text-navy" />
-        </label>
-        <Select name="skillLevel" label="Skill" options={[...SKILL_LEVELS]} defaultValue="intermediate" />
-        <Button className="min-h-10 px-4 py-2 sm:w-auto" disabled={pending}>{pending ? "Adding…" : "Add"}</Button>
       </div>
       <Feedback state={state} />
     </form>
@@ -329,29 +319,6 @@ function SavedPairs({ snapshot }: { snapshot: OpenPlaySnapshot }) {
   );
 }
 
-function StagedMatchEditor({ snapshot, game }: { snapshot: OpenPlaySnapshot; game: OpenPlaySnapshot["games"][number] }) {
-  const [state, action, pending] = useBunalQActionState(editStagedOpenPlayMatchAction);
-  const currentIds = new Set(game.players.map((player) => player.participantId));
-  const options = snapshot.participants
-    .filter((participant) => participant.status === "QUEUED" || (participant.status === "STAGED" && currentIds.has(participant.id)))
-    .map((participant) => ({ value: participant.id, label: participant.displayName }));
-  const hasOpenSpot = game.players.length < 4;
-  return (
-    <details className="mt-2 rounded-lg bg-slate-50 p-2">
-      <summary className="cursor-pointer text-xs font-black text-navy">Edit teams</summary>
-      <form action={action} className="mt-2 grid gap-2 sm:grid-cols-2">
-        <input type="hidden" name="sessionId" value={snapshot.id} />
-        <input type="hidden" name="gameId" value={game.id} />
-        {[0, 1, 2, 3].map((index) => (
-          <Select key={index} id={`${game.id}-player-${index + 1}`} name={`player${index + 1}`} label={`${index < 2 ? "Team 1" : "Team 2"} · P${(index % 2) + 1}`} options={hasOpenSpot ? [{ value: "", label: "Choose a player" }, ...options] : options} defaultValue={game.players.find((player) => player.slot === index + 1)?.participantId ?? ""} />
-        ))}
-        <Button className="sm:col-span-2 min-h-10 py-2" disabled={pending}>{pending ? "Saving…" : "Save teams"}</Button>
-        <div className="sm:col-span-2"><Feedback state={state} /></div>
-      </form>
-    </details>
-  );
-}
-
 function DispatchUpNextForm({
   snapshot,
   gameId,
@@ -395,33 +362,49 @@ function DispatchUpNextForm({
   );
 }
 
-function SitOutStagedPlayerForm({
-  snapshot,
-  participantId,
-  displayName,
-}: {
-  snapshot: OpenPlaySnapshot;
-  participantId: string;
-  displayName: string;
-}) {
-  const [state, action, pending] = useBunalQActionState(
-    pauseOpenPlayParticipantAction
-  );
+function CloseIcon() {
   return (
-    <form action={action} className="relative shrink-0">
-      <input type="hidden" name="sessionId" value={snapshot.id} />
-      <input type="hidden" name="participantId" value={participantId} />
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 stroke-current" fill="none" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 6l12 12M18 6 6 18" />
+    </svg>
+  );
+}
+
+// A small × button that submits one action; errors float below it so the
+// row it sits in keeps its height.
+function IconActionForm({
+  action,
+  values,
+  label,
+  confirm,
+  className = "",
+}: {
+  action: BunalQAction;
+  values: Record<string, string | number>;
+  label: string;
+  confirm?: string;
+  className?: string;
+}) {
+  const [state, formAction, pending] = useBunalQActionState(action);
+  return (
+    <form
+      action={formAction}
+      className={`relative shrink-0 ${className}`}
+      onSubmit={(event) => {
+        if (confirm && !window.confirm(confirm)) event.preventDefault();
+      }}
+    >
+      {Object.entries(values).map(([name, value]) => (
+        <input key={name} type="hidden" name={name} value={String(value)} />
+      ))}
       <button
         type="submit"
         disabled={pending}
-        title={`Sit ${displayName} out`}
-        aria-label={`Sit ${displayName} out and open their spot`}
-        className="flex h-7 w-7 items-center justify-center rounded-md text-amber-700 transition hover:bg-amber-100 disabled:cursor-wait disabled:opacity-50"
+        title={label}
+        aria-label={label}
+        className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-900/5 hover:text-slate-700 disabled:cursor-wait disabled:opacity-50"
       >
-        <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 stroke-current" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="6" y="4" width="4" height="16" rx="1" />
-          <rect x="14" y="4" width="4" height="16" rx="1" />
-        </svg>
+        <CloseIcon />
       </button>
       {state.message ? (
         <span className="absolute right-0 top-full z-30 mt-1 w-48 rounded-lg bg-red-50 p-2 text-left text-[10px] font-bold text-red-700 shadow-lg" role="alert">
@@ -431,6 +414,24 @@ function SitOutStagedPlayerForm({
         <span className="sr-only" aria-live="polite">{state.success}</span>
       )}
     </form>
+  );
+}
+
+function ReturnToQueueForm({
+  snapshot,
+  participantId,
+  displayName,
+}: {
+  snapshot: OpenPlaySnapshot;
+  participantId: string;
+  displayName: string;
+}) {
+  return (
+    <IconActionForm
+      action={returnOpenPlayParticipantToQueueAction}
+      values={{ sessionId: snapshot.id, participantId }}
+      label={`Return ${displayName} to the queue`}
+    />
   );
 }
 
@@ -462,7 +463,7 @@ function ReplaceStagedCourtMatchForm({
               disabled={pending}
               className="min-h-9 w-full rounded-lg border border-violet-200 bg-violet-50 px-2 text-[10px] font-black text-violet-700 transition hover:bg-violet-100 disabled:cursor-wait disabled:opacity-50"
             >
-              {pending ? "Replacing…" : `Match ${index + 1}`}
+              {pending ? "Replacing…" : `Up next ${index + 1}`}
             </button>
           </form>
         ))}
@@ -478,7 +479,35 @@ type SlotTarget = {
   slot: number;
   context: string;
   openedAt: number;
+  // Set when the spot belongs to a player being swapped out.
+  replace?: { participantId: string; displayName: string };
 };
+
+type MatchPlayerTarget = {
+  gameId: string;
+  participantId: string;
+  context: string;
+};
+
+function PlayerNameButton({
+  name,
+  onClick,
+  className = "text-xs font-bold",
+}: {
+  name: string;
+  onClick: () => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`min-w-0 flex-1 truncate text-left text-navy underline-offset-2 transition hover:text-primary hover:underline ${className}`}
+    >
+      {name}
+    </button>
+  );
+}
 
 // Slots 1-2 are Team 1 and 3-4 Team 2, so an open spot keeps its team.
 function teamSlots(game: Game, team: number) {
@@ -535,16 +564,40 @@ function ChoosePlayerDialog({
     .sort(
       (left, right) => (left.queuePosition ?? 0) - (right.queuePosition ?? 0)
     );
+  // Players already in another match that hasn't started can be moved here;
+  // Up next boxes come first, then matches waiting on a court.
+  const upNextGames = snapshot.games
+    .filter((game) => game.status === "STAGED" && !game.courtId)
+    .sort((left, right) => left.sequence - right.sequence);
+  const courtStaged = snapshot.games
+    .filter((game) => game.status === "STAGED" && game.courtId)
+    .sort((left, right) => left.sequence - right.sequence);
+  const staged = [
+    ...upNextGames.map((game, index) => ({ game, label: `Up next ${index + 1}` })),
+    ...courtStaged.map((game) => ({ game, label: game.courtName ?? "Court" })),
+  ]
+    .filter(({ game }) => game.id !== target.gameId)
+    .flatMap(({ game, label }) =>
+      [...game.players]
+        .sort((left, right) => left.slot - right.slot)
+        .map((player) => ({ id: player.participantId, displayName: player.displayName, label }))
+    );
   const search = query.trim().toLowerCase();
+  const nameMatches = (name: string) => name.toLowerCase().includes(search);
   const matches = search
-    ? queued.filter((participant) =>
-        participant.displayName.toLowerCase().includes(search)
-      )
+    ? queued.filter((participant) => nameMatches(participant.displayName))
     : queued;
-  const hidden = {
+  const stagedMatches = search
+    ? staged.filter((player) => nameMatches(player.displayName))
+    : staged;
+  const participantsById = new Map(
+    snapshot.participants.map((participant) => [participant.id, participant])
+  );
+  const hidden: Record<string, string> = {
     sessionId: snapshot.id,
     gameId: target.gameId,
     slot: String(target.slot),
+    ...(target.replace ? { replaceParticipantId: target.replace.participantId } : {}),
   };
 
   return (
@@ -559,10 +612,10 @@ function ChoosePlayerDialog({
     >
       <div className="flex max-h-[calc(100dvh-2rem)] flex-col p-5 sm:p-6">
         <h2 id="choose-player-title" className="text-xl font-black text-navy">
-          Choose a player
+          {target.replace ? `Replace ${target.replace.displayName}` : "Choose a player"}
         </h2>
         <p className="mt-1 text-sm text-slate-500">
-          Select from the queue or search by name.
+          Select from the queue or Up next, or search by name.
         </p>
         <div className="mt-4 flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
           <span
@@ -574,7 +627,7 @@ function ChoosePlayerDialog({
           </span>
           <div className="min-w-0">
             <p className="truncate text-[10px] font-black uppercase tracking-wider text-slate-500">
-              Adding to {target.context}
+              {target.replace ? "Replacing on" : "Adding to"} {target.context}
             </p>
             <p className="text-sm font-black text-navy">
               Player {((target.slot - 1) % 2) + 1} of 2
@@ -606,7 +659,7 @@ function ChoosePlayerDialog({
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search players…"
-          aria-label="Search waiting players"
+          aria-label="Search players"
           className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm text-navy focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
 
@@ -650,13 +703,48 @@ function ChoosePlayerDialog({
               </li>
             );
           })}
-          {matches.length === 0 ? (
+          {matches.length === 0 && stagedMatches.length === 0 ? (
             <li className="rounded-2xl border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500">
-              {queued.length === 0
-                ? "No one is waiting in the queue."
-                : "No waiting player matches that name."}
+              {queued.length === 0 && staged.length === 0
+                ? "No one is waiting in the queue or Up next."
+                : "No player matches that name."}
             </li>
           ) : null}
+          {stagedMatches.length > 0 ? (
+            <li className="px-1 pt-2 text-[10px] font-black uppercase tracking-wider text-slate-400">
+              From Up next · leaves an open spot there
+            </li>
+          ) : null}
+          {stagedMatches.map((player) => {
+            const participant = participantsById.get(player.id);
+            const record = records.get(player.id);
+            return (
+              <li key={player.id}>
+                <form action={action}>
+                  {Object.entries(hidden).map(([name, value]) => (
+                    <input key={name} type="hidden" name={name} value={value} />
+                  ))}
+                  <input type="hidden" name="pick" value="manual" />
+                  <input type="hidden" name="participantId" value={player.id} />
+                  <button
+                    disabled={pending}
+                    className="w-full rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3 text-left transition hover:bg-primary-soft disabled:cursor-wait disabled:opacity-50"
+                  >
+                    <span className="block truncate text-sm font-black text-navy">
+                      {player.displayName}
+                    </span>
+                    <span className="mt-0.5 block text-xs font-bold text-slate-500">
+                      {participant ? `${SKILL_LEVELS.find((level) => level.value === participant.skillLevel)?.label ?? participant.skillLevel} · ` : ""}
+                      In {player.label}
+                    </span>
+                    <span className="mt-1 block text-xs text-slate-500">
+                      {record?.games ?? 0} games · {record?.wins ?? 0}W-{record?.losses ?? 0}L
+                    </span>
+                  </button>
+                </form>
+              </li>
+            );
+          })}
         </ul>
 
         <Feedback state={state} />
@@ -672,8 +760,823 @@ function ChoosePlayerDialog({
   );
 }
 
-function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
+function AddCourtControl({ snapshot }: { snapshot: OpenPlaySnapshot }) {
+  const option = snapshot.courtAdd;
+  if (!option) return null;
+  if (option.kind === "AUTO") {
+    return option.remaining > 0 ? (
+      <ActionForm action={addOpenPlayCourtAction} values={{ sessionId: snapshot.id }} label="+ Add court" tone="quiet" />
+    ) : null;
+  }
+  return (
+    <details className="relative z-20">
+      <summary className="flex min-h-9 cursor-pointer list-none items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+        + Add court
+      </summary>
+      <div className="absolute right-0 top-full mt-2 w-64 space-y-2 rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
+        {option.courts.length === 0 ? (
+          <p className="text-xs text-slate-500">
+            {snapshot.queue.kind === "EVENT"
+              ? "Every court reserved for this event is already in the run or in use."
+              : "No other pickleball court at this hub is free."}
+          </p>
+        ) : (
+          option.courts.map((court) => (
+            <ActionForm
+              key={court.id}
+              action={addOpenPlayCourtAction}
+              values={{ sessionId: snapshot.id, courtId: court.id }}
+              label={`Add ${court.name}`}
+              buttonClassName="w-full border border-slate-200 bg-white text-left text-slate-700 hover:bg-slate-50"
+            />
+          ))
+        )}
+      </div>
+    </details>
+  );
+}
+
+// Waiting time as H:MM:SS, matching the clocks organizers see at the venue.
+function formatClock(milliseconds: number): string {
+  const total = Math.max(0, Math.floor(milliseconds / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function skillLabel(value: string): string {
+  return SKILL_LEVELS.find((level) => level.value === value)?.label ?? value;
+}
+
+type Participant = OpenPlaySnapshot["participants"][number];
+
+const PAIRING_MODES = ["BALANCED", "ROUND_ROBIN", "FIXED_PARTNERS"];
+const PAIRABLE_STATUSES = ["NOT_CHECKED_IN", "QUEUED", "STAGED", "PLAYING", "PAUSED", "CHECKED_OUT"];
+const LEFT_STATUSES = ["CHECKED_OUT", "PAUSED", "NOT_CHECKED_IN"];
+const manilaClock = new Intl.DateTimeFormat("en-PH", {
+  timeZone: "Asia/Manila",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+function Modal({
+  labelledBy,
+  onClose,
+  children,
+  className = "max-w-md",
+}: {
+  labelledBy: string;
+  onClose: () => void;
+  children: ReactNode;
+  className?: string;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = ref.current;
+    if (!dialog || dialog.open) return;
+    dialog.showModal();
+    // showModal focuses the first control (the close button); a field
+    // marked data-autofocus takes focus instead.
+    dialog.querySelector<HTMLElement>("[data-autofocus]")?.focus();
+  }, []);
+  return (
+    <dialog
+      ref={ref}
+      onClose={onClose}
+      onClick={(event) => {
+        if (event.target === ref.current) onClose();
+      }}
+      aria-labelledby={labelledBy}
+      className={`m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] overflow-hidden rounded-3xl p-0 backdrop:bg-navy/60 sm:w-full ${className}`}
+    >
+      <div className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-y-auto p-5 sm:p-6">
+        {children}
+      </div>
+    </dialog>
+  );
+}
+
+function ModalTitle({
+  id,
+  title,
+  onClose,
+  children,
+}: {
+  id: string;
+  title: string;
+  onClose: () => void;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <h2 id={id} className="truncate text-xl font-black text-navy">{title}</h2>
+        {children}
+      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close"
+        className="-mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-navy"
+      >
+        <CloseIcon />
+      </button>
+    </div>
+  );
+}
+
+function presenceLabel(participant: Participant): string {
+  switch (participant.status) {
+    case "QUEUED":
+    case "STAGED":
+    case "PLAYING":
+      return "Currently checked in";
+    case "PAUSED":
+      return "On break";
+    case "CHECKED_OUT":
+      return "Left";
+    case "NOT_CHECKED_IN":
+      return "Not checked in";
+    case "PENDING_APPROVAL":
+      return "Waiting for approval";
+    default:
+      return "Removed";
+  }
+}
+
+function PlayerDetailsDialog({
+  snapshot,
+  participantId,
+  onClose,
+}: {
+  snapshot: OpenPlaySnapshot;
+  participantId: string;
+  onClose: () => void;
+}) {
+  const participant = snapshot.participants.find((item) => item.id === participantId);
+  const [nameState, nameAction, namePending] = useBunalQActionState(editOpenPlayParticipantAction);
+  const [skillState, skillAction, skillPending] = useBunalQActionState(editOpenPlayParticipantAction);
+  const [pairing, setPairing] = useState(false);
+  const pairAndClose = useCallback<BunalQAction>(async (previous, formData) => {
+    const result = await pairOpenPlayParticipantsAction(previous, formData);
+    if (result.success) setPairing(false);
+    return result;
+  }, []);
+  const [pairState, pairAction, pairPending] = useBunalQActionState(pairAndClose);
+  // Both fields save separately, so each form sends the other's latest
+  // value rather than the snapshot's, which lags behind until it refreshes.
+  const [name, setName] = useState(participant?.displayName ?? "");
+  const [skill, setSkill] = useState(participant?.skillLevel ?? DEFAULT_SKILL_LEVEL);
+  const [query, setQuery] = useState("");
+  const submittedName = useRef(participant?.displayName ?? "");
+  const missing = !participant || participant.status === "REMOVED";
+  useEffect(() => {
+    if (missing) onClose();
+  }, [missing, onClose]);
+  if (!participant || missing) return null;
+
+  const record = snapshot.standings.find((row) => row.participantId === participant.id);
+  const games = record?.games ?? 0;
+  const winRate = games > 0 ? Math.round(((record?.wins ?? 0) / games) * 100) : null;
+  const values = { sessionId: snapshot.id, participantId: participant.id };
+  const partner = participant.pairId
+    ? snapshot.participants.find(
+        (item) => item.pairId === participant.pairId && item.id !== participant.id
+      )
+    : undefined;
+  const canPair =
+    PAIRING_MODES.includes(snapshot.matchingMode) &&
+    PAIRABLE_STATUSES.includes(participant.status);
+  const search = query.trim().toLowerCase();
+  const pairCandidates = snapshot.participants
+    .filter(
+      (item) =>
+        item.id !== participant.id &&
+        PAIRABLE_STATUSES.includes(item.status) &&
+        item.displayName.toLowerCase().includes(search)
+    )
+    .sort((left, right) => left.displayName.localeCompare(right.displayName));
+  const canRemove = !["STAGED", "PLAYING", "REMOVED", "PENDING_APPROVAL"].includes(participant.status);
+  const saveName = (form: HTMLFormElement | null) => {
+    const next = name.trim();
+    if (!form || !next || next === participant.displayName || next === submittedName.current) return;
+    submittedName.current = next;
+    form.requestSubmit();
+  };
+
+  return (
+    <Modal labelledBy="player-details-title" onClose={onClose}>
+      <ModalTitle id="player-details-title" title={participant.displayName} onClose={onClose}>
+        <p className="mt-1 text-sm text-slate-500">
+          {games}G played
+          {winRate !== null ? (
+            <span className="ml-3 font-bold text-emerald-600">{winRate}% win rate</span>
+          ) : null}
+        </p>
+        <p className="mt-1 text-xs text-slate-500">
+          {participant.checkedInAt
+            ? `In ${manilaClock.format(new Date(participant.checkedInAt))} · `
+            : ""}
+          {presenceLabel(participant)}
+        </p>
+      </ModalTitle>
+
+      <form
+        action={nameAction}
+        className="mt-5"
+        onSubmit={() => {
+          submittedName.current = name.trim();
+        }}
+      >
+        <input type="hidden" name="sessionId" value={snapshot.id} />
+        <input type="hidden" name="participantId" value={participant.id} />
+        <input type="hidden" name="skillLevel" value={skill} />
+        <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500">
+          Name
+          <input
+            name="displayName"
+            value={name}
+            maxLength={120}
+            required
+            onChange={(event) => setName(event.target.value)}
+            onBlur={(event) => saveName(event.currentTarget.form)}
+            className="mt-2 block min-h-12 w-full rounded-xl border border-slate-300 px-4 text-base font-semibold normal-case tracking-normal text-navy focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+          />
+        </label>
+        {namePending ? <p className="mt-1 text-xs text-slate-400">Saving…</p> : <AutoDismissSuccessFeedback state={nameState} />}
+      </form>
+
+      <form action={skillAction} className="mt-5">
+        <input type="hidden" name="sessionId" value={snapshot.id} />
+        <input type="hidden" name="participantId" value={participant.id} />
+        <input type="hidden" name="displayName" value={name.trim() || participant.displayName} />
+        <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Skill level</p>
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          {SKILL_LEVELS.map((level) => (
+            <button
+              key={level.value}
+              name="skillLevel"
+              value={level.value}
+              disabled={skillPending}
+              onClick={() => setSkill(level.value)}
+              aria-pressed={skill === level.value}
+              className={`min-h-10 rounded-xl border text-xs font-black transition disabled:opacity-60 ${
+                skill === level.value
+                  ? "border-primary bg-primary-soft text-primary"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-primary/40"
+              }`}
+            >
+              {level.label}
+            </button>
+          ))}
+        </div>
+        <AutoDismissSuccessFeedback state={skillState} />
+      </form>
+
+      {canPair ? (
+        <div className="mt-5">
+          {partner ? (
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3">
+              <p className="min-w-0 truncate text-sm font-bold text-violet-800">🔗 Paired with {partner.displayName}</p>
+              <ActionForm
+                action={unpairOpenPlayParticipantsAction}
+                values={{ sessionId: snapshot.id, pairId: participant.pairId ?? "" }}
+                label="Unpair"
+                buttonClassName="min-h-8 rounded-lg bg-white px-3 text-violet-700 ring-1 ring-violet-200 hover:bg-violet-100"
+              />
+            </div>
+          ) : null}
+          {!pairing ? (
+            <button
+              type="button"
+              onClick={() => setPairing(true)}
+              className="mt-2 min-h-12 w-full rounded-xl border border-violet-200 text-sm font-black text-violet-700 transition hover:bg-violet-50"
+            >
+              🔗 {partner ? "Pair with someone else" : "Pair with another player"}
+            </button>
+          ) : (
+            <div className="mt-2 rounded-xl border border-violet-200 p-3">
+              <input
+                type="search"
+                value={query}
+                autoFocus
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search players…"
+                aria-label="Search players to pair with"
+                className="min-h-10 w-full rounded-lg border border-slate-300 px-3 text-sm text-navy focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+              <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto">
+                {pairCandidates.map((candidate) => (
+                  <li key={candidate.id}>
+                    <form action={pairAction}>
+                      <input type="hidden" name="sessionId" value={snapshot.id} />
+                      <input type="hidden" name="firstId" value={participant.id} />
+                      <input type="hidden" name="secondId" value={candidate.id} />
+                      <button
+                        disabled={pairPending}
+                        className="flex min-h-10 w-full items-center justify-between gap-2 rounded-lg px-3 text-left text-sm font-bold text-navy hover:bg-violet-50 disabled:opacity-50"
+                      >
+                        <span className="truncate">{candidate.displayName}</span>
+                        <span className="shrink-0 text-[10px] font-black uppercase text-slate-400">
+                          {candidate.pairId ? "Paired" : presenceLabel(candidate)}
+                        </span>
+                      </button>
+                    </form>
+                  </li>
+                ))}
+                {pairCandidates.length === 0 ? (
+                  <li className="px-3 py-2 text-xs text-slate-500">No player matches that name.</li>
+                ) : null}
+              </ul>
+              <button
+                type="button"
+                onClick={() => setPairing(false)}
+                className="mt-2 text-xs font-black text-slate-500 hover:text-navy"
+              >
+                Cancel pairing
+              </button>
+            </div>
+          )}
+          <Feedback state={pairState} />
+        </div>
+      ) : null}
+
+      {participant.status !== "STAGED" && participant.status !== "PLAYING" ? <div className="mt-6 flex flex-wrap items-start gap-2 border-t border-slate-100 pt-4">
+        {participant.status === "QUEUED" ? (
+          <ActionForm action={checkOutOpenPlayParticipantAction} values={values} label="Move to Left" tone="quiet" />
+        ) : null}
+        {participant.status === "PAUSED" ? (
+          <ActionForm action={resumeOpenPlayParticipantAction} values={values} label="Check in" />
+        ) : null}
+        {["CHECKED_OUT", "NOT_CHECKED_IN"].includes(participant.status) ? (
+          <ActionForm action={checkInOpenPlayParticipantAction} values={values} label="Check in" />
+        ) : null}
+        {participant.status === "PENDING_APPROVAL" ? (
+          <>
+            <ActionForm action={approvePublicQueueGuestAction} values={values} label="Approve + check in" />
+            <ActionForm action={rejectPublicQueueGuestAction} values={values} label="Reject" tone="danger" />
+          </>
+        ) : null}
+        {canRemove ? (
+          <ActionForm
+            action={removeOpenPlayParticipantAction}
+            values={values}
+            label="Remove from run"
+            tone="danger"
+            className="ml-auto"
+            confirm={`Remove ${participant.displayName} from this run?`}
+          />
+        ) : null}
+      </div> : null}
+    </Modal>
+  );
+}
+
+function MatchPlayerDialog({
+  snapshot,
+  target,
+  onClose,
+  onReplace,
+  onEdit,
+}: {
+  snapshot: OpenPlaySnapshot;
+  target: MatchPlayerTarget;
+  onClose: () => void;
+  onReplace: (slot: number, displayName: string) => void;
+  onEdit: () => void;
+}) {
+  const [switching, setSwitching] = useState(false);
+  const [state, action, pending] = useBunalQActionState(switchOpenPlayTeamsAction);
+  const game = snapshot.games.find(
+    (item) => item.id === target.gameId && ["STAGED", "ACTIVE"].includes(item.status)
+  );
+  const player = game?.players.find((item) => item.participantId === target.participantId);
+  const missing = !game || !player;
+  useEffect(() => {
+    if (missing || state.success) onClose();
+  }, [missing, state, onClose]);
+  if (!game || !player) return null;
+  const otherTeam = player.team === 1 ? 2 : 1;
+  const opponents = game.players
+    .filter((item) => item.team === otherTeam)
+    .sort((left, right) => left.slot - right.slot);
+  const option = "flex w-full items-start gap-4 rounded-2xl px-3 py-3 text-left transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50";
+
+  return (
+    <Modal labelledBy="match-player-title" onClose={onClose}>
+      <ModalTitle id="match-player-title" title={player.displayName} onClose={onClose}>
+        <p className="mt-1 text-sm text-slate-500">
+          {target.context} · <span className="font-bold uppercase">Team {player.team}</span>
+        </p>
+      </ModalTitle>
+      <div className="mt-4 space-y-1">
+        <button type="button" className={option} onClick={() => onReplace(player.slot, player.displayName)}>
+          <span aria-hidden="true" className="mt-0.5 w-5 text-center text-lg text-navy">↔</span>
+          <span>
+            <span className="block text-base font-black text-navy">Replace player</span>
+            <span className="block text-sm text-slate-500">Choose someone from the queue or Up next</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          className={option}
+          disabled={opponents.length === 0}
+          onClick={() => setSwitching((current) => !current)}
+          aria-expanded={switching}
+        >
+          <span aria-hidden="true" className="mt-0.5 w-5 text-center text-lg text-navy">⇄</span>
+          <span>
+            <span className="block text-base font-black text-navy">Switch teams</span>
+            <span className="block text-sm text-slate-500">Switch with someone on Team {otherTeam}</span>
+          </span>
+        </button>
+        {switching ? (
+          <div className="grid gap-2 pb-2 pl-12 pr-3 sm:grid-cols-2">
+            {opponents.map((opponent) => (
+              <form key={opponent.participantId} action={action}>
+                <input type="hidden" name="sessionId" value={snapshot.id} />
+                <input type="hidden" name="gameId" value={game.id} />
+                <input type="hidden" name="participantId" value={player.participantId} />
+                <input type="hidden" name="otherParticipantId" value={opponent.participantId} />
+                <button
+                  disabled={pending}
+                  className="min-h-10 w-full truncate rounded-xl border border-slate-200 px-3 text-sm font-bold text-navy transition hover:border-primary hover:bg-primary-soft disabled:opacity-50"
+                >
+                  {pending ? "Switching…" : `With ${opponent.displayName}`}
+                </button>
+              </form>
+            ))}
+            <div className="sm:col-span-2"><Feedback state={state} /></div>
+          </div>
+        ) : null}
+        <div className="!my-3 border-t border-slate-100" />
+        <button type="button" className={option} onClick={onEdit}>
+          <span aria-hidden="true" className="mt-0.5 w-5 text-center text-lg text-navy">✎</span>
+          <span className="block text-base font-black text-navy">Edit player details</span>
+        </button>
+      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        className="mt-4 min-h-12 w-full shrink-0 rounded-2xl bg-slate-100 text-sm font-black text-navy transition hover:bg-slate-200"
+      >
+        Cancel
+      </button>
+    </Modal>
+  );
+}
+
+function AddPlayersDialog({
+  snapshot,
+  onClose,
+}: {
+  snapshot: OpenPlaySnapshot;
+  onClose: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  // The box clears as soon as a name is sent so staff can type the next one
+  // straight away; a failed add puts the name back if nothing was typed since.
+  const addAndClear = useCallback<BunalQAction>(async (previous, formData) => {
+    const result = await addOpenPlayWalkInAction(previous, formData);
+    if (!result.success) {
+      const name = String(formData.get("displayName") ?? "");
+      setQuery((current) => current || name);
+    }
+    return result;
+  }, []);
+  const [state, action, pending] = useBunalQActionState(addAndClear);
+  const search = query.trim().toLowerCase();
+  const returning = snapshot.participants
+    .filter((participant) => LEFT_STATUSES.includes(participant.status))
+    .sort((left, right) => left.displayName.localeCompare(right.displayName));
+  const matches = search
+    ? returning.filter((participant) => participant.displayName.toLowerCase().includes(search))
+    : returning;
+  const exact = returning.some(
+    (participant) => participant.displayName.trim().toLowerCase() === search
+  );
+  const canAdd = search.length > 0 && !exact;
+
+  return (
+    <Modal labelledBy="add-players-title" onClose={onClose}>
+      <ModalTitle id="add-players-title" title="Add players" onClose={onClose}>
+        <p className="mt-1 text-sm text-slate-500">
+          Search checked-out players, or add a walk-in to the Queue.
+        </p>
+      </ModalTitle>
+      {/* Returning players are listed before the walk-in button, so the
+          button sits outside this form and submits it by id. */}
+      <form
+        id="add-walk-in"
+        action={action}
+        className="mt-4"
+        onSubmit={(event) => {
+          if (!canAdd) {
+            event.preventDefault();
+            return;
+          }
+          setQuery("");
+        }}
+      >
+        <input type="hidden" name="sessionId" value={snapshot.id} />
+        <input type="hidden" name="publicId" value={snapshot.queue.publicId} />
+        <input type="hidden" name="skillLevel" value={DEFAULT_SKILL_LEVEL} />
+        <input
+          name="displayName"
+          value={query}
+          data-autofocus="true"
+          maxLength={120}
+          autoComplete="off"
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search or add player…"
+          aria-label="Search or add player"
+          className="min-h-12 w-full rounded-xl border-2 border-primary/60 px-4 text-base text-navy focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+        />
+      </form>
+      {matches.length > 0 ? (
+        <ul className="mt-3 space-y-2">
+          {matches.map((participant) => (
+            <li key={participant.id} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold text-navy">{participant.displayName}</p>
+                <p className="text-xs text-slate-500">{skillLabel(participant.skillLevel)} · {presenceLabel(participant)}</p>
+              </div>
+              <ActionForm
+                action={participant.status === "PAUSED" ? resumeOpenPlayParticipantAction : checkInOpenPlayParticipantAction}
+                values={{ sessionId: snapshot.id, participantId: participant.id }}
+                label="Check in"
+                className="shrink-0 text-right"
+                buttonClassName="bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+              />
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {canAdd ? (
+        <button
+          form="add-walk-in"
+          className="mt-3 flex min-h-12 w-full items-center gap-2 rounded-xl bg-primary px-4 text-left text-sm font-black text-white transition hover:bg-primary-hover"
+        >
+          <span aria-hidden="true">+</span>
+          <span className="truncate">Add “{query.trim()}” to the queue</span>
+        </button>
+      ) : null}
+      {pending ? <p className="mt-2 text-xs font-bold text-slate-400">Adding…</p> : <AutoDismissSuccessFeedback state={state} />}
+      {matches.length === 0 && !canAdd && !pending ? (
+        <p className="py-6 text-center text-sm text-slate-500">
+          No checked-out players. Type a name above to add a walk-in.
+        </p>
+      ) : null}
+    </Modal>
+  );
+}
+
+function QueuePanel({
+  snapshot,
+  onOpen,
+  onAdd,
+}: {
+  snapshot: OpenPlaySnapshot;
+  onOpen: (participantId: string) => void;
+  onAdd: () => void;
+}) {
+  const now = useNow(1_000);
+  const records = new Map(snapshot.standings.map((row) => [row.participantId, row]));
+  const queued = snapshot.participants
+    .filter((participant) => participant.status === "QUEUED")
+    .sort((left, right) => (left.queuePosition ?? 0) - (right.queuePosition ?? 0));
+  return (
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between gap-3 bg-navy px-4 py-2.5">
+        <h2 className="text-sm font-black text-white">
+          Queue <span className="font-bold text-white/60">({queued.length})</span>
+        </h2>
+        <button
+          type="button"
+          onClick={onAdd}
+          className="min-h-9 rounded-lg border border-white/20 bg-white/10 px-3 text-xs font-black text-white transition hover:bg-white/20"
+        >
+          + Add player
+        </button>
+      </div>
+      {queued.length === 0 ? (
+        <p className="p-6 text-center text-sm text-slate-500">No one is waiting right now.</p>
+      ) : (
+        <ol className="divide-y divide-slate-100">
+          {queued.map((participant, index) => {
+            const games = records.get(participant.id)?.games ?? 0;
+            return (
+              <li key={participant.id} className="flex items-center gap-3 px-4 py-2.5">
+                <span className="w-7 shrink-0 text-center text-lg font-black text-primary">{index + 1}</span>
+                <div className="flex min-w-0 flex-1 flex-col items-start">
+                  <PlayerNameButton
+                    name={participant.displayName}
+                    onClick={() => onOpen(participant.id)}
+                    className="max-w-full flex-none text-sm font-black"
+                  />
+                  <p className="text-xs font-semibold text-slate-500">
+                    {skillLabel(participant.skillLevel)} · {games} {games === 1 ? "game" : "games"}
+                    {now !== null && participant.queuedAt
+                      ? ` · ⏱ Waiting ${formatClock(now - Date.parse(participant.queuedAt))}`
+                      : ""}
+                  </p>
+                </div>
+                <IconActionForm
+                  action={checkOutOpenPlayParticipantAction}
+                  values={{ sessionId: snapshot.id, participantId: participant.id }}
+                  label={`Move ${participant.displayName} to Left`}
+                />
+              </li>
+            );
+          })}
+        </ol>
+      )}
+    </section>
+  );
+}
+
+function CheckInAllForm({ snapshot, ids }: { snapshot: OpenPlaySnapshot; ids: string[] }) {
+  const [state, action, pending] = useBunalQActionState(bulkCheckInOpenPlayParticipantsAction);
+  return (
+    <form action={action} className="text-right">
+      <input type="hidden" name="sessionId" value={snapshot.id} />
+      {ids.map((id) => <input key={id} type="hidden" name="participantId" value={id} />)}
+      <button disabled={pending} className="min-h-8 rounded-lg bg-emerald-50 px-3 text-xs font-black text-emerald-700 hover:bg-emerald-100 disabled:opacity-50">
+        {pending ? "Checking in…" : `Check in all ${ids.length}`}
+      </button>
+      <Feedback state={state} />
+    </form>
+  );
+}
+
+function LeftRow({
+  snapshot,
+  participant,
+  onOpen,
+}: {
+  snapshot: OpenPlaySnapshot;
+  participant: Participant;
+  onOpen: (participantId: string) => void;
+}) {
+  const record = snapshot.standings.find((row) => row.participantId === participant.id);
+  return (
+    <li className="flex items-start justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2">
+      <div className="flex min-w-0 flex-col items-start pt-1">
+        <PlayerNameButton
+          name={participant.displayName}
+          onClick={() => onOpen(participant.id)}
+          className="max-w-full flex-none text-sm font-bold"
+        />
+        <p className="text-xs text-slate-400">
+          {record?.wins ?? 0}-{record?.losses ?? 0} ({record?.games ?? 0} games)
+          {participant.status === "PAUSED" ? " · On break" : ""}
+        </p>
+      </div>
+      <ActionForm
+        action={participant.status === "PAUSED" ? resumeOpenPlayParticipantAction : checkInOpenPlayParticipantAction}
+        values={{ sessionId: snapshot.id, participantId: participant.id }}
+        label="Check in"
+        className="shrink-0 text-right"
+        buttonClassName="bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+      />
+    </li>
+  );
+}
+
+function LeftPanel({
+  snapshot,
+  onOpen,
+}: {
+  snapshot: OpenPlaySnapshot;
+  onOpen: (participantId: string) => void;
+}) {
+  const byName = (first: Participant, second: Participant) =>
+    first.displayName.localeCompare(second.displayName);
+  const notCheckedIn = snapshot.participants
+    .filter((participant) => participant.status === "NOT_CHECKED_IN")
+    .sort(byName);
+  const left = snapshot.participants
+    .filter((participant) => participant.status === "CHECKED_OUT" || participant.status === "PAUSED")
+    .sort(byName);
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      {notCheckedIn.length > 0 ? (
+        <div className="mb-5">
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="pt-1 text-sm font-black text-slate-500">
+              Not checked in <span className="font-bold">({notCheckedIn.length})</span>
+            </h2>
+            {notCheckedIn.length > 1 ? (
+              <CheckInAllForm snapshot={snapshot} ids={notCheckedIn.map((participant) => participant.id)} />
+            ) : null}
+          </div>
+          <ul className="mt-3 grid gap-2 md:grid-cols-2">
+            {notCheckedIn.map((participant) => (
+              <LeftRow key={participant.id} snapshot={snapshot} participant={participant} onOpen={onOpen} />
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      <h2 className="text-sm font-black text-slate-500">
+        Left <span className="font-bold">({left.length})</span>
+      </h2>
+      {left.length === 0 ? (
+        <p className="mt-3 text-sm text-slate-400">Players taken out of the queue appear here so they can check in again.</p>
+      ) : (
+        <ul className="mt-3 grid gap-2 md:grid-cols-2">
+          {left.map((participant) => (
+            <LeftRow key={participant.id} snapshot={snapshot} participant={participant} onOpen={onOpen} />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function RequestsPanel({
+  snapshot,
+  onOpen,
+}: {
+  snapshot: OpenPlaySnapshot;
+  onOpen: (participantId: string) => void;
+}) {
+  const requests = snapshot.participants.filter(
+    (participant) => participant.status === "PENDING_APPROVAL"
+  );
+  if (requests.length === 0) return null;
+  return (
+    <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+      <h2 className="text-sm font-black text-amber-900">
+        Requests to join <span className="font-bold">({requests.length})</span>
+      </h2>
+      <ul className="mt-3 grid gap-2 md:grid-cols-2">
+        {requests.map((participant) => (
+          <li key={participant.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white px-3 py-2">
+            <div className="flex min-w-0 flex-col items-start">
+              <PlayerNameButton
+                name={participant.displayName}
+                onClick={() => onOpen(participant.id)}
+                className="max-w-full flex-none text-sm font-bold"
+              />
+              <p className="text-xs text-slate-500">{skillLabel(participant.skillLevel)}</p>
+            </div>
+            <div className="flex shrink-0 items-start gap-2">
+              <ActionForm
+                action={approvePublicQueueGuestAction}
+                values={{ sessionId: snapshot.id, participantId: participant.id }}
+                label="Approve"
+              />
+              <ActionForm
+                action={rejectPublicQueueGuestAction}
+                values={{ sessionId: snapshot.id, participantId: participant.id }}
+                label="Reject"
+                tone="danger"
+              />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function QueueTab({ snapshot }: { snapshot: OpenPlaySnapshot }) {
+  const [details, setDetails] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const closeDetails = useCallback(() => setDetails(null), []);
+  const closeAdding = useCallback(() => setAdding(false), []);
+  return (
+    <div className="space-y-4">
+      <RequestsPanel snapshot={snapshot} onOpen={setDetails} />
+      <QueuePanel snapshot={snapshot} onOpen={setDetails} onAdd={() => setAdding(true)} />
+      <LeftPanel snapshot={snapshot} onOpen={setDetails} />
+      {details ? (
+        <PlayerDetailsDialog
+          key={details}
+          snapshot={snapshot}
+          participantId={details}
+          onClose={closeDetails}
+        />
+      ) : null}
+      {adding ? <AddPlayersDialog snapshot={snapshot} onClose={closeAdding} /> : null}
+    </div>
+  );
+}
+
+function MatchControls({
+  snapshot,
+  view,
+}: {
+  snapshot: OpenPlaySnapshot;
+  view: "courts" | "up-next";
+}) {
   const [picking, setPicking] = useState<SlotTarget | null>(null);
+  const [acting, setActing] = useState<MatchPlayerTarget | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const closePicking = useCallback(() => setPicking(null), []);
+  const closeActing = useCallback(() => setActing(null), []);
+  const closeEditing = useCallback(() => setEditing(null), []);
   const choose =
     (gameId: string, slot: number, context: string) => (openedAt: number) =>
       setPicking({ gameId, slot, context, openedAt });
@@ -689,6 +1592,12 @@ function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
     (court) =>
       court.active && !courtGames.some((game) => game.courtId === court.id)
   );
+  // One box per Up next slot; hand-picked matches can briefly outnumber them.
+  const upNextBoxes = Array.from(
+    { length: Math.max(snapshot.upNextSlots, upNext.length) },
+    (_, index) => upNext[index] ?? null
+  );
+  const canAddUpNext = snapshot.upNextSlots < OPEN_PLAY_MAX_UP_NEXT_SLOTS;
   const latestResult = snapshot.games
     .filter((game) => game.status === "COMPLETED" && game.completedAt)
     .sort(
@@ -702,10 +1611,13 @@ function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
 
   return (
     <div className="space-y-6">
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-xs font-black uppercase tracking-[0.16em] text-navy">Court status</h2>
-          {latest ? <ActionForm action={undoOpenPlayResultAction} values={{ sessionId: snapshot.id, gameId: latest.id }} label="Undo latest result" tone="quiet" /> : null}
+      {view === "courts" ? <section>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-black text-navy">Courts <span className="font-bold text-slate-400">({snapshot.courts.length})</span></h2>
+          <div className="flex flex-wrap items-start gap-2">
+            {latest ? <ActionForm action={undoOpenPlayResultAction} values={{ sessionId: snapshot.id, gameId: latest.id }} label="Undo latest result" tone="quiet" /> : null}
+            <AddCourtControl snapshot={snapshot} />
+          </div>
         </div>
         <div className={`grid gap-3 ${openPlayThreeColumnGridClass(snapshot.courts.length)}`}>
           {snapshot.courts.map((court) => {
@@ -718,12 +1630,23 @@ function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
                 key={court.id}
                 className={`overflow-hidden rounded-2xl border shadow-sm ${live ? liveCourtCardClassName : staged ? "border-violet-200 bg-white" : "border-slate-200 bg-white"}`}
               >
-                <div className={`flex items-center justify-between border-b px-4 py-2.5 ${live ? liveCourtHeaderClassName : "border-slate-200 bg-slate-50/80"}`}>
-                  <h3 className="text-sm font-black text-navy">{court.name}</h3>
-                  <span className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider ${live ? "text-emerald-700" : staged ? "text-violet-700" : "text-slate-500"}`}>
-                    <span className={`h-1.5 w-1.5 rounded-full ${live ? "animate-pulse bg-emerald-500" : staged ? "bg-violet-500" : court.active ? "bg-slate-300" : "bg-amber-400"}`} />
-                    {!court.active ? "Paused" : live ? "Playing" : staged ? "Up next" : "Ready"}
-                  </span>
+                <div className={`flex items-center justify-between gap-2 border-b px-4 py-2 ${live ? liveCourtHeaderClassName : "border-slate-200 bg-slate-50/80"}`}>
+                  <h3 className="min-w-0 truncate text-sm font-black text-navy">{court.name}</h3>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {live && game?.startedAt ? <MatchTimer startedAt={game.startedAt} /> : null}
+                    <span className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider ${live ? "text-emerald-700" : staged ? "text-violet-700" : "text-slate-500"}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${live ? "animate-pulse bg-emerald-500" : staged ? "bg-violet-500" : court.active ? "bg-slate-300" : "bg-amber-400"}`} />
+                      {!court.active ? "Paused" : live ? "Playing" : staged ? "Up next" : "Ready"}
+                    </span>
+                    {!live && snapshot.courts.length > 1 ? (
+                      <IconActionForm
+                        action={removeOpenPlayCourtAction}
+                        values={{ sessionId: snapshot.id, courtId: court.id }}
+                        label={`Remove ${court.name}`}
+                        confirm={`Remove ${court.name} from this run?${staged ? " Its waiting match moves back to Up next." : ""}`}
+                      />
+                    ) : null}
+                  </div>
                 </div>
                 <div className="p-3">
                   {game && palette ? (
@@ -736,18 +1659,19 @@ function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
                             <div className="space-y-1 px-3 py-2.5">
                               {teamSlots(game, team).map(({ slot, player }) => player ? (
                                 <div key={slot} className="flex min-w-0 items-center gap-1">
-                                  <p className="min-w-0 flex-1 truncate text-xs font-bold text-navy">{player.displayName}</p>
-                                  {staged ? (
-                                    <SitOutStagedPlayerForm
-                                      snapshot={snapshot}
-                                      participantId={player.participantId}
-                                      displayName={player.displayName}
-                                    />
-                                  ) : null}
+                                  <PlayerNameButton
+                                    name={player.displayName}
+                                    onClick={() => setActing({ gameId: game.id, participantId: player.participantId, context: court.name })}
+                                  />
+                                  <ReturnToQueueForm
+                                    snapshot={snapshot}
+                                    participantId={player.participantId}
+                                    displayName={player.displayName}
+                                  />
                                 </div>
-                              ) : staged ? (
+                              ) : (
                                 <OpenSlotButton key={slot} onChoose={choose(game.id, slot, court.name)} />
-                              ) : null)}
+                              ))}
                             </div>
                           </div>
                         </div>
@@ -755,8 +1679,10 @@ function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
                     </div>
                   ) : <p className="py-4 text-center text-xs text-slate-500">{court.active ? "Ready for the next match." : "Rotation paused for this court."}</p>}
                   <div className="mt-3 grid grid-cols-[minmax(0,1fr)_1.25rem_minmax(0,1fr)] gap-2">
-                    {!game ? <ActionForm className="col-span-3" action={toggleOpenPlayCourtAction} values={{ sessionId: snapshot.id, courtId: court.id, active: !court.active }} label={court.active ? "Pause court" : "Resume court"} tone="quiet" /> : null}
-                    {live && game && palette ? <>
+                    {/* Courts paused before courts could be removed can still resume. */}
+                    {!game && !court.active ? <ActionForm className="col-span-3" action={toggleOpenPlayCourtAction} values={{ sessionId: snapshot.id, courtId: court.id, active: true }} label="Resume court" tone="quiet" /> : null}
+                    {live && game && game.players.length < 4 ? <p className="col-span-3 flex min-h-9 items-center justify-center rounded-lg bg-amber-50 px-3 text-center text-xs font-bold text-amber-800">Fill the open spot to record a result.</p> : null}
+                    {live && game && palette && game.players.length === 4 ? <>
                       <ActionForm action={recordOpenPlayWinnerAction} values={{ sessionId: snapshot.id, gameId: game.id, winningTeam: 1 }} label="Team 1 wins" buttonClassName={`w-full ${palette.team1Button}`} />
                       <span aria-hidden />
                       <ActionForm action={recordOpenPlayWinnerAction} values={{ sessionId: snapshot.id, gameId: game.id, winningTeam: 2 }} label="Team 2 wins" buttonClassName={`w-full ${palette.team2Button}`} />
@@ -776,603 +1702,397 @@ function MatchControls({ snapshot }: { snapshot: OpenPlaySnapshot }) {
             );
           })}
         </div>
-      </section>
+      </section> : null}
 
-      <section>
-        <div className="mb-3 flex items-end justify-between gap-3">
+      {view === "up-next" ? <section>
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-xs font-black uppercase tracking-[0.16em] text-navy">Up next</h2>
-            <p className="mt-1 text-xs text-slate-500">Matchups are prepared automatically and wait for a free court.</p>
+            <h2 className="text-sm font-black text-navy">Up next <span className="font-bold text-slate-400">({upNext.length})</span></h2>
+            <p className="mt-1 text-xs text-slate-500">{upNext.filter((game) => game.players.length === 4).length}/{snapshot.upNextSlots} ready · matchups wait here for a free court.</p>
           </div>
-          <span className="text-xs font-bold text-slate-500">{upNext.length}/{OPEN_PLAY_UP_NEXT_BUFFER_SIZE} prepared</span>
+          <div className="flex flex-wrap items-start gap-2">
+            {upNext.some((game) => game.selectionMethod === "AUTOMATIC") ? (
+              <ActionForm action={refreshOpenPlayUpNextAction} values={{ sessionId: snapshot.id }} label="↻ Refresh Up next" tone="quiet" />
+            ) : null}
+            {canAddUpNext ? (
+              <ActionForm action={addOpenPlayUpNextSlotAction} values={{ sessionId: snapshot.id }} label="+ Add match" tone="quiet" />
+            ) : null}
+          </div>
         </div>
-        {upNext.length > 0 ? (
-          <div className={`grid gap-3 ${openPlayThreeColumnGridClass(upNext.length)}`}>
-            {upNext.map((game, index) => (
-              <article key={game.id} className="rounded-2xl border border-violet-200 bg-white p-3 shadow-sm ring-1 ring-violet-100">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-black text-navy">Match {index + 1}</p>
-                  <div className="flex gap-1.5">
-                    <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-black uppercase text-violet-700">{game.selectionMethod === "AUTOMATIC" ? "Auto" : "Manual"}</span>
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-black text-slate-600">{OPEN_PLAY_MODE_LABELS[game.matchingMode]}</span>
-                  </div>
+        <div className={`grid gap-3 ${openPlayThreeColumnGridClass(upNextBoxes.length)}`}>
+          {upNextBoxes.map((game, index) => game ? (
+            <article key={game.id} className="rounded-2xl border border-violet-200 bg-white p-3 shadow-sm ring-1 ring-violet-100">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                  <p className="text-xs font-black text-navy">Up next {index + 1}</p>
+                  <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-black uppercase text-violet-700">{game.selectionMethod === "AUTOMATIC" ? "Auto" : "Manual"}</span>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-black text-slate-600">{OPEN_PLAY_MODE_LABELS[game.matchingMode]}</span>
                 </div>
-                <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                  {[1, 2].map((team, teamIndex) => (
-                    <div key={team} className="contents">
-                      {teamIndex === 1 ? <span className="text-[10px] font-black text-slate-300">VS</span> : null}
-                      <div className={`rounded-lg border p-2 text-center ${team === 1 ? "border-indigo-200 bg-indigo-50" : "border-rose-200 bg-rose-50"}`}>
-                        {teamSlots(game, team).map(({ slot, player }) => player ? (
-                          <div key={slot} className="flex min-w-0 items-center gap-1 text-left">
-                            <p className="min-w-0 flex-1 truncate text-xs font-bold text-navy">{player.displayName}</p>
-                            <SitOutStagedPlayerForm
-                              snapshot={snapshot}
-                              participantId={player.participantId}
-                              displayName={player.displayName}
-                            />
-                          </div>
-                        ) : (
-                          <OpenSlotButton key={slot} onChoose={choose(game.id, slot, `Up next · Match ${index + 1}`)} />
-                        ))}
-                      </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <ActionForm action={rebuildOpenPlayUpNextMatchAction} values={{ sessionId: snapshot.id, gameId: game.id }} label="↻ Rebuild" buttonClassName="min-h-7 rounded-md px-2 text-[11px] text-slate-600 hover:bg-slate-100" />
+                  {index > 0 ? (
+                    <IconActionForm
+                      action={removeOpenPlayUpNextSlotAction}
+                      values={{ sessionId: snapshot.id, gameId: game.id }}
+                      label={`Remove Up next ${index + 1}`}
+                      confirm={`Remove Up next ${index + 1}? Its players go back to their spots in the queue.`}
+                    />
+                  ) : null}
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                {[1, 2].map((team, teamIndex) => (
+                  <div key={team} className="contents">
+                    {teamIndex === 1 ? <span className="text-[10px] font-black text-slate-300">VS</span> : null}
+                    <div className={`rounded-lg border p-2 text-center ${team === 1 ? "border-indigo-200 bg-indigo-50" : "border-rose-200 bg-rose-50"}`}>
+                      {teamSlots(game, team).map(({ slot, player }) => player ? (
+                        <div key={slot} className="flex min-w-0 items-center gap-1 text-left">
+                          <PlayerNameButton
+                            name={player.displayName}
+                            onClick={() => setActing({ gameId: game.id, participantId: player.participantId, context: `Up next ${index + 1}` })}
+                          />
+                          <ReturnToQueueForm
+                            snapshot={snapshot}
+                            participantId={player.participantId}
+                            displayName={player.displayName}
+                          />
+                        </div>
+                      ) : (
+                        <OpenSlotButton key={slot} onChoose={choose(game.id, slot, `Up next ${index + 1}`)} />
+                      ))}
                     </div>
-                  ))}
-                </div>
-                <DispatchUpNextForm snapshot={snapshot} gameId={game.id} freeCourts={freeCourts} />
-                <StagedMatchEditor snapshot={snapshot} game={game} />
-              </article>
-            ))}
-          </div>
-        ) : (
-          <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">Check in four eligible players to build the two-match Up next buffer.</p>
-        )}
-      </section>
+                  </div>
+                ))}
+              </div>
+              <DispatchUpNextForm snapshot={snapshot} gameId={game.id} freeCourts={freeCourts} />
+            </article>
+          ) : (
+            <article key={`empty-${index}`} className="flex min-h-36 flex-col rounded-2xl border-2 border-dashed border-slate-200 bg-white/60 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-black text-slate-400">Up next {index + 1}</p>
+                {index > 0 ? (
+                  <IconActionForm
+                    action={removeOpenPlayUpNextSlotAction}
+                    values={{ sessionId: snapshot.id, expectedSlots: snapshot.upNextSlots }}
+                    label={`Remove Up next ${index + 1}`}
+                  />
+                ) : null}
+              </div>
+              <p className="m-auto py-4 text-center text-sm text-slate-400">Not enough players waiting yet.</p>
+            </article>
+          ))}
+        </div>
+      </section> : null}
       {picking ? (
         <ChoosePlayerDialog
           key={`${picking.gameId}:${picking.slot}`}
           snapshot={snapshot}
           target={picking}
-          onClose={() => setPicking(null)}
+          onClose={closePicking}
+        />
+      ) : null}
+      {acting ? (
+        <MatchPlayerDialog
+          key={`${acting.gameId}:${acting.participantId}`}
+          snapshot={snapshot}
+          target={acting}
+          onClose={closeActing}
+          onReplace={(slot, displayName) => {
+            setActing(null);
+            setPicking({
+              gameId: acting.gameId,
+              slot,
+              context: acting.context,
+              openedAt: Date.now(),
+              replace: { participantId: acting.participantId, displayName },
+            });
+          }}
+          onEdit={() => {
+            setActing(null);
+            setEditing(acting.participantId);
+          }}
+        />
+      ) : null}
+      {editing ? (
+        <PlayerDetailsDialog
+          key={editing}
+          snapshot={snapshot}
+          participantId={editing}
+          onClose={closeEditing}
         />
       ) : null}
     </div>
   );
 }
 
-const GROUPS = [
-  ["PENDING_APPROVAL", "Pending approval"],
-  ["QUEUED", "Waiting"],
-  ["PLAYING", "Playing"],
-  ["STAGED", "Up next"],
-  ["PAUSED", "On break"],
-  ["NOT_CHECKED_IN", "Not checked in"],
-  ["CHECKED_OUT", "Checked out"],
-  ["REMOVED", "Removed"],
-] as const;
-
-type Participant = OpenPlaySnapshot["participants"][number];
-type ParticipantStatus = Participant["status"];
-type RosterFilter = "ACTIVE" | ParticipantStatus;
-
-const STATUS_STYLES: Record<ParticipantStatus, string> = {
-  PENDING_APPROVAL: "bg-amber-100 text-amber-800",
-  QUEUED: "bg-emerald-100 text-emerald-800",
-  PLAYING: "bg-sky-100 text-sky-800",
-  STAGED: "bg-indigo-100 text-indigo-800",
-  PAUSED: "bg-orange-100 text-orange-800",
-  NOT_CHECKED_IN: "bg-slate-100 text-slate-700",
-  CHECKED_OUT: "bg-slate-100 text-slate-600",
-  REMOVED: "bg-red-50 text-red-700",
+export type OpenPlayConsoleHeader = {
+  publicUrl: string;
+  qrSvg: string;
+  // Venue, event date, or kind of queue, shown under the title.
+  subtitle: string;
+  notice?: string;
+  history?: Array<{
+    id: string;
+    runNumber: number;
+    status: string;
+    players: number;
+    matches: number;
+  }>;
 };
 
-function ParticipantPrimaryAction({
+function SettingsDialog({
   snapshot,
-  participant,
+  history,
+  onClose,
 }: {
   snapshot: OpenPlaySnapshot;
-  participant: Participant;
+  history: OpenPlayConsoleHeader["history"];
+  onClose: () => void;
 }) {
-  const values = { sessionId: snapshot.id, participantId: participant.id };
-  if (participant.status === "PENDING_APPROVAL") {
-    return <ActionForm action={approvePublicQueueGuestAction} values={values} label="Approve + check in" />;
-  }
-  if (["NOT_CHECKED_IN", "CHECKED_OUT"].includes(participant.status)) {
-    return <ActionForm action={checkInOpenPlayParticipantAction} values={values} label="Check in" />;
-  }
-  if (["QUEUED", "STAGED"].includes(participant.status)) {
-    return <ActionForm action={pauseOpenPlayParticipantAction} values={values} label="Sit out" tone="quiet" />;
-  }
-  if (participant.status === "PAUSED") {
-    return <ActionForm action={resumeOpenPlayParticipantAction} values={values} label="Rejoin" />;
-  }
-  return null;
-}
-
-function hasParticipantPrimaryAction(status: ParticipantStatus) {
-  return [
-    "PENDING_APPROVAL",
-    "NOT_CHECKED_IN",
-    "CHECKED_OUT",
-    "QUEUED",
-    "STAGED",
-    "PAUSED",
-  ].includes(status);
-}
-
-function hasParticipantMoreActions(status: ParticipantStatus) {
-  const canCheckOut = ["NOT_CHECKED_IN", "QUEUED", "PAUSED"].includes(
-    status
-  );
-  const canRemove = ![
-    "STAGED",
-    "PLAYING",
-    "REMOVED",
-    "PENDING_APPROVAL",
-  ].includes(status);
-  const canEdit = !["REMOVED", "PENDING_APPROVAL"].includes(status);
-  return status === "PENDING_APPROVAL" || canCheckOut || canRemove || canEdit;
-}
-
-function ParticipantMoreActions({
-  snapshot,
-  participant,
-}: {
-  snapshot: OpenPlaySnapshot;
-  participant: Participant;
-}) {
-  const values = { sessionId: snapshot.id, participantId: participant.id };
-  const canCheckOut = ["NOT_CHECKED_IN", "QUEUED", "PAUSED"].includes(participant.status);
-  const canRemove = !["STAGED", "PLAYING", "REMOVED", "PENDING_APPROVAL"].includes(participant.status);
-  const canEdit = !["REMOVED", "PENDING_APPROVAL"].includes(participant.status);
-  const hasActions = hasParticipantMoreActions(participant.status);
-
-  if (!hasActions) return null;
+  const pairingAvailable = PAIRING_MODES.includes(snapshot.matchingMode);
   return (
-    <details className="relative z-10 shrink-0 open:z-30">
-      <summary
-        aria-label={`More actions for ${participant.displayName}`}
-        className="flex h-10 w-9 cursor-pointer list-none items-center justify-center rounded-lg text-xl font-black leading-none text-slate-500 transition hover:bg-slate-100 hover:text-navy [&::-webkit-details-marker]:hidden"
-      >
-        <span aria-hidden="true">⋮</span>
-        <span className="sr-only">More actions</span>
-      </summary>
-      <div className="absolute right-0 top-full z-30 mt-2 flex w-[min(24rem,calc(100vw-3rem))] flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
-        {participant.status === "PENDING_APPROVAL" ? (
-          <ActionForm action={rejectPublicQueueGuestAction} values={values} label="Reject request" tone="danger" />
+    <Modal labelledBy="bunalq-settings-title" onClose={onClose} className="max-w-3xl">
+      <ModalTitle id="bunalq-settings-title" title="Run settings" onClose={onClose}>
+        <p className="mt-1 text-sm text-slate-500">Run {snapshot.runNumber} · {OPEN_PLAY_MODE_LABELS[snapshot.matchingMode]}</p>
+      </ModalTitle>
+      <div className="mt-5 space-y-4">
+        {snapshot.status !== "ENDED" ? <ModeForm snapshot={snapshot} /> : null}
+        {snapshot.status !== "ENDED" ? <AdmissionForm snapshot={snapshot} /> : null}
+        {snapshot.status !== "ENDED" && pairingAvailable ? <PairForm snapshot={snapshot} /> : null}
+        {pairingAvailable ? <SavedPairs snapshot={snapshot} /> : null}
+        {snapshot.status !== "ENDED" && snapshot.queue.kind === "EVENT" ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 p-4">
+            <div>
+              <h3 className="text-xs font-black uppercase tracking-[0.16em] text-navy">Event roster</h3>
+              <p className="mt-1 text-xs text-slate-500">Pull in new registrations and updates from the Event.</p>
+            </div>
+            <ActionForm action={syncOpenPlayRosterAction} values={{ sessionId: snapshot.id }} label="Refresh roster" tone="quiet" />
+          </div>
         ) : null}
-        {canCheckOut ? (
-          <ActionForm action={checkOutOpenPlayParticipantAction} values={values} label="Check out" tone="quiet" />
+        {history && history.length > 1 ? (
+          <div className="rounded-2xl border border-slate-200 p-4">
+            <h3 className="text-xs font-black uppercase tracking-[0.16em] text-navy">Run history</h3>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {history.map((run) => (
+                <div key={run.id} className="rounded-xl bg-slate-50 p-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-black text-navy">Run {run.runNumber}</p>
+                    <span className="text-[10px] font-black text-slate-500">{run.status}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">{run.players} players · {run.matches} matches</p>
+                </div>
+              ))}
+            </div>
+          </div>
         ) : null}
-        {canRemove ? (
-          <ActionForm
-            action={removeOpenPlayParticipantAction}
-            values={values}
-            label="Remove"
-            tone="danger"
-            confirm={`Remove ${participant.displayName} from this run?`}
-          />
-        ) : null}
-        {canEdit ? <EditParticipantForm snapshot={snapshot} participant={participant} /> : null}
       </div>
-    </details>
+    </Modal>
   );
 }
 
-function ParticipantRoster({
+function QrDialog({
   snapshot,
-  readOnly = false,
+  header,
+  onClose,
 }: {
   snapshot: OpenPlaySnapshot;
-  readOnly?: boolean;
+  header: OpenPlayConsoleHeader;
+  onClose: () => void;
 }) {
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [filter, setFilter] = useState<RosterFilter>("ACTIVE");
-  const [bulkNotice, setBulkNotice] = useState<OpenPlayActionState>({});
-  const clearSubmittedSelection = (formData: FormData) => {
-    const submitted = new Set(formData.getAll("participantId").map(String));
-    setSelected((current) => {
-      const next = new Set(current);
-      submitted.forEach((id) => next.delete(id));
-      return next;
-    });
-  };
-  const [, bulkCheckInAction, checkInPending] = useActionState(
-    async (previous: OpenPlayActionState, formData: FormData) => {
-      const result = await runBunalQActionSafely(
-        bulkCheckInOpenPlayParticipantsAction,
-        previous,
-        formData
-      );
-      setBulkNotice(result);
-      if (result.success) clearSubmittedSelection(formData);
-      return result;
-    },
-    {}
-  );
-  const [, bulkPauseAction, pausePending] = useActionState(
-    async (previous: OpenPlayActionState, formData: FormData) => {
-      const result = await runBunalQActionSafely(
-        bulkPauseOpenPlayParticipantsAction,
-        previous,
-        formData
-      );
-      setBulkNotice(result);
-      if (result.success) clearSubmittedSelection(formData);
-      return result;
-    },
-    {}
-  );
-  const [, bulkRemoveAction, removePending] = useActionState(
-    async (previous: OpenPlayActionState, formData: FormData) => {
-      const result = await runBunalQActionSafely(
-        bulkRemoveOpenPlayParticipantsAction,
-        previous,
-        formData
-      );
-      setBulkNotice(result);
-      if (result.success) clearSubmittedSelection(formData);
-      return result;
-    },
-    {}
-  );
-  const bulkPending = checkInPending || pausePending || removePending;
-  const activeCount = snapshot.participants.filter((player) => player.status !== "REMOVED").length;
-  const standingsByParticipant = useMemo(
-    () => new Map(snapshot.standings.map((row) => [row.participantId, row])),
-    [snapshot.standings]
-  );
-  const sortedParticipants = useMemo(
-    () => GROUPS.flatMap(([status]) => snapshot.participants.filter((player) => player.status === status)),
-    [snapshot.participants]
-  );
-  const visibleParticipants = filter === "ACTIVE"
-    ? sortedParticipants.filter((player) => player.status !== "REMOVED")
-    : sortedParticipants.filter((player) => player.status === filter);
-  const selectable = readOnly
-    ? []
-    : visibleParticipants.filter((player) =>
-        ["NOT_CHECKED_IN", "CHECKED_OUT", "QUEUED", "PAUSED"].includes(
-          player.status
-        )
-      );
-  const selectableIds = new Set(
-    snapshot.participants
-      .filter(
-        (player) =>
-          !readOnly &&
-          ["NOT_CHECKED_IN", "CHECKED_OUT", "QUEUED", "PAUSED"].includes(
-            player.status
-          )
-      )
-      .map((player) => player.id)
-  );
-  const selectedIds = [...selected].filter((id) => selectableIds.has(id));
-  const selectedPlayers = snapshot.participants.filter((player) =>
-    selectedIds.includes(player.id)
-  );
-  const checkInIds = selectedPlayers
-    .filter((player) => ["NOT_CHECKED_IN", "CHECKED_OUT"].includes(player.status))
-    .map((player) => player.id);
-  const pauseIds = selectedPlayers
-    .filter((player) => player.status === "QUEUED")
-    .map((player) => player.id);
-  const removeIds = selectedPlayers.map((player) => player.id);
-  const filters: Array<{ value: RosterFilter; label: string; count: number }> = [
-    { value: "ACTIVE", label: "Active", count: activeCount },
-    ...GROUPS.flatMap(([status, label]) => {
-      const count = snapshot.participants.filter((player) => player.status === status).length;
-      return count > 0 ? [{ value: status, label, count }] : [];
-    }),
-  ];
-  const toggle = (id: string) => setSelected((current) => {
-    const next = new Set(current);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
-  const selectVisibleEligible = (checked: boolean) => setSelected((current) => {
-    const next = new Set(current);
-    selectable.forEach((player) => {
-      if (checked) next.add(player.id);
-      else next.delete(player.id);
-    });
-    return next;
-  });
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
-        <div className="flex items-center gap-2">
-          <h2 className="text-xs font-black uppercase tracking-[0.16em] text-navy">Active roster</h2>
-          <span className="text-xs font-black text-slate-500">{activeCount}</span>
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
-          <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Live</span>
-        </div>
-        {!readOnly && snapshot.queue.kind === "EVENT" ? <ActionForm action={syncOpenPlayRosterAction} values={{ sessionId: snapshot.id }} label="Refresh" tone="quiet" /> : null}
-      </div>
-      <div className="border-b border-slate-100 px-4 py-2 sm:px-5">
-        <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Filter roster">
-          {filters.map((item) => (
-            <button
-              key={item.value}
-              type="button"
-              onClick={() => setFilter(item.value)}
-              aria-pressed={filter === item.value}
-              className={`min-h-9 shrink-0 rounded-full px-3 text-xs font-black transition ${
-                filter === item.value
-                  ? "bg-navy text-white"
-                  : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              {item.label} <span className={filter === item.value ? "text-white/70" : "text-slate-400"}>{item.count}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-      {selectable.length > 0 ? (
-        <label className="flex min-h-9 cursor-pointer items-center gap-2 border-b border-slate-100 bg-slate-50 px-4 py-1.5 text-[11px] font-bold text-slate-600 sm:px-5">
-          <input
-            type="checkbox"
-            checked={selectable.every((player) => selected.has(player.id))}
-            onChange={(event) => selectVisibleEligible(event.target.checked)}
-          />
-          Select actionable players in this view
-        </label>
-      ) : null}
-      <div className="grid grid-cols-1 gap-2 p-2 sm:p-3 md:grid-cols-2">
-        {visibleParticipants.length === 0 ? (
-          <p className="col-span-full px-4 py-10 text-center text-sm text-slate-500">No players in this view.</p>
-        ) : visibleParticipants.map((player) => {
-          const groupLabel = GROUPS.find(([status]) => status === player.status)?.[1] ?? player.status;
-          const isEligible = !readOnly && ["NOT_CHECKED_IN", "CHECKED_OUT", "QUEUED", "PAUSED"].includes(player.status);
-          const hasActions =
-            !readOnly &&
-            (hasParticipantPrimaryAction(player.status) ||
-              hasParticipantMoreActions(player.status));
-          const queueNumber = player.queuePosition
-            ? snapshot.participants.filter(
-                (item) => item.status === "QUEUED" && (item.queuePosition ?? 0) <= player.queuePosition!
-              ).length
-            : null;
-          const standing = standingsByParticipant.get(player.id);
-          const playerRecord = standing
-            ? `${standing.games}G · ${standing.wins}W ${standing.losses}L`
-            : "0G";
-          return (
-            <article
-              key={player.id}
-              className={`relative flex min-h-[4.5rem] min-w-0 items-center gap-2 rounded-xl border px-3 py-2 transition hover:shadow-sm sm:gap-3 ${
-                player.status === "PENDING_APPROVAL"
-                  ? "border-amber-200 bg-amber-50/70 hover:border-amber-300 hover:bg-amber-50"
-                  : player.status === "REMOVED"
-                    ? "border-slate-200 bg-slate-50/60 opacity-60"
-                    : "border-slate-200 bg-white hover:border-primary/25"
-              }`}
-            >
-              {isEligible ? (
-                <label className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-white/80 ring-1 ring-slate-200">
-                  <input
-                    type="checkbox"
-                    checked={selected.has(player.id)}
-                    onChange={() => toggle(player.id)}
-                    aria-label={`Select ${player.displayName}`}
-                  />
-                </label>
-              ) : (
-                <span className="h-8 w-8 shrink-0" aria-hidden="true" />
-              )}
-              <span className={`w-5 shrink-0 text-center text-sm font-black ${
-                queueNumber ? "text-primary" : "text-slate-400"
-              }`}>
-                {queueNumber ?? "—"}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-black text-navy">{player.displayName}</p>
-                <p className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1 text-[11px] font-bold text-slate-500">
-                  <span className="capitalize">{player.skillLevel}</span>
-                  <span aria-hidden="true">·</span>
-                  <span>{playerRecord}</span>
-                  {player.estimatedWaitMinutes ? (
-                    <>
-                      <span aria-hidden="true">·</span>
-                      <span>~{player.estimatedWaitMinutes}m</span>
-                    </>
-                  ) : null}
-                  <span aria-hidden="true">·</span>
-                  <span className={`rounded-full px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide ${STATUS_STYLES[player.status]}`}>
-                    {groupLabel}
-                  </span>
-                </p>
+    <Modal labelledBy="bunalq-qr-title" onClose={onClose} className="max-w-sm">
+      <ModalTitle id="bunalq-qr-title" title="Share this BunalQ" onClose={onClose} />
+      <div
+        className="mx-auto mt-4 aspect-square w-full max-w-64 overflow-hidden rounded-2xl border border-slate-200"
+        dangerouslySetInnerHTML={{ __html: header.qrSvg }}
+      />
+      <p className="mt-4 text-center text-xs leading-5 text-slate-500">
+        Players can view the courts and queue{snapshot.queue.kind === "QUICK" ? " and request to join" : ""}.
+      </p>
+      <a href={header.publicUrl} target="_blank" rel="noreferrer" className="mt-1 block truncate text-center text-xs font-bold text-primary">
+        {header.publicUrl}
+      </a>
+    </Modal>
+  );
+}
+
+function ConsoleHeader({
+  snapshot,
+  canManage,
+  header,
+}: {
+  snapshot: OpenPlaySnapshot;
+  canManage: boolean;
+  header: OpenPlayConsoleHeader;
+}) {
+  const [dialog, setDialog] = useState<"qr" | "settings" | null>(null);
+  const closeDialog = useCallback(() => setDialog(null), []);
+  const count = (statuses: string[]) =>
+    snapshot.participants.filter((participant) => statuses.includes(participant.status)).length;
+  const liveCourts = snapshot.games.filter((game) => game.status === "ACTIVE" && game.courtId).length;
+  const players = count(["QUEUED", "STAGED", "PLAYING"]);
+  const queued = count(["QUEUED"]);
+  const requests = count(["PENDING_APPROVAL"]);
+  const headerButton = "inline-flex min-h-9 items-center rounded-lg border border-white/15 bg-white/10 px-3 text-xs font-black text-white transition hover:bg-white/20";
+  return (
+    <header className="rounded-2xl bg-navy px-4 py-3 text-white shadow-sm sm:px-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            <h1 className="min-w-0 truncate text-xl font-black tracking-tight sm:text-2xl">{snapshot.queue.title}</h1>
+            <dl className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[11px] font-bold uppercase tracking-wide text-white/55">
+              <div className="flex items-baseline gap-1.5">
+                <dt>Courts</dt>
+                <dd className="text-base font-black text-white"><span className="text-emerald-400">{liveCourts}</span> / {snapshot.courts.length}</dd>
               </div>
-              {hasActions ? (
-                <div className="flex shrink-0 items-start justify-end gap-1 sm:gap-2">
-                  <ParticipantPrimaryAction
-                    snapshot={snapshot}
-                    participant={player}
-                  />
-                  <ParticipantMoreActions
-                    snapshot={snapshot}
-                    participant={player}
-                  />
+              <div className="flex items-baseline gap-1.5">
+                <dt>Players</dt>
+                <dd className="text-base font-black text-white">{players}</dd>
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <dt>Queue</dt>
+                <dd className="text-base font-black text-amber-300">{queued}</dd>
+              </div>
+              {requests > 0 ? (
+                <div className="self-center rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-black text-navy">
+                  <dt className="sr-only">Requests</dt>
+                  <dd>{requests} {requests === 1 ? "request" : "requests"}</dd>
                 </div>
               ) : null}
-            </article>
-          );
-        })}
+            </dl>
+          </div>
+          <p className="mt-1 truncate text-xs text-white/50">
+            Run {snapshot.runNumber} · {snapshot.status === "ACTIVE" ? "Live" : snapshot.status === "SETUP" ? "Not started" : "Ended"} · {OPEN_PLAY_MODE_LABELS[snapshot.matchingMode]} · {header.subtitle}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-start gap-2">
+          <CopyLiveLinkButton url={header.publicUrl} className={headerButton} />
+          <Link href={`/q/${snapshot.queue.publicId}`} target="_blank" className={headerButton}>
+            Player board ↗
+          </Link>
+          <button type="button" onClick={() => setDialog("qr")} className={headerButton}>QR</button>
+          {canManage ? (
+            <button type="button" onClick={() => setDialog("settings")} className={headerButton}>Settings</button>
+          ) : null}
+          {canManage && snapshot.status === "SETUP" ? (
+            <ActionForm action={startOpenPlaySessionAction} values={{ sessionId: snapshot.id }} label="Start run" />
+          ) : null}
+          {canManage && snapshot.status !== "ENDED" ? (
+            <ActionForm action={endOpenPlaySessionAction} values={{ sessionId: snapshot.id }} label="End" buttonClassName="bg-red-600 px-4 text-white hover:bg-red-700" confirm="End this run? Staged and active matches will be cancelled." />
+          ) : null}
+          {canManage && snapshot.status === "ENDED" ? (
+            <ActionForm action={startNewOpenPlayRunAction} values={{ sessionId: snapshot.id }} label="Start new run" confirm="Create a fresh run and reset copied players to not checked in?" />
+          ) : null}
+        </div>
       </div>
-      <p className="sr-only" aria-live="polite">
-        {bulkNotice.success ?? bulkNotice.message}
-      </p>
-      {selectedIds.length > 0 ? (
-        <div className="sticky bottom-3 z-20 mx-3 mb-3 flex flex-wrap items-center gap-3 rounded-xl bg-navy p-3 text-white shadow-xl sm:mx-5 sm:px-4">
-          <div className="min-w-32 flex-1">
-            <p className="text-xs font-black">{selectedIds.length} selected</p>
-            {bulkNotice.success || bulkNotice.message ? (
-              <p className={`mt-1 text-xs font-bold ${bulkNotice.success ? "text-emerald-300" : "text-red-300"}`}>
-                {bulkNotice.success ?? bulkNotice.message}
-              </p>
-            ) : null}
-          </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            {checkInIds.length > 0 ? (
-              <form action={bulkCheckInAction}>
-                <input type="hidden" name="sessionId" value={snapshot.id} />
-                {checkInIds.map((id) => <input key={id} type="hidden" name="participantId" value={id} />)}
-                <button disabled={bulkPending} className="min-h-9 rounded-lg bg-primary px-3 text-xs font-black disabled:opacity-50">
-                  {checkInPending ? "Checking in…" : `Check in ${checkInIds.length}`}
-                </button>
-              </form>
-            ) : null}
-            {pauseIds.length > 0 ? (
-              <form action={bulkPauseAction}>
-                <input type="hidden" name="sessionId" value={snapshot.id} />
-                {pauseIds.map((id) => <input key={id} type="hidden" name="participantId" value={id} />)}
-                <button disabled={bulkPending} className="min-h-9 rounded-lg border border-white/25 bg-white/10 px-3 text-xs font-black hover:bg-white/15 disabled:opacity-50">
-                  {pausePending ? "Moving…" : `Break ${pauseIds.length}`}
-                </button>
-              </form>
-            ) : null}
-            {removeIds.length > 0 ? (
-              <form
-                action={bulkRemoveAction}
-                onSubmit={(event) => {
-                  if (!window.confirm(`Remove ${removeIds.length} selected player${removeIds.length === 1 ? "" : "s"} from this run?`)) {
-                    event.preventDefault();
-                  }
-                }}
-              >
-                <input type="hidden" name="sessionId" value={snapshot.id} />
-                {removeIds.map((id) => <input key={id} type="hidden" name="participantId" value={id} />)}
-                <button disabled={bulkPending} className="min-h-9 rounded-lg bg-red-500/15 px-3 text-xs font-black text-red-200 hover:bg-red-500/25 disabled:opacity-50">
-                  {removePending ? "Removing…" : `Remove ${removeIds.length}`}
-                </button>
-              </form>
-            ) : null}
-            <button
-              type="button"
-              onClick={() => {
-                setSelected(new Set());
-                setBulkNotice({});
-              }}
-              disabled={bulkPending}
-              aria-label="Clear player selection"
-              className="min-h-9 rounded-lg px-3 text-xs font-black text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-50"
-            >
-              Clear
-            </button>
-          </div>
-        </div>
-      ) : null}
-    </section>
+      {dialog === "qr" ? <QrDialog snapshot={snapshot} header={header} onClose={closeDialog} /> : null}
+      {dialog === "settings" ? <SettingsDialog snapshot={snapshot} history={header.history} onClose={closeDialog} /> : null}
+    </header>
   );
 }
 
-function EditParticipantForm({ snapshot, participant }: { snapshot: OpenPlaySnapshot; participant: OpenPlaySnapshot["participants"][number] }) {
-  const [state, action, pending] = useBunalQActionState(editOpenPlayParticipantAction);
-  const formRef = useRef<HTMLFormElement>(null);
+const CONSOLE_SECTIONS = ["courts", "up-next", "queue"] as const;
+type ConsoleSection = (typeof CONSOLE_SECTIONS)[number];
+
+// Courts, Up next, and Queue all stay on the page; the bar above them jumps
+// to a section and highlights whichever one is being looked at.
+function ConsoleSections({ snapshot }: { snapshot: OpenPlaySnapshot }) {
+  const [active, setActive] = useState<ConsoleSection>("courts");
   useEffect(() => {
-    if (!state.success) return;
-    const menu = formRef.current?.closest("details");
-    if (menu instanceof HTMLDetailsElement) menu.open = false;
-  }, [state.success]);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((left, right) => left.boundingClientRect.top - right.boundingClientRect.top)[0];
+        if (visible) setActive(visible.target.id as ConsoleSection);
+      },
+      { rootMargin: "-25% 0px -65% 0px" }
+    );
+    CONSOLE_SECTIONS.forEach((id) => {
+      const section = document.getElementById(id);
+      if (section) observer.observe(section);
+    });
+    return () => observer.disconnect();
+  }, []);
+  const counts: Record<ConsoleSection, number> = {
+    courts: snapshot.courts.length,
+    "up-next": snapshot.games.filter((game) => game.status === "STAGED" && !game.courtId).length,
+    queue: snapshot.participants.filter((participant) => participant.status === "QUEUED").length,
+  };
+  const labels: Record<ConsoleSection, string> = { courts: "Courts", "up-next": "Up next", queue: "Queue" };
+  const notStarted = (
+    <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+      Start the run to prepare matchups automatically.
+    </p>
+  );
   return (
-    <form ref={formRef} action={action} className="mt-2 grid gap-3 rounded-lg bg-white p-2 sm:grid-cols-2">
-      <input type="hidden" name="sessionId" value={snapshot.id} />
-      <input type="hidden" name="participantId" value={participant.id} />
-      <label className="flex flex-col gap-1.5 text-sm font-medium text-gray-800">
-        Name
-        <input
-          name="displayName"
-          defaultValue={participant.displayName}
-          required
-          className="min-h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-        />
-      </label>
-      <Select name="skillLevel" label="Skill" options={[...SKILL_LEVELS]} defaultValue={participant.skillLevel} className="min-h-10" />
-      <button disabled={pending} className="min-h-9 rounded-lg bg-primary px-3 text-xs font-black text-white sm:col-span-2">{pending ? "Saving…" : "Save changes"}</button>
-      {state.message ? <div className="sm:col-span-2"><Feedback state={state} /></div> : null}
-    </form>
+    <div>
+      <nav aria-label="BunalQ sections" className="mb-5 grid grid-cols-3 border-b border-slate-200">
+        {CONSOLE_SECTIONS.map((id) => (
+          <a
+            key={id}
+            href={`#${id}`}
+            aria-current={active === id ? "location" : undefined}
+            onClick={(event) => {
+              event.preventDefault();
+              setActive(id);
+              document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+              window.history.replaceState(null, "", `#${id}`);
+            }}
+            className={`-mb-px flex min-h-12 items-center justify-center border-b-2 px-2 text-sm font-black transition ${
+              active === id
+                ? "border-navy bg-white text-navy"
+                : "border-transparent text-slate-500 hover:text-navy"
+            }`}
+          >
+            {labels[id]}&nbsp;<span className="font-bold text-slate-400">({counts[id]})</span>
+          </a>
+        ))}
+      </nav>
+      <div className="space-y-10">
+        <section id="courts" className="scroll-mt-24">
+          {snapshot.status === "ACTIVE" ? <MatchControls snapshot={snapshot} view="courts" /> : notStarted}
+        </section>
+        <section id="up-next" className="scroll-mt-24">
+          {snapshot.status === "ACTIVE" ? <MatchControls snapshot={snapshot} view="up-next" /> : null}
+        </section>
+        <section id="queue" className="scroll-mt-24">
+          <QueueTab snapshot={snapshot} />
+        </section>
+      </div>
+    </div>
   );
 }
 
-export function OpenPlayConsole({ snapshot, canManage }: { snapshot: OpenPlaySnapshot; canManage: boolean }) {
-  const waiting = snapshot.participants.filter((player) => player.status === "QUEUED").length;
-  const pending = snapshot.participants.filter((player) => player.status === "PENDING_APPROVAL").length;
-  const playing = snapshot.participants.filter((player) => player.status === "PLAYING").length;
-  const activeCourts = snapshot.courts.filter((court) => court.active).length;
-  const fixedPartnerSettingsAvailable = ["BALANCED", "ROUND_ROBIN", "FIXED_PARTNERS"].includes(snapshot.matchingMode);
+export function OpenPlayConsole({
+  snapshot,
+  canManage,
+  header,
+}: {
+  snapshot: OpenPlaySnapshot;
+  canManage: boolean;
+  header: OpenPlayConsoleHeader;
+}) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <OpenPlayLiveRefresh publicId={snapshot.queue.publicId} />
-      <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {[["Pending approval", pending], ["Waiting queue", waiting], ["Currently playing", playing], ["Active courts", `${activeCourts}/${snapshot.courts.length}`]].map(([label, value], index) => (
-          <div key={label} className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm sm:px-4">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[9px] font-black uppercase tracking-[0.13em] text-slate-400 sm:text-[10px]">{label}</p>
-              <span className={`h-2 w-2 shrink-0 rounded-full ${index === 0 && pending > 0 ? "bg-amber-400" : index === 2 && playing > 0 ? "bg-primary" : "bg-slate-200"}`} />
-            </div>
-            <p className="mt-1 text-xl font-black text-navy sm:text-2xl">{value}</p>
-          </div>
-        ))}
-      </section>
-      {canManage ? <>
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-          <div className="flex items-center gap-3">
-            <span className={`flex h-10 w-10 items-center justify-center rounded-xl text-xs font-black ${snapshot.status === "ACTIVE" ? "bg-primary text-white" : "bg-slate-100 text-slate-500"}`}>{snapshot.runNumber}</span>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-black text-navy">Run controls</p>
-                <span className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${snapshot.status === "ACTIVE" ? "bg-primary-soft text-primary" : "bg-slate-100 text-slate-500"}`}>{snapshot.status}</span>
-              </div>
-              <p className="mt-0.5 text-xs text-slate-500">{OPEN_PLAY_MODE_LABELS[snapshot.matchingMode]} · {snapshot.queue.kind === "QUICK" ? "Quick Queue" : "Event roster"}</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {snapshot.status === "SETUP" ? <ActionForm action={startOpenPlaySessionAction} values={{ sessionId: snapshot.id }} label="Start run" /> : null}
-            {snapshot.status !== "ENDED" ? <ActionForm action={endOpenPlaySessionAction} values={{ sessionId: snapshot.id }} label="End run" tone="danger" confirm="End this run? Staged and active matches will be cancelled." /> : null}
-            {snapshot.status === "ENDED" ? <ActionForm action={startNewOpenPlayRunAction} values={{ sessionId: snapshot.id }} label="Start new run" confirm="Create a fresh run and reset copied players to not checked in?" /> : null}
-          </div>
-        </div>
-        {snapshot.status !== "ENDED" ? (
-          <>
-            <ModeForm snapshot={snapshot} />
-            <div className="space-y-4">
-              <div>{snapshot.status === "ACTIVE" ? <MatchControls snapshot={snapshot} /> : <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">Start the run to prepare matchups automatically.</p>}</div>
-              <div className={`grid items-start gap-3 ${
-                snapshot.queue.kind === "QUICK"
-                  ? fixedPartnerSettingsAvailable
-                    ? "lg:grid-cols-3"
-                    : "lg:grid-cols-2"
-                  : fixedPartnerSettingsAvailable
-                    ? "lg:grid-cols-2"
-                    : ""
-              }`}>
-                <AdmissionForm snapshot={snapshot} />
-                <WalkInForm snapshot={snapshot} />
-                {fixedPartnerSettingsAvailable ? <PairForm snapshot={snapshot} /> : null}
-              </div>
-              {fixedPartnerSettingsAvailable ? <SavedPairs snapshot={snapshot} /> : null}
-              <ParticipantRoster snapshot={snapshot} />
-            </div>
-          </>
+      <ConsoleHeader snapshot={snapshot} canManage={canManage} header={header} />
+      {header.notice ? (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">{header.notice}</p>
+      ) : null}
+      {/* Organizers open the public board from the header; staff who can
+          only view get the board inline, since it is all they can use. */}
+      {canManage ? (
+        snapshot.status === "ENDED" ? (
+          <p className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+            This run is archived. Its results stay on the player board. Start a new run from the header.
+          </p>
         ) : (
-          <div className="space-y-4">
-            <p className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-              This run is archived. Its roster and results are read-only.
-            </p>
-            <ParticipantRoster snapshot={snapshot} readOnly />
-          </div>
-        )}
-      </> : null}
-      <section className="border-t border-slate-200 pt-8 sm:pt-10">
-        <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">Public display</p>
-            <h2 className="mt-1 text-xl font-black text-navy sm:text-2xl">Player board preview</h2>
-            <p className="mt-1 text-xs text-slate-500">This is what players see on the shared live board.</p>
-          </div>
-          <span className="rounded-full bg-primary px-3 py-1 text-[10px] font-black uppercase tracking-wider text-white">Live preview</span>
-        </div>
+          <ConsoleSections snapshot={snapshot} />
+        )
+      ) : (
         <OpenPlayBoard snapshot={snapshot} />
-      </section>
+      )}
     </div>
   );
 }

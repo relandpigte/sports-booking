@@ -31,9 +31,14 @@ import {
   canTransitionParticipant,
   chooseOpenSlotReplacement,
   getOpenPlayWorkspace,
+  listAddableOpenPlayCourts,
+  rebuildOpenPlayUpNextGames,
+  returnOpenPlayParticipantToQueue,
   syncAutomaticOpenPlayUpNext,
 } from "@/lib/open-play";
 import {
+  OPEN_PLAY_MAX_COURTS,
+  OPEN_PLAY_MAX_UP_NEXT_SLOTS,
   OPEN_PLAY_MODES,
   type OpenPlayActionState,
 } from "@/lib/open-play-shared";
@@ -57,11 +62,11 @@ const quickQueueSchema = z.object({
   title: z.string().trim().min(2).max(120),
   matchingMode: z.enum(OPEN_PLAY_MODES as [OpenPlayMatchingMode, ...OpenPlayMatchingMode[]]),
   admissionMode: z.enum(["APPROVAL_REQUIRED", "INSTANT"]),
-  courtIds: z.array(idSchema).min(1).max(12),
+  courtIds: z.array(idSchema).min(1).max(OPEN_PLAY_MAX_COURTS),
 });
 const guestQuickQueueSchema = z.object({
   title: z.string().trim().min(2).max(120),
-  courtCount: z.coerce.number().int().min(1).max(12),
+  courtCount: z.coerce.number().int().min(1).max(OPEN_PLAY_MAX_COURTS),
   matchingMode: z.enum(OPEN_PLAY_MODES as [OpenPlayMatchingMode, ...OpenPlayMatchingMode[]]),
   admissionMode: z.enum(["APPROVAL_REQUIRED", "INSTANT"]),
 });
@@ -77,6 +82,7 @@ const fillSlotSchema = z.discriminatedUnion("pick", [
     sessionId: idSchema,
     gameId: idSchema,
     slot: z.coerce.number().int().min(1).max(4),
+    replaceParticipantId: idSchema.optional(),
   }),
   z.object({
     pick: z.literal("manual"),
@@ -84,6 +90,7 @@ const fillSlotSchema = z.discriminatedUnion("pick", [
     gameId: idSchema,
     slot: z.coerce.number().int().min(1).max(4),
     participantId: idSchema,
+    replaceParticipantId: idSchema.optional(),
   }),
 ]);
 const publicJoinSchema = z.object({
@@ -182,7 +189,7 @@ async function lockSession(tx: Tx, sessionId: string) {
     include: {
       queue: {
         include: {
-          hub: { select: { id: true, ownerId: true } },
+          hub: { select: { id: true, ownerId: true, guestBunalQOnly: true } },
           event: {
             select: {
               id: true,
@@ -197,6 +204,11 @@ async function lockSession(tx: Tx, sessionId: string) {
       courts: true,
     },
   });
+}
+
+// A new run keeps one Up next match ready per court.
+function upNextSlotsFor(courtCount: number): number {
+  return Math.min(OPEN_PLAY_MAX_UP_NEXT_SLOTS, Math.max(1, courtCount));
 }
 
 async function bumpLiveRevision(tx: Tx, sessionId: string) {
@@ -584,6 +596,7 @@ export async function prepareOpenPlayAction(
           queueId,
           runNumber: 1,
           createdById: workspace.actorId,
+          upNextSlots: upNextSlotsFor(courts.length),
           courts: {
             create: courts.map((row, position) => ({
               courtId: row.court.id,
@@ -681,14 +694,30 @@ export async function addOpenPlayWalkInAction(
   const participant = await bunalQTransaction(async (tx) => {
     const session = await lockSession(tx, parsed.data.sessionId);
     if (!session || session.status === "ENDED") return null;
+    // Staff add walk-ins standing in front of them, so they join the back
+    // of the queue straight away instead of waiting for a check-in.
+    const position = session.nextQueuePosition + 1;
+    await tx.openPlaySession.update({
+      where: { id: session.id },
+      data: { nextQueuePosition: position },
+    });
+    const now = new Date();
     const created = await tx.openPlayParticipant.create({
       data: {
         sessionId: session.id,
         source: "WALK_IN",
         displayName: parsed.data.displayName,
         skillLevel: parsed.data.skillLevel,
+        status: "QUEUED",
+        queuePosition: position,
+        queuedAt: now,
+        checkedInAt: now,
       },
       select: { id: true },
+    });
+    await syncAutomaticOpenPlayUpNext(tx, {
+      sessionId: session.id,
+      createdById: workspace.actorId,
     });
     await bumpLiveRevision(tx, session.id);
     return created;
@@ -698,14 +727,21 @@ export async function addOpenPlayWalkInAction(
     participantId: participant.id,
   });
   refresh(owned.queue.publicId, owned.queue.event?.publicId);
-  return { success: `${parsed.data.displayName} was added.` };
+  return { success: `${parsed.data.displayName} joined the queue.` };
 }
+
+type ParticipantOperation =
+  | "CHECK_IN"
+  | "PAUSE"
+  | "RESUME"
+  | "CHECK_OUT"
+  | "RETURN_TO_QUEUE";
 
 async function participantTransition(
   workspace: OpenPlayWorkspace,
   sessionId: string,
   participantId: string,
-  operation: "CHECK_IN" | "PAUSE" | "RESUME" | "CHECK_OUT"
+  operation: ParticipantOperation
 ) {
   return bunalQTransaction(async (tx) => {
     const session = await lockSession(tx, sessionId);
@@ -720,7 +756,14 @@ async function participantTransition(
       return { message: "That player cannot make this transition right now." };
     }
     let openedSlot = false;
-    if (operation === "PAUSE" && participant.status === "STAGED") {
+    if (operation === "RETURN_TO_QUEUE") {
+      const returned = await returnOpenPlayParticipantToQueue(tx, {
+        sessionId,
+        participantId: participant.id,
+      });
+      if (!returned) return { message: "That match is no longer available." };
+      openedSlot = !returned.cancelled;
+    } else if (operation === "PAUSE" && participant.status === "STAGED") {
       // Sitting out leaves an open spot in the announced match instead of
       // rebuilding it; staff fill it by hand or with auto-pick. A match with
       // nobody left in it is cancelled so Up next can prepare a new one.
@@ -749,7 +792,9 @@ async function participantTransition(
         openedSlot = true;
       }
     }
-    if (operation === "CHECK_IN" || operation === "RESUME") {
+    if (operation === "RETURN_TO_QUEUE") {
+      // Already back in line at their earlier spot.
+    } else if (operation === "CHECK_IN" || operation === "RESUME") {
       const position = session.nextQueuePosition + 1;
       await tx.openPlaySession.update({
         where: { id: session.id },
@@ -789,7 +834,7 @@ async function participantTransition(
 
 async function transitionAction(
   formData: FormData,
-  operation: "CHECK_IN" | "PAUSE" | "RESUME" | "CHECK_OUT"
+  operation: ParticipantOperation
 ): Promise<OpenPlayActionState> {
   const workspace = await workspaceForManage(String(formData.get("sessionId") ?? ""));
   if (!workspace) return { message: "BunalQ manage access is required." };
@@ -800,6 +845,13 @@ async function transitionAction(
   if ("message" in result) return result;
   await audit(workspace, `OPEN_PLAY_${operation}`, sessionId, { participantId });
   refresh(result.queuePublicId, result.eventPublicId);
+  if (operation === "RETURN_TO_QUEUE") {
+    return {
+      success: result.openedSlot
+        ? "Player returned to the queue. Choose a replacement for the open spot."
+        : "Player returned to the queue.",
+    };
+  }
   return {
     success: result.openedSlot
       ? "Player sat out. Choose a replacement for the open spot."
@@ -823,6 +875,10 @@ export async function checkOutOpenPlayParticipantAction(
   _previous: OpenPlayActionState,
   formData: FormData
 ) { return transitionAction(formData, "CHECK_OUT"); }
+export async function returnOpenPlayParticipantToQueueAction(
+  _previous: OpenPlayActionState,
+  formData: FormData
+) { return transitionAction(formData, "RETURN_TO_QUEUE"); }
 
 export async function startOpenPlaySessionAction(
   _previous: OpenPlayActionState,
@@ -1076,6 +1132,312 @@ export async function toggleOpenPlayCourtAction(
   refresh(owned.queue.publicId, owned.queue.event?.publicId);
   return { success: active ? "Court resumed." : "Court paused." };
 }
+
+export async function addOpenPlayCourtAction(
+  _previous: OpenPlayActionState,
+  formData: FormData
+): Promise<OpenPlayActionState> {
+  const sessionId = String(formData.get("sessionId") ?? "");
+  const requestedCourtId = String(formData.get("courtId") ?? "");
+  const workspace = await workspaceForManage(sessionId);
+  if (!workspace) return { message: "BunalQ manage access is required." };
+  const owned = await ownedSession(sessionId, workspace);
+  if (!owned) return { message: "BunalQ run not found." };
+  const result = await bunalQTransaction(async (tx) => {
+    const session = await lockSession(tx, sessionId);
+    if (!session || session.status === "ENDED") return { kind: "ended" as const };
+    if (session.courts.length >= OPEN_PLAY_MAX_COURTS) {
+      return { kind: "full" as const };
+    }
+    const inRun = new Set(session.courts.map((court) => court.courtId));
+    let court: { id: string; name: string };
+    if (session.queue.hub.guestBunalQOnly) {
+      // Guest rooms own their numbered courts: bring back one removed earlier
+      // before creating the next "Court N".
+      const hubCourts = await tx.court.findMany({
+        where: { hubId: session.queue.hub.id },
+        orderBy: courtDisplayOrder,
+        select: { id: true, name: true, sortOrder: true },
+      });
+      court =
+        hubCourts.find((item) => !inRun.has(item.id)) ??
+        (await tx.court.create({
+          data: {
+            hubId: session.queue.hub.id,
+            name: `Court ${hubCourts.length + 1}`,
+            sport: "pickleball",
+            sortOrder:
+              Math.max(-1, ...hubCourts.map((item) => item.sortOrder)) + 1,
+          },
+          select: { id: true, name: true },
+        }));
+    } else {
+      const options = await listAddableOpenPlayCourts(tx, {
+        id: session.id,
+        hubId: session.queue.hub.id,
+        eventId: session.queue.event?.id ?? null,
+        courtIds: [...inRun],
+      });
+      const option = options.find((item) => item.id === requestedCourtId);
+      if (!option) return { kind: "unavailable" as const };
+      court = option;
+    }
+    await lockCourtAssignments(tx, [court.id]);
+    const conflict = await findActiveCourtConflict(tx, [court.id], session.id);
+    if (conflict) {
+      return { kind: "conflict" as const, courtName: conflict.court.name };
+    }
+    await tx.openPlaySessionCourt.create({
+      data: {
+        sessionId,
+        courtId: court.id,
+        position:
+          Math.max(-1, ...session.courts.map((item) => item.position)) + 1,
+      },
+    });
+    // Each court brings its own Up next box.
+    await tx.openPlaySession.update({
+      where: { id: sessionId },
+      data: {
+        upNextSlots: Math.min(OPEN_PLAY_MAX_UP_NEXT_SLOTS, session.upNextSlots + 1),
+      },
+    });
+    await syncAutomaticOpenPlayUpNext(tx, {
+      sessionId,
+      createdById: workspace.actorId,
+    });
+    await bumpLiveRevision(tx, sessionId);
+    return { kind: "added" as const, courtId: court.id, courtName: court.name };
+  });
+  if (result.kind === "full") {
+    return { message: `A run can use up to ${OPEN_PLAY_MAX_COURTS} courts.` };
+  }
+  if (result.kind === "conflict") {
+    return { message: `${result.courtName} is already assigned to another active BunalQ.` };
+  }
+  if (result.kind === "unavailable") {
+    return { message: "That court can't be added to this run." };
+  }
+  if (result.kind !== "added") return { message: "This BunalQ run has ended." };
+  await audit(workspace, "OPEN_PLAY_COURT_ADDED", sessionId, {
+    courtId: result.courtId,
+  });
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
+  return { success: `${result.courtName} added.` };
+}
+
+export async function removeOpenPlayCourtAction(
+  _previous: OpenPlayActionState,
+  formData: FormData
+): Promise<OpenPlayActionState> {
+  const sessionId = String(formData.get("sessionId") ?? "");
+  const courtId = String(formData.get("courtId") ?? "");
+  const workspace = await workspaceForManage(sessionId);
+  if (!workspace) return { message: "BunalQ manage access is required." };
+  const owned = await ownedSession(sessionId, workspace);
+  if (!owned) return { message: "BunalQ run not found." };
+  const result = await bunalQTransaction(async (tx) => {
+    const session = await lockSession(tx, sessionId);
+    if (!session || session.status === "ENDED") return "ended" as const;
+    if (!session.courts.some((court) => court.courtId === courtId)) {
+      return "missing" as const;
+    }
+    if (session.courts.length <= 1) return "last" as const;
+    const live = await tx.openPlayGame.count({
+      where: { sessionId, courtId, status: "ACTIVE" },
+    });
+    if (live > 0) return "occupied" as const;
+    // A match waiting on this court goes back to the front of Up next.
+    await tx.openPlayGame.updateMany({
+      where: { sessionId, courtId, status: "STAGED" },
+      data: { courtId: null },
+    });
+    await tx.openPlaySessionCourt.delete({
+      where: { sessionId_courtId: { sessionId, courtId } },
+    });
+    await tx.openPlaySession.update({
+      where: { id: sessionId },
+      data: { upNextSlots: Math.max(1, session.upNextSlots - 1) },
+    });
+    await syncAutomaticOpenPlayUpNext(tx, {
+      sessionId,
+      createdById: workspace.actorId,
+    });
+    await bumpLiveRevision(tx, sessionId);
+    return "removed" as const;
+  });
+  if (result === "last") return { message: "Keep at least one court in the run." };
+  if (result === "occupied") {
+    return { message: "Finish or clear this court's match before removing it." };
+  }
+  if (result !== "removed") return { message: "That court is no longer in this run." };
+  await audit(workspace, "OPEN_PLAY_COURT_REMOVED", sessionId, { courtId });
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
+  return { success: "Court removed." };
+}
+
+export async function addOpenPlayUpNextSlotAction(
+  _previous: OpenPlayActionState,
+  formData: FormData
+): Promise<OpenPlayActionState> {
+  const sessionId = String(formData.get("sessionId") ?? "");
+  const workspace = await workspaceForManage(sessionId);
+  if (!workspace) return { message: "BunalQ manage access is required." };
+  const owned = await ownedSession(sessionId, workspace);
+  if (!owned) return { message: "BunalQ run not found." };
+  const result = await bunalQTransaction(async (tx) => {
+    const session = await lockSession(tx, sessionId);
+    if (!session || session.status === "ENDED") return "ended" as const;
+    if (session.upNextSlots >= OPEN_PLAY_MAX_UP_NEXT_SLOTS) return "full" as const;
+    await tx.openPlaySession.update({
+      where: { id: sessionId },
+      data: { upNextSlots: session.upNextSlots + 1 },
+    });
+    await syncAutomaticOpenPlayUpNext(tx, {
+      sessionId,
+      createdById: workspace.actorId,
+    });
+    await bumpLiveRevision(tx, sessionId);
+    return "added" as const;
+  });
+  if (result === "full") {
+    return { message: `Up next holds at most ${OPEN_PLAY_MAX_UP_NEXT_SLOTS} matches.` };
+  }
+  if (result !== "added") return { message: "This BunalQ run has ended." };
+  await audit(workspace, "OPEN_PLAY_UP_NEXT_SLOT_ADDED", sessionId);
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
+  return { success: "Up next match added." };
+}
+
+export async function removeOpenPlayUpNextSlotAction(
+  _previous: OpenPlayActionState,
+  formData: FormData
+): Promise<OpenPlayActionState> {
+  const sessionId = String(formData.get("sessionId") ?? "");
+  const gameId = String(formData.get("gameId") ?? "");
+  const expectedSlots = Number(formData.get("expectedSlots"));
+  const workspace = await workspaceForManage(sessionId);
+  if (!workspace) return { message: "BunalQ manage access is required." };
+  const owned = await ownedSession(sessionId, workspace);
+  if (!owned) return { message: "BunalQ run not found." };
+  const result = await bunalQTransaction(async (tx) => {
+    const session = await lockSession(tx, sessionId);
+    if (!session || session.status === "ENDED") return "ended" as const;
+    if (session.upNextSlots <= 1) return "last" as const;
+    if (gameId) {
+      // Removing a box drops its match, even a hand-picked one; its players
+      // go back to their spots in line.
+      const game = await tx.openPlayGame.findFirst({
+        where: { id: gameId, sessionId, status: "STAGED", courtId: null },
+        select: { id: true },
+      });
+      if (!game) return "moved" as const;
+      await cancelOpenPlayUpNextGame(tx, sessionId, game.id);
+    } else if (expectedSlots !== session.upNextSlots) {
+      // An empty box carries the count it was drawn with, so a double click
+      // or a second organizer can't remove two boxes for one.
+      return "stale" as const;
+    }
+    await tx.openPlaySession.update({
+      where: { id: sessionId },
+      data: { upNextSlots: session.upNextSlots - 1 },
+    });
+    await syncAutomaticOpenPlayUpNext(tx, {
+      sessionId,
+      createdById: workspace.actorId,
+    });
+    await bumpLiveRevision(tx, sessionId);
+    return "removed" as const;
+  });
+  if (result === "last") return { message: "Keep at least one Up next match." };
+  if (result === "moved") {
+    return { message: "That match already moved. Refresh to see the latest Up next." };
+  }
+  if (result === "stale") {
+    return { message: "Up next just changed. Refresh to see the latest Up next.", reloadRequired: true };
+  }
+  if (result !== "removed") return { message: "This BunalQ run has ended." };
+  await audit(workspace, "OPEN_PLAY_UP_NEXT_SLOT_REMOVED", sessionId, {
+    gameId: gameId || null,
+  });
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
+  return { success: "Up next match removed." };
+}
+
+async function rebuildUpNext(
+  formData: FormData,
+  scope: "one" | "automatic"
+): Promise<OpenPlayActionState> {
+  const sessionId = String(formData.get("sessionId") ?? "");
+  const gameId = String(formData.get("gameId") ?? "");
+  const workspace = await workspaceForManage(sessionId);
+  if (!workspace) return { message: "BunalQ manage access is required." };
+  const owned = await ownedSession(sessionId, workspace);
+  if (!owned) return { message: "BunalQ run not found." };
+  if (scope === "one" && !gameId) return { message: "Choose a match to rebuild." };
+  const outcome = await bunalQTransaction(async (tx) => {
+    const session = await lockSession(tx, sessionId);
+    if (!session || session.status !== "ACTIVE") return null;
+    const games = await tx.openPlayGame.findMany({
+      where:
+        scope === "one"
+          ? { id: gameId, sessionId, status: "STAGED" }
+          : {
+              sessionId,
+              status: "STAGED",
+              courtId: null,
+              selectionMethod: "AUTOMATIC",
+            },
+      select: { id: true },
+    });
+    if (games.length === 0) return "none" as const;
+    const rebuilt = await rebuildOpenPlayUpNextGames(tx, {
+      sessionId,
+      gameIds: games.map((game) => game.id),
+      createdById: workspace.actorId,
+    });
+    await syncAutomaticOpenPlayUpNext(tx, {
+      sessionId,
+      createdById: workspace.actorId,
+    });
+    await bumpLiveRevision(tx, sessionId);
+    return rebuilt;
+  });
+  if (!outcome) return { message: "Start the run before rebuilding Up next." };
+  if (outcome === "none") {
+    return scope === "one"
+      ? { message: "That match already moved. Refresh to see the latest Up next." }
+      : { message: "There are no automatic Up next matches to refresh." };
+  }
+  await audit(
+    workspace,
+    scope === "one" ? "OPEN_PLAY_UP_NEXT_REBUILT" : "OPEN_PLAY_UP_NEXT_REFRESHED",
+    sessionId,
+    { gameId: gameId || null, ...outcome }
+  );
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
+  if (outcome.rebuilt === 0 && outcome.cleared === 0) {
+    return { message: "No other matchup is available right now." };
+  }
+  if (scope === "one") {
+    return {
+      success:
+        outcome.cleared > 0
+          ? "Not enough players are waiting, so the match was cleared."
+          : "Match rebuilt.",
+    };
+  }
+  return { success: "Up next refreshed." };
+}
+
+export async function rebuildOpenPlayUpNextMatchAction(
+  _previous: OpenPlayActionState,
+  formData: FormData
+) { return rebuildUpNext(formData, "one"); }
+export async function refreshOpenPlayUpNextAction(
+  _previous: OpenPlayActionState,
+  formData: FormData
+) { return rebuildUpNext(formData, "automatic"); }
 
 async function startStagedOpenPlayGame(
   tx: Tx,
@@ -1398,6 +1760,7 @@ export async function fillOpenPlaySlotAction(
     gameId: formData.get("gameId"),
     slot: formData.get("slot"),
     participantId: formData.get("participantId") ?? undefined,
+    replaceParticipantId: formData.get("replaceParticipantId") || undefined,
   });
   if (!parsed.success) return { message: "Choose a player for the open spot." };
   const input = parsed.data;
@@ -1410,10 +1773,17 @@ export async function fillOpenPlaySlotAction(
   const result = await bunalQTransaction(async (tx) => {
     const session = await lockSession(tx, input.sessionId);
     if (!session || session.status !== "ACTIVE") return { kind: "inactive" as const };
+    // Live matches can be short a player too, once staff return someone to
+    // the queue mid-game; the replacement joins the match already underway.
     const game = await tx.openPlayGame.findFirst({
-      where: { id: input.gameId, sessionId: session.id, status: "STAGED" },
+      where: {
+        id: input.gameId,
+        sessionId: session.id,
+        status: { in: ["STAGED", "ACTIVE"] },
+      },
       select: {
         id: true,
+        status: true,
         players: {
           select: {
             participantId: true,
@@ -1425,23 +1795,87 @@ export async function fillOpenPlaySlotAction(
       },
     });
     if (!game) return { kind: "game" as const };
+    // Replacing someone frees their spot first: they go back to their place
+    // in line, then the spot is filled like any other open spot.
+    const replacing = input.replaceParticipantId
+      ? game.players.find(
+          (player) =>
+            player.participantId === input.replaceParticipantId &&
+            player.slot === input.slot
+        )
+      : undefined;
+    let replacedName: string | null = null;
+    if (input.replaceParticipantId) {
+      if (!replacing || game.players.length < 2) return { kind: "replaced" as const };
+      const returned = await returnOpenPlayParticipantToQueue(tx, {
+        sessionId: session.id,
+        participantId: replacing.participantId,
+      });
+      if (!returned || returned.cancelled) return { kind: "replaced" as const };
+      game.players = game.players.filter((player) => player !== replacing);
+      replacedName = (
+        await tx.openPlayParticipant.findUnique({
+          where: { id: replacing.participantId },
+          select: { displayName: true },
+        })
+      )?.displayName ?? null;
+    }
     if (game.players.some((player) => player.slot === input.slot)) {
       return { kind: "taken" as const };
     }
 
     let chosen: { id: string; queuePosition: number; displayName: string } | null = null;
-    if (input.pick === "manual") {
+    let movedFrom: { gameId: string; cancelled: boolean } | null = null;
+    if (input.pick === "manual" && input.participantId !== input.replaceParticipantId) {
       const participant = await tx.openPlayParticipant.findFirst({
         where: {
           id: input.participantId,
           sessionId: session.id,
-          status: "QUEUED",
-          queuePosition: { not: null },
+          status: { in: ["QUEUED", "STAGED"] },
         },
-        select: { id: true, queuePosition: true, displayName: true },
+        select: { id: true, status: true, queuePosition: true, displayName: true },
       });
-      if (participant?.queuePosition != null) {
+      if (participant?.status === "QUEUED" && participant.queuePosition != null) {
         chosen = { ...participant, queuePosition: participant.queuePosition };
+      } else if (participant?.status === "STAGED") {
+        // Staff can pull a player out of another match that hasn't started.
+        // That match keeps an open spot, and the player keeps their original
+        // place in line in case they are returned to the queue later.
+        const source = await tx.openPlayGame.findFirst({
+          where: {
+            sessionId: session.id,
+            status: "STAGED",
+            id: { not: game.id },
+            players: { some: { participantId: participant.id } },
+          },
+          select: {
+            id: true,
+            players: { select: { participantId: true, queuePositionBefore: true } },
+          },
+        });
+        const row = source?.players.find(
+          (player) => player.participantId === participant.id
+        );
+        if (source && row) {
+          await tx.openPlayGamePlayer.delete({
+            where: {
+              gameId_participantId: { gameId: source.id, participantId: participant.id },
+            },
+          });
+          const cancelled = source.players.length <= 1;
+          if (cancelled) {
+            await tx.openPlayGame.updateMany({
+              where: { id: source.id, sessionId: session.id, status: "STAGED" },
+              data: { status: "CANCELLED", cancelledAt: new Date() },
+            });
+          }
+          movedFrom = { gameId: source.id, cancelled };
+          chosen = {
+            id: participant.id,
+            displayName: participant.displayName,
+            queuePosition: row.queuePositionBefore,
+          };
+        }
       }
     } else {
       const [queuedRows, completedGames] = await Promise.all([
@@ -1450,6 +1884,9 @@ export async function fillOpenPlaySlotAction(
             sessionId: session.id,
             status: "QUEUED",
             queuePosition: { not: null },
+            ...(input.replaceParticipantId
+              ? { id: { not: input.replaceParticipantId } }
+              : {}),
           },
           orderBy: { queuePosition: "asc" },
           select: {
@@ -1503,26 +1940,45 @@ export async function fillOpenPlaySlotAction(
     });
     await tx.openPlayParticipant.update({
       where: { id: chosen.id },
-      data: { status: "STAGED", queuePosition: null, queuedAt: null },
+      data: {
+        status: game.status === "ACTIVE" ? "PLAYING" : "STAGED",
+        queuePosition: null,
+        queuedAt: null,
+      },
     });
-    if (input.pick === "manual") {
+    if (input.pick === "manual" || replacing) {
       await tx.openPlayGame.update({
         where: { id: game.id },
         data: { selectionMethod: "MANUAL" },
       });
     }
+    if (movedFrom?.cancelled) {
+      await syncAutomaticOpenPlayUpNext(tx, {
+        sessionId: session.id,
+        createdById: workspace.actorId,
+      });
+    }
     await bumpLiveRevision(tx, session.id);
-    return { kind: "filled" as const, participantId: chosen.id, displayName: chosen.displayName };
+    return {
+      kind: "filled" as const,
+      participantId: chosen.id,
+      displayName: chosen.displayName,
+      movedFromGameId: movedFrom?.gameId ?? null,
+      replacedName,
+    };
   });
   if (result.kind === "taken") {
     return { message: "That spot was just filled. Pick another open spot." };
+  }
+  if (result.kind === "replaced") {
+    return { message: "That player is no longer in this match." };
   }
   if (result.kind === "player") {
     return {
       message:
         input.pick === "auto"
           ? "No waiting player is available for this spot."
-          : "That player is no longer waiting in the queue.",
+          : "That player is no longer waiting or in an upcoming match.",
     };
   }
   if (result.kind !== "filled") {
@@ -1533,9 +1989,114 @@ export async function fillOpenPlaySlotAction(
     slot: input.slot,
     participantId: result.participantId,
     pick: input.pick,
+    movedFromGameId: result.movedFromGameId,
+    replacedParticipantId: input.replaceParticipantId ?? null,
   });
   refresh(owned.queue.publicId, owned.queue.event?.publicId);
-  return { success: `${result.displayName} joined Team ${team}.` };
+  return {
+    success: result.replacedName
+      ? `${result.displayName} replaced ${result.replacedName}.`
+      : result.movedFromGameId
+        ? `${result.displayName} moved to Team ${team}. Their previous match now has an open spot.`
+        : `${result.displayName} joined Team ${team}.`,
+  };
+}
+
+const switchTeamsSchema = z.object({
+  sessionId: idSchema,
+  gameId: idSchema,
+  participantId: idSchema,
+  otherParticipantId: idSchema,
+});
+
+export async function switchOpenPlayTeamsAction(
+  _previous: OpenPlayActionState,
+  formData: FormData
+): Promise<OpenPlayActionState> {
+  const parsed = switchTeamsSchema.safeParse({
+    sessionId: formData.get("sessionId"),
+    gameId: formData.get("gameId"),
+    participantId: formData.get("participantId"),
+    otherParticipantId: formData.get("otherParticipantId"),
+  });
+  if (!parsed.success || parsed.data.participantId === parsed.data.otherParticipantId) {
+    return { message: "Choose a player on the other team." };
+  }
+  const input = parsed.data;
+  const workspace = await workspaceForManage(input.sessionId);
+  if (!workspace) return { message: "BunalQ manage access is required." };
+  const owned = await ownedSession(input.sessionId, workspace);
+  if (!owned) return { message: "BunalQ run not found." };
+  const result = await bunalQTransaction(async (tx) => {
+    const session = await lockSession(tx, input.sessionId);
+    if (!session || session.status !== "ACTIVE") return null;
+    const game = await tx.openPlayGame.findFirst({
+      where: {
+        id: input.gameId,
+        sessionId: session.id,
+        status: { in: ["STAGED", "ACTIVE"] },
+      },
+      select: {
+        id: true,
+        status: true,
+        players: {
+          select: {
+            participantId: true,
+            team: true,
+            slot: true,
+            queuePositionBefore: true,
+            participant: { select: { displayName: true } },
+          },
+        },
+      },
+    });
+    const first = game?.players.find((player) => player.participantId === input.participantId);
+    const second = game?.players.find((player) => player.participantId === input.otherParticipantId);
+    if (!game || !first || !second || first.team === second.team) return null;
+    // Slots are unique per match and limited to 1-4, so one row is lifted
+    // out while the other takes its slot, then put back in the freed one.
+    await tx.openPlayGamePlayer.delete({
+      where: {
+        gameId_participantId: { gameId: game.id, participantId: second.participantId },
+      },
+    });
+    await tx.openPlayGamePlayer.update({
+      where: {
+        gameId_participantId: { gameId: game.id, participantId: first.participantId },
+      },
+      data: { team: second.team, slot: second.slot },
+    });
+    await tx.openPlayGamePlayer.create({
+      data: {
+        gameId: game.id,
+        participantId: second.participantId,
+        team: first.team,
+        slot: first.slot,
+        queuePositionBefore: second.queuePositionBefore,
+      },
+    });
+    if (game.status === "STAGED") {
+      await tx.openPlayGame.update({
+        where: { id: game.id },
+        data: { selectionMethod: "MANUAL" },
+      });
+    }
+    await bumpLiveRevision(tx, session.id);
+    return {
+      first: first.participant.displayName,
+      second: second.participant.displayName,
+    };
+  });
+  if (!result) {
+    return { message: "Those players are no longer on opposite teams in this match." };
+  }
+  await audit(workspace, "OPEN_PLAY_TEAMS_SWITCHED", input.sessionId, {
+    gameId: input.gameId,
+    participantId: input.participantId,
+    otherParticipantId: input.otherParticipantId,
+  });
+  refresh(owned.queue.publicId, owned.queue.event?.publicId);
+  return { success: `${result.first} and ${result.second} switched teams.` };
 }
 
 export async function recordOpenPlayWinnerAction(
@@ -1557,7 +2118,8 @@ export async function recordOpenPlayWinnerAction(
       where: { id: gameId, sessionId, status: "ACTIVE" },
       include: { players: true },
     });
-    if (!game || !game.courtId || game.players.length !== 4) return null;
+    if (!game || !game.courtId) return null;
+    if (game.players.length !== 4) return "incomplete" as const;
     let next = session.nextQueuePosition;
     for (const slot of game.players.sort((left, right) => left.slot - right.slot)) {
       next += 1;
@@ -1588,6 +2150,9 @@ export async function recordOpenPlayWinnerAction(
     });
     return { nextGameIds: synced.assignedGameIds };
   });
+  if (completed === "incomplete") {
+    return { message: "Fill the open spot before recording a result." };
+  }
   if (!completed) return { message: "This result was already recorded or the match is unavailable." };
   await audit(workspace, "OPEN_PLAY_RESULT_RECORDED", sessionId, {
     gameId,
@@ -1623,16 +2188,18 @@ export async function undoOpenPlayResultAction(
       !game ||
       !game.courtId ||
       !game.startedAt ||
+      !session.courts.some((court) => court.courtId === game.courtId) ||
       game.players.some(
         (slot) => !["QUEUED", "STAGED"].includes(slot.participant.status)
       )
     ) return false;
+    // Any later match that started on this court, including one cancelled
+    // after staff returned all its players, makes this result final.
     const newerStarted = await tx.openPlayGame.count({
       where: {
         sessionId,
         courtId: game.courtId,
         startedAt: { gt: game.startedAt },
-        status: { in: ["ACTIVE", "COMPLETED"] },
       },
     });
     if (newerStarted > 0) return false;
@@ -1815,6 +2382,7 @@ export async function createQuickQueueAction(
         matchingMode: parsed.data.matchingMode,
         createdById: workspace.actorId,
         startedAt: new Date(),
+        upNextSlots: upNextSlotsFor(hub.courts.length),
         courts: {
           create: hub.courts.map((court, position) => ({
             courtId: court.id,
@@ -1971,6 +2539,7 @@ export async function createGuestQuickQueueAction(
         matchingMode: parsed.data.matchingMode,
         createdById: ownerId,
         startedAt: new Date(),
+        upNextSlots: upNextSlotsFor(courtRows.length),
         courts: {
           create: courtRows.map((court, position) => ({
             courtId: court.id,
@@ -2574,6 +3143,7 @@ export async function startNewOpenPlayRunAction(
         matchingMode: previous.matchingMode,
         createdById: workspace.actorId,
         startedAt: quick ? new Date() : null,
+        upNextSlots: upNextSlotsFor(courts.length),
         courts: {
           create: courts.map((court) => ({
             courtId: court.courtId,

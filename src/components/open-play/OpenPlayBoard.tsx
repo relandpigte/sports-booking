@@ -1,9 +1,9 @@
 import {
   OPEN_PLAY_MODE_DESCRIPTIONS,
   OPEN_PLAY_MODE_LABELS,
-  OPEN_PLAY_UP_NEXT_BUFFER_SIZE,
   type OpenPlaySnapshot,
 } from "@/lib/open-play-shared";
+import { MatchTimer } from "@/components/open-play/MatchTimer";
 import {
   liveCourtCardClassName,
   liveCourtHeaderClassName,
@@ -81,9 +81,12 @@ export function OpenPlayBoard({ snapshot }: { snapshot: OpenPlaySnapshot }) {
               <article key={court.id} className={`overflow-hidden rounded-2xl border shadow-sm ${live ? liveCourtCardClassName : staged ? "border-violet-200 bg-white" : "border-slate-200 bg-white"}`}>
                 <div className={`flex items-center justify-between border-b px-4 py-3 ${live ? liveCourtHeaderClassName : "border-slate-200 bg-slate-50/80"}`}>
                   <h3 className="font-black text-navy">{court.name}</h3>
-                  <span className={`text-[10px] font-black uppercase tracking-[0.12em] ${live ? "text-emerald-700" : staged ? "text-violet-700" : "text-slate-400"}`}>
-                    {!court.active ? "Paused" : live ? "Playing" : staged ? "Up next" : "Open"}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {live && game?.startedAt ? <MatchTimer startedAt={game.startedAt} /> : null}
+                    <span className={`text-[10px] font-black uppercase tracking-[0.12em] ${live ? "text-emerald-700" : staged ? "text-violet-700" : "text-slate-400"}`}>
+                      {!court.active ? "Paused" : live ? "Playing" : staged ? "Up next" : "Open"}
+                    </span>
+                  </div>
                 </div>
                 <div className="p-4">
                   {game && palette ? (
@@ -106,14 +109,14 @@ export function OpenPlayBoard({ snapshot }: { snapshot: OpenPlaySnapshot }) {
             <h2 className="text-sm font-black uppercase tracking-[0.16em] text-navy">Up next</h2>
             <p className="mt-1 text-xs text-slate-500">Be ready when a court opens.</p>
           </div>
-          <span className="text-xs font-bold text-slate-500">{upNext.length}/{OPEN_PLAY_UP_NEXT_BUFFER_SIZE} prepared</span>
+          <span className="text-xs font-bold text-slate-500">{upNext.filter((game) => game.players.length === 4).length}/{snapshot.upNextSlots} ready</span>
         </div>
         {upNext.length > 0 ? (
           <div className={`grid gap-3 ${openPlayThreeColumnGridClass(upNext.length)}`}>
             {upNext.map((game, index) => (
               <article key={game.id} className="rounded-2xl border border-violet-200 bg-white p-4 shadow-sm ring-1 ring-violet-100">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-700">Match {index + 1}</p>
+                  <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-700">Up next {index + 1}</p>
                   <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-black text-violet-700">{OPEN_PLAY_MODE_LABELS[game.matchingMode]}</span>
                 </div>
                 <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
@@ -125,7 +128,7 @@ export function OpenPlayBoard({ snapshot }: { snapshot: OpenPlaySnapshot }) {
             ))}
           </div>
         ) : (
-          <p className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-sm text-slate-500">Up to two matchups appear automatically as eligible players become available.</p>
+          <p className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-sm text-slate-500">Matchups appear automatically as players check in.</p>
         )}
       </section>
 

@@ -29,7 +29,6 @@ import {
   approvePublicQueueGuestAction,
   bulkCheckInOpenPlayParticipantsAction,
   changeOpenPlayModeAction,
-  changeQueueAdmissionModeAction,
   checkInOpenPlayParticipantAction,
   checkOutOpenPlayParticipantAction,
   editOpenPlayParticipantAction,
@@ -223,33 +222,6 @@ function ModeForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
             <span className="mt-1 block text-[11px] leading-5 text-slate-500">{OPEN_PLAY_MODE_DESCRIPTIONS[mode]}</span>
           </label>
         ))}
-      </div>
-      <Feedback state={state} />
-    </form>
-  );
-}
-
-function AdmissionForm({ snapshot }: { snapshot: OpenPlaySnapshot }) {
-  const [state, action, pending] = useBunalQActionState(changeQueueAdmissionModeAction);
-  if (snapshot.queue.kind !== "QUICK") return null;
-  return (
-    <form action={action} className="rounded-2xl border border-ocean/20 bg-ocean-soft p-4 shadow-sm shadow-navy/5">
-      <input type="hidden" name="sessionId" value={snapshot.id} />
-      <div>
-        <h2 className="text-xs font-black uppercase tracking-[0.16em] text-navy">Guest entry</h2>
-        <p className="mt-1 text-xs text-slate-500">Choose how public requests enter the queue.</p>
-      </div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-        <Select
-          name="admissionMode"
-          label="Admission mode"
-          defaultValue={snapshot.queue.admissionMode}
-          options={[
-            { value: "APPROVAL_REQUIRED", label: "Organizer approval" },
-            { value: "INSTANT", label: "Instant queue entry" },
-          ]}
-        />
-        <Button className="min-h-10 px-5 py-2 sm:w-auto" disabled={pending}>{pending ? "Saving…" : "Save"}</Button>
       </div>
       <Feedback state={state} />
     </form>
@@ -1513,7 +1485,7 @@ function RequestsPanel({
   return (
     <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
       <h2 className="text-sm font-black text-amber-900">
-        Requests to join <span className="font-bold">({requests.length})</span>
+        Earlier join requests <span className="font-bold">({requests.length})</span>
       </h2>
       <ul className="mt-3 grid gap-2 md:grid-cols-2">
         {requests.map((participant) => (
@@ -1577,7 +1549,9 @@ function MatchLog({ snapshot }: { snapshot: OpenPlaySnapshot }) {
       .join(" & ") || "—";
   const rows = completed.map((game, index) => ({ game, number: index + 1 })).reverse();
   return (
-    <details open className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    // Collapsed by default so the queue stays in view; staff open it to
+    // check or correct a result.
+    <details className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <summary className="flex cursor-pointer list-none items-center gap-4 bg-slate-50 px-4 py-3 [&::-webkit-details-marker]:hidden">
         <h2 className="text-sm font-black text-navy">
           Match log <span className="font-bold text-slate-400">({completed.length})</span>
@@ -1952,7 +1926,6 @@ function SettingsDialog({
       </ModalTitle>
       <div className="mt-5 space-y-4">
         {snapshot.status !== "ENDED" ? <ModeForm snapshot={snapshot} /> : null}
-        {snapshot.status !== "ENDED" ? <AdmissionForm snapshot={snapshot} /> : null}
         {snapshot.status !== "ENDED" && pairingAvailable ? <PairForm snapshot={snapshot} /> : null}
         {pairingAvailable ? <SavedPairs snapshot={snapshot} /> : null}
         {snapshot.status !== "ENDED" && snapshot.queue.kind === "EVENT" ? (
@@ -1986,11 +1959,9 @@ function SettingsDialog({
 }
 
 function QrDialog({
-  snapshot,
   header,
   onClose,
 }: {
-  snapshot: OpenPlaySnapshot;
   header: OpenPlayConsoleHeader;
   onClose: () => void;
 }) {
@@ -2002,7 +1973,7 @@ function QrDialog({
         dangerouslySetInnerHTML={{ __html: header.qrSvg }}
       />
       <p className="mt-4 text-center text-xs leading-5 text-slate-500">
-        Players can view the courts and queue{snapshot.queue.kind === "QUICK" ? " and request to join" : ""}.
+        Players can follow the courts, Up next, and the queue.
       </p>
       <a href={header.publicUrl} target="_blank" rel="noreferrer" className="mt-1 block truncate text-center text-xs font-bold text-primary">
         {header.publicUrl}
@@ -2055,7 +2026,7 @@ function ConsoleHeader({
           ) : null}
         </div>
       </div>
-      {dialog === "qr" ? <QrDialog snapshot={snapshot} header={header} onClose={closeDialog} /> : null}
+      {dialog === "qr" ? <QrDialog header={header} onClose={closeDialog} /> : null}
       {dialog === "settings" ? <SettingsDialog snapshot={snapshot} history={header.history} onClose={closeDialog} /> : null}
     </header>
   );

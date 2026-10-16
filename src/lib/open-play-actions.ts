@@ -2,7 +2,6 @@
 
 import crypto from "node:crypto";
 import {
-  type OpenPlayAdmissionMode,
   type OpenPlayMatchingMode,
   type OpenPlayParticipantStatus,
   Prisma,
@@ -61,14 +60,12 @@ const quickQueueSchema = z.object({
   hubId: idSchema,
   title: z.string().trim().min(2).max(120),
   matchingMode: z.enum(OPEN_PLAY_MODES as [OpenPlayMatchingMode, ...OpenPlayMatchingMode[]]),
-  admissionMode: z.enum(["APPROVAL_REQUIRED", "INSTANT"]),
   courtIds: z.array(idSchema).min(1).max(OPEN_PLAY_MAX_COURTS),
 });
 const guestQuickQueueSchema = z.object({
   title: z.string().trim().min(2).max(120),
   courtCount: z.coerce.number().int().min(1).max(OPEN_PLAY_MAX_COURTS),
   matchingMode: z.enum(OPEN_PLAY_MODES as [OpenPlayMatchingMode, ...OpenPlayMatchingMode[]]),
-  admissionMode: z.enum(["APPROVAL_REQUIRED", "INSTANT"]),
 });
 const participantEditSchema = z.object({
   sessionId: idSchema,
@@ -93,11 +90,6 @@ const fillSlotSchema = z.discriminatedUnion("pick", [
     replaceParticipantId: idSchema.optional(),
   }),
 ]);
-const publicJoinSchema = z.object({
-  publicId: publicIdSchema,
-  displayName: z.string().trim().min(1).max(120),
-  skillLevel: z.enum(skillValues),
-});
 
 type Tx = Prisma.TransactionClient;
 
@@ -2381,7 +2373,6 @@ export async function createQuickQueueAction(
     hubId: String(formData.get("hubId") ?? ""),
     title: String(formData.get("title") ?? ""),
     matchingMode: String(formData.get("matchingMode") ?? "BALANCED"),
-    admissionMode: String(formData.get("admissionMode") ?? "APPROVAL_REQUIRED"),
     courtIds: [...new Set(formData.getAll("courtId").map(String))],
   });
   if (!parsed.success) {
@@ -2423,7 +2414,6 @@ export async function createQuickQueueAction(
             hubId: hub.id,
             title: parsed.data.title,
             kind: "QUICK",
-            admissionMode: parsed.data.admissionMode,
             createdById: workspace.actorId,
           },
         },
@@ -2468,7 +2458,6 @@ export async function createGuestQuickQueueAction(
     title: String(formData.get("title") ?? ""),
     courtCount: String(formData.get("courtCount") ?? ""),
     matchingMode: String(formData.get("matchingMode") ?? "BALANCED"),
-    admissionMode: String(formData.get("admissionMode") ?? "APPROVAL_REQUIRED"),
   });
   if (!parsed.success) {
     return { message: "Enter a queue name and choose between 1 and 12 courts." };
@@ -2579,7 +2568,6 @@ export async function createGuestQuickQueueAction(
             hubId: hub.id,
             title: parsed.data.title,
             kind: "QUICK",
-            admissionMode: parsed.data.admissionMode,
             directoryListed: false,
             createdById: ownerId,
           },
@@ -2628,184 +2616,8 @@ export async function createGuestQuickQueueAction(
   redirect(`/bunalq/manage/${created.publicId}`);
 }
 
-export async function changeQueueAdmissionModeAction(
-  _previous: OpenPlayActionState,
-  formData: FormData
-): Promise<OpenPlayActionState> {
-  const workspace = await workspaceForManage(String(formData.get("sessionId") ?? ""));
-  if (!workspace) return { message: "BunalQ manage access is required." };
-  const sessionId = String(formData.get("sessionId") ?? "");
-  const admissionMode = String(formData.get("admissionMode") ?? "") as OpenPlayAdmissionMode;
-  if (!["APPROVAL_REQUIRED", "INSTANT"].includes(admissionMode)) {
-    return { message: "Choose a valid guest admission mode." };
-  }
-  const owned = await ownedSession(sessionId, workspace);
-  if (!owned) return { message: "BunalQ run not found." };
-  const updated = await bunalQTransaction(async (tx) => {
-    const session = await lockSession(tx, sessionId);
-    if (!session || session.queue.kind !== "QUICK") return 0;
-    const result = await tx.openPlayQueue.updateMany({
-      where: {
-        id: session.queueId,
-        kind: "QUICK",
-        hub: { ownerId: workspace.partnerId },
-      },
-      data: { admissionMode },
-    });
-    if (result.count === 1) await bumpLiveRevision(tx, sessionId);
-    return result.count;
-  });
-  if (updated !== 1) {
-    return { message: "Guest self-join is available only for Quick Queues." };
-  }
-  await audit(workspace, "BUNALQ_ADMISSION_CHANGED", sessionId, { admissionMode });
-  refresh(owned.queue.publicId);
-  return { success: "Guest admission updated." };
-}
-
-export async function joinPublicQueueAction(
-  _previous: OpenPlayActionState,
-  formData: FormData
-): Promise<OpenPlayActionState> {
-  const parsed = publicJoinSchema.safeParse({
-    publicId: String(formData.get("publicId") ?? ""),
-    displayName: String(formData.get("displayName") ?? ""),
-    skillLevel: String(formData.get("skillLevel") ?? DEFAULT_SKILL_LEVEL),
-  });
-  if (!parsed.success) return { message: "Enter your name and skill level." };
-  const context = await getSecurityRequestContext();
-  if (!(await consumeRateLimit({
-    namespace: "bunalq-public-join",
-    subject: `${parsed.data.publicId}:${context.ipHash}`,
-    limit: 8,
-    windowSeconds: 10 * 60,
-    blockSeconds: 15 * 60,
-  }))) {
-    return { message: "Too many join attempts. Ask the organizer for help." };
-  }
-  if (!(await consumeRateLimit({
-    namespace: "bunalq-public-join-queue",
-    subject: parsed.data.publicId,
-    limit: 60,
-    windowSeconds: 10 * 60,
-    blockSeconds: 10 * 60,
-  }))) {
-    return { message: "This queue is receiving too many join requests. Try again later." };
-  }
-  const result = await bunalQTransaction(async (tx) => {
-    const queue = await tx.openPlayQueue.findUnique({
-      where: { publicId: parsed.data.publicId },
-      select: {
-        id: true,
-        kind: true,
-        admissionMode: true,
-        hub: { select: { ownerId: true } },
-        sessions: {
-          orderBy: { runNumber: "desc" },
-          take: 1,
-          select: { id: true, status: true },
-        },
-      },
-    });
-    const current = queue?.sessions[0];
-    if (!queue || queue.kind !== "QUICK" || !current || current.status !== "ACTIVE") {
-      return { kind: "closed" as const };
-    }
-    const session = await lockSession(tx, current.id);
-    if (
-      !session ||
-      session.status !== "ACTIVE" ||
-      session.queue.kind !== "QUICK"
-    ) {
-      return { kind: "closed" as const };
-    }
-    const [rosterCount, publicGuestCount] = await Promise.all([
-      tx.openPlayParticipant.count({
-        where: {
-          sessionId: session.id,
-          status: { notIn: ["REMOVED", "CHECKED_OUT"] },
-        },
-      }),
-      tx.openPlayParticipant.count({
-        where: { sessionId: session.id, source: "PUBLIC_GUEST" },
-      }),
-    ]);
-    if (rosterCount >= 100) return { kind: "full" as const };
-    if (publicGuestCount >= 250) return { kind: "exhausted" as const };
-    const duplicate = await tx.openPlayParticipant.findFirst({
-      where: {
-        sessionId: session.id,
-        source: "PUBLIC_GUEST",
-        status: { notIn: ["REMOVED", "CHECKED_OUT"] },
-        displayName: {
-          equals: parsed.data.displayName,
-          mode: "insensitive",
-        },
-      },
-      select: { id: true },
-    });
-    if (duplicate) return { kind: "duplicate" as const };
-    let queuePosition: number | null = null;
-    if (session.queue.admissionMode === "INSTANT") {
-      const positionedSession = await tx.openPlaySession.update({
-        where: { id: session.id },
-        data: { nextQueuePosition: { increment: 1 } },
-        select: { nextQueuePosition: true },
-      });
-      queuePosition = positionedSession.nextQueuePosition;
-    }
-    const participant = await tx.openPlayParticipant.create({
-      data: {
-        sessionId: session.id,
-        source: "PUBLIC_GUEST",
-        displayName: parsed.data.displayName,
-        skillLevel: parsed.data.skillLevel,
-        status:
-          session.queue.admissionMode === "INSTANT"
-            ? "QUEUED"
-            : "PENDING_APPROVAL",
-        queuePosition,
-        checkedInAt: queuePosition ? new Date() : null,
-        queuedAt: queuePosition ? new Date() : null,
-      },
-      select: { id: true },
-    });
-    if (session.queue.admissionMode === "INSTANT") {
-      await syncAutomaticOpenPlayUpNext(tx, {
-        sessionId: session.id,
-        createdById: null,
-      });
-    }
-    await tx.partnerStaffActivity.create({
-      data: {
-        partnerId: queue.hub.ownerId,
-        actorId: null,
-        action: "BUNALQ_PUBLIC_GUEST_SUBMITTED",
-        targetType: "OpenPlayParticipant",
-        targetId: participant.id,
-        metadata: { admissionMode: session.queue.admissionMode },
-      },
-    });
-    await bumpLiveRevision(tx, session.id);
-    return {
-      kind: "joined" as const,
-      admissionMode: session.queue.admissionMode,
-    };
-  });
-  if (result.kind === "closed") return { message: "This Quick Queue is not accepting players." };
-  if (result.kind === "full") return { message: "This Quick Queue has reached its roster limit." };
-  if (result.kind === "exhausted") {
-    return { message: "This run has reached its public join limit. Ask the organizer to start a new run." };
-  }
-  if (result.kind === "duplicate") {
-    return { message: "A player with that name is already in this queue." };
-  }
-  refresh(parsed.data.publicId);
-  return result.admissionMode === "INSTANT"
-    ? { success: "You are in the queue." }
-    : { success: "Request sent. The organizer will approve your check-in." };
-}
-
+// Only organizers add players. Approve and Reject remain for requests sent
+// before public self-join was removed, so none are left stranded.
 async function moderatePendingGuest(
   formData: FormData,
   operation: "APPROVE" | "REJECT"

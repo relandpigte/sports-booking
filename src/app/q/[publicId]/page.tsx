@@ -5,7 +5,6 @@ import { notFound } from "next/navigation";
 import { OpenPlayBoard } from "@/components/open-play/OpenPlayBoard";
 import { OpenPlayCounts } from "@/components/open-play/OpenPlayCounts";
 import { OpenPlayLiveRefresh } from "@/components/open-play/OpenPlayLiveRefresh";
-import { PublicQueueJoinForm } from "@/components/open-play/PublicQueueJoinForm";
 import { PageShell } from "@/components/PageShell";
 import { getPublicOpenPlaySnapshot } from "@/lib/open-play";
 import { formatManilaDateLong, formatSlotRange } from "@/lib/time";
@@ -26,7 +25,7 @@ export default async function PublicBunalQPage({ params }: { params: Promise<{ p
       <div className="py-6 sm:py-10">
         {event ? <Link href={`/events/${event.publicId}`} className="text-sm font-bold text-primary">← Event page</Link> : <Link href="/bunalq" className="text-sm font-bold text-primary">← Live BunalQ</Link>}
         <header className="my-5 rounded-3xl bg-navy p-5 text-white sm:p-7"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[0.18em] text-accent">BunalQ · Live court rotation</p><div className="mt-2 flex flex-wrap items-baseline gap-x-5 gap-y-2"><h1 className="text-3xl font-black">{snapshot.queue.title}</h1><OpenPlayCounts snapshot={snapshot} /></div><p className="mt-2 text-sm text-white/65">{snapshot.queue.guestCreated ? "Guest-created Quick Queue" : `${snapshot.queue.hub.name}${event ? ` · ${formatManilaDateLong(event.date)} · ${formatSlotRange(event.startHour, event.endHour)}` : " · Quick Queue"}`}</p></div><span className={`rounded-full px-3 py-1 text-xs font-black ${snapshot.status === "ACTIVE" ? "bg-primary" : "bg-white/10"}`}>{snapshot.status}</span></div></header>
-        <div className={`grid gap-5 ${snapshot.queue.kind === "QUICK" && snapshot.status === "ACTIVE" ? "lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start" : ""}`}><OpenPlayBoard snapshot={snapshot} />{snapshot.queue.kind === "QUICK" && snapshot.status === "ACTIVE" ? <PublicQueueJoinForm publicId={snapshot.queue.publicId} approvalRequired={snapshot.queue.admissionMode === "APPROVAL_REQUIRED"} /> : null}</div>
+        <OpenPlayBoard snapshot={snapshot} />
       </div>
     </PageShell>
   );

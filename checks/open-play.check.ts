@@ -606,7 +606,6 @@ async function check() {
           hubId: hub.id,
           title: "Buffered Quick Queue",
           kind: "QUICK",
-          admissionMode: "APPROVAL_REQUIRED",
           createdById: partner.id,
         },
       },
@@ -720,7 +719,6 @@ async function check() {
           hubId: hub.id,
           title: "Organizer Control Queue",
           kind: "QUICK",
-          admissionMode: "APPROVAL_REQUIRED",
           createdById: partner.id,
         },
       },
@@ -2066,7 +2064,6 @@ async function check() {
           hubId: hub.id,
           title: "Public Quick Queue",
           kind: "QUICK",
-          admissionMode: "APPROVAL_REQUIRED",
           createdById: partner.id,
         },
       },
@@ -2080,7 +2077,6 @@ async function check() {
   conflictingQuick.set("hubId", hub.id);
   conflictingQuick.set("title", "Conflicting Quick Queue");
   conflictingQuick.set("matchingMode", "BALANCED");
-  conflictingQuick.set("admissionMode", "APPROVAL_REQUIRED");
   conflictingQuick.append("courtId", hub.courts[0].id);
   ok(
     "a court cannot be assigned to two active BunalQ runs",
@@ -2088,36 +2084,30 @@ async function check() {
       "already assigned"
     ) === true
   );
-  const publicJoin = new FormData();
-  publicJoin.set("publicId", quickPublicId);
-  publicJoin.set("displayName", "Public Guest");
-  publicJoin.set("skillLevel", "beginner");
-  const revisionBeforeJoin = await domain.getOpenPlayLiveRevision(quickPublicId);
-  ok("a public guest can request Quick Queue access without an account", Boolean((await actions.joinPublicQueueAction({}, publicJoin)).success));
   ok(
-    "duplicate active public guest names are rejected",
-    (await actions.joinPublicQueueAction({}, publicJoin)).message?.includes(
-      "already in this queue"
-    ) === true
+    "players can no longer request to join from the public board",
+    !("joinPublicQueueAction" in actions) && !("changeQueueAdmissionModeAction" in actions)
   );
-  const pendingGuest = await prisma.openPlayParticipant.findFirstOrThrow({ where: { sessionId: quickSession.id, source: "PUBLIC_GUEST" } });
-  ok("approval mode keeps the guest pending", pendingGuest.status === "PENDING_APPROVAL");
+  // Requests sent before public self-join was removed can still be handled.
+  const seedPendingGuest = (displayName: string) =>
+    prisma.openPlayParticipant.create({
+      data: {
+        sessionId: quickSession.id,
+        source: "PUBLIC_GUEST",
+        status: "PENDING_APPROVAL",
+        displayName,
+        skillLevel: "beginner",
+      },
+    });
+  const pendingGuest = await seedPendingGuest("Public Guest");
   const hiddenSnapshot = await domain.getPublicOpenPlaySnapshot(quickPublicId);
   ok("pending guest identities are hidden from the public board", hiddenSnapshot?.participants.length === 0);
-  ok(
-    "pending guest requests advance the live revision without exposing their identity",
-    revisionBeforeJoin !== await domain.getOpenPlayLiveRevision(quickPublicId)
-  );
   const approveGuest = new FormData();
   approveGuest.set("sessionId", quickSession.id);
   approveGuest.set("participantId", pendingGuest.id);
   ok("staff can approve and check in a pending guest", Boolean((await actions.approvePublicQueueGuestAction({}, approveGuest)).success));
   ok("approved guests appear in the public queue", (await domain.getPublicOpenPlaySnapshot(quickPublicId))?.participants.length === 1);
-  publicJoin.set("displayName", "Still Pending Guest");
-  ok(
-    "a second public request can remain pending until the run closes",
-    Boolean((await actions.joinPublicQueueAction({}, publicJoin)).success)
-  );
+  await seedPendingGuest("Still Pending Guest");
   const stillPendingGuest = await prisma.openPlayParticipant.findFirstOrThrow({
     where: {
       sessionId: quickSession.id,
@@ -2174,7 +2164,6 @@ async function check() {
   guestCreate.set("title", "Anonymous Check Queue");
   guestCreate.set("courtCount", "3");
   guestCreate.set("matchingMode", "ROUND_ROBIN");
-  guestCreate.set("admissionMode", "APPROVAL_REQUIRED");
   let guestRedirected = false;
   try {
     await actions.createGuestQuickQueueAction({}, guestCreate);
@@ -2328,11 +2317,6 @@ async function check() {
       !(await prisma.user.findUnique({ where: { id: guestQueue.hub.ownerId } }))
   );
 
-  const eventPublicJoin = new FormData();
-  eventPublicJoin.set("publicId", queue.publicId);
-  eventPublicJoin.set("displayName", "Payment Bypass");
-  eventPublicJoin.set("skillLevel", "intermediate");
-  ok("public self-join cannot bypass Event registration", Boolean((await actions.joinPublicQueueAction({}, eventPublicJoin)).message));
 
   const eventActions = await import("@/lib/event-actions");
   const cancel = new FormData();

@@ -14,7 +14,7 @@ import {
   type PartnerWorkspace,
 } from "@/lib/staffing";
 import {
-  OPEN_PLAY_UP_NEXT_BUFFER_SIZE,
+  OPEN_PLAY_MAX_COURTS,
   type OpenPlaySnapshot,
 } from "@/lib/open-play-shared";
 import { courtDisplayOrder } from "@/lib/court-order";
@@ -356,17 +356,20 @@ function roundRobinTeams(
   ];
 }
 
-function balancedTeams(
+const TEAM_SPLITS = [
+  [[0, 1], [2, 3]],
+  [[0, 2], [1, 3]],
+  [[0, 3], [1, 2]],
+] as const;
+
+type TeamSplit = (typeof TEAM_SPLITS)[number];
+
+function rankTeamSplits(
   players: MatchCandidate[],
   teammateHistory: TeammateHistory,
-  keepFixedPartners = false
-): MatchTeam[] | null {
-  const arrangements = [
-    [[0, 1], [2, 3]],
-    [[0, 2], [1, 3]],
-    [[0, 3], [1, 2]],
-  ] as const;
-  const ranked = arrangements.flatMap((teams, index) => {
+  keepFixedPartners: boolean
+) {
+  const ranked = TEAM_SPLITS.flatMap((teams, index) => {
     if (keepFixedPartners && !keepsFixedPartnersTogether(players, teams)) {
       return [];
     }
@@ -404,14 +407,40 @@ function balancedTeams(
       left.difference - right.difference ||
       left.index - right.index
   );
-  if (ranked.length === 0) return null;
-  const [[a, b], [c, d]] = ranked[0].teams;
+  return ranked;
+}
+
+function splitToTeams(players: MatchCandidate[], teams: TeamSplit): MatchTeam[] {
+  const [[a, b], [c, d]] = teams;
   return [
     { participantId: players[a].id, team: 1, slot: 1, queuePositionBefore: players[a].queuePosition },
     { participantId: players[b].id, team: 1, slot: 2, queuePositionBefore: players[b].queuePosition },
     { participantId: players[c].id, team: 2, slot: 3, queuePositionBefore: players[c].queuePosition },
     { participantId: players[d].id, team: 2, slot: 4, queuePositionBefore: players[d].queuePosition },
   ];
+}
+
+function balancedTeams(
+  players: MatchCandidate[],
+  teammateHistory: TeammateHistory,
+  keepFixedPartners = false
+): MatchTeam[] | null {
+  const best = rankTeamSplits(players, teammateHistory, keepFixedPartners)[0];
+  return best ? splitToTeams(players, best.teams) : null;
+}
+
+// Identifies a lineup by who partners whom, ignoring slot order, so a rebuild
+// can tell whether matchmaking produced the same match again.
+export function lineupKey(
+  players: ReadonlyArray<{ participantId: string; team: number }>
+): string {
+  const team = (number: number) =>
+    players
+      .filter((player) => player.team === number)
+      .map((player) => player.participantId)
+      .sort()
+      .join("+");
+  return [team(1), team(2)].sort().join("|");
 }
 
 export function chooseAutomaticMatch(input: {
@@ -497,6 +526,58 @@ export function chooseAutomaticMatch(input: {
     input.teammateHistory ?? { counts: new Map(), mostRecent: new Map() },
     input.mode === "BALANCED"
   );
+}
+
+export type RebuiltMatch =
+  | { kind: "NEW"; teams: MatchTeam[] }
+  | { kind: "UNCHANGED" }
+  | { kind: "NOT_ENOUGH_PLAYERS" };
+
+// Rebuild never hands back the lineup it replaced. Returned players sit at the
+// front of the queue, so plain matchmaking usually picks the same four; then a
+// different team split is tried (only one that doesn't pair last game's
+// teammates again), and failing that the last of the four in line makes way
+// for the next waiting player.
+export function chooseRebuiltMatch(input: {
+  mode: OpenPlayMatchingMode;
+  queued: MatchCandidate[];
+  previous: ReadonlyArray<{ participantId: string; team: number }>;
+  teammateHistory?: TeammateHistory;
+  completedGames?: CompletedGameForHistory[];
+}): RebuiltMatch {
+  const history =
+    input.teammateHistory ?? { counts: new Map(), mostRecent: new Map() };
+  const previousKey =
+    input.previous.length > 0 ? lineupKey(input.previous) : null;
+  const first = chooseAutomaticMatch({ ...input, teammateHistory: history });
+  if (!first) return { kind: "NOT_ENOUGH_PLAYERS" };
+  if (lineupKey(first) !== previousKey) return { kind: "NEW", teams: first };
+
+  const byId = new Map(input.queued.map((player) => [player.id, player]));
+  const four = first.map((slot) => byId.get(slot.participantId)!);
+  const alternative = rankTeamSplits(four, history, true).find(
+    (split) =>
+      split.immediateRepeats === 0 &&
+      lineupKey(splitToTeams(four, split.teams)) !== previousKey
+  );
+  if (alternative) {
+    return { kind: "NEW", teams: splitToTeams(four, alternative.teams) };
+  }
+
+  const lastInLine = [...first].sort(
+    (left, right) => right.queuePositionBefore - left.queuePositionBefore
+  )[0];
+  const swapped = chooseAutomaticMatch({
+    ...input,
+    teammateHistory: history,
+    queued: input.queued.filter(
+      (player) => player.id !== lastInLine.participantId
+    ),
+  });
+  if (swapped && lineupKey(swapped) !== previousKey) {
+    return { kind: "NEW", teams: swapped };
+  }
+  return { kind: "UNCHANGED" };
 }
 
 // Auto-pick only looks this far down the eligible queue, so filling one open
@@ -596,6 +677,33 @@ export function chooseOpenSlotReplacement(input: {
   return ranked[0].player;
 }
 
+type ReturningPlayer = { participantId: string; queuePositionBefore: number };
+
+// Puts players back in the spot they held before the match, so leaving a
+// match never costs a player their place in line.
+async function returnPlayersToQueue(
+  tx: OpenPlayTx,
+  sessionId: string,
+  players: ReturningPlayer[],
+  fromStatus: "STAGED" | "PLAYING",
+  now: Date
+): Promise<void> {
+  for (const player of players) {
+    await tx.openPlayParticipant.updateMany({
+      where: {
+        id: player.participantId,
+        sessionId,
+        status: fromStatus,
+      },
+      data: {
+        status: "QUEUED",
+        queuePosition: player.queuePositionBefore,
+        queuedAt: now,
+      },
+    });
+  }
+}
+
 async function cancelStagedGames(
   tx: OpenPlayTx,
   sessionId: string,
@@ -603,20 +711,7 @@ async function cancelStagedGames(
 ): Promise<void> {
   const now = new Date();
   for (const game of games) {
-    for (const player of game.players) {
-      await tx.openPlayParticipant.updateMany({
-        where: {
-          id: player.participantId,
-          sessionId,
-          status: "STAGED",
-        },
-        data: {
-          status: "QUEUED",
-          queuePosition: player.queuePositionBefore,
-          queuedAt: now,
-        },
-      });
-    }
+    await returnPlayersToQueue(tx, sessionId, game.players, "STAGED", now);
     await tx.openPlayGame.updateMany({
       where: { id: game.id, sessionId, status: "STAGED" },
       data: { status: "CANCELLED", cancelledAt: now },
@@ -645,6 +740,101 @@ export async function cancelOpenPlayUpNextGame(
   return true;
 }
 
+type MatchmakingContext = {
+  completedGames: CompletedGameForHistory[];
+  teammateHistory: TeammateHistory;
+};
+
+async function loadMatchmakingContext(
+  tx: OpenPlayTx,
+  sessionId: string
+): Promise<MatchmakingContext> {
+  const completedGames = await tx.openPlayGame.findMany({
+    where: { sessionId, status: "COMPLETED" },
+    select: {
+      sequence: true,
+      completedAt: true,
+      players: { select: { participantId: true, team: true } },
+    },
+  });
+  return { completedGames, teammateHistory: buildTeammateHistory(completedGames) };
+}
+
+async function loadQueuedCandidates(
+  tx: OpenPlayTx,
+  sessionId: string
+): Promise<MatchCandidate[]> {
+  const rows = await tx.openPlayParticipant.findMany({
+    where: {
+      sessionId,
+      status: "QUEUED",
+      queuePosition: { not: null },
+    },
+    orderBy: [{ queuePosition: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      queuePosition: true,
+      skillLevel: true,
+      lastResult: true,
+      pairId: true,
+    },
+  });
+  return rows.flatMap((row) =>
+    row.queuePosition == null
+      ? []
+      : [{ ...row, queuePosition: row.queuePosition }]
+  ) satisfies MatchCandidate[];
+}
+
+// Writes a lineup either into a new Up next match or back into an existing
+// one (a rebuild keeps the match's id, sequence, and any reserved court).
+async function stageTeams(
+  tx: OpenPlayTx,
+  input: {
+    sessionId: string;
+    mode: OpenPlayMatchingMode;
+    createdById: string | null;
+    target: { kind: "new"; sequence: number } | { kind: "existing"; gameId: string };
+    teams: MatchTeam[];
+    markAutomatic?: boolean;
+  }
+): Promise<string> {
+  let gameId: string;
+  if (input.target.kind === "new") {
+    const game = await tx.openPlayGame.create({
+      data: {
+        sessionId: input.sessionId,
+        sequence: input.target.sequence,
+        matchingMode: input.mode,
+        createdById: input.createdById,
+        players: { create: input.teams },
+      },
+      select: { id: true },
+    });
+    gameId = game.id;
+  } else {
+    gameId = input.target.gameId;
+    await tx.openPlayGamePlayer.createMany({
+      data: input.teams.map((team) => ({ ...team, gameId })),
+    });
+    if (input.markAutomatic ?? true) {
+      await tx.openPlayGame.update({
+        where: { id: gameId },
+        data: { selectionMethod: "AUTOMATIC", matchingMode: input.mode },
+      });
+    }
+  }
+  await tx.openPlayParticipant.updateMany({
+    where: {
+      id: { in: input.teams.map((team) => team.participantId) },
+      sessionId: input.sessionId,
+      status: "QUEUED",
+    },
+    data: { status: "STAGED", queuePosition: null, queuedAt: null },
+  });
+  return gameId;
+}
+
 export async function syncAutomaticOpenPlayUpNext(
   tx: OpenPlayTx,
   input: {
@@ -661,6 +851,7 @@ export async function syncAutomaticOpenPlayUpNext(
       id: true,
       status: true,
       matchingMode: true,
+      upNextSlots: true,
       courts: {
         orderBy: { position: "asc" },
         select: { courtId: true, active: true },
@@ -681,13 +872,15 @@ export async function syncAutomaticOpenPlayUpNext(
   const availableCourtSlots = session.courts.filter(
     (court) => court.active && !activeCourtIds.has(court.courtId)
   ).length;
-  const targetCount = availableCourtSlots + OPEN_PLAY_UP_NEXT_BUFFER_SIZE;
+  // One staged match per free court, plus the organizer's Up next boxes.
+  const targetCount = availableCourtSlots + session.upNextSlots;
   let staged = await tx.openPlayGame.findMany({
     where: { sessionId: session.id, status: "STAGED" },
     orderBy: { sequence: "asc" },
     select: {
       id: true,
       sequence: true,
+      courtId: true,
       selectionMethod: true,
       players: {
         select: { participantId: true, queuePositionBefore: true },
@@ -705,83 +898,49 @@ export async function syncAutomaticOpenPlayUpNext(
   }
 
   if (staged.length > targetCount) {
+    // Only automatic Up next matches are trimmed; a match already announced
+    // on a court, or one the organizer picked by hand, stays.
     const excess = staged.length - targetCount;
     const removable = staged
-      .filter((game) => game.selectionMethod === "AUTOMATIC")
+      .filter(
+        (game) => game.selectionMethod === "AUTOMATIC" && game.courtId === null
+      )
       .slice(-excess);
     await cancelStagedGames(tx, session.id, removable);
     const removedIds = new Set(removable.map((game) => game.id));
     staged = staged.filter((game) => !removedIds.has(game.id));
   }
 
-  const [completedGames, latestGame] = await Promise.all([
-    tx.openPlayGame.findMany({
-      where: { sessionId: session.id, status: "COMPLETED" },
-      select: {
-        sequence: true,
-        completedAt: true,
-        players: { select: { participantId: true, team: true } },
-      },
-    }),
+  const [context, latestGame] = await Promise.all([
+    loadMatchmakingContext(tx, session.id),
     tx.openPlayGame.findFirst({
       where: { sessionId: session.id },
       orderBy: { sequence: "desc" },
       select: { sequence: true },
     }),
   ]);
-  const teammateHistory = buildTeammateHistory(completedGames);
   const createdGameIds: string[] = [];
   let nextSequence = (latestGame?.sequence ?? 0) + 1;
 
   while (staged.length + createdGameIds.length < targetCount) {
-    const queuedRows = await tx.openPlayParticipant.findMany({
-      where: {
-        sessionId: session.id,
-        status: "QUEUED",
-        queuePosition: { not: null },
-      },
-      orderBy: { queuePosition: "asc" },
-      select: {
-        id: true,
-        queuePosition: true,
-        skillLevel: true,
-        lastResult: true,
-        pairId: true,
-      },
-    });
-    const queued = queuedRows.flatMap((row) =>
-      row.queuePosition == null
-        ? []
-        : [{ ...row, queuePosition: row.queuePosition }]
-    ) satisfies MatchCandidate[];
     const teams = chooseAutomaticMatch({
       mode: session.matchingMode,
-      queued,
-      teammateHistory,
-      completedGames,
+      queued: await loadQueuedCandidates(tx, session.id),
+      teammateHistory: context.teammateHistory,
+      completedGames: context.completedGames,
     });
     if (!teams) break;
 
-    const game = await tx.openPlayGame.create({
-      data: {
+    createdGameIds.push(
+      await stageTeams(tx, {
         sessionId: session.id,
-        sequence: nextSequence,
-        matchingMode: session.matchingMode,
+        mode: session.matchingMode,
         createdById: input.createdById,
-        players: { create: teams },
-      },
-      select: { id: true },
-    });
+        target: { kind: "new", sequence: nextSequence },
+        teams,
+      })
+    );
     nextSequence += 1;
-    createdGameIds.push(game.id);
-    await tx.openPlayParticipant.updateMany({
-      where: {
-        id: { in: teams.map((team) => team.participantId) },
-        sessionId: session.id,
-        status: "QUEUED",
-      },
-      data: { status: "STAGED", queuePosition: null, queuedAt: null },
-    });
   }
 
   const occupiedCourtIds = new Set(
@@ -821,6 +980,151 @@ export async function syncAutomaticOpenPlayUpNext(
   }
 
   return { createdGameIds, assignedGameIds };
+}
+
+// Takes a player out of an upcoming or live match and puts them back in line
+// at their earlier spot. The match keeps its other players and an open spot;
+// a match left with nobody is cancelled, which frees its court. Nothing is
+// counted for the player because the match never completes with them in it.
+export async function returnOpenPlayParticipantToQueue(
+  tx: OpenPlayTx,
+  input: { sessionId: string; participantId: string }
+): Promise<{ gameId: string; cancelled: boolean } | null> {
+  const participant = await tx.openPlayParticipant.findFirst({
+    where: { id: input.participantId, sessionId: input.sessionId },
+    select: { id: true, status: true },
+  });
+  if (!participant) return null;
+  if (participant.status !== "STAGED" && participant.status !== "PLAYING") {
+    return null;
+  }
+  const gameStatus = participant.status === "STAGED" ? "STAGED" : "ACTIVE";
+  const game = await tx.openPlayGame.findFirst({
+    where: {
+      sessionId: input.sessionId,
+      status: gameStatus,
+      players: { some: { participantId: participant.id } },
+    },
+    select: {
+      id: true,
+      players: { select: { participantId: true, queuePositionBefore: true } },
+    },
+  });
+  const row = game?.players.find(
+    (player) => player.participantId === participant.id
+  );
+  if (!game || !row) return null;
+
+  const now = new Date();
+  await tx.openPlayGamePlayer.delete({
+    where: {
+      gameId_participantId: { gameId: game.id, participantId: participant.id },
+    },
+  });
+  await returnPlayersToQueue(
+    tx,
+    input.sessionId,
+    [row],
+    participant.status,
+    now
+  );
+  const cancelled = game.players.length <= 1;
+  if (cancelled) {
+    await tx.openPlayGame.updateMany({
+      where: { id: game.id, sessionId: input.sessionId, status: gameStatus },
+      data: { status: "CANCELLED", cancelledAt: now },
+    });
+  }
+  return { gameId: game.id, cancelled };
+}
+
+export type RebuildOutcome = {
+  rebuilt: number;
+  unchanged: number;
+  cleared: number;
+};
+
+// Rebuilds upcoming matches in place. Every box's players go back in line
+// first, so each box draws from the whole waiting queue; boxes keep their id,
+// sequence, and any reserved court. A box that can't be filled is cancelled
+// and shows as an empty Up next slot.
+export async function rebuildOpenPlayUpNextGames(
+  tx: OpenPlayTx,
+  input: { sessionId: string; gameIds: string[]; createdById: string | null }
+): Promise<RebuildOutcome> {
+  const outcome: RebuildOutcome = { rebuilt: 0, unchanged: 0, cleared: 0 };
+  const session = await tx.openPlaySession.findUnique({
+    where: { id: input.sessionId },
+    select: { status: true, matchingMode: true },
+  });
+  if (!session || session.status !== "ACTIVE" || input.gameIds.length === 0) {
+    return outcome;
+  }
+  const games = await tx.openPlayGame.findMany({
+    where: {
+      id: { in: input.gameIds },
+      sessionId: input.sessionId,
+      status: "STAGED",
+    },
+    orderBy: { sequence: "asc" },
+    select: {
+      id: true,
+      selectionMethod: true,
+      players: {
+        orderBy: { slot: "asc" },
+        select: {
+          participantId: true,
+          team: true,
+          slot: true,
+          queuePositionBefore: true,
+        },
+      },
+    },
+  });
+  const now = new Date();
+  for (const game of games) {
+    await returnPlayersToQueue(tx, input.sessionId, game.players, "STAGED", now);
+    await tx.openPlayGamePlayer.deleteMany({ where: { gameId: game.id } });
+  }
+
+  const context = await loadMatchmakingContext(tx, input.sessionId);
+  for (const game of games) {
+    const choice = chooseRebuiltMatch({
+      mode: session.matchingMode,
+      queued: await loadQueuedCandidates(tx, input.sessionId),
+      previous: game.players,
+      teammateHistory: context.teammateHistory,
+      completedGames: context.completedGames,
+    });
+    if (choice.kind === "NOT_ENOUGH_PLAYERS") {
+      await tx.openPlayGame.update({
+        where: { id: game.id },
+        data: { status: "CANCELLED", cancelledAt: now },
+      });
+      outcome.cleared += 1;
+      continue;
+    }
+    const teams =
+      choice.kind === "NEW"
+        ? choice.teams
+        : game.players.map((player) => ({
+            participantId: player.participantId,
+            team: player.team as 1 | 2,
+            slot: player.slot as 1 | 2 | 3 | 4,
+            queuePositionBefore: player.queuePositionBefore,
+          }));
+    await stageTeams(tx, {
+      sessionId: input.sessionId,
+      mode: session.matchingMode,
+      createdById: input.createdById,
+      target: { kind: "existing", gameId: game.id },
+      teams,
+      markAutomatic: choice.kind === "NEW",
+    });
+    if (choice.kind === "NEW") outcome.rebuilt += 1;
+    else outcome.unchanged += 1;
+  }
+  return outcome;
 }
 
 export async function getOpenPlayWorkspace(
@@ -974,7 +1278,9 @@ function toSnapshot(
     runNumber: session.runNumber,
     status: session.status,
     matchingMode: session.matchingMode,
+    upNextSlots: session.upNextSlots,
     updatedAt: session.updatedAt.toISOString(),
+    courtAdd: null,
     queue: {
       publicId: session.queue.publicId,
       title: session.queue.title,
@@ -1010,6 +1316,7 @@ function toSnapshot(
       lastResult: participant.lastResult,
       queuePosition: participant.queuePosition,
       queuedAt: participant.queuedAt?.toISOString() ?? null,
+      checkedInAt: participant.checkedInAt?.toISOString() ?? null,
       pairId: participant.pairId,
       estimatedWaitMinutes: waits.get(participant.id) ?? null,
     })),
@@ -1050,7 +1357,85 @@ export async function getOperatorOpenPlaySnapshot(
     orderBy: { runNumber: "desc" },
     include: sessionInclude,
   });
-  return session ? toSnapshot(session) : null;
+  if (!session) return null;
+  return { ...toSnapshot(session), courtAdd: await courtAddOptions(session) };
+}
+
+// Courts a venue run may add: an Event run only its event's own courts (the
+// event reserved them), a Quick run any of the hub's pickleball courts. Courts
+// already in this run or live in another BunalQ are left out.
+export async function listAddableOpenPlayCourts(
+  db: OpenPlayTx,
+  session: {
+    id: string;
+    hubId: string;
+    eventId: string | null;
+    courtIds: string[];
+  }
+): Promise<Array<{ id: string; name: string }>> {
+  const candidates = session.eventId
+    ? (
+        await db.eventCourt.findMany({
+          where: { eventId: session.eventId },
+          select: { court: { select: { id: true, name: true, sortOrder: true, createdAt: true } } },
+        })
+      )
+        .map((row) => row.court)
+        .sort(
+          (left, right) =>
+            left.sortOrder - right.sortOrder ||
+            left.createdAt.getTime() - right.createdAt.getTime()
+        )
+    : await db.court.findMany({
+        where: {
+          hubId: session.hubId,
+          OR: [{ sport: "pickleball" }, { sport: null }],
+        },
+        orderBy: courtDisplayOrder,
+        select: { id: true, name: true },
+      });
+  const inRun = new Set(session.courtIds);
+  const open = candidates.filter((court) => !inRun.has(court.id));
+  if (open.length === 0) return [];
+  const busy = new Set(
+    (
+      await db.openPlaySessionCourt.findMany({
+        where: {
+          courtId: { in: open.map((court) => court.id) },
+          active: true,
+          session: { status: "ACTIVE", id: { not: session.id } },
+        },
+        select: { courtId: true },
+      })
+    ).map((row) => row.courtId)
+  );
+  return open
+    .filter((court) => !busy.has(court.id))
+    .map((court) => ({ id: court.id, name: court.name }));
+}
+
+async function courtAddOptions(
+  session: SessionRecord
+): Promise<OpenPlaySnapshot["courtAdd"]> {
+  if (session.status === "ENDED") return null;
+  if (session.queue.hub.guestBunalQOnly) {
+    return {
+      kind: "AUTO",
+      remaining: Math.max(0, OPEN_PLAY_MAX_COURTS - session.courts.length),
+    };
+  }
+  if (session.courts.length >= OPEN_PLAY_MAX_COURTS) {
+    return { kind: "PICK", courts: [] };
+  }
+  return {
+    kind: "PICK",
+    courts: await listAddableOpenPlayCourts(prisma, {
+      id: session.id,
+      hubId: session.queue.hub.id,
+      eventId: session.queue.event?.id ?? null,
+      courtIds: session.courts.map((court) => court.courtId),
+    }),
+  };
 }
 
 export async function getPublicOpenPlaySnapshot(
@@ -1275,8 +1660,11 @@ export async function listOpenPlayRunHistory(
 
 export function canTransitionParticipant(
   status: OpenPlayParticipantStatus,
-  operation: "CHECK_IN" | "PAUSE" | "RESUME" | "CHECK_OUT"
+  operation: "CHECK_IN" | "PAUSE" | "RESUME" | "CHECK_OUT" | "RETURN_TO_QUEUE"
 ): boolean {
+  if (operation === "RETURN_TO_QUEUE") {
+    return status === "STAGED" || status === "PLAYING";
+  }
   if (operation === "CHECK_IN") {
     return status === "NOT_CHECKED_IN" || status === "CHECKED_OUT";
   }

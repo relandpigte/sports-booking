@@ -134,6 +134,7 @@ async function check() {
   ok("confirmed registrations and organizer guests seed the roster", session.participants.length === 9);
   ok("private profiles use a non-identifying queue name", session.participants.some((row) => row.displayName === "Private player"));
   ok("every Event court is enabled for rotation", session.courts.length === 2 && session.courts.every((court) => court.active));
+  ok("a prepared run keeps one Up next box per court", session.upNextSlots === 2);
 
   const duplicatePrepare = await actions.prepareOpenPlayAction({}, prepare);
   ok(
@@ -642,7 +643,7 @@ async function check() {
     orderBy: { sequence: "asc" },
   });
   ok(
-    "BunalQ maintains two prepared matches beyond staged court matchups",
+    "BunalQ keeps its Up next boxes filled beyond staged court matchups",
     bufferedGames.length === 4 &&
       bufferedGames.filter((game) => game.courtId !== null).length === 2 &&
       bufferedGames.filter((game) => game.courtId === null).length === 2
@@ -690,6 +691,677 @@ async function check() {
         courtId: null,
       },
     })) === 2
+  );
+
+  // Organizer controls: return to queue, Queue and Left, Up next boxes,
+  // Rebuild, and adding or removing courts mid-run.
+  const form = (values: Record<string, string | number>) => {
+    const data = new FormData();
+    for (const [name, value] of Object.entries(values)) data.set(name, String(value));
+    return data;
+  };
+  const controlCourts = await Promise.all(
+    ["Control Court 1", "Control Court 2", "Control Court 3", "Control Court 4"].map((name) =>
+      prisma.court.create({
+        data: { hubId: hub.id, name, sport: "pickleball" },
+        select: { id: true },
+      })
+    )
+  );
+  const tennisCourt = await prisma.court.create({
+    data: { hubId: hub.id, name: "Control Tennis Court", sport: "tennis" },
+    select: { id: true },
+  });
+  const control = await prisma.openPlaySession.create({
+    data: {
+      queue: {
+        create: {
+          publicId: `control-${partner.id}`,
+          hubId: hub.id,
+          title: "Organizer Control Queue",
+          kind: "QUICK",
+          admissionMode: "APPROVAL_REQUIRED",
+          createdById: partner.id,
+        },
+      },
+      status: "SETUP",
+      matchingMode: "BALANCED",
+      createdById: partner.id,
+      upNextSlots: 3,
+      courts: {
+        create: controlCourts.slice(0, 3).map((court, index) => ({
+          courtId: court.id,
+          position: index,
+        })),
+      },
+      participants: {
+        create: Array.from({ length: 28 }, (_, index) => ({
+          source: "WALK_IN",
+          displayName: `Control Player ${index + 1}`,
+          skillLevel: index % 2 === 0 ? "advanced" : "beginner",
+        })),
+      },
+    },
+    include: { participants: true },
+  });
+  const controlCheckIn = new FormData();
+  controlCheckIn.set("sessionId", control.id);
+  control.participants.forEach((participant) =>
+    controlCheckIn.append("participantId", participant.id)
+  );
+  await actions.bulkCheckInOpenPlayParticipantsAction({}, controlCheckIn);
+  await actions.startOpenPlaySessionAction({}, form({ sessionId: control.id }));
+  const openGames = () =>
+    prisma.openPlayGame.findMany({
+      where: { sessionId: control.id, status: { in: ["STAGED", "ACTIVE"] } },
+      orderBy: { sequence: "asc" },
+      include: { players: { orderBy: { slot: "asc" } } },
+    });
+  const controlSlots = async () =>
+    (await prisma.openPlaySession.findUniqueOrThrow({ where: { id: control.id } }))
+      .upNextSlots;
+  const participantRow = (id: string) =>
+    prisma.openPlayParticipant.findUniqueOrThrow({ where: { id } });
+  const returnToQueue = (participantId: string) =>
+    actions.returnOpenPlayParticipantToQueueAction(
+      {},
+      form({ sessionId: control.id, participantId })
+    );
+  let controlGames = await openGames();
+  ok(
+    "a run prepares one match per court plus one per Up next box",
+    controlGames.filter((game) => game.courtId).length === 3 &&
+      controlGames.filter((game) => !game.courtId).length === 3
+  );
+
+  const upNextBox = controlGames.find((game) => !game.courtId)!;
+  const upNextLeaver = upNextBox.players[0];
+  const upNextReturn = await returnToQueue(upNextLeaver.participantId);
+  const upNextLeaverRow = await participantRow(upNextLeaver.participantId);
+  const upNextBoxAfter = await prisma.openPlayGame.findUniqueOrThrow({
+    where: { id: upNextBox.id },
+    include: { players: true },
+  });
+  ok(
+    "× on an Up next player puts them back at their earlier spot",
+    upNextReturn.success?.includes("open spot") === true &&
+      upNextLeaverRow.status === "QUEUED" &&
+      upNextLeaverRow.queuePosition === upNextLeaver.queuePositionBefore
+  );
+  ok(
+    "the Up next match keeps its other players with an open spot",
+    upNextBoxAfter.status === "STAGED" && upNextBoxAfter.players.length === 3
+  );
+  ok(
+    "only players in a match can be returned to the queue",
+    domain.canTransitionParticipant("PLAYING", "RETURN_TO_QUEUE") &&
+      domain.canTransitionParticipant("STAGED", "RETURN_TO_QUEUE") &&
+      !domain.canTransitionParticipant("QUEUED", "RETURN_TO_QUEUE") &&
+      Boolean((await returnToQueue(upNextLeaver.participantId)).message)
+  );
+
+  const courtMatch = controlGames.find((game) => game.courtId)!;
+  await actions.startOpenPlayMatchAction(
+    {},
+    form({ sessionId: control.id, gameId: courtMatch.id })
+  );
+  const [liveLeaver, secondLiveLeaver] = courtMatch.players;
+  const liveReturn = await returnToQueue(liveLeaver.participantId);
+  const liveLeaverRow = await participantRow(liveLeaver.participantId);
+  const liveMatchAfter = await prisma.openPlayGame.findUniqueOrThrow({
+    where: { id: courtMatch.id },
+    include: { players: true },
+  });
+  ok(
+    "× on a playing player returns them while the match keeps going",
+    Boolean(liveReturn.success) &&
+      liveMatchAfter.status === "ACTIVE" &&
+      liveMatchAfter.players.length === 3 &&
+      liveLeaverRow.status === "QUEUED" &&
+      liveLeaverRow.queuePosition === liveLeaver.queuePositionBefore &&
+      liveLeaverRow.lastResult === "UNCLASSIFIED"
+  );
+  const recordControl = (gameId: string) =>
+    actions.recordOpenPlayWinnerAction(
+      {},
+      form({ sessionId: control.id, gameId, winningTeam: 1 })
+    );
+  ok(
+    "a live match with an open spot cannot record a result",
+    (await recordControl(courtMatch.id)).message?.includes("open spot") === true &&
+      (await prisma.openPlayGame.findUniqueOrThrow({ where: { id: courtMatch.id } }))
+        .status === "ACTIVE"
+  );
+  const doubleReturn = await Promise.all([
+    returnToQueue(secondLiveLeaver.participantId),
+    returnToQueue(secondLiveLeaver.participantId),
+  ]);
+  ok(
+    "returning the same player twice at once succeeds once",
+    doubleReturn.filter((result) => result.success).length === 1 &&
+      (await prisma.openPlayGamePlayer.count({ where: { gameId: courtMatch.id } })) === 2
+  );
+  const replacements = await prisma.openPlayParticipant.findMany({
+    where: {
+      sessionId: control.id,
+      status: "QUEUED",
+      id: { notIn: [liveLeaver.participantId, secondLiveLeaver.participantId] },
+    },
+    orderBy: { queuePosition: "asc" },
+    take: 2,
+  });
+  for (const [index, replacement] of replacements.slice(0, 1).entries()) {
+    await actions.fillOpenPlaySlotAction(
+      {},
+      form({
+        sessionId: control.id,
+        gameId: courtMatch.id,
+        slot: [liveLeaver, secondLiveLeaver][index].slot,
+        pick: "manual",
+        participantId: replacement.id,
+      })
+    );
+  }
+  const filledReplacement = await prisma.openPlayGamePlayer.findFirst({
+    where: { gameId: courtMatch.id, participantId: replacements[0]?.id },
+    include: { participant: true },
+  });
+  ok(
+    "a player picked into a live match joins it as playing",
+    replacements.length === 2 &&
+      filledReplacement?.participant.status === "PLAYING" &&
+      filledReplacement.participant.queuePosition === null &&
+      filledReplacement.queuePositionBefore === replacements[0].queuePosition &&
+      (await prisma.openPlayGamePlayer.count({ where: { gameId: courtMatch.id } })) === 3
+  );
+  const boxBeforeMove = await prisma.openPlayGame.findUniqueOrThrow({
+    where: { id: upNextBox.id },
+    include: { players: true },
+  });
+  const mover = boxBeforeMove.players[0];
+  const moveResult = await actions.fillOpenPlaySlotAction(
+    {},
+    form({
+      sessionId: control.id,
+      gameId: courtMatch.id,
+      slot: secondLiveLeaver.slot,
+      pick: "manual",
+      participantId: mover.participantId,
+    })
+  );
+  const movedRow = await prisma.openPlayGamePlayer.findFirst({
+    where: { gameId: courtMatch.id, participantId: mover.participantId },
+    include: { participant: true },
+  });
+  const boxAfterMove = await prisma.openPlayGame.findUniqueOrThrow({
+    where: { id: upNextBox.id },
+    include: { players: true },
+  });
+  ok(
+    "a player in Up next can be moved into a live match's open spot",
+    Boolean(moveResult.success) &&
+      movedRow?.participant.status === "PLAYING" &&
+      movedRow.queuePositionBefore === mover.queuePositionBefore &&
+      boxAfterMove.status === "STAGED" &&
+      boxAfterMove.players.length === boxBeforeMove.players.length - 1 &&
+      (await prisma.openPlayGamePlayer.count({ where: { gameId: courtMatch.id } })) === 4
+  );
+  // Keep the player returned mid-game out of Replace player, so the later check
+  // that they got no result for this match stays meaningful.
+  await actions.checkOutOpenPlayParticipantAction(
+    {},
+    form({ sessionId: control.id, participantId: liveLeaver.participantId })
+  );
+  const liveBeforeSwap = await prisma.openPlayGamePlayer.findMany({
+    where: { gameId: courtMatch.id },
+    orderBy: { slot: "asc" },
+  });
+  const replacedRow = liveBeforeSwap[0];
+  const replacement = await prisma.openPlayParticipant.findFirstOrThrow({
+    where: { sessionId: control.id, status: "QUEUED" },
+    orderBy: { queuePosition: "asc" },
+  });
+  const swapInResult = await actions.fillOpenPlaySlotAction(
+    {},
+    form({
+      sessionId: control.id,
+      gameId: courtMatch.id,
+      slot: replacedRow.slot,
+      pick: "manual",
+      participantId: replacement.id,
+      replaceParticipantId: replacedRow.participantId,
+    })
+  );
+  const replacedAfter = await participantRow(replacedRow.participantId);
+  const replacementSeat = await prisma.openPlayGamePlayer.findFirst({
+    where: { gameId: courtMatch.id, participantId: replacement.id },
+    include: { participant: true },
+  });
+  ok(
+    "Replace player swaps someone out of a live match in one step",
+    Boolean(swapInResult.success) &&
+      replacedAfter.status === "QUEUED" &&
+      replacedAfter.queuePosition === replacedRow.queuePositionBefore &&
+      replacementSeat?.slot === replacedRow.slot &&
+      replacementSeat.participant.status === "PLAYING" &&
+      (await prisma.openPlayGamePlayer.count({ where: { gameId: courtMatch.id } })) === 4
+  );
+  const autoReplaced = (await prisma.openPlayGamePlayer.findMany({
+    where: { gameId: courtMatch.id },
+    orderBy: { slot: "asc" },
+  }))[1];
+  const autoReplaceResult = await actions.fillOpenPlaySlotAction(
+    {},
+    form({
+      sessionId: control.id,
+      gameId: courtMatch.id,
+      slot: autoReplaced.slot,
+      pick: "auto",
+      replaceParticipantId: autoReplaced.participantId,
+    })
+  );
+  const autoSeat = await prisma.openPlayGamePlayer.findFirst({
+    where: { gameId: courtMatch.id, slot: autoReplaced.slot },
+  });
+  ok(
+    "auto-pick never puts the replaced player straight back",
+    Boolean(autoReplaceResult.success) &&
+      autoSeat !== null &&
+      autoSeat.participantId !== autoReplaced.participantId &&
+      (await participantRow(autoReplaced.participantId)).status === "QUEUED"
+  );
+  ok(
+    "Replace player refuses someone who is not in that match",
+    Boolean(
+      (
+        await actions.fillOpenPlaySlotAction(
+          {},
+          form({
+            sessionId: control.id,
+            gameId: courtMatch.id,
+            slot: 1,
+            pick: "auto",
+            replaceParticipantId: autoReplaced.participantId,
+          })
+        )
+      ).message
+    )
+  );
+
+  const switchTeams = (gameId: string, participantId: string, otherParticipantId: string) =>
+    actions.switchOpenPlayTeamsAction(
+      {},
+      form({ sessionId: control.id, gameId, participantId, otherParticipantId })
+    );
+  const liveSeats = await prisma.openPlayGamePlayer.findMany({
+    where: { gameId: courtMatch.id },
+    orderBy: { slot: "asc" },
+  });
+  const teamOneSeat = liveSeats.find((seat) => seat.team === 1)!;
+  const teamTwoSeat = liveSeats.find((seat) => seat.team === 2)!;
+  const switchResult = await switchTeams(
+    courtMatch.id,
+    teamOneSeat.participantId,
+    teamTwoSeat.participantId
+  );
+  const switchedSeats = await prisma.openPlayGamePlayer.findMany({
+    where: { gameId: courtMatch.id },
+  });
+  const seatOf = (participantId: string) =>
+    switchedSeats.find((seat) => seat.participantId === participantId);
+  ok(
+    "Switch teams swaps two players across a live match",
+    Boolean(switchResult.success) &&
+      seatOf(teamOneSeat.participantId)?.team === 2 &&
+      seatOf(teamOneSeat.participantId)?.slot === teamTwoSeat.slot &&
+      seatOf(teamTwoSeat.participantId)?.team === 1 &&
+      seatOf(teamTwoSeat.participantId)?.slot === teamOneSeat.slot &&
+      seatOf(teamTwoSeat.participantId)?.queuePositionBefore === teamTwoSeat.queuePositionBefore &&
+      switchedSeats.length === 4
+  );
+  const teammates = switchedSeats.filter((seat) => seat.team === 1);
+  ok(
+    "Switch teams refuses two players on the same team",
+    teammates.length === 2 &&
+      Boolean((await switchTeams(courtMatch.id, teammates[0].participantId, teammates[1].participantId)).message)
+  );
+  const stagedForSwitch = await prisma.openPlayGame.findFirst({
+    where: {
+      sessionId: control.id,
+      status: "STAGED",
+      AND: [
+        { players: { some: { team: 1 } } },
+        { players: { some: { team: 2 } } },
+      ],
+    },
+    include: { players: true },
+  });
+  if (stagedForSwitch) {
+    const stagedOne = stagedForSwitch.players.find((seat) => seat.team === 1)!;
+    const stagedTwo = stagedForSwitch.players.find((seat) => seat.team === 2)!;
+    const stagedSwitch = await switchTeams(
+      stagedForSwitch.id,
+      stagedOne.participantId,
+      stagedTwo.participantId
+    );
+    const stagedAfter = await prisma.openPlayGame.findUniqueOrThrow({
+      where: { id: stagedForSwitch.id },
+      include: { players: true },
+    });
+    ok(
+      "Switch teams on an upcoming match marks it hand-picked",
+      Boolean(stagedSwitch.success) &&
+        stagedAfter.selectionMethod === "MANUAL" &&
+        stagedAfter.players.find((seat) => seat.participantId === stagedOne.participantId)?.team === 2
+    );
+  } else {
+    ok("an upcoming match with both teams exists for Switch teams", false);
+  }
+
+  ok(
+    "a refilled live match records its result",
+    Boolean((await recordControl(courtMatch.id)).success)
+  );
+  ok(
+    "a player returned mid-game gets no result for that match",
+    (await prisma.openPlayGamePlayer.count({
+      where: { gameId: courtMatch.id, participantId: liveLeaver.participantId },
+    })) === 0 &&
+      (await participantRow(liveLeaver.participantId)).lastResult === "UNCLASSIFIED"
+  );
+
+  const emptyingBox = await prisma.openPlayGame.findUniqueOrThrow({
+    where: { id: upNextBox.id },
+    include: { players: true },
+  });
+  for (const player of emptyingBox.players) await returnToQueue(player.participantId);
+  ok(
+    "a match left with nobody is cancelled",
+    (await prisma.openPlayGame.findUniqueOrThrow({ where: { id: upNextBox.id } }))
+      .status === "CANCELLED"
+  );
+
+  const waitingPlayer = await prisma.openPlayParticipant.findFirstOrThrow({
+    where: { sessionId: control.id, status: "QUEUED" },
+    orderBy: { queuePosition: "asc" },
+  });
+  await actions.checkOutOpenPlayParticipantAction(
+    {},
+    form({ sessionId: control.id, participantId: waitingPlayer.id })
+  );
+  const leftRow = await participantRow(waitingPlayer.id);
+  ok(
+    "× in the Queue moves a waiting player to Left",
+    leftRow.status === "CHECKED_OUT" && leftRow.queuePosition === null
+  );
+  await actions.checkInOpenPlayParticipantAction(
+    {},
+    form({ sessionId: control.id, participantId: waitingPlayer.id })
+  );
+  const backOfLine = await prisma.openPlayParticipant.aggregate({
+    where: { sessionId: control.id, status: "QUEUED", id: { not: waitingPlayer.id } },
+    _max: { queuePosition: true },
+  });
+  const rejoined = await participantRow(waitingPlayer.id);
+  ok(
+    "checking in from Left puts the player at the back of the queue",
+    (rejoined.status === "QUEUED" &&
+      rejoined.queuePosition! > (backOfLine._max.queuePosition ?? 0)) ||
+      rejoined.status === "STAGED"
+  );
+
+  const removeBox = (values: Record<string, string | number>) =>
+    actions.removeOpenPlayUpNextSlotAction({}, form({ sessionId: control.id, ...values }));
+  await actions.addOpenPlayUpNextSlotAction({}, form({ sessionId: control.id }));
+  ok("+ Add match adds an Up next box", (await controlSlots()) === 4);
+  controlGames = await openGames();
+  const courtStagedBefore = controlGames
+    .filter((game) => game.status === "STAGED" && game.courtId)
+    .map((game) => `${game.id}:${game.courtId}`)
+    .sort();
+  const handPickedBox = controlGames.filter((game) => !game.courtId).at(-1)!;
+  await prisma.openPlayGame.update({
+    where: { id: handPickedBox.id },
+    data: { selectionMethod: "MANUAL" },
+  });
+  const boxRemoval = await removeBox({ gameId: handPickedBox.id });
+  ok(
+    "removing an Up next box cancels its match, even a hand-picked one",
+    Boolean(boxRemoval.success) &&
+      (await prisma.openPlayGame.findUniqueOrThrow({ where: { id: handPickedBox.id } }))
+        .status === "CANCELLED" &&
+      (await controlSlots()) === 3
+  );
+  ok(
+    "a stale empty-box removal is refused",
+    Boolean((await removeBox({ expectedSlots: 99 })).message) &&
+      (await controlSlots()) === 3
+  );
+  await removeBox({ expectedSlots: 3 });
+  await removeBox({ expectedSlots: 2 });
+  ok(
+    "Up next always keeps one box",
+    (await removeBox({ expectedSlots: 1 })).message?.includes("at least one") === true &&
+      (await controlSlots()) === 1
+  );
+  const courtStagedAfter = (await openGames())
+    .filter((game) => game.status === "STAGED" && game.courtId)
+    .map((game) => `${game.id}:${game.courtId}`)
+    .sort();
+  ok(
+    "removing Up next boxes never touches matches waiting on a court",
+    courtStagedBefore.every((key) => courtStagedAfter.includes(key))
+  );
+  await actions.addOpenPlayUpNextSlotAction({}, form({ sessionId: control.id }));
+  await actions.addOpenPlayUpNextSlotAction({}, form({ sessionId: control.id }));
+
+  controlGames = await openGames();
+  const rebuildBox = controlGames.find((game) => !game.courtId && game.players.length === 4)!;
+  await prisma.openPlayGame.update({
+    where: { id: rebuildBox.id },
+    data: { selectionMethod: "MANUAL" },
+  });
+  const rebuildResult = await actions.rebuildOpenPlayUpNextMatchAction(
+    {},
+    form({ sessionId: control.id, gameId: rebuildBox.id })
+  );
+  const rebuiltBox = await prisma.openPlayGame.findUniqueOrThrow({
+    where: { id: rebuildBox.id },
+    include: { players: true },
+  });
+  ok(
+    "Rebuild keeps the box in place and builds a different automatic lineup",
+    Boolean(rebuildResult.success) &&
+      rebuiltBox.status === "STAGED" &&
+      rebuiltBox.sequence === rebuildBox.sequence &&
+      rebuiltBox.courtId === null &&
+      rebuiltBox.players.length === 4 &&
+      rebuiltBox.selectionMethod === "AUTOMATIC" &&
+      domain.lineupKey(rebuiltBox.players) !== domain.lineupKey(rebuildBox.players)
+  );
+
+  controlGames = await openGames();
+  const keptManual = controlGames.find((game) => !game.courtId)!;
+  await prisma.openPlayGame.update({
+    where: { id: keptManual.id },
+    data: { selectionMethod: "MANUAL" },
+  });
+  const keepKeys = controlGames
+    .filter((game) => game.id === keptManual.id || game.courtId)
+    .map((game) => `${game.id}:${domain.lineupKey(game.players)}`)
+    .sort();
+  const refreshResult = await actions.refreshOpenPlayUpNextAction(
+    {},
+    form({ sessionId: control.id })
+  );
+  const keptAfter = (await openGames())
+    .map((game) => `${game.id}:${domain.lineupKey(game.players)}`);
+  ok(
+    "Refresh Up next leaves hand-picked and court matches alone",
+    Boolean(refreshResult.success || refreshResult.message) &&
+      keepKeys.every((key) => keptAfter.includes(key))
+  );
+
+  const addCourt = (courtId?: string) =>
+    actions.addOpenPlayCourtAction(
+      {},
+      form({ sessionId: control.id, ...(courtId ? { courtId } : {}) })
+    );
+  const slotsBeforeCourt = await controlSlots();
+  const courtAdded = await addCourt(controlCourts[3].id);
+  const addedCourtRow = await prisma.openPlaySessionCourt.findUnique({
+    where: { sessionId_courtId: { sessionId: control.id, courtId: controlCourts[3].id } },
+  });
+  ok(
+    "a venue run can add a free hub court",
+    Boolean(courtAdded.success) &&
+      addedCourtRow?.position === 3 &&
+      addedCourtRow.active &&
+      (await controlSlots()) === slotsBeforeCourt + 1
+  );
+  ok(
+    "a court live in another BunalQ, a non-pickleball court, or one already in the run can't be added",
+    Boolean((await addCourt(bufferCourts[0].id)).message) &&
+      Boolean((await addCourt(tennisCourt.id)).message) &&
+      Boolean((await addCourt(controlCourts[0].id)).message) &&
+      (await prisma.openPlaySessionCourt.count({ where: { sessionId: control.id } })) === 4
+  );
+  const eventCourtOptions = await domain.listAddableOpenPlayCourts(prisma, {
+    id: session.id,
+    hubId: hub.id,
+    eventId: event.id,
+    courtIds: [],
+  });
+  ok(
+    "an Event run can only add the event's own courts",
+    eventCourtOptions.every((court) =>
+      hub.courts.some((eventCourt) => eventCourt.id === court.id)
+    )
+  );
+
+  const removeCourt = (courtId: string) =>
+    actions.removeOpenPlayCourtAction({}, form({ sessionId: control.id, courtId }));
+  controlGames = await openGames();
+  const liveCandidate = controlGames.find(
+    (game) =>
+      game.status === "STAGED" &&
+      game.courtId &&
+      game.courtId !== courtMatch.courtId &&
+      game.players.length === 4
+  )!;
+  await actions.startOpenPlayMatchAction(
+    {},
+    form({ sessionId: control.id, gameId: liveCandidate.id })
+  );
+  ok(
+    "a court with a live match can't be removed",
+    (await removeCourt(liveCandidate.courtId!)).message?.includes("Finish") === true
+  );
+  const finishedCourtId = courtMatch.courtId!;
+  const waitingOnFinishedCourt = (await openGames()).find(
+    (game) => game.status === "STAGED" && game.courtId === finishedCourtId
+  );
+  const slotsBeforeRemoval = await controlSlots();
+  const courtRemoval = await removeCourt(finishedCourtId);
+  ok(
+    "removing a court sends its waiting match back to Up next",
+    Boolean(courtRemoval.success) &&
+      !(await prisma.openPlaySessionCourt.findUnique({
+        where: { sessionId_courtId: { sessionId: control.id, courtId: finishedCourtId } },
+      })) &&
+      (await controlSlots()) === slotsBeforeRemoval - 1 &&
+      (!waitingOnFinishedCourt ||
+        (await prisma.openPlayGame.findUniqueOrThrow({
+          where: { id: waitingOnFinishedCourt.id },
+        })).status !== "STAGED" ||
+        (await prisma.openPlayGame.findUniqueOrThrow({
+          where: { id: waitingOnFinishedCourt.id },
+        })).courtId !== finishedCourtId)
+  );
+  ok(
+    "a removed court keeps its finished matches",
+    (await prisma.openPlayGame.findUniqueOrThrow({ where: { id: courtMatch.id } }))
+      .courtId === finishedCourtId
+  );
+  ok(
+    "a result can't be undone after its court left the run",
+    Boolean(
+      (await actions.undoOpenPlayResultAction(
+        {},
+        form({ sessionId: control.id, gameId: courtMatch.id })
+      )).message
+    )
+  );
+
+  await actions.endOpenPlaySessionAction({}, form({ sessionId: control.id }));
+  const endedControlCourts = (
+    await prisma.openPlaySessionCourt.findMany({ where: { sessionId: control.id } })
+  ).map((court) => court.courtId).sort();
+  await actions.startNewOpenPlayRunAction({}, form({ sessionId: control.id }));
+  const nextControlRun = await prisma.openPlaySession.findFirstOrThrow({
+    where: { queueId: control.queueId, runNumber: 2 },
+    include: { courts: true },
+  });
+  ok(
+    "a new run copies the current courts and one Up next box per court",
+    nextControlRun.courts.map((court) => court.courtId).sort().join() ===
+      endedControlCourts.join() &&
+      nextControlRun.upNextSlots === endedControlCourts.length
+  );
+  await actions.endOpenPlaySessionAction({}, form({ sessionId: nextControlRun.id }));
+
+  const rebuildCandidates = (ids: string[], pairs: Array<string | null>) =>
+    ids.map((id, index) => ({
+      id,
+      queuePosition: index + 1,
+      skillLevel: "intermediate",
+      lastResult: "UNCLASSIFIED" as const,
+      pairId: pairs[index] ?? null,
+    }));
+  const sameFour = domain.chooseRebuiltMatch({
+    mode: "BALANCED",
+    queued: rebuildCandidates(["a", "b", "c", "d"], []),
+    previous: [
+      { participantId: "a", team: 1 },
+      { participantId: "b", team: 1 },
+      { participantId: "c", team: 2 },
+      { participantId: "d", team: 2 },
+    ],
+  });
+  ok(
+    "Rebuild with only the same four players splits the teams differently",
+    sameFour.kind === "NEW" &&
+      selectedIds(sameFour.teams).join() === "a,b,c,d" &&
+      !sameTeam(sameFour.teams, "a", "b")
+  );
+  const pairsOnly = (extra: boolean) =>
+    domain.chooseRebuiltMatch({
+      mode: "FIXED_PARTNERS",
+      queued: rebuildCandidates(
+        extra ? ["a", "b", "c", "d", "e", "f"] : ["a", "b", "c", "d"],
+        ["p1", "p1", "p2", "p2", "p3", "p3"]
+      ),
+      previous: [
+        { participantId: "a", team: 1 },
+        { participantId: "b", team: 1 },
+        { participantId: "c", team: 2 },
+        { participantId: "d", team: 2 },
+      ],
+    });
+  const swappedPairs = pairsOnly(true);
+  ok(
+    "Rebuild brings in the next pair when saved partners can't be split",
+    swappedPairs.kind === "NEW" &&
+      selectedIds(swappedPairs.teams).join() === "a,b,e,f"
+  );
+  ok(
+    "Rebuild keeps the match when no other lineup exists",
+    pairsOnly(false).kind === "UNCHANGED" &&
+      domain.chooseRebuiltMatch({
+        mode: "BALANCED",
+        queued: rebuildCandidates(["a", "b", "c"], []),
+        previous: [],
+      }).kind === "NOT_ENOUGH_PLAYERS"
   );
 
   const teammateHistory = domain.buildTeammateHistory([
@@ -1524,11 +2196,78 @@ async function check() {
     "the creating browser receives the full organizer action path",
     Boolean((await actions.addOpenPlayWalkInAction({}, guestWalkIn)).success)
   );
+  const guestWalkInRow = await prisma.openPlayParticipant.findFirst({
+    where: { sessionId: guestRun.id, displayName: "Browser-managed Player" },
+  });
+  ok(
+    "a walk-in added by staff joins the back of the queue at once",
+    guestWalkInRow?.status === "QUEUED" &&
+      guestWalkInRow.queuePosition !== null &&
+      guestWalkInRow.checkedInAt !== null &&
+      guestWalkInRow.queuedAt !== null
+  );
   const organizerCookie = [...requestContext.cookies.entries()][0];
   requestContext.cookies.clear();
   ok(
     "a browser without the organizer cookie cannot mutate a guest queue",
     Boolean((await actions.addOpenPlayWalkInAction({}, guestWalkIn)).message)
+  );
+  if (organizerCookie) requestContext.cookies.set(...organizerCookie);
+
+  ok("a guest room starts with one Up next box per court", guestRun.upNextSlots === 3);
+  const guestCourtForm = (courtId?: string) => {
+    const data = new FormData();
+    data.set("sessionId", guestRun.id);
+    if (courtId) data.set("courtId", courtId);
+    return data;
+  };
+  const guestRunCourts = async () =>
+    prisma.openPlaySessionCourt.findMany({
+      where: { sessionId: guestRun.id },
+      include: { court: true },
+      orderBy: { position: "asc" },
+    });
+  const guestAdded = await actions.addOpenPlayCourtAction({}, guestCourtForm());
+  let guestCourts = await guestRunCourts();
+  ok(
+    "a guest organizer adds the next numbered court",
+    Boolean(guestAdded.success) &&
+      guestCourts.length === 4 &&
+      guestCourts.at(-1)?.court.name === "Court 4" &&
+      (await prisma.court.count({ where: { hubId: guestQueue.hubId } })) === 4
+  );
+  const guestCourtTwo = guestCourts.find((row) => row.court.name === "Court 2")!;
+  await actions.removeOpenPlayCourtAction({}, guestCourtForm(guestCourtTwo.courtId));
+  await actions.addOpenPlayCourtAction({}, guestCourtForm());
+  guestCourts = await guestRunCourts();
+  ok(
+    "adding a court again brings back a removed guest court",
+    guestCourts.some((row) => row.courtId === guestCourtTwo.courtId) &&
+      (await prisma.court.count({ where: { hubId: guestQueue.hubId } })) === 4
+  );
+  while ((await guestRunCourts()).length < 12) {
+    await actions.addOpenPlayCourtAction({}, guestCourtForm());
+  }
+  ok(
+    "a run holds at most 12 courts",
+    Boolean((await actions.addOpenPlayCourtAction({}, guestCourtForm())).message) &&
+      (await guestRunCourts()).length === 12
+  );
+  for (const row of (await guestRunCourts()).slice(1)) {
+    await actions.removeOpenPlayCourtAction({}, guestCourtForm(row.courtId));
+  }
+  guestCourts = await guestRunCourts();
+  ok(
+    "the last court can't be removed",
+    guestCourts.length === 1 &&
+      (await actions.removeOpenPlayCourtAction({}, guestCourtForm(guestCourts[0].courtId)))
+        .message?.includes("at least one") === true
+  );
+  requestContext.cookies.clear();
+  ok(
+    "a browser without the organizer cookie cannot add courts",
+    Boolean((await actions.addOpenPlayCourtAction({}, guestCourtForm())).message) &&
+      (await guestRunCourts()).length === 1
   );
   if (organizerCookie) requestContext.cookies.set(...organizerCookie);
 

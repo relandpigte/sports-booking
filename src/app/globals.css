@@ -130,6 +130,23 @@ body {
   outline: none;
 }
 
+/* iOS and iPadOS Safari draw date and time fields as their own centered
+   control that ignores the field's height, and an empty one collapses, so
+   they sat out of line with the selects and text fields beside them. */
+@supports (-webkit-touch-callout: none) {
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"] {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  input::-webkit-date-and-time-value {
+    min-height: 1.5em;
+    text-align: left;
+  }
+}
+
 /* Keep every native single-value dropdown visually consistent while retaining
    the platform's accessible select behavior. The global right padding prevents
    labels from colliding with the chevron at every control density. */

@@ -41,7 +41,11 @@ export function EventForm({
   const [repeatUntil, setRepeatUntil] = useState(addDays(event?.date ?? today, 35));
   const [startHour, setStartHour] = useState(event?.startHour ?? 9);
   const [endHour, setEndHour] = useState(event?.endHour ?? 11);
-  const [fee, setFee] = useState(event?.registrationFee ?? 0);
+  // The fee is kept as typed text: a controlled number input bound to a
+  // number leaves a leading zero in place, so typing 100 after the default
+  // 0 showed "0100".
+  const [feeText, setFeeText] = useState(String(event?.registrationFee ?? 0));
+  const fee = Number(feeText) || 0;
   const [selectedCourts, setSelectedCourts] = useState<string[]>(
     event?.courtIds ?? []
   );
@@ -288,8 +292,22 @@ export function EventForm({
           </Field>
           <Field label="Registration fee per player" error={state.errors?.registrationFee} hint={hub && !hub.paymentReady ? "This hub can publish free events. Finish the selected payment setup to charge a fee." : "Enter 0 for a free event."}>
             <div className="relative">
-              <span className="pointer-events-none absolute left-4 top-3.5 font-bold text-slate-400">₱</span>
-              <input name="registrationFee" type="number" min={0} step="0.01" value={fee} onChange={(input) => setFee(Number(input.target.value))} disabled={locked} className={`${inputClass} pl-9`} />
+              <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center font-bold text-slate-400">₱</span>
+              <input
+                name="registrationFee"
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="0.01"
+                value={feeText}
+                onChange={(input) => setFeeText(input.target.value.replace(/^0+(?=\d)/, ""))}
+                onFocus={(input) => {
+                  // Typing over a free event's 0 replaces it instead of adding to it.
+                  if (Number(input.target.value) === 0) input.target.select();
+                }}
+                disabled={locked}
+                className={`${inputClass} pl-9`}
+              />
             </div>
           </Field>
         </div>

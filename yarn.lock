@@ -1748,6 +1748,11 @@ dotenv@^16.6.1:
   resolved "https://registry.npmjs.org/dotenv/-/dotenv-16.6.1.tgz"
   integrity sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==
 
+dotenv@^18.0.7:
+  version "18.0.7"
+  resolved "https://registry.yarnpkg.com/dotenv/-/dotenv-18.0.7.tgz#ee6bec88c59298d9b218acdf49377f2c110a7698"
+  integrity sha512-QEvMEF8ca3GNZJJnAbOgxpj5ULhBvnMcURp+XKrtvqFNPgjBvYoswQ0Jl2cO7JzCjxZjJhr9ZuIEhlrRxMft/Q==
+
 dunder-proto@^1.0.0, dunder-proto@^1.0.1:
   version "1.0.1"
   resolved "https://registry.npmjs.org/dunder-proto/-/dunder-proto-1.0.1.tgz"

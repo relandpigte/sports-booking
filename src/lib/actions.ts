@@ -19,6 +19,7 @@ import { appUrl } from "@/lib/urls";
 import {
   LoginSchema,
   RegisterSchema,
+  PlayerRegisterSchema,
   ProfileSchema,
 } from "@/lib/validation";
 import { firstErrors } from "@/lib/zod-errors";
@@ -62,6 +63,7 @@ export async function registerAction(
   formData: FormData
 ): Promise<AuthFormState> {
   const raw = {
+    name: String(formData.get("name") ?? ""),
     email: String(formData.get("email") ?? ""),
     password: String(formData.get("password") ?? ""),
     redirectTo: String(formData.get("redirectTo") ?? ""),
@@ -69,10 +71,11 @@ export async function registerAction(
 
   // Values echoed back to the form so inputs survive a validation error.
   const values = {
+    name: raw.name,
     email: raw.email,
   };
 
-  const parsed = RegisterSchema.safeParse(raw);
+  const parsed = PlayerRegisterSchema.safeParse(raw);
   if (!parsed.success) {
     return { errors: firstErrors(parsed.error), values };
   }
@@ -105,6 +108,7 @@ export async function registerAction(
   try {
     user = await prisma.user.create({
       data: {
+        name: data.name,
         email: data.email,
         passwordHash,
       },
@@ -126,7 +130,7 @@ export async function registerAction(
   await sendRegistrationWelcome({
     audience: "PLAYER",
     to: data.email,
-    name: "there",
+    name: data.name,
     actionPath: "/hubs",
     idempotencyKey: `welcome-player-${user.id}`,
   });
@@ -512,7 +516,7 @@ export async function updateProfileAction(
   await prisma.user.update({
     where: { id: target.userId },
     data: {
-      name: data.name ?? null,
+      name: data.name,
       playerName: data.playerName ?? null,
       phone: data.phone ?? null,
       // Only written when the form actually carried the field. A player's

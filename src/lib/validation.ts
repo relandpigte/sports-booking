@@ -1,5 +1,6 @@
 import * as z from "zod";
 
+import { FullNameSchema } from "@/lib/account-name-shared";
 import { facebookPageUrl } from "@/lib/social";
 import {
   SKILL_LEVELS,
@@ -87,6 +88,12 @@ export const RegisterSchema = z.object({
   password: PasswordSchema,
 });
 
+// Players appear by name on rosters, bookings, and BunalQ, so they give one
+// at sign-up. Partners give theirs on the partner application instead.
+export const PlayerRegisterSchema = RegisterSchema.extend({
+  name: FullNameSchema,
+});
+
 export const GoogleRegistrationSchema = z.object({
   role: z.enum(["PLAYER", "PARTNER"], { error: "Choose an account type" }),
 });
@@ -141,7 +148,8 @@ export type AdminUpdateUserInput = z.infer<typeof AdminUpdateUserSchema>;
 // --- Player: own profile (account settings) ---
 
 export const ProfileSchema = z.object({
-  name: optionalText,
+  // Required: an account shown by name must never fall back to "Player".
+  name: FullNameSchema,
   playerName: optionalText,
   phone: optionalText,
   facebookPage,

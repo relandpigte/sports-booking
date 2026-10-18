@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { requireAdmin } from "@/lib/admin";
 import { prisma } from "@/lib/db";
-import { isPartnerImpersonationActive } from "@/lib/impersonation";
+import { isImpersonationActive } from "@/lib/impersonation";
 import { releaseUnbatchedPayoutEntries } from "@/lib/payouts";
 
 export type DeleteVenueTransactionState = {
@@ -23,9 +23,9 @@ export async function deleteVenueTransactionAction(
   formData: FormData
 ): Promise<DeleteVenueTransactionState> {
   const admin = await requireAdmin();
-  if (await isPartnerImpersonationActive()) {
+  if (await isImpersonationActive()) {
     return {
-      message: "Exit assisted partner access before deleting a transaction.",
+      message: "Exit assistance before deleting a transaction.",
     };
   }
 

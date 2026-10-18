@@ -10,7 +10,7 @@ import {
   getPartnerPaymentSetup,
   isPartnerPaymentReady,
 } from "@/lib/manual-payments";
-import { getCurrentPartnerImpersonation } from "@/lib/impersonation";
+import { getCurrentImpersonation } from "@/lib/impersonation";
 import { getPartnerWorkspace } from "@/lib/staffing";
 import {
   defaultAnalyticsFilters,
@@ -30,9 +30,9 @@ export default async function PartnerDashboardPage() {
   }
   if (user.role !== "PARTNER") redirect(dashboardHomeFor(user.role));
 
-  const impersonation = await getCurrentPartnerImpersonation();
+  const impersonation = await getCurrentImpersonation();
   const canOperate =
-    user.partnerStatus === "ACTIVE" || impersonation?.partner.id === user.id;
+    user.partnerStatus === "ACTIVE" || impersonation?.user.id === user.id;
   const [paymentSetup, hubCount, analytics] = await Promise.all([
     canOperate ? getPartnerPaymentSetup(user.id) : Promise.resolve(null),
     prisma.hub.count({ where: { ownerId: user.id } }),

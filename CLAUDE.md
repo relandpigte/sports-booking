@@ -73,7 +73,9 @@ directly: it validates the JWT's `sessionVersion`, the revocable `AuthSession`
 row, MFA for roles that require it, and whether a first-time Google sign-in
 has finished choosing an account type. Public pages that only render
 differently when signed in use `getViewer()`, which returns `null` instead of
-redirecting. `requireRecentMfa()` gates sensitive financial controls.
+redirecting. `requireRecentMfa()` gates sensitive financial controls for
+partners, trainers, and players; admins are exempt because every admin
+session already passed MFA at sign-in.
 
 **Roles are coarse; capability comes from status and membership.**
 `User.role` is `ADMIN | PLAYER | PARTNER`, but:
@@ -96,14 +98,26 @@ assisting admin, so use it for owner-only operations. Mutations call
 `recordPartnerActivity()` (audits staff) and `recordImpersonatedAction()`
 (audits admins); each is a no-op for the other kind of actor.
 
-**Admin partner impersonation is a real, audited session, not a role
-override.** `src/lib/impersonation.ts` matches a cookie token against a hashed
-`PartnerImpersonationSession` row. `getCurrentUser()` returns the impersonated
-partner so pages render normally, while `getAuthenticatedUser()` always
-returns the real admin. Anything security-sensitive (`requireAdmin()`, role
-changes, ending impersonation) must use `getAuthenticatedUser()`. Actions that
-change account-level data take their target from
-`getWorkspaceMutationTarget()`, never from a client-supplied id.
+**Admin assistance (impersonation) is a real, audited session, not a role
+override.** An admin can assist any non-admin account — partner, player,
+trainer, or staff member. `src/lib/impersonation.ts` matches a cookie token
+against a hashed `PartnerImpersonationSession` row (the model keeps its old
+name; `assistedUserId` maps to the original `partnerId` column).
+`getCurrentUser()` and `getViewer()` return the assisted user so pages render
+normally, while `getAuthenticatedUser()` always returns the real admin.
+Anything security-sensitive (`requireAdmin()`, role changes, ending
+impersonation) must use `getAuthenticatedUser()`. Actions that change
+account-level data take their target from `getWorkspaceMutationTarget()`,
+never from a client-supplied id. While assisting:
+
+- An assisted staff member's workspace resolves to their own `STAFF`
+  permissions, with `actorId` set to the admin.
+- Messages are read-only (`readOnly` viewer: no send, edit, block, report,
+  or mark-read).
+- Payment *settings* can change, but anything that pays, starts a checkout,
+  or submits a payment or receipt returns `ASSISTED_PAYMENT_BLOCKED`.
+- Password, MFA, and session controls are blocked (`isImpersonationActive()`).
+- Player and trainer mutations call `recordImpersonatedAction()` too.
 
 **Court inventory is one table with one unique index.**
 `BookingSlot @@unique([courtId, date, hour])` is the only thing preventing a

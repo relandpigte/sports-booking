@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { requireAdmin } from "@/lib/admin";
 import { prisma } from "@/lib/db";
-import { isPartnerImpersonationActive } from "@/lib/impersonation";
+import { isImpersonationActive } from "@/lib/impersonation";
 import { publishMessageEvent } from "@/lib/messages-realtime";
 
 const ReviewSchema = z.object({
@@ -18,7 +18,7 @@ const ReviewSchema = z.object({
 
 export async function reviewMessageReportAction(formData: FormData) {
   const admin = await requireAdmin();
-  if (await isPartnerImpersonationActive()) return;
+  if (await isImpersonationActive()) return;
   const parsed = ReviewSchema.safeParse({
     reportId: String(formData.get("reportId") ?? ""),
     decision: String(formData.get("decision") ?? ""),
@@ -68,7 +68,7 @@ export async function reviewMessageReportAction(formData: FormData) {
 
 export async function liftMessageRestrictionAction(formData: FormData) {
   const admin = await requireAdmin();
-  if (await isPartnerImpersonationActive()) return;
+  if (await isImpersonationActive()) return;
   const userId = String(formData.get("userId") ?? "");
   if (!userId || userId === admin.id) return;
   await prisma.user.updateMany({

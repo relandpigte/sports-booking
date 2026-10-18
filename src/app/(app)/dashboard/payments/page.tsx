@@ -15,7 +15,7 @@ import {
   pollServiceFeeCheckout,
 } from "@/lib/service-fee-payments";
 import { getPartnerServiceFeeView } from "@/lib/service-fees";
-import { getCurrentPartnerImpersonation } from "@/lib/impersonation";
+import { getCurrentImpersonation } from "@/lib/impersonation";
 import { getPartnerManualPaymentSettings } from "@/lib/manual-payments";
 import { hasStaffAccess, requirePartnerWorkspace } from "@/lib/staffing";
 
@@ -32,7 +32,7 @@ export default async function PaymentsPage({
   const canManage = hasStaffAccess(workspace, "payments", "MANAGE");
   const canSettle = workspace.kind === "OWNER";
   const { settlement, setup } = await searchParams;
-  const impersonation = await getCurrentPartnerImpersonation();
+  const impersonation = await getCurrentImpersonation();
 
   if (canSettle && !impersonation) {
     if (settlement) {

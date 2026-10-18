@@ -253,7 +253,10 @@ export default async function UsersPage({
         users={users.items}
         adminId={admin.id}
         toolbar={
+          // AdminUsersTable is a client component that renders this server
+          // element beside its own children, so React's dev check wants a key.
           <form
+            key="users-toolbar"
             method="get"
             className="grid min-w-0 flex-1 gap-3 lg:grid-cols-[minmax(240px,1fr)_160px_210px_auto]"
           >

@@ -444,9 +444,11 @@ export function MessagesWorkspace({
             )}
             {conversation.restricted || conversation.blocked ? (
               <p className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
-                {conversation.blocked
-                  ? "This conversation is blocked and is currently read-only."
-                  : "Your account cannot send messages right now."}
+                {conversation.readOnly
+                  ? "Messages are read-only while assisting this account."
+                  : conversation.blocked
+                    ? "This conversation is blocked and is currently read-only."
+                    : "Your account cannot send messages right now."}
               </p>
             ) : (
               <div className="flex items-center gap-2 rounded-xl border border-[#dfe7e2] bg-slate-50 p-1.5 shadow-sm transition focus-within:border-primary focus-within:bg-white focus-within:ring-2 focus-within:ring-primary-soft">

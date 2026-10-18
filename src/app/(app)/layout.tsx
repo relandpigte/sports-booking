@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/dashboard/AppShell";
 import { getAuthenticatedUser, getCurrentUser } from "@/lib/dal";
-import { getActivePartnerImpersonation } from "@/lib/impersonation";
+import { getActiveImpersonation } from "@/lib/impersonation";
 import { hasMessageAccess } from "@/lib/messages";
 import { getPartnerWorkspace } from "@/lib/staffing";
 import { getActiveBookingHoldForUser } from "@/lib/booking-payments";
@@ -26,7 +26,7 @@ export default async function DashboardLayout({
 
   const impersonation =
     actor?.role === "ADMIN"
-      ? await getActivePartnerImpersonation(actor.id)
+      ? await getActiveImpersonation(actor.id)
       : null;
   const [workspace, availableStaffWorkspace, activeBookingHold] =
     await Promise.all([
@@ -38,9 +38,9 @@ export default async function DashboardLayout({
         ? getActiveBookingHoldForUser({ userId: user.id })
         : Promise.resolve(null),
     ]);
-  const hasMessages = impersonation
-    ? false
-    : workspace?.kind === "STAFF"
+  // While assisting, messages follow the assisted user (shown read-only).
+  const hasMessages =
+    workspace?.kind === "STAFF"
       ? workspace.permissions.messages !== "NONE"
       : await hasMessageAccess({
           userId: user.id,
@@ -54,8 +54,7 @@ export default async function DashboardLayout({
       impersonation={
         impersonation
           ? {
-              partnerName:
-                impersonation.partner.name ?? impersonation.partner.email,
+              userName: impersonation.user.name ?? impersonation.user.email,
               adminName: impersonation.admin.name ?? impersonation.admin.email,
               expiresAt: impersonation.expiresAt,
             }

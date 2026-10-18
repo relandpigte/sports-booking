@@ -11,7 +11,11 @@ import {
 } from "@/lib/booking-payments";
 import { prisma } from "@/lib/db";
 import { getViewer, requireRecentMfa } from "@/lib/dal";
-import { recordImpersonatedAction } from "@/lib/impersonation";
+import {
+  ASSISTED_PAYMENT_BLOCKED,
+  isImpersonationActive,
+  recordImpersonatedAction,
+} from "@/lib/impersonation";
 import { revalidatePartnerPaymentSurfaces } from "@/lib/payment-revalidation";
 import {
   notifyPartnerTeamOfBooking,
@@ -308,6 +312,9 @@ export async function submitManualPaymentProofAction(
   _previous: ManualPaymentFormState,
   formData: FormData
 ): Promise<ManualPaymentFormState> {
+  if (await isImpersonationActive()) {
+    return { message: ASSISTED_PAYMENT_BLOCKED };
+  }
   const paymentId = value(formData, "paymentId", 40);
   const owner = await resolvePaymentOwner(paymentId);
   if (!owner) return { message: "This private booking access is unavailable." };

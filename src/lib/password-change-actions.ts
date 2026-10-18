@@ -8,7 +8,7 @@ import { verifySession } from "@/lib/dal";
 import { changeUserPassword } from "@/lib/password-change";
 import { ChangePasswordSchema } from "@/lib/validation";
 import { firstErrors } from "@/lib/zod-errors";
-import { isPartnerImpersonationActive } from "@/lib/impersonation";
+import { isImpersonationActive } from "@/lib/impersonation";
 import {
   createLoginGrant,
   recordPasswordChanged,
@@ -24,7 +24,7 @@ export async function changePasswordAction(
   _previous: PasswordChangeFormState,
   formData: FormData
 ): Promise<PasswordChangeFormState> {
-  if (await isPartnerImpersonationActive()) {
+  if (await isImpersonationActive()) {
     return {
       message: "Passwords cannot be changed during assisted access.",
     };

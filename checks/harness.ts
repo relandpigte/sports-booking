@@ -86,6 +86,11 @@ export async function run(
   }
 }
 
+// Mirrors src/lib/impersonation.ts, which imports server-only and so can't be
+// loaded by the stub that replaces it.
+const ASSISTED_PAYMENT_BLOCKED =
+  "Payments can't be made while assisting a user.";
+
 // Some of the code under test imports next/navigation at module scope — and
 // through it the client router, which needs a request context a plain script
 // has none of. The same goes for the session: requireAdmin reads a cookie.
@@ -101,6 +106,9 @@ export function stubRequestContext(
     workspaceMutationTargetUserId?: string;
     onImpersonatedAction?: (input: Record<string, unknown>) => void;
     stubPublicRequest?: boolean;
+    // An active assist session, as getActiveImpersonation would return it.
+    // `actor` is then the real admin and `impersonation.user` the assisted one.
+    impersonation?: { user: { id: string }; [key: string]: unknown } | null;
   } = {}
 ): { cookies: Map<string, string> } {
   const req = createRequire(import.meta.url);
@@ -134,12 +142,15 @@ export function stubRequestContext(
     revalidatePath: () => undefined,
   });
 
+  // While assisting, the effective user is the assisted account and only
+  // getAuthenticatedUser still returns the real admin, as in dal.ts.
+  const effective = options.impersonation?.user ?? actor;
   put(path.join(root, "src/lib/dal.ts"), {
-    requireRole: async () => actor,
-    requirePartner: async () => actor,
-    requireActivePartner: async () => actor,
-    getViewer: async () => actor,
-    getCurrentUser: async () => actor,
+    requireRole: async () => effective,
+    requirePartner: async () => effective,
+    requireActivePartner: async () => effective,
+    getViewer: async () => effective,
+    getCurrentUser: async () => effective,
     getAuthenticatedUser: async () => actor,
     verifySession: async () => ({ user: actor }),
     requireRecentMfa: async () => undefined,
@@ -150,9 +161,11 @@ export function stubRequestContext(
     });
   }
   put(path.join(root, "src/lib/impersonation.ts"), {
-    getActivePartnerImpersonation: async () => null,
-    getCurrentPartnerImpersonation: async () => null,
-    isPartnerImpersonationActive: async () => false,
+    ASSISTED_PAYMENT_BLOCKED,
+    getActiveImpersonation: async () => options.impersonation ?? null,
+    getCurrentImpersonation: async () => options.impersonation ?? null,
+    isImpersonationActive: async () => Boolean(options.impersonation),
+    clearImpersonationCookies: async () => undefined,
     getWorkspaceMutationTarget: async () => ({
       userId: options.workspaceMutationTargetUserId ?? actor.id,
       assisted: Boolean(options.workspaceMutationTargetUserId),
@@ -246,6 +259,8 @@ export function stubPublicGuestRequestContext(options: {
     ) => options.onCookieSet?.(guestReservationId, expiresAt),
   });
   put(path.join(root, "src/lib/impersonation.ts"), {
+    ASSISTED_PAYMENT_BLOCKED,
+    isImpersonationActive: async () => false,
     recordImpersonatedAction: async () => undefined,
   });
 }

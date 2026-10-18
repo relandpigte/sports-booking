@@ -17,7 +17,7 @@ export async function deleteUserData(
   const sessionIds = (
     await tx.partnerImpersonationSession.findMany({
       where: {
-        OR: [{ adminId: target.id }, { partnerId: target.id }],
+        OR: [{ adminId: target.id }, { assistedUserId: target.id }],
       },
       select: { id: true },
     })
@@ -185,8 +185,8 @@ export async function deleteUserData(
     data: { adminId: null },
   });
   await tx.partnerImpersonationAudit.updateMany({
-    where: { partnerId: target.id },
-    data: { partnerId: null },
+    where: { assistedUserId: target.id },
+    data: { assistedUserId: null },
   });
   await tx.partnerImpersonationAudit.updateMany({
     where: { targetId: target.id },
@@ -194,7 +194,7 @@ export async function deleteUserData(
   });
   await tx.partnerImpersonationSession.deleteMany({
     where: {
-      OR: [{ adminId: target.id }, { partnerId: target.id }],
+      OR: [{ adminId: target.id }, { assistedUserId: target.id }],
     },
   });
 

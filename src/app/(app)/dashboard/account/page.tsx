@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { getCurrentUser, verifySession } from "@/lib/dal";
 import { AccountForm } from "@/components/dashboard/AccountForm";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
-import { getCurrentPartnerImpersonation } from "@/lib/impersonation";
+import { getCurrentImpersonation } from "@/lib/impersonation";
 import { SecuritySettings } from "@/components/security/SecuritySettings";
 import {
   getSecurityChallenge,
@@ -29,7 +29,7 @@ export default async function AccountPage({
   const { password, tab, setup } = await searchParams;
   const [user, impersonation] = await Promise.all([
     getCurrentUser(),
-    getCurrentPartnerImpersonation(),
+    getCurrentImpersonation(),
   ]);
 
   // getCurrentUser redirects to /login when unauthenticated; this guards types.
@@ -93,10 +93,12 @@ export default async function AccountPage({
       </nav>
       {impersonation && activeTab === "profile" && (
         <section className="mt-6 rounded-2xl border border-ocean/20 bg-ocean-soft p-4">
-          <h2 className="font-bold text-navy">Editing the assisted partner</h2>
+          <h2 className="font-bold text-navy">
+            Editing {user.playerName ?? user.name ?? user.email}&apos;s account
+          </h2>
           <p className="mt-1 text-sm leading-6 text-slate-600">
-            Profile changes save to this partner and are recorded in the
-            assistance audit. Email, password, MFA, and active sessions remain
+            Profile changes save to this account and are recorded in the
+            assistance audit. Email, password, 2FA, and active sessions remain
             protected account-owner controls.
           </p>
         </section>
@@ -107,8 +109,8 @@ export default async function AccountPage({
         <section className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5">
           <h2 className="font-bold text-amber-950">Security remains protected</h2>
           <p className="mt-1 text-sm leading-6 text-amber-800">
-            Password, MFA, and session controls require the partner&apos;s own
-            authenticated session. Exit assistance to manage your admin
+            Password, 2FA, and session controls require the account
+            owner&apos;s own signed-in session. Exit assistance to manage your admin
             account security.
           </p>
         </section>

@@ -15,6 +15,7 @@ import {
 } from "@/lib/constants";
 import { getViewer } from "@/lib/dal";
 import { prisma } from "@/lib/db";
+import { recordImpersonatedAction } from "@/lib/impersonation";
 import { emailDeliveryConfigured, sendTrainerLifecycleEmail } from "@/lib/email";
 import { appUrl } from "@/lib/urls";
 import {
@@ -171,6 +172,7 @@ export async function saveTrainerProfileAction(
       },
     }),
   ]);
+  await recordImpersonatedAction({ action: "TRAINER_PROFILE_UPDATED", targetType: "User", targetId: viewer.id });
   revalidateTrainerPaths(username);
   return {
     success: facebookChanged
@@ -211,6 +213,7 @@ export async function saveTrainerScheduleAction(
     });
   });
   revalidateTrainerPaths(profile.user.username);
+  await recordImpersonatedAction({ action: "TRAINER_SCHEDULE_UPDATED", targetType: "User", targetId: viewer.id });
   return { success: "Weekly availability saved." };
 }
 
@@ -245,6 +248,7 @@ export async function addTrainerExceptionAction(
     throw error;
   }
   revalidateTrainerPaths(profile.user.username);
+  await recordImpersonatedAction({ action: "TRAINER_EXCEPTION_ADDED", targetType: "User", targetId: viewer.id });
   return { success: "Schedule exception added." };
 }
 
@@ -256,7 +260,14 @@ export async function deleteTrainerExceptionAction(formData: FormData) {
   const removed = await prisma.trainerAvailabilityException.deleteMany({
     where: { id, trainer: { userId: viewer.id } },
   });
-  if (removed.count === 1) revalidateTrainerPaths();
+  if (removed.count === 1) {
+    await recordImpersonatedAction({
+      action: "TRAINER_EXCEPTION_DELETED",
+      targetType: "TrainerAvailabilityException",
+      targetId: id,
+    });
+    revalidateTrainerPaths();
+  }
 }
 
 export async function submitTrainerApplicationAction(
@@ -347,6 +358,7 @@ export async function submitTrainerApplicationAction(
     idempotencyKey: `trainer-application-${profile.id}-${submittedAt.getTime()}-${admin.email}`,
   })));
   revalidateTrainerPaths(profile.user.username);
+  await recordImpersonatedAction({ action: "TRAINER_APPLICATION_SUBMITTED", targetType: "User", targetId: viewer.id });
   return { success: "Application submitted for admin review." };
 }
 
@@ -499,6 +511,7 @@ export async function requestTrainerSessionAction(
     ]);
   }
   revalidateTrainerPaths();
+  await recordImpersonatedAction({ action: "TRAINER_SESSION_REQUESTED", targetType: "TrainerSession", targetId: sessionId });
   return { success: "Request sent. The trainer has 12 hours to respond.", sessionId };
 }
 
@@ -560,6 +573,7 @@ export async function decideTrainerSessionAction(
       idempotencyKey: `trainer-declined-${session.id}`,
     });
     revalidateTrainerPaths();
+    await recordImpersonatedAction({ action: "TRAINER_SESSION_DECLINED", targetType: "TrainerSession", targetId: parsed.data.sessionId });
     return { success: "Request declined and the player notified." };
   }
   if (!trainerSetupReady(session.trainer)) {
@@ -644,6 +658,7 @@ export async function decideTrainerSessionAction(
     idempotencyKey: `trainer-accepted-${session.id}`,
   });
   revalidateTrainerPaths();
+  await recordImpersonatedAction({ action: "TRAINER_SESSION_ACCEPTED", targetType: "TrainerSession", targetId: parsed.data.sessionId });
   return { success: "Request accepted. The player has one hour to pay.", paymentId: payment.id };
 }
 
@@ -724,6 +739,7 @@ export async function rescheduleTrainerSessionAction(
     idempotencyKey: `trainer-rescheduled-${session.id}-${session.rescheduleCount + 1}`,
   });
   revalidateTrainerPaths();
+  await recordImpersonatedAction({ action: "TRAINER_SESSION_RESCHEDULED", targetType: "TrainerSession", targetId: parsed.data.sessionId });
   return { success: "Session moved and the player notified." };
 }
 
@@ -793,6 +809,7 @@ export async function cancelTrainerSessionAction(
     idempotencyKey: `trainer-cancelled-${session.id}`,
   });
   revalidateTrainerPaths();
+  await recordImpersonatedAction({ action: "TRAINER_SESSION_CANCELLED", targetType: "TrainerSession", targetId: parsed.data.sessionId });
   return { success: "Session cancelled and the time released." };
 }
 

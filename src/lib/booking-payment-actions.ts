@@ -6,6 +6,11 @@ import { redirect } from "next/navigation";
 
 import { getViewer } from "@/lib/dal";
 import { prisma } from "@/lib/db";
+import {
+  ASSISTED_PAYMENT_BLOCKED,
+  isImpersonationActive,
+  recordImpersonatedAction,
+} from "@/lib/impersonation";
 import { firstErrors } from "@/lib/zod-errors";
 import { PayBookingSchema } from "@/lib/validation";
 import {
@@ -103,6 +108,9 @@ export async function continueHeldBookingPaymentAction(
   _prev: HeldBookingActionState,
   formData: FormData
 ): Promise<HeldBookingActionState> {
+  if (await isImpersonationActive()) {
+    return { message: ASSISTED_PAYMENT_BLOCKED };
+  }
   const parsed = PayBookingSchema.safeParse({
     paymentId: String(formData.get("paymentId") ?? ""),
   });
@@ -349,6 +357,13 @@ export async function releaseBookingHoldAction(
     "hubId" in result ? result.hubId : undefined,
     "eventPublicId" in result ? result.eventPublicId : undefined
   );
+  if (result.kind === "released") {
+    await recordImpersonatedAction({
+      action: "PLAYER_BOOKING_HOLD_RELEASED",
+      targetType: "BookingPayment",
+      targetId: parsed.data.paymentId,
+    });
+  }
   switch (result.kind) {
     case "released":
       return {
@@ -415,6 +430,9 @@ export async function payForBookingAction(
   _prev: PayBookingFormState,
   formData: FormData
 ): Promise<PayBookingFormState> {
+  if (await isImpersonationActive()) {
+    return { message: ASSISTED_PAYMENT_BLOCKED };
+  }
   const parsed = PayBookingSchema.safeParse({
     paymentId: String(formData.get("paymentId") ?? ""),
   });

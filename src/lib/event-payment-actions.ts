@@ -5,6 +5,10 @@ import { revalidatePath } from "next/cache";
 import { chargeBookingPayment } from "@/lib/booking-payments";
 import { getViewer } from "@/lib/dal";
 import { prisma } from "@/lib/db";
+import {
+  ASSISTED_PAYMENT_BLOCKED,
+  isImpersonationActive,
+} from "@/lib/impersonation";
 import { getCurrentGuestReservationId } from "@/lib/guest-bookings";
 
 export type PayEventFormState = {
@@ -18,6 +22,9 @@ export async function payForEventAction(
   _previous: PayEventFormState,
   formData: FormData
 ): Promise<PayEventFormState> {
+  if (await isImpersonationActive()) {
+    return { message: ASSISTED_PAYMENT_BLOCKED };
+  }
   const viewer = await getViewer();
   if (viewer && viewer.role !== "PLAYER") {
     return { message: "Only player accounts or registered guests can pay." };

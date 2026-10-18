@@ -5,22 +5,26 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { requireAdmin } from "@/lib/admin";
+import { dashboardHomeFor } from "@/lib/dashboard";
 import { prisma } from "@/lib/db";
 import {
-  getActivePartnerImpersonation,
+  clearImpersonationCookies,
+  getActiveImpersonation,
   hashImpersonationToken,
   PARTNER_IMPERSONATION_COOKIE,
   PARTNER_IMPERSONATION_MINUTES,
 } from "@/lib/impersonation";
+import { STAFF_WORKSPACE_COOKIE } from "@/lib/staffing-shared";
 
-export async function startPartnerImpersonationAction(formData: FormData) {
+// Starts an audited assist session for any non-admin account.
+export async function startImpersonationAction(formData: FormData) {
   const admin = await requireAdmin();
-  const partnerId = String(formData.get("partnerId") ?? "");
-  const partner = await prisma.user.findFirst({
-    where: { id: partnerId, role: "PARTNER" },
-    select: { id: true },
+  const userId = String(formData.get("userId") ?? "");
+  const target = await prisma.user.findFirst({
+    where: { id: userId, role: { not: "ADMIN" } },
+    select: { id: true, role: true },
   });
-  if (!partner) redirect("/users?role=PARTNER");
+  if (!target) redirect("/users");
 
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(
@@ -29,7 +33,7 @@ export async function startPartnerImpersonationAction(formData: FormData) {
   await prisma.$transaction(async (tx) => {
     const replaced = await tx.partnerImpersonationSession.findMany({
       where: { adminId: admin.id, endedAt: null },
-      select: { id: true, partnerId: true },
+      select: { id: true, assistedUserId: true },
     });
     await tx.partnerImpersonationSession.updateMany({
       where: { adminId: admin.id, endedAt: null },
@@ -40,7 +44,7 @@ export async function startPartnerImpersonationAction(formData: FormData) {
         data: replaced.map((session) => ({
           sessionId: session.id,
           adminId: admin.id,
-          partnerId: session.partnerId,
+          assistedUserId: session.assistedUserId,
           action: "SESSION_ENDED",
           metadata: { reason: "REPLACED" },
         })),
@@ -50,7 +54,7 @@ export async function startPartnerImpersonationAction(formData: FormData) {
       data: {
         tokenHash: hashImpersonationToken(token),
         adminId: admin.id,
-        partnerId: partner.id,
+        assistedUserId: target.id,
         expiresAt,
       },
       select: { id: true },
@@ -59,14 +63,16 @@ export async function startPartnerImpersonationAction(formData: FormData) {
       data: {
         sessionId: created.id,
         adminId: admin.id,
-        partnerId: partner.id,
+        assistedUserId: target.id,
         action: "SESSION_STARTED",
+        metadata: { role: target.role },
       },
     });
     return created;
   });
 
-  (await cookies()).set(PARTNER_IMPERSONATION_COOKIE, token, {
+  const store = await cookies();
+  store.set(PARTNER_IMPERSONATION_COOKIE, token, {
     httpOnly: true,
     maxAge: PARTNER_IMPERSONATION_MINUTES * 60,
     path: "/",
@@ -74,13 +80,16 @@ export async function startPartnerImpersonationAction(formData: FormData) {
     secure: process.env.NODE_ENV === "production",
     priority: "high",
   });
+  // Start in the assisted user's personal workspace; a staff member's
+  // workspace is entered explicitly, as they would themselves.
+  store.delete(STAFF_WORKSPACE_COOKIE);
 
-  redirect("/dashboard/partner");
+  redirect(dashboardHomeFor(target.role));
 }
 
-export async function stopPartnerImpersonationAction() {
+export async function stopImpersonationAction() {
   const admin = await requireAdmin();
-  const context = await getActivePartnerImpersonation(admin.id);
+  const context = await getActiveImpersonation(admin.id);
   if (context) {
     await prisma.$transaction([
       prisma.partnerImpersonationSession.update({
@@ -91,13 +100,13 @@ export async function stopPartnerImpersonationAction() {
         data: {
           sessionId: context.sessionId,
           adminId: admin.id,
-          partnerId: context.partner.id,
+          assistedUserId: context.user.id,
           action: "SESSION_ENDED",
           metadata: { reason: "ADMIN_EXIT" },
         },
       }),
     ]);
   }
-  (await cookies()).delete(PARTNER_IMPERSONATION_COOKIE);
+  await clearImpersonationCookies();
   redirect("/dashboard/admin");
 }

@@ -10,6 +10,7 @@ import {
 import { z } from "zod";
 
 import { getAuthenticatedUser } from "@/lib/dal";
+import { getActiveImpersonation } from "@/lib/impersonation";
 import { prisma } from "@/lib/db";
 import { publishMessageEvent } from "@/lib/messages-realtime";
 import { formatManilaDateLong, formatSlotRange } from "@/lib/time";
@@ -54,6 +55,9 @@ type MessageViewer = {
   partnerStatus: "DRAFT" | "PENDING" | "ACTIVE" | "DEACTIVATED" | null;
   chatRestrictedAt: Date | null;
   canSend: boolean;
+  // An admin assisting this user: conversations are visible, but nothing is
+  // sent, changed or marked read on the user's behalf.
+  readOnly?: boolean;
 };
 
 export type MessageConversationSummary = {
@@ -91,6 +95,7 @@ export type ConversationDetails = {
   subtitle: string;
   image: string | null;
   restricted: boolean;
+  readOnly: boolean;
   blocked: boolean;
   context: {
     eyebrow: string;
@@ -158,8 +163,19 @@ function selectBookingContext(
 }
 
 async function messageViewer(): Promise<MessageViewer | null> {
-  const user = await getAuthenticatedUser();
-  if (!user || user.role === "ADMIN") return null;
+  const actor = await getAuthenticatedUser();
+  if (!actor) return null;
+  if (actor.role !== "ADMIN") return viewerFor(actor);
+  const impersonation = await getActiveImpersonation(actor.id);
+  if (!impersonation) return null;
+  const viewer = await viewerFor(impersonation.user);
+  return viewer ? { ...viewer, canSend: false, readOnly: true } : null;
+}
+
+async function viewerFor(
+  user: Omit<MessageViewer, "actorId" | "canSend" | "readOnly">
+): Promise<MessageViewer | null> {
+  if (user.role === "ADMIN") return null;
   if (user.role === "PARTNER" && user.partnerStatus !== "ACTIVE") return null;
   const workspace = user.role === "PLAYER" ? await getPartnerWorkspace() : null;
   if (workspace) {
@@ -993,6 +1009,7 @@ async function conversationDetailsForViewer(
     kind: conversation.kind,
     ...presentation,
     restricted: viewer.chatRestrictedAt != null || !viewer.canSend,
+    readOnly: viewer.readOnly === true,
     blocked: Boolean(privateBlock),
     blockedByMe: privateBlock?.blockerId === viewer.actorId,
     context,
@@ -1146,6 +1163,9 @@ export async function sendConversationMessage(
 ): Promise<{ message?: MessageView; error?: string }> {
   const viewer = authenticatedViewer ?? (await messageViewer());
   if (!viewer) return { error: "Conversation not available." };
+  if (viewer.readOnly) {
+    return { error: "Messages are read-only while assisting." };
+  }
   if (viewer.chatRestrictedAt || !viewer.canSend) {
     return { error: "Your account cannot send messages right now." };
   }
@@ -1323,6 +1343,8 @@ export async function markConversationRead(
 ): Promise<boolean> {
   const viewer = await messageViewer();
   if (!viewer || !(await accessConversation(conversationId, viewer))) return false;
+  // Reading as an assisting admin must not clear the user's unread state.
+  if (viewer.readOnly) return true;
   await prisma.chatReadState.upsert({
     where: { conversationId_userId: { conversationId, userId: viewer.actorId } },
     create: { conversationId, userId: viewer.actorId, lastReadAt: new Date() },

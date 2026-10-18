@@ -10,6 +10,8 @@ import {
   hashImpersonationToken,
   PARTNER_IMPERSONATION_COOKIE,
 } from "@/lib/impersonation-token";
+import { STAFF_WORKSPACE_COOKIE } from "@/lib/staffing-shared";
+import { currentUserSelect } from "@/lib/user-select";
 
 export {
   hashImpersonationToken,
@@ -17,34 +19,22 @@ export {
   PARTNER_IMPERSONATION_MINUTES,
 } from "@/lib/impersonation-token";
 
-const assistedPartnerSelect = {
-  id: true,
-  name: true,
-  playerName: true,
-  email: true,
-  phone: true,
-  facebookPage: true,
-  image: true,
-  role: true,
-  partnerStatus: true,
-  skillLevel: true,
-  privateProfile: true,
-} as const;
-
-export type AssistedPartner = Prisma.UserGetPayload<{
-  select: typeof assistedPartnerSelect;
+export type AssistedUser = Prisma.UserGetPayload<{
+  select: typeof currentUserSelect;
 }>;
 
-export type PartnerImpersonationContext = {
+// An admin assisting another account. Any non-admin user can be assisted:
+// partners, players (including trainers and staff members).
+export type ImpersonationContext = {
   sessionId: string;
   startedAt: Date;
   expiresAt: Date;
   admin: { id: string; name: string | null; email: string };
-  partner: AssistedPartner;
+  user: AssistedUser;
 };
 
-export const getActivePartnerImpersonation = cache(
-  async (adminId: string): Promise<PartnerImpersonationContext | null> => {
+export const getActiveImpersonation = cache(
+  async (adminId: string): Promise<ImpersonationContext | null> => {
     const token = (await cookies()).get(PARTNER_IMPERSONATION_COOKIE)?.value;
     if (!token || token.length < 32 || token.length > 200) return null;
 
@@ -58,48 +48,49 @@ export const getActivePartnerImpersonation = cache(
       select: {
         id: true,
         adminId: true,
-        partnerId: true,
+        assistedUserId: true,
         startedAt: true,
         expiresAt: true,
       },
     });
     if (!session) return null;
 
-    const [admin, partner] = await Promise.all([
+    const [admin, user] = await Promise.all([
       prisma.user.findFirst({
         where: { id: session.adminId, role: "ADMIN" },
         select: { id: true, name: true, email: true },
       }),
+      // Admins are never assistable, even if a role changed mid-session.
       prisma.user.findFirst({
-        where: { id: session.partnerId, role: "PARTNER" },
-        select: assistedPartnerSelect,
+        where: { id: session.assistedUserId, role: { not: "ADMIN" } },
+        select: currentUserSelect,
       }),
     ]);
-    if (!admin || !partner) return null;
+    if (!admin || !user) return null;
 
     return {
       sessionId: session.id,
       startedAt: session.startedAt,
       expiresAt: session.expiresAt,
       admin,
-      partner,
+      user,
     };
   }
 );
 
-export async function getCurrentPartnerImpersonation(): Promise<PartnerImpersonationContext | null> {
+export async function getCurrentImpersonation(): Promise<ImpersonationContext | null> {
   const session = await auth();
   if (!session?.user?.id) return null;
-  return getActivePartnerImpersonation(session.user.id);
+  return getActiveImpersonation(session.user.id);
 }
 
-export async function isPartnerImpersonationActive(): Promise<boolean> {
-  return Boolean(await getCurrentPartnerImpersonation());
+export async function isImpersonationActive(): Promise<boolean> {
+  return Boolean(await getCurrentImpersonation());
 }
 
 // Returns the account a workspace mutation is allowed to change. A normal
 // session may only mutate itself; an ADMIN in an active assisted session may
-// mutate only that session's partner. Server Actions use this instead of a
+// mutate only that session's user. Server Actions use this instead of a
 // client-supplied target id so the cookie-backed assistance session remains
 // the authorization boundary.
 export async function getWorkspaceMutationTarget(): Promise<{
@@ -109,9 +100,9 @@ export async function getWorkspaceMutationTarget(): Promise<{
   const session = await auth();
   if (!session?.user?.id) throw new Error("UNAUTHENTICATED");
 
-  const context = await getActivePartnerImpersonation(session.user.id);
+  const context = await getActiveImpersonation(session.user.id);
   return context
-    ? { userId: context.partner.id, assisted: true }
+    ? { userId: context.user.id, assisted: true }
     : { userId: session.user.id, assisted: false };
 }
 
@@ -126,7 +117,7 @@ export async function recordImpersonatedAction({
   targetId?: string;
   metadata?: Prisma.InputJsonValue;
 }): Promise<void> {
-  const context = await getCurrentPartnerImpersonation();
+  const context = await getCurrentImpersonation();
   if (!context) return;
 
   await prisma.$transaction([
@@ -134,7 +125,7 @@ export async function recordImpersonatedAction({
       data: {
         sessionId: context.sessionId,
         adminId: context.admin.id,
-        partnerId: context.partner.id,
+        assistedUserId: context.user.id,
         action,
         targetType: targetType ?? null,
         targetId: targetId ?? null,
@@ -148,8 +139,16 @@ export async function recordImpersonatedAction({
   ]);
 }
 
+// Clears the cookies an assist session leaves behind. The staff-workspace
+// selection belongs to whoever was being assisted, so it must not carry over.
+export async function clearImpersonationCookies(): Promise<void> {
+  const store = await cookies();
+  store.delete(PARTNER_IMPERSONATION_COOKIE);
+  store.delete(STAFF_WORKSPACE_COOKIE);
+}
+
 export async function endImpersonationForLogout(): Promise<void> {
-  const context = await getCurrentPartnerImpersonation();
+  const context = await getCurrentImpersonation();
   if (context) {
     await prisma.$transaction([
       prisma.partnerImpersonationSession.update({
@@ -160,12 +159,19 @@ export async function endImpersonationForLogout(): Promise<void> {
         data: {
           sessionId: context.sessionId,
           adminId: context.admin.id,
-          partnerId: context.partner.id,
+          assistedUserId: context.user.id,
           action: "SESSION_ENDED",
           metadata: { reason: "LOGOUT" },
         },
       }),
     ]);
+    await clearImpersonationCookies();
+    return;
   }
   (await cookies()).delete(PARTNER_IMPERSONATION_COOKIE);
 }
+
+// Admins may change an assisted user's payment settings, but never pay, start
+// a checkout, or submit a payment or receipt on their behalf.
+export const ASSISTED_PAYMENT_BLOCKED =
+  "Payments can't be made while assisting a user.";

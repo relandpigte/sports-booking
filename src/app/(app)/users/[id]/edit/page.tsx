@@ -5,9 +5,9 @@ import { EditUserForm } from "@/components/admin/EditUserForm";
 import {
   requireAdmin,
   getUserById,
-  listPartnerAssistanceAudit,
+  listAssistanceAudit,
 } from "@/lib/admin";
-import { startPartnerImpersonationAction } from "@/lib/impersonation-actions";
+import { startImpersonationAction } from "@/lib/impersonation-actions";
 
 export const metadata: Metadata = {
   title: "Edit User — Manage Users — Bunal.club",
@@ -25,8 +25,8 @@ export default async function EditUserPage({
   if (!user) {
     notFound();
   }
-  const assistanceAudit =
-    user.role === "PARTNER" ? await listPartnerAssistanceAudit(user.id) : [];
+  const canAssist = user.role !== "ADMIN";
+  const assistanceAudit = canAssist ? await listAssistanceAudit(user.id) : [];
 
   return (
     <div className="mx-auto w-full max-w-2xl">
@@ -41,26 +41,26 @@ export default async function EditUserPage({
           <h1 className="text-2xl font-bold text-gray-900">Edit User</h1>
           <p className="mt-1 text-sm text-gray-500">{user.email}</p>
         </div>
-        {user.role === "PARTNER" && (
-          <form action={startPartnerImpersonationAction}>
-            <input type="hidden" name="partnerId" value={user.id} />
+        {canAssist && (
+          <form action={startImpersonationAction}>
+            <input type="hidden" name="userId" value={user.id} />
             <button
               type="submit"
               className="inline-flex min-h-10 items-center rounded-xl bg-amber-900 px-4 text-sm font-bold text-white hover:bg-amber-950"
             >
-              Assist as partner
+              Assist this {user.role === "PARTNER" ? "partner" : "player"}
             </button>
           </form>
         )}
       </div>
       <EditUserForm user={user} isSelf={user.id === admin?.id} />
-      {user.role === "PARTNER" && (
+      {canAssist && (
         <section className="mt-8 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
           <div>
             <h2 className="font-bold text-gray-900">Assistance history</h2>
             <p className="mt-1 text-sm text-gray-500">
-              The latest admin-assisted sessions and operational changes for
-              this partner.
+              The latest admin-assisted sessions and changes made for this
+              account.
             </p>
           </div>
           {assistanceAudit.length > 0 ? (

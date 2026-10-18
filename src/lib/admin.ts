@@ -148,10 +148,10 @@ export async function getUserById(id: string): Promise<AdminUser | null> {
   return user ? mapAdminUser(user) : null;
 }
 
-export async function listPartnerAssistanceAudit(partnerId: string) {
+export async function listAssistanceAudit(userId: string) {
   await requireAdmin();
   const rows = await prisma.partnerImpersonationAudit.findMany({
-    where: { partnerId },
+    where: { assistedUserId: userId },
     orderBy: { createdAt: "desc" },
     take: 50,
     select: {

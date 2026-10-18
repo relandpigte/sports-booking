@@ -345,12 +345,12 @@ export async function saveTrainerPayoutAccountAction(
   _prev: PayoutAccountFormState,
   formData: FormData
 ): Promise<PayoutAccountFormState> {
+  // A trainer is a capability on a PLAYER account. getViewer is the trainer,
+  // or the trainer an admin is assisting; actor is always the real signed-in
+  // account, so the change is attributed to whoever made it.
   const viewer = await getViewer();
   const actor = await getAuthenticatedUser();
-  // A trainer is a capability on a PLAYER account. getViewer returns the
-  // assisted partner during admin impersonation, which is never a trainer, so
-  // requiring the two to match keeps this the trainer's own session.
-  if (!viewer || !actor || viewer.id !== actor.id || viewer.role !== "PLAYER") {
+  if (!viewer || !actor || viewer.role !== "PLAYER") {
     return { message: "Create a trainer profile first." };
   }
   const profile = await prisma.trainerProfile.findUnique({
@@ -362,13 +362,19 @@ export async function saveTrainerPayoutAccountAction(
 
   const result = await savePayoutAccount({
     userId: viewer.id,
-    actorId: viewer.id,
+    actorId: actor.id,
     recipientKind: "TRAINER",
     statementPath: "/dashboard/trainer/payments",
     formData,
   });
   if (!result.success) return result;
 
+  await recordImpersonatedAction({
+    action: "TRAINER_PAYOUT_ACCOUNT_UPDATED",
+    targetType: "User",
+    targetId: viewer.id,
+    metadata: { network: String(formData.get("network") ?? "") },
+  });
   revalidatePath("/dashboard/trainer");
   revalidatePath("/dashboard/trainer/payments");
   revalidatePath("/trainers");

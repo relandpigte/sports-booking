@@ -687,7 +687,7 @@ async function check() {
     data: {
       tokenHash: `${EMAIL_PREFIX}impersonation-token`,
       adminId: actor.id,
-      partnerId: survivingPartner.id,
+      assistedUserId: survivingPartner.id,
       expiresAt: new Date("2099-01-01T00:00:00.000Z"),
     },
     select: { id: true },
@@ -696,7 +696,7 @@ async function check() {
     data: {
       sessionId: impersonationSession.id,
       adminId: actor.id,
-      partnerId: survivingPartner.id,
+      assistedUserId: survivingPartner.id,
       action: `${EMAIL_PREFIX}IMPERSONATION_CHECK`,
       targetType: "User",
       targetId: actor.id,
@@ -793,7 +793,7 @@ async function check() {
       preservedActivity.targetId === null &&
       JSON.stringify(preservedActivity.metadata).includes(actorEmail) === false &&
       preservedAudit?.adminId === null &&
-      preservedAudit.partnerId === survivingPartner.id &&
+      preservedAudit.assistedUserId === survivingPartner.id &&
       preservedAudit.sessionId === null &&
       preservedAudit.targetId === null &&
       (await prisma.partnerImpersonationSession.count({

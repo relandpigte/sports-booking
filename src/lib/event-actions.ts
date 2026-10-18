@@ -43,7 +43,10 @@ import {
 } from "@/lib/time";
 import { firstErrors } from "@/lib/zod-errors";
 import { weeklyEventDates } from "@/lib/event-recurrence";
-import { recordImpersonatedAction } from "@/lib/impersonation";
+import {
+  isImpersonationActive,
+  recordImpersonatedAction,
+} from "@/lib/impersonation";
 import {
   notifyGuestEventAccess,
   notifyPartnerTeamOfBooking,
@@ -1029,7 +1032,15 @@ export async function registerForEventAction(
   if (outcome.kind === "payment") {
     // Create the QR Ph checkout now so the next screen can display it without
     // asking the player to press a second payment button.
-    if (!manualPayment) {
+    // An assisting admin may hold the spot, but never starts the charge.
+    const assisting = await isImpersonationActive();
+    await recordImpersonatedAction({
+      action: "PLAYER_EVENT_REGISTRATION_HELD",
+      targetType: "BookingPayment",
+      targetId: outcome.paymentId,
+      metadata: { eventId: event.id },
+    });
+    if (!manualPayment && !assisting) {
       await chargeBookingPayment({
         paymentId: outcome.paymentId,
         userId: viewer.id,
@@ -1051,6 +1062,14 @@ export async function registerForEventAction(
           : `Only ${outcome.available} spot${outcome.available === 1 ? " is" : "s are"} available. Reduce your group and try again.`,
     };
   }
+  await recordImpersonatedAction({
+    action:
+      outcome.kind === "waitlist"
+        ? "PLAYER_EVENT_WAITLIST_JOINED"
+        : "PLAYER_EVENT_REGISTERED",
+    targetType: "Event",
+    targetId: event.id,
+  });
   return outcome.kind === "waitlist"
     ? { success: "You're on the free waitlist. Check back when a spot opens." }
     : { success: "You're registered for this event." };
@@ -1739,7 +1758,15 @@ export async function addEventGuestSlotsAction(
 
   revalidateEventSurfaces(event.publicId, event.hubId);
   if (outcome.kind === "payment") {
-    if (!manualPayment) {
+    // An assisting admin may hold the spot, but never starts the charge.
+    const assisting = await isImpersonationActive();
+    await recordImpersonatedAction({
+      action: "PLAYER_EVENT_REGISTRATION_HELD",
+      targetType: "BookingPayment",
+      targetId: outcome.paymentId,
+      metadata: { eventId: event.id },
+    });
+    if (!manualPayment && !assisting) {
       await chargeBookingPayment({
         paymentId: outcome.paymentId,
         userId: viewer.id,
@@ -1758,6 +1785,11 @@ export async function addEventGuestSlotsAction(
   if (outcome.kind === "not-confirmed") {
     return { message: "Confirm your own registration before adding guests." };
   }
+  await recordImpersonatedAction({
+    action: "PLAYER_EVENT_GUESTS_ADDED",
+    targetType: "Event",
+    targetId: event.id,
+  });
   return { success: `${guests.names.length} guest spot${guests.names.length === 1 ? "" : "s"} added.` };
 }
 

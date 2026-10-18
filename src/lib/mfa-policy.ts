@@ -16,3 +16,15 @@ export function roleRequiresMfa(role: Role, now = new Date()): boolean {
   const enforcedAt = partnerMfaEnforcedAt();
   return enforcedAt !== null && now >= enforcedAt;
 }
+
+// Whether a sensitive financial action must re-check the second factor
+// (requireRecentMfa). Admins never are: every admin session already passed
+// MFA at sign-in, including while assisting another account.
+export function requiresRecentMfa(
+  role: Role,
+  mfaEnabledAt: Date | null,
+  now = new Date()
+): boolean {
+  if (role === "ADMIN") return false;
+  return roleRequiresMfa(role, now) || mfaEnabledAt !== null;
+}

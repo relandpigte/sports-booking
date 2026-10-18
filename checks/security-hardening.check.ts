@@ -6,7 +6,7 @@ import nextConfig from "../next.config";
 
 import { assertNotProduction, ok, report } from "./harness";
 import { sanitizeImageDataUrl } from "@/lib/avatar";
-import { roleRequiresMfa } from "@/lib/mfa-policy";
+import { requiresRecentMfa, roleRequiresMfa } from "@/lib/mfa-policy";
 import { RegisterSchema } from "@/lib/validation";
 
 const VALID_PNG_DATA_URL =
@@ -79,6 +79,16 @@ async function check() {
   ok(
     "administrators and partners require MFA after the cutover",
     roleRequiresMfa("ADMIN") && roleRequiresMfa("PARTNER") && !roleRequiresMfa("PLAYER")
+  );
+  ok(
+    "admins are never re-challenged for MFA on sensitive actions",
+    !requiresRecentMfa("ADMIN", new Date())
+  );
+  ok(
+    "partners and players with MFA on, or required, still are",
+    requiresRecentMfa("PARTNER", null) &&
+      requiresRecentMfa("PLAYER", new Date()) &&
+      !requiresRecentMfa("PLAYER", null)
   );
   if (previousCutover === undefined) delete process.env.PARTNER_MFA_REQUIRED_AFTER;
   else process.env.PARTNER_MFA_REQUIRED_AFTER = previousCutover;

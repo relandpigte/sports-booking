@@ -10,6 +10,11 @@ import { CRYPTO_PURPOSE, encrypt, isEncryptionConfigured, secretHint } from "@/l
 import { getViewer, requireRecentMfa } from "@/lib/dal";
 import { requireAdmin } from "@/lib/admin";
 import { prisma } from "@/lib/db";
+import {
+  ASSISTED_PAYMENT_BLOCKED,
+  isImpersonationActive,
+  recordImpersonatedAction,
+} from "@/lib/impersonation";
 import { appUrl } from "@/lib/urls";
 import { getVenueGateway, type PaymentRail } from "@/lib/payments/venue";
 import { platformPaymongoConfigured } from "@/lib/payments/paymongo-platform";
@@ -123,6 +128,7 @@ export async function connectTrainerGatewayAction(
       disconnectedAt: null,
     },
   });
+  await recordImpersonatedAction({ action: "TRAINER_GATEWAY_CONNECTED" });
   revalidateTrainerPayments();
   return { success: "PayMongo connected for trainer-session payments." };
 }
@@ -148,6 +154,7 @@ export async function saveTrainerPaymentModeAction(
     if (count === 0) return { message: "Add an active manual payment method first." };
   }
   await prisma.trainerProfile.update({ where: { id: owner.profile.id }, data: { paymentMode: mode } });
+  await recordImpersonatedAction({ action: "TRAINER_PAYMENT_MODE_UPDATED", metadata: { mode } });
   revalidateTrainerPayments();
   return { success: mode === "AUTOMATIC" ? "Automatic QR Ph payments selected." : "Manual transfer selected." };
 }
@@ -209,6 +216,7 @@ export async function saveTrainerManualMethodAction(
       data: { trainerId: owner.viewer.id, network, label, accountName: accountName || null, accountIdentifier: accountIdentifier || null, instructions: instructions || null, qrImage, active, sortOrder },
     });
   }
+  await recordImpersonatedAction({ action: id ? "TRAINER_PAYMENT_METHOD_UPDATED" : "TRAINER_PAYMENT_METHOD_ADDED" });
   revalidateTrainerPayments();
   return { success: id ? "Payment method updated." : "Payment method added." };
 }
@@ -261,6 +269,7 @@ export async function deleteTrainerManualMethodAction(
     return { message: "Payment destination not found." };
   }
 
+  await recordImpersonatedAction({ action: "TRAINER_PAYMENT_METHOD_DELETED" });
   revalidateTrainerPayments();
   return { success: "Payment destination deleted." };
 }
@@ -269,6 +278,9 @@ export async function payTrainerSessionAction(
   _previous: TrainerPaymentState,
   formData: FormData
 ): Promise<TrainerPaymentState> {
+  if (await isImpersonationActive()) {
+    return { message: ASSISTED_PAYMENT_BLOCKED };
+  }
   const viewer = await getViewer();
   if (!viewer || viewer.role !== "PLAYER") return { message: "Sign in as the player who requested this session." };
   const paymentId = value(formData, "paymentId", 60);
@@ -362,6 +374,9 @@ export async function submitTrainerManualProofAction(
   _previous: TrainerPaymentState,
   formData: FormData
 ): Promise<TrainerPaymentState> {
+  if (await isImpersonationActive()) {
+    return { message: ASSISTED_PAYMENT_BLOCKED };
+  }
   const viewer = await getViewer();
   if (!viewer || viewer.role !== "PLAYER") return { message: "Player account required." };
   const paymentId = value(formData, "paymentId", 60);
@@ -441,6 +456,7 @@ export async function reviewTrainerManualPaymentAction(
           "Payment could not be confirmed. Refresh the session and try again.",
       };
     }
+    await recordImpersonatedAction({ action: "TRAINER_MANUAL_PAYMENT_APPROVED", targetType: "TrainerPayment", targetId: payment.id });
     return { success: "Payment approved and the session confirmed." };
   }
   if (decision !== "DECLINE") return { message: "Choose Approve or Decline." };
@@ -462,6 +478,7 @@ export async function reviewTrainerManualPaymentAction(
     actionLabel: "View booking",
     idempotencyKey: `trainer-manual-declined-${payment.id}`,
   });
+  await recordImpersonatedAction({ action: "TRAINER_MANUAL_PAYMENT_DECLINED", targetType: "TrainerPayment", targetId: payment.id });
   revalidateTrainerPayments(payment.id);
   return { success: "Payment declined and the hours released." };
 }
@@ -518,6 +535,7 @@ export async function refundTrainerSessionAction(
       prisma.trainerSessionSlot.deleteMany({ where: { trainerSessionId: session.id } }),
     ]);
     await sendLifecycle({ to: session.trainer.user.email, recipientName: session.trainer.user.playerName ?? session.trainer.user.name ?? "Trainer", subject: "Player cancelled trainer session", heading: "The player cancelled inside 24 hours", message: `${reason} The payment is non-refundable under the trainer-session policy.`, actionUrl: appUrl("/dashboard/trainer/sessions"), actionLabel: "View session", idempotencyKey: `trainer-late-cancel-${session.id}` });
+    await recordImpersonatedAction({ action: "TRAINER_SESSION_CANCELLED", targetType: "TrainerSession", targetId: sessionId });
     revalidateTrainerPayments(session.payment.id);
     return { success: "Session cancelled. Cancellations inside 24 hours are non-refundable." };
   }
@@ -528,6 +546,7 @@ export async function refundTrainerSessionAction(
       prisma.trainerSessionSlot.deleteMany({ where: { trainerSessionId: session.id } }),
     ]);
     await sendLifecycle({ to: session.trainer.user.email, recipientName: session.trainer.user.playerName ?? session.trainer.user.name ?? "Trainer", subject: "Manual trainer refund required", heading: "Return the player's trainer subtotal", message: `The player cancelled at least 24 hours ahead. Return ₱${Number(session.payment.trainerAmount).toFixed(2)}, then record the refund from your session dashboard.`, actionUrl: appUrl("/dashboard/trainer/sessions"), actionLabel: "Review refund", idempotencyKey: `trainer-manual-refund-request-${session.id}` });
+    await recordImpersonatedAction({ action: "TRAINER_SESSION_CANCELLED", targetType: "TrainerSession", targetId: sessionId });
     revalidateTrainerPayments(session.payment.id);
     return { success: "Session cancelled. The trainer was asked to return your eligible manual refund." };
   }
@@ -598,6 +617,7 @@ export async function refundTrainerSessionAction(
     actionLabel: "View session",
     idempotencyKey: `trainer-refunded-${session.id}`,
   });
+  await recordImpersonatedAction({ action: "TRAINER_REFUND_RECORDED", targetType: "TrainerSession", targetId: sessionId });
   revalidateTrainerPayments(session.payment.id);
   return { success: "Refund recorded and the session closed." };
 }
@@ -606,6 +626,9 @@ export async function submitTrainerServiceFeeSettlementAction(
   _previous: TrainerPaymentState,
   formData: FormData
 ): Promise<TrainerPaymentState> {
+  if (await isImpersonationActive()) {
+    return { message: ASSISTED_PAYMENT_BLOCKED };
+  }
   const owner = await trainerOwner();
   if (!owner) return { message: "Trainer account required." };
   const paymentReference = value(formData, "paymentReference", 120);
@@ -654,6 +677,9 @@ export async function startTrainerServiceFeeCheckoutAction(
   _previous: TrainerPaymentState,
   _formData: FormData
 ): Promise<TrainerPaymentState> {
+  if (await isImpersonationActive()) {
+    return { message: ASSISTED_PAYMENT_BLOCKED };
+  }
   const owner = await trainerOwner();
   if (!owner) return { message: "Trainer account required." };
   await requireRecentMfa("/dashboard/trainer/payments");

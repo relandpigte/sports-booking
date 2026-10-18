@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 
 import { signIn, signOut } from "@/lib/auth";
 import { verifySession } from "@/lib/dal";
-import { isPartnerImpersonationActive } from "@/lib/impersonation";
+import { isImpersonationActive } from "@/lib/impersonation";
 import {
   createLoginGrant,
   completeMfaSetupChallenge,
@@ -138,7 +138,7 @@ export async function completeLoginMfaSetupAction(formData: FormData) {
 }
 
 export async function startAccountMfaSetupAction(): Promise<void> {
-  if (await isPartnerImpersonationActive()) {
+  if (await isImpersonationActive()) {
     redirect("/dashboard/account?tab=security&error=assisted");
   }
   const { userId } = await verifySession();
@@ -161,7 +161,7 @@ export async function verifyAccountMfaSetupAction(
   _previous: MfaFormState,
   formData: FormData
 ): Promise<MfaFormState> {
-  if (await isPartnerImpersonationActive()) {
+  if (await isImpersonationActive()) {
     return { message: "Security settings are blocked during assisted access." };
   }
   const { userId } = await verifySession();
@@ -194,6 +194,9 @@ export async function verifyAccountMfaSetupAction(
 }
 
 export async function finishAccountMfaSetupAction(): Promise<void> {
+  if (await isImpersonationActive()) {
+    redirect("/dashboard/account?tab=security&error=assisted");
+  }
   const { userId } = await verifySession();
   const cookieStore = await cookies();
   const token = cookieStore.get(SECURITY_CHALLENGE_COOKIE)?.value;
@@ -208,7 +211,7 @@ export async function disableMfaAction(
   _previous: MfaFormState,
   formData: FormData
 ): Promise<MfaFormState> {
-  if (await isPartnerImpersonationActive()) {
+  if (await isImpersonationActive()) {
     return { message: "Security settings are blocked during assisted access." };
   }
   const { userId } = await verifySession();
@@ -229,6 +232,7 @@ export async function disableMfaAction(
 }
 
 export async function revokeSessionAction(formData: FormData): Promise<void> {
+  if (await isImpersonationActive()) return;
   const { userId, sessionDatabaseId: currentSessionId } = await verifySession();
   const sessionDatabaseId = String(formData.get("sessionId") ?? "");
   if (!sessionDatabaseId) return;
@@ -244,6 +248,7 @@ export async function revokeSessionAction(formData: FormData): Promise<void> {
 }
 
 export async function revokeOtherSessionsAction(): Promise<void> {
+  if (await isImpersonationActive()) return;
   const { userId, sessionId } = await verifySession();
   await revokeOtherSessions({
     userId,

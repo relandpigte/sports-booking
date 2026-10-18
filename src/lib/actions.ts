@@ -528,7 +528,7 @@ export async function updateProfileAction(
   });
 
   await recordImpersonatedAction({
-    action: "PARTNER_PROFILE_UPDATED",
+    action: "PROFILE_UPDATED",
     targetType: "User",
     targetId: target.userId,
     metadata: {

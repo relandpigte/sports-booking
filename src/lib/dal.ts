@@ -7,30 +7,19 @@ import type { Role } from "@prisma/client";
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { getActivePartnerImpersonation } from "@/lib/impersonation";
+import { getActiveImpersonation } from "@/lib/impersonation";
 import {
   createSecurityChallenge,
   SECURITY_CHALLENGE_COOKIE,
   validateManagedSession,
 } from "@/lib/account-security";
 import { isIncompleteGoogleRegistration } from "@/lib/registration-state";
-import { RECENT_MFA_MINUTES, roleRequiresMfa } from "@/lib/mfa-policy";
-
-const currentUserSelect = {
-  id: true,
-  name: true,
-  playerName: true,
-  email: true,
-  phone: true,
-  facebookPage: true,
-  image: true,
-  role: true,
-  partnerStatus: true,
-  partnerPaymentMode: true,
-  skillLevel: true,
-  privateProfile: true,
-  chatRestrictedAt: true,
-} as const;
+import {
+  RECENT_MFA_MINUTES,
+  requiresRecentMfa,
+  roleRequiresMfa,
+} from "@/lib/mfa-policy";
+import { currentUserSelect } from "@/lib/user-select";
 
 const getValidatedSession = cache(async () => {
   const session = await auth();
@@ -112,17 +101,17 @@ export const getViewer = cache(async () => {
   }
 
   if (user.role === "ADMIN") {
-    const impersonation = await getActivePartnerImpersonation(user.id);
+    const impersonation = await getActiveImpersonation(user.id);
     if (impersonation) {
-      const partner = impersonation.partner;
+      const assisted = impersonation.user;
       return {
-        id: partner.id,
-        name: partner.name,
-        playerName: partner.playerName,
-        email: partner.email,
-        image: partner.image,
-        role: partner.role,
-        partnerStatus: partner.partnerStatus,
+        id: assisted.id,
+        name: assisted.name,
+        playerName: assisted.playerName,
+        email: assisted.email,
+        image: assisted.image,
+        role: assisted.role,
+        partnerStatus: assisted.partnerStatus,
       };
     }
   }
@@ -150,16 +139,16 @@ export const getAuthenticatedUser = cache(async () => {
   return user;
 });
 
-// Returns the effective workspace user. During assisted setup this is the
-// partner, while getAuthenticatedUser remains the real admin.
+// Returns the effective workspace user. While an admin is assisting someone
+// this is the assisted user, while getAuthenticatedUser remains the real admin.
 export const getCurrentUser = cache(async () => {
   await verifySession();
   const user = await getAuthenticatedUser();
   if (!user) return null;
   if (user.role !== "ADMIN") return user;
 
-  const impersonation = await getActivePartnerImpersonation(user.id);
-  return impersonation?.partner ?? user;
+  const impersonation = await getActiveImpersonation(user.id);
+  return impersonation?.user ?? user;
 });
 
 // Guards a page/action by role. Redirects to /login if the signed-in user
@@ -190,11 +179,11 @@ export async function requireActivePartner() {
     const actor = await getAuthenticatedUser();
     const impersonation =
       actor?.role === "ADMIN"
-        ? await getActivePartnerImpersonation(actor.id)
+        ? await getActiveImpersonation(actor.id)
         : null;
     // Admins may finish setup before approval. Public listing and payments
     // still use the partner's real status, so this does not activate the venue.
-    if (impersonation?.partner.id === user.id) return user;
+    if (impersonation?.user.id === user.id) return user;
     redirect("/dashboard/partner");
   }
   return user;
@@ -216,7 +205,10 @@ export async function requireRecentMfa(redirectTo = "/dashboard") {
     }),
   ]);
   if (!user || !managedSession) redirect("/login");
-  if (!roleRequiresMfa(user.role) && !user.mfaEnabledAt) return;
+  // Admins are exempt: every admin session already passed MFA at sign-in
+  // (getValidatedSession rejects one that didn't). This reads the real signed-in
+  // account, so it also holds while an admin is assisting another user.
+  if (!requiresRecentMfa(user.role, user.mfaEnabledAt)) return;
 
   const recentAfter = new Date(Date.now() - RECENT_MFA_MINUTES * 60_000);
   if (managedSession.mfaVerified && managedSession.createdAt >= recentAfter) return;

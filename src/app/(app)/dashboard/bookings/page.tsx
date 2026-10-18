@@ -24,7 +24,7 @@ import {
   manilaNowHour,
   manilaToday,
 } from "@/lib/time";
-import { getCurrentPartnerImpersonation } from "@/lib/impersonation";
+import { getCurrentImpersonation } from "@/lib/impersonation";
 import {
   listMyEventRegistrations,
   type PlayerEventRegistrationView,
@@ -202,14 +202,14 @@ export default async function BookingsPage({
 }) {
   const [user, impersonation, workspace] = await Promise.all([
     getCurrentUser(),
-    getCurrentPartnerImpersonation(),
+    getCurrentImpersonation(),
     getPartnerWorkspace(),
   ]);
   if (!user || user.role === "ADMIN") redirect("/dashboard");
   if (
     user.role === "PARTNER" &&
     user.partnerStatus !== "ACTIVE" &&
-    impersonation?.partner.id !== user.id
+    impersonation?.user.id !== user.id
   ) {
     redirect("/dashboard/partner");
   }

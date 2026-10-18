@@ -6,9 +6,10 @@ import { redirect } from "next/navigation";
 
 import { getAuthenticatedUser } from "@/lib/dal";
 import { prisma } from "@/lib/db";
-import { getActivePartnerImpersonation } from "@/lib/impersonation";
+import { getActiveImpersonation } from "@/lib/impersonation";
 import {
   STAFF_MODULES,
+  STAFF_WORKSPACE_COOKIE,
   hasStaffAccess,
   type PartnerWorkspace,
   type StaffModule,
@@ -23,8 +24,7 @@ export {
   type StaffPermissions,
 } from "@/lib/staffing-shared";
 export { listOperationalRecipients } from "@/lib/operational-recipients";
-
-export const STAFF_WORKSPACE_COOKIE = "bunal_staff_workspace";
+export { STAFF_WORKSPACE_COOKIE } from "@/lib/staffing-shared";
 
 const fullAccess: StaffPermissions = {
   hubs: "MANAGE",
@@ -45,19 +45,27 @@ export async function getPartnerWorkspace({
   if (!actor) return null;
 
   if (actor.role === "ADMIN") {
-    const impersonation = await getActivePartnerImpersonation(actor.id);
-    if (!impersonation || impersonation.partner.partnerStatus !== "ACTIVE") {
-      return null;
+    const impersonation = await getActiveImpersonation(actor.id);
+    if (!impersonation) return null;
+    const assisted = impersonation.user;
+    if (assisted.role === "PARTNER") {
+      if (assisted.partnerStatus !== "ACTIVE") return null;
+      return {
+        kind: "ADMIN_ASSIST",
+        actorId: actor.id,
+        partnerId: assisted.id,
+        partnerName: assisted.name ?? assisted.email,
+        membershipId: null,
+        permissions: fullAccess,
+      };
     }
-    return {
-      kind: "ADMIN_ASSIST",
-      actorId: actor.id,
-      partnerId: impersonation.partner.id,
-      partnerName:
-        impersonation.partner.name ?? impersonation.partner.email,
-      membershipId: null,
-      permissions: fullAccess,
-    };
+    // An admin assisting a staff member gets exactly that member's access,
+    // recorded under the admin's own id.
+    if (assisted.role !== "PLAYER") return null;
+    const workspace = await resolveStaffWorkspace(assisted.id, selectedStaffOnly);
+    return workspace
+      ? { ...workspace, actorId: actor.id, assistedByAdminId: actor.id }
+      : null;
   }
 
   if (actor.role === "PARTNER") {
@@ -73,7 +81,13 @@ export async function getPartnerWorkspace({
   }
 
   if (actor.role !== "PLAYER") return null;
+  return resolveStaffWorkspace(actor.id, selectedStaffOnly);
+}
 
+async function resolveStaffWorkspace(
+  playerId: string,
+  selectedStaffOnly: boolean
+): Promise<PartnerWorkspace | null> {
   if (selectedStaffOnly) {
     let selected: string | undefined;
     try {
@@ -87,7 +101,7 @@ export async function getPartnerWorkspace({
   }
 
   const membership = await prisma.partnerStaffMembership.findUnique({
-    where: { userId: actor.id },
+    where: { userId: playerId },
     select: {
       id: true,
       partnerId: true,
@@ -107,7 +121,7 @@ export async function getPartnerWorkspace({
 
   return {
     kind: "STAFF",
-    actorId: actor.id,
+    actorId: playerId,
     partnerId: membership.partnerId,
     partnerName: membership.partner.name ?? membership.partner.email,
     membershipId: membership.id,
@@ -143,6 +157,13 @@ export async function recordPartnerActivity(input: {
   metadata?: Prisma.InputJsonValue;
 }): Promise<void> {
   if (input.workspace.kind !== "STAFF") return;
+  const assistedBy = input.workspace.assistedByAdminId;
+  const metadata = assistedBy
+    ? {
+        ...(isJsonObject(input.metadata) ? input.metadata : {}),
+        assistedByAdminId: assistedBy,
+      }
+    : input.metadata;
   await prisma.partnerStaffActivity.create({
     data: {
       partnerId: input.workspace.partnerId,
@@ -150,7 +171,7 @@ export async function recordPartnerActivity(input: {
       action: input.action,
       targetType: input.targetType,
       targetId: input.targetId,
-      metadata: input.metadata,
+      metadata,
     },
   });
 }
@@ -162,4 +183,10 @@ export function permissionSummary(permissions: StaffPermissions): string[] {
     const label = module[0].toUpperCase() + module.slice(1);
     return [`${label}: ${access === "MANAGE" ? "manage" : "view"}`];
   });
+}
+
+function isJsonObject(
+  value: Prisma.InputJsonValue | undefined
+): value is Prisma.InputJsonObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

@@ -1314,37 +1314,39 @@ model ProviderEvent {
 // A short-lived admin assistance session. The browser holds only the random
 // token; its SHA-256 hash is stored here so a database read cannot recreate an
 // active impersonation cookie. Deleting either account removes these short-lived
-// sessions while preserving anonymized audit rows.
+// sessions while preserving anonymized audit rows. The model keeps its original
+// name; any non-admin account can be assisted, and `assistedUserId` keeps the
+// original `partnerId` column.
 model PartnerImpersonationSession {
-  id           String    @id @default(cuid())
-  tokenHash    String    @unique
-  adminId      String
-  partnerId    String
-  startedAt    DateTime  @default(now())
-  expiresAt    DateTime
-  endedAt      DateTime?
-  endedReason  String?
-  lastActionAt DateTime  @default(now())
+  id             String    @id @default(cuid())
+  tokenHash      String    @unique
+  adminId        String
+  assistedUserId String    @map("partnerId")
+  startedAt      DateTime  @default(now())
+  expiresAt      DateTime
+  endedAt        DateTime?
+  endedReason    String?
+  lastActionAt   DateTime  @default(now())
 
   @@index([adminId, endedAt, expiresAt])
-  @@index([partnerId, startedAt])
+  @@index([assistedUserId, startedAt])
 }
 
-// Operational mutations performed while assisting a partner. These rows are
+// Operational mutations performed while assisting a user. These rows are
 // append-only and intentionally keep plain ids. User deletion anonymizes the
 // ids without erasing the administrative record.
 model PartnerImpersonationAudit {
-  id         String   @id @default(cuid())
-  sessionId  String?
-  adminId    String?
-  partnerId  String?
-  action     String
-  targetType String?
-  targetId   String?
-  metadata   Json?
-  createdAt  DateTime @default(now())
+  id             String   @id @default(cuid())
+  sessionId      String?
+  adminId        String?
+  assistedUserId String?  @map("partnerId")
+  action         String
+  targetType     String?
+  targetId       String?
+  metadata       Json?
+  createdAt      DateTime @default(now())
 
-  @@index([partnerId, createdAt])
+  @@index([assistedUserId, createdAt])
   @@index([adminId, createdAt])
   @@index([sessionId, createdAt])
 }

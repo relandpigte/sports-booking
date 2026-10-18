@@ -21,7 +21,7 @@ import {
   AdminUpdateUserSchema,
   PartnerApplicationSchema,
 } from "@/lib/validation";
-import { isPartnerImpersonationActive } from "@/lib/impersonation";
+import { isImpersonationActive } from "@/lib/impersonation";
 
 export type AdminFormState = {
   errors?: Record<string, string>;
@@ -43,10 +43,10 @@ export async function createUserAction(
   formData: FormData
 ): Promise<AdminFormState> {
   const admin = await requireAdmin();
-  if (await isPartnerImpersonationActive()) {
+  if (await isImpersonationActive()) {
     return {
       message:
-        "Exit assisted partner access before changing account profile details.",
+        "Exit assistance before changing account profile details.",
     };
   }
 
@@ -116,10 +116,10 @@ export async function updateUserAction(
   formData: FormData
 ): Promise<AdminFormState> {
   const admin = await requireAdmin();
-  if (await isPartnerImpersonationActive()) {
+  if (await isImpersonationActive()) {
     return {
       message:
-        "Exit assisted partner access before changing account profile details.",
+        "Exit assistance before changing account profile details.",
     };
   }
 
@@ -378,9 +378,9 @@ export async function deleteUserAction(
   formData: FormData
 ): Promise<DeleteUserState> {
   const admin = await requireAdmin();
-  if (await isPartnerImpersonationActive()) {
+  if (await isImpersonationActive()) {
     return {
-      message: "Exit assisted partner access before deleting an account.",
+      message: "Exit assistance before deleting an account.",
     };
   }
   const id = String(formData.get("userId") ?? "");

@@ -5,7 +5,7 @@ import { AppShell } from "@/components/dashboard/AppShell";
 import { ReservationHoldDock } from "@/components/bookings/ReservationHoldDock";
 import { SiteFooter } from "@/components/SiteFooter";
 import { getAuthenticatedUser, getViewer } from "@/lib/dal";
-import { getActivePartnerImpersonation } from "@/lib/impersonation";
+import { getActiveImpersonation } from "@/lib/impersonation";
 import {
   getActiveBookingHoldForGuest,
   getActiveBookingHoldForUser,
@@ -47,7 +47,7 @@ export async function PageShell({
     : await getCurrentGuestReservationId();
   const [impersonation, activeBookingHold, workspace] = await Promise.all([
     actor?.role === "ADMIN"
-      ? getActivePartnerImpersonation(actor.id)
+      ? getActiveImpersonation(actor.id)
       : Promise.resolve(null),
     viewer?.role === "PLAYER"
       ? getActiveBookingHoldForUser({ userId: viewer.id })
@@ -56,7 +56,8 @@ export async function PageShell({
         : Promise.resolve(null),
     viewer ? getPartnerWorkspace() : Promise.resolve(null),
   ]);
-  const hasMessages = !viewer || impersonation
+  // While assisting, messages follow the assisted user (shown read-only).
+  const hasMessages = !viewer
     ? false
     : workspace?.kind === "STAFF"
       ? workspace.permissions.messages !== "NONE"
@@ -76,8 +77,7 @@ export async function PageShell({
         impersonation={
           impersonation
             ? {
-                partnerName:
-                  impersonation.partner.name ?? impersonation.partner.email,
+                userName: impersonation.user.name ?? impersonation.user.email,
                 adminName: impersonation.admin.name ?? impersonation.admin.email,
                 expiresAt: impersonation.expiresAt,
               }

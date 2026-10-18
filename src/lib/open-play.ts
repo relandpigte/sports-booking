@@ -1131,11 +1131,7 @@ export async function getOpenPlayWorkspace(
   required: "VIEW" | "MANAGE" = "VIEW"
 ): Promise<PartnerWorkspace | null> {
   const workspace = await getPartnerWorkspace();
-  if (
-    !workspace ||
-    workspace.kind === "ADMIN_ASSIST" ||
-    !hasStaffAccess(workspace, "openPlay", required)
-  ) {
+  if (!workspace || !hasStaffAccess(workspace, "openPlay", required)) {
     return null;
   }
   return workspace;

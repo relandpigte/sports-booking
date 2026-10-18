@@ -7,7 +7,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { DashboardNav } from "@/components/dashboard/DashboardNav";
 import { MobileDashboardMenu } from "@/components/dashboard/MobileDashboardMenu";
 import { ReservationHoldDock } from "@/components/bookings/ReservationHoldDock";
-import { stopPartnerImpersonationAction } from "@/lib/impersonation-actions";
+import { stopImpersonationAction } from "@/lib/impersonation-actions";
 import {
   enterPersonalWorkspaceAction,
   enterStaffWorkspaceAction,
@@ -44,7 +44,7 @@ export function AppShell({
   children: ReactNode;
   maxWidth?: string;
   impersonation?: {
-    partnerName: string;
+    userName: string;
     adminName: string;
     expiresAt: Date;
   } | null;
@@ -54,9 +54,15 @@ export function AppShell({
   activeBookingHold?: BookingHoldView | null;
 }) {
   const displayName = user.playerName ?? user.name ?? "Player";
+  // An admin assisting a partner always sees the full partner workspace, even
+  // before approval; assisting a player follows that player's own state.
+  const shellPartnerStatus =
+    impersonation && user.role === "PARTNER" ? "ACTIVE" : user.partnerStatus;
   const workspaceLabel =
-    impersonation
-      ? "Assisted partner workspace"
+    impersonation && workspace?.kind !== "STAFF"
+      ? user.role === "PARTNER"
+        ? "Assisted partner workspace"
+        : "Assisted player account"
       : user.role === "ADMIN"
       ? "Owner workspace"
       : workspace?.kind === "STAFF"
@@ -71,7 +77,7 @@ export function AppShell({
         <div className="flex min-w-0 items-center gap-3">
           <MobileDashboardMenu
             role={user.role}
-            partnerStatus={impersonation ? "ACTIVE" : user.partnerStatus}
+            partnerStatus={shellPartnerStatus}
             displayName={displayName}
             email={user.email}
             image={user.image}
@@ -92,7 +98,7 @@ export function AppShell({
 
       <DashboardNav
         role={user.role}
-        partnerStatus={impersonation ? "ACTIVE" : user.partnerStatus}
+        partnerStatus={shellPartnerStatus}
         displayName={displayName}
         email={user.email}
         image={user.image}
@@ -109,16 +115,16 @@ export function AppShell({
             <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-bold text-amber-950">
-                  Acting as {impersonation.partnerName}
+                  Acting as {impersonation.userName}
                 </p>
                 <p className="mt-0.5 text-xs leading-5 text-amber-800">
-                  Signed in as {impersonation.adminName}. Partner content and
-                  payment configuration edits are audited. Password, MFA,
-                  sessions, and settlement payments remain protected. Session
-                  ends at {formatImpersonationExpiry(impersonation.expiresAt)}.
+                  Signed in as {impersonation.adminName}. Changes are audited.
+                  Password, 2FA, sessions, and payments stay protected, and
+                  messages are read-only. Session ends at{" "}
+                  {formatImpersonationExpiry(impersonation.expiresAt)}.
                 </p>
               </div>
-              <form action={stopPartnerImpersonationAction}>
+              <form action={stopImpersonationAction}>
                 <button
                   type="submit"
                   className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl bg-amber-900 px-4 text-sm font-bold text-white transition-colors hover:bg-amber-950"
@@ -128,7 +134,7 @@ export function AppShell({
               </form>
             </div>
           )}
-          {!impersonation && workspace?.kind === "STAFF" && (
+          {workspace?.kind === "STAFF" && (
             <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-primary/20 bg-primary-soft/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-bold text-navy">
@@ -145,8 +151,7 @@ export function AppShell({
               </form>
             </div>
           )}
-          {!impersonation &&
-            !workspace &&
+          {!workspace &&
             staffWorkspaceAvailable &&
             user.role === "PLAYER" && (
               <div className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-ocean/20 bg-ocean-soft px-4 py-3">

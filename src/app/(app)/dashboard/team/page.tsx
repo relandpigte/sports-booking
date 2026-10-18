@@ -3,13 +3,14 @@ import { redirect } from "next/navigation";
 
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { StaffTeamManager } from "@/components/staff/StaffTeamManager";
-import { getAuthenticatedUser } from "@/lib/dal";
+import { getCurrentUser } from "@/lib/dal";
 import { listPartnerStaff } from "@/lib/staffing-actions";
 
 export const metadata: Metadata = { title: "Team — Bunal.club" };
 
 export default async function TeamPage() {
-  const owner = await getAuthenticatedUser();
+  // The partner owner, or the partner an admin is assisting.
+  const owner = await getCurrentUser();
   if (
     !owner ||
     owner.role !== "PARTNER" ||

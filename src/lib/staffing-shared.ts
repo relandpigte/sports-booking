@@ -11,6 +11,10 @@ export const STAFF_MODULES = [
 ] as const;
 
 export type StaffModule = (typeof STAFF_MODULES)[number];
+
+// Set while a staff member works in their partner's workspace instead of
+// their personal player account.
+export const STAFF_WORKSPACE_COOKIE = "bunal_staff_workspace";
 export type WorkspaceKind = "OWNER" | "STAFF" | "ADMIN_ASSIST";
 export type StaffPermissions = Record<StaffModule, StaffAccessLevel>;
 
@@ -21,6 +25,8 @@ export type PartnerWorkspace = {
   partnerName: string;
   membershipId: string | null;
   permissions: StaffPermissions;
+  // Set when an admin is assisting a staff member in this workspace.
+  assistedByAdminId?: string;
 };
 
 export function hasStaffAccess(

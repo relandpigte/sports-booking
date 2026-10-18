@@ -547,6 +547,12 @@ export async function createBookingAction(
       paymentMode: "NONE",
     });
   }
+  await recordImpersonatedAction({
+    action: "PLAYER_BOOKING_CREATED",
+    targetType: "Booking",
+    targetId: created[0].id,
+    metadata: { hubId: hub.id, date, courtHours: selections.length },
+  });
   if (paymentId) {
     // Keep the player on the availability screen after the database hold is
     // secured. The reservation dock starts automatic payment only when the

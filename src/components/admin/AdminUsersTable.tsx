@@ -10,7 +10,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import type { AdminUser } from "@/lib/admin";
 import { SKILL_LEVELS } from "@/lib/constants";
-import { startPartnerImpersonationAction } from "@/lib/impersonation-actions";
+import { startImpersonationAction } from "@/lib/impersonation-actions";
 import { facebookPageLabel } from "@/lib/social";
 
 type OptionalField =
@@ -396,23 +396,23 @@ function UserDirectoryRow({
                 Review
               </Link>
             )}
+            {user.role !== "ADMIN" && (
+              <form action={startImpersonationAction}>
+                <input type="hidden" name="userId" value={user.id} />
+                <button
+                  type="submit"
+                  title={`Assist ${user.name ?? user.email}`}
+                  className="min-h-9 rounded-lg bg-amber-50 px-3 text-xs font-bold text-amber-800 hover:bg-amber-100"
+                >
+                  Assist
+                </button>
+              </form>
+            )}
             {user.role === "PARTNER" && (
-              <>
-                <form action={startPartnerImpersonationAction}>
-                  <input type="hidden" name="partnerId" value={user.id} />
-                  <button
-                    type="submit"
-                    title={`Assist ${user.name ?? user.email}`}
-                    className="min-h-9 rounded-lg bg-amber-50 px-3 text-xs font-bold text-amber-800 hover:bg-amber-100"
-                  >
-                    Assist
-                  </button>
-                </form>
-                <PartnerActivationButton
-                  userId={user.id}
-                  status={user.partnerStatus}
-                />
-              </>
+              <PartnerActivationButton
+                userId={user.id}
+                status={user.partnerStatus}
+              />
             )}
             <Link
               href={`/users/${user.id}/edit`}

@@ -12,7 +12,7 @@ import { platformPaymongoConfigured } from "@/lib/payments/paymongo-platform";
 import { calculateServiceFeeBalance } from "@/lib/service-fees";
 import { startServiceFeeCheckout } from "@/lib/service-fee-payments";
 import { calculateTrainerServiceFeeBalance } from "@/lib/trainer-service-fees";
-import { isPartnerImpersonationActive } from "@/lib/impersonation";
+import { isImpersonationActive } from "@/lib/impersonation";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { firstErrors } from "@/lib/zod-errors";
 
@@ -424,7 +424,7 @@ export async function submitServiceFeeSettlementAction(
   _prev: ServiceFeeFormState,
   formData: FormData
 ): Promise<ServiceFeeFormState> {
-  if (await isPartnerImpersonationActive()) {
+  if (await isImpersonationActive()) {
     return {
       message:
         "Settlement payments and receipt submissions are protected during assisted access.",
@@ -534,7 +534,7 @@ export async function startServiceFeeCheckoutAction(
   _prev: ServiceFeeFormState,
   _formData: FormData
 ): Promise<ServiceFeeFormState> {
-  if (await isPartnerImpersonationActive()) {
+  if (await isImpersonationActive()) {
     return {
       message:
         "Settlement payments are protected during assisted access.",

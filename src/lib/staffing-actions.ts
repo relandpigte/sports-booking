@@ -8,7 +8,8 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
-import { getAuthenticatedUser } from "@/lib/dal";
+import { getAuthenticatedUser, getCurrentUser } from "@/lib/dal";
+import { recordImpersonatedAction } from "@/lib/impersonation";
 import { dashboardHomeFor } from "@/lib/dashboard";
 import { prisma } from "@/lib/db";
 import {
@@ -63,16 +64,18 @@ function parsePermissions(formData: FormData):
   return { permissions };
 }
 
+// The partner owner, or the partner an admin is assisting. Every team
+// mutation is scoped to this account's id, never the admin's.
 async function requireActivePartnerOwner() {
-  const actor = await getAuthenticatedUser();
+  const owner = await getCurrentUser();
   if (
-    !actor ||
-    actor.role !== "PARTNER" ||
-    actor.partnerStatus !== "ACTIVE"
+    !owner ||
+    owner.role !== "PARTNER" ||
+    owner.partnerStatus !== "ACTIVE"
   ) {
     return null;
   }
-  return actor;
+  return owner;
 }
 
 async function deliverInvitation(input: {
@@ -211,6 +214,12 @@ export async function inviteStaffAction(
     inviterName: owner.playerName ?? owner.name ?? owner.email,
     permissions,
   });
+  await recordImpersonatedAction({
+    action: "STAFF_INVITED",
+    targetType: "PartnerStaffInvitation",
+    targetId: invitation.id,
+    metadata: { email },
+  });
   revalidatePath("/dashboard/team");
   return {
     success: delivered
@@ -254,6 +263,11 @@ export async function resendStaffInvitationAction(formData: FormData) {
       metadata: { email: invitation.email },
     },
   });
+  await recordImpersonatedAction({
+    action: "STAFF_INVITATION_RESENT",
+    targetType: "PartnerStaffInvitation",
+    targetId: invitation.id,
+  });
   revalidatePath("/dashboard/team");
 }
 
@@ -279,6 +293,11 @@ export async function cancelStaffInvitationAction(formData: FormData) {
       },
     }),
   ]);
+  await recordImpersonatedAction({
+    action: "STAFF_INVITATION_CANCELLED",
+    targetType: "PartnerStaffInvitation",
+    targetId: invitation.id,
+  });
   revalidatePath("/dashboard/team");
 }
 
@@ -312,6 +331,12 @@ export async function updateStaffPermissionsAction(
       },
     }),
   ]);
+  await recordImpersonatedAction({
+    action: "STAFF_PERMISSIONS_UPDATED",
+    targetType: "PartnerStaffMembership",
+    targetId: membership.id,
+    metadata: { permissions: parsed.permissions },
+  });
   revalidatePath("/dashboard/team");
   return { success: "Staff access updated." };
 }
@@ -338,6 +363,11 @@ export async function removeStaffAction(formData: FormData) {
       },
     }),
   ]);
+  await recordImpersonatedAction({
+    action: "STAFF_REMOVED",
+    targetType: "PartnerStaffMembership",
+    targetId: membership.id,
+  });
   revalidatePath("/dashboard/team");
 }
 
@@ -422,8 +452,10 @@ export async function acceptStaffInvitationAction(
   redirect("/dashboard/partner");
 }
 
+// Both workspace switches act on the effective user, so an admin assisting a
+// staff member can move between that member's personal and staff workspaces.
 export async function enterStaffWorkspaceAction() {
-  const actor = await getAuthenticatedUser();
+  const actor = await getCurrentUser();
   if (!actor || actor.role !== "PLAYER") redirect("/dashboard");
   const membership = await prisma.partnerStaffMembership.findUnique({
     where: { userId: actor.id },
@@ -443,7 +475,7 @@ export async function enterStaffWorkspaceAction() {
 }
 
 export async function enterPersonalWorkspaceAction() {
-  const actor = await getAuthenticatedUser();
+  const actor = await getCurrentUser();
   if (!actor) redirect("/login");
   (await cookies()).delete(STAFF_WORKSPACE_COOKIE);
   redirect(dashboardHomeFor(actor.role));

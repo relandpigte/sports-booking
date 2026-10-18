@@ -53,6 +53,7 @@ export default async function GoogleRegistrationChoicePage({
     >
       <GoogleRoleForm
         defaultRole={requestedRole === "partner" ? "PARTNER" : "PLAYER"}
+        defaultName={user.name?.trim() ?? ""}
         next={safeInternalPath(requestedNext)}
       />
     </AuthLayout>

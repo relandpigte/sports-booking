@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import {
   completeGoogleRegistrationAction,
   type GoogleRegistrationFormState,
@@ -13,9 +14,12 @@ const initialState: GoogleRegistrationFormState = {};
 
 export function GoogleRoleForm({
   defaultRole,
+  defaultName,
   next,
 }: {
   defaultRole: "PLAYER" | "PARTNER";
+  // The name Google sent, if any, for the player to confirm.
+  defaultName: string;
   next: string;
 }) {
   const [role, setRole] = useState(defaultRole);
@@ -76,6 +80,18 @@ export function GoogleRoleForm({
       ))}
       {state.errors?.role && (
         <p className="text-xs text-red-500">{state.errors.role}</p>
+      )}
+
+      {role === "PLAYER" && (
+        <Input
+          label="Full Name"
+          name="name"
+          autoComplete="name"
+          maxLength={80}
+          placeholder="Juan dela Cruz"
+          defaultValue={state.values?.name ?? defaultName}
+          error={state.errors?.name}
+        />
       )}
 
       <p className="text-xs leading-5 text-gray-500">

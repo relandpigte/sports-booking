@@ -54,10 +54,13 @@ export function AccountForm({ user }: { user: ProfileUser }) {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Input
-          label="Full Name (Optional)"
+          label="Full Name"
           name="name"
           defaultValue={user.name ?? ""}
           autoComplete="name"
+          required
+          minLength={2}
+          maxLength={80}
           error={state.errors?.name}
         />
         <Input

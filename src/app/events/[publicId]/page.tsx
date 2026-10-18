@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { PageShell } from "@/components/PageShell";
 import { EventRegistrationPanel } from "@/components/events/EventRegistrationPanel";
+import { hasAccountName } from "@/lib/account-name-shared";
 import { ShareEventButton } from "@/components/events/ShareEventButton";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
@@ -249,6 +250,9 @@ export default async function EventDetailPage({
                       viewer?.name ??
                       guestAccess?.name ??
                       "Player"
+                    }
+                    viewerNeedsName={
+                      viewer ? !hasAccountName(viewer) : false
                     }
                     viewerRole={viewer?.role}
                     registration={event.viewerRegistration}

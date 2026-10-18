@@ -39,7 +39,7 @@ export default function RegisterPage({
   return (
     <AuthLayout
       title="Create your player account"
-      subtitle="Start with your email or Google. You can complete your player profile anytime."
+      subtitle="Start with your name and email, or Google. You can complete the rest of your player profile anytime."
     >
       <div className="rounded-2xl border border-gray-200 p-5 shadow-sm sm:p-6">
         {query.error === "existing-account" && (
@@ -76,6 +76,15 @@ export default function RegisterPage({
         <form action={formAction} noValidate>
           <input type="hidden" name="redirectTo" value={next ?? ""} />
           <div className="space-y-4">
+            <Input
+              label="Full Name"
+              name="name"
+              placeholder="Juan dela Cruz"
+              autoComplete="name"
+              maxLength={80}
+              defaultValue={state.values?.name}
+              error={state.errors?.name}
+            />
             <Input
               label="Email Address"
               name="email"

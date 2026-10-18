@@ -10,6 +10,7 @@ import {
   checkoutRailColumns,
   getPartnerPaymentSetup,
 } from "@/lib/manual-payments";
+import { ensureAccountName } from "@/lib/account-name";
 import { getViewer } from "@/lib/dal";
 import { firstErrors } from "@/lib/zod-errors";
 import {
@@ -143,6 +144,12 @@ export async function createBookingAction(
   const viewer = await getViewer();
   if (viewer && viewer.role !== "PLAYER") {
     return { message: "Only player accounts can book courts." };
+  }
+  // The venue sees this name on the booking, so an account without one must
+  // add it here. Guests give theirs in the contact fields below.
+  if (viewer) {
+    const missingName = await ensureAccountName(viewer, formData);
+    if (missingName) return missingName;
   }
   const guestContact = viewer
     ? null

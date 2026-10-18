@@ -60,6 +60,7 @@ export function BookCourtPanel({
   nowHour,
   initialAvailability,
   viewerRole,
+  viewerNeedsName = false,
   paymentRequired,
   paymentMode,
   initialHold = null,
@@ -71,6 +72,8 @@ export function BookCourtPanel({
   nowHour: number;
   initialAvailability: HubAvailabilitySnapshot | null;
   viewerRole: Role | null;
+  // A signed-in player with no name yet; the form asks for it.
+  viewerNeedsName?: boolean;
   // This venue has connected a gateway, so booking holds the hours rather than
   // confirming them. False for every venue that hasn't — and then every word
   // below is exactly what it was before payments existed.
@@ -513,6 +516,33 @@ export function BookCourtPanel({
                   <LockIcon />
                   Your private booking link is sent only to this email. Providing these details does not create an account.
                 </p>
+              </div>
+            )}
+
+            {viewerRole === "PLAYER" && viewerNeedsName && !activeHold && (
+              <div className="mt-6 border-t border-navy/10 pt-5">
+                <label className="text-xs font-bold text-navy">
+                  Your full name
+                  <input
+                    name="fullName"
+                    autoComplete="name"
+                    minLength={2}
+                    maxLength={80}
+                    required
+                    className="mt-1.5 min-h-11 w-full rounded-xl border border-navy/15 bg-white px-3 text-sm font-medium text-navy outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
+                    placeholder="Your full name"
+                  />
+                  {state.errors?.fullName ? (
+                    <span className="mt-1 block font-medium text-red-500">
+                      {state.errors.fullName}
+                    </span>
+                  ) : (
+                    <span className="mt-1 block font-medium text-navy/50">
+                      The venue sees this on your booking. It&apos;s saved to
+                      your account.
+                    </span>
+                  )}
+                </label>
               </div>
             )}
 

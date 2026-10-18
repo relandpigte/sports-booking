@@ -12,6 +12,7 @@ import {
   eventGrossFor,
   eventPaymentFeeFor,
 } from "@/lib/constants";
+import { ensureAccountName } from "@/lib/account-name";
 import { getViewer } from "@/lib/dal";
 import { prisma } from "@/lib/db";
 import {
@@ -696,6 +697,9 @@ export async function registerForEventAction(
   if (viewer.role !== "PLAYER") {
     return { message: "Only player accounts can register for events." };
   }
+  // The roster shows this name, so an account without one must add it here.
+  const missingName = await ensureAccountName(viewer, formData);
+  if (missingName) return missingName;
   if (!(await consumeRateLimit({
     namespace: "event-registration",
     subject: viewer.id,

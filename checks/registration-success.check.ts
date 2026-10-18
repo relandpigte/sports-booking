@@ -158,15 +158,23 @@ ok(
     !GoogleRegistrationSchema.safeParse({ role: "ADMIN" }).success
 );
 ok(
-  "player profile fields remain optional after signup",
+  "player profile fields other than the name remain optional after signup",
   ProfileSchema.safeParse({
-    name: "",
+    name: "Juan dela Cruz",
     playerName: "",
     phone: "",
     facebookPage: "",
     skillLevel: "intermediate",
     privateProfile: false,
-  }).success
+  }).success &&
+    !ProfileSchema.safeParse({
+      name: "",
+      playerName: "",
+      phone: "",
+      facebookPage: "",
+      skillLevel: "intermediate",
+      privateProfile: false,
+    }).success
 );
 ok(
   "partner review submission requires complete owner and venue details",

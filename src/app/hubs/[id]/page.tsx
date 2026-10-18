@@ -8,6 +8,7 @@ import { BookCourtPanel } from "@/components/hubs/BookCourtPanel";
 import { HubPhotoGallery } from "@/components/hubs/HubPhotoGallery";
 import { VerifiedBadge } from "@/components/hubs/HubCard";
 import { Avatar } from "@/components/ui/Avatar";
+import { hasAccountName } from "@/lib/account-name-shared";
 import { getPublicHub, type Hub } from "@/lib/hubs";
 import { getViewer } from "@/lib/dal";
 import { getHubCourtOccupancies } from "@/lib/bookings";
@@ -432,6 +433,7 @@ export default async function PublicHubPage({
                 : null
             }
             viewerRole={viewer?.role ?? null}
+            viewerNeedsName={viewer ? !hasAccountName(viewer) : false}
             paymentRequired={hub.paymentRequired}
             paymentMode={hub.paymentMode}
             initialHold={initialHold}

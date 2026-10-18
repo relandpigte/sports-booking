@@ -34,6 +34,7 @@ export function EventRegistrationPanel({
   signedIn,
   guestAccess,
   viewerName,
+  viewerNeedsName = false,
   viewerRole,
   registration,
   remainingSpots,
@@ -46,6 +47,8 @@ export function EventRegistrationPanel({
   signedIn: boolean;
   guestAccess: boolean;
   viewerName: string;
+  // A signed-in account with no name yet; the form asks for it.
+  viewerNeedsName?: boolean;
   viewerRole?: "ADMIN" | "PLAYER" | "PARTNER";
   registration: Registration | null;
   remainingSpots: number;
@@ -186,9 +189,10 @@ export function EventRegistrationPanel({
           ) : viewerRole !== "PLAYER" ? (
             <StatusBox tone="neutral">Use a player account to register.</StatusBox>
           ) : full ? (
-            <form action={registerAction}>
+            <form action={registerAction} className="space-y-4">
               <input type="hidden" name="publicId" value={publicId} />
               <ActionMessage state={registerState} />
+              {viewerNeedsName && <AccountNameField state={registerState} />}
               <button
                 type="submit"
                 disabled={registerPending}
@@ -204,6 +208,7 @@ export function EventRegistrationPanel({
               pending={registerPending}
               publicId={publicId}
               viewerName={viewerName}
+              viewerNeedsName={viewerNeedsName}
               fee={fee}
               paymentMode={paymentMode}
               maxGuests={Math.max(0, remainingSpots - 1)}
@@ -229,6 +234,7 @@ function GuestSlotForm({
   pending,
   publicId,
   viewerName,
+  viewerNeedsName = false,
   fee,
   paymentMode,
   maxGuests,
@@ -241,6 +247,7 @@ function GuestSlotForm({
   pending: boolean;
   publicId: string;
   viewerName: string;
+  viewerNeedsName?: boolean;
   fee: number;
   paymentMode: "AUTOMATIC" | "MANUAL";
   maxGuests: number;
@@ -362,7 +369,11 @@ function GuestSlotForm({
           </div>
         )}
 
-        {leadIncluded && !guestCheckout && (
+        {leadIncluded && !guestCheckout && viewerNeedsName && (
+          <AccountNameField state={state} />
+        )}
+
+        {leadIncluded && !guestCheckout && !viewerNeedsName && (
           <div className="flex items-center gap-3 rounded-xl border border-primary/15 bg-primary-soft/40 p-3">
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-xs font-black text-primary">
               You
@@ -477,6 +488,38 @@ function GuestSlotForm({
               : `Confirm ${paidSpotCount} ${paidSpotCount === 1 ? "spot" : "spots"} & Pay`}
       </button>
     </form>
+  );
+}
+
+// Shown to a signed-in account that has no name yet. The roster shows it,
+// so registration saves it to the account first.
+function AccountNameField({ state }: { state: EventFormState }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <label
+        htmlFor="event-account-name"
+        className="text-xs font-black uppercase tracking-[0.12em] text-slate-500"
+      >
+        Your full name
+      </label>
+      <input
+        id="event-account-name"
+        name="fullName"
+        required
+        minLength={2}
+        maxLength={80}
+        autoComplete="name"
+        placeholder="Your full name"
+        className="mt-1.5 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-navy outline-none focus:border-primary"
+      />
+      {state.errors?.fullName ? (
+        <p className="mt-1 text-xs text-red-600">{state.errors.fullName}</p>
+      ) : (
+        <p className="mt-1 text-xs leading-5 text-slate-500">
+          Shown on the event roster and saved to your account.
+        </p>
+      )}
+    </div>
   );
 }
 

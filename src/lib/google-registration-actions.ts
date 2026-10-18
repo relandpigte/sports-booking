@@ -12,6 +12,7 @@ import {
   REGISTRATION_SUCCESS_PATH,
 } from "@/lib/registration-tracking";
 import { getSecurityRequestContext } from "@/lib/security-context";
+import { FullNameSchema } from "@/lib/account-name-shared";
 import { appUrl } from "@/lib/urls";
 import { GoogleRegistrationSchema } from "@/lib/validation";
 import { firstErrors } from "@/lib/zod-errors";
@@ -19,6 +20,7 @@ import { firstErrors } from "@/lib/zod-errors";
 export type GoogleRegistrationFormState = {
   errors?: Record<string, string>;
   message?: string;
+  values?: Record<string, string>;
 };
 
 function safeInternalPath(value: string): string | null {
@@ -113,6 +115,23 @@ export async function completeGoogleRegistrationAction(
   });
   if (!parsed.success) return { errors: firstErrors(parsed.error) };
 
+  // Players appear by name on rosters and bookings, so they confirm the name
+  // Google sent (or type one, if Google sent none).
+  let playerName: string | null = null;
+  if (parsed.data.role === "PLAYER") {
+    const rawName = String(formData.get("name") ?? "");
+    const parsedName = FullNameSchema.safeParse(rawName);
+    if (!parsedName.success) {
+      return {
+        errors: {
+          name: parsedName.error.issues[0]?.message ?? "Enter your full name",
+        },
+        values: { name: rawName },
+      };
+    }
+    playerName = parsedName.data;
+  }
+
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: { email: true, name: true },
@@ -130,6 +149,7 @@ export async function completeGoogleRegistrationAction(
       role: parsed.data.role,
       partnerStatus: parsed.data.role === "PARTNER" ? "DRAFT" : null,
       registrationCompletedAt: new Date(),
+      ...(playerName ? { name: playerName } : {}),
     },
   });
   if (claimed.count !== 1) {
@@ -141,7 +161,7 @@ export async function completeGoogleRegistrationAction(
     userId: session.user.id,
     type,
     email: user.email,
-    name: user.name?.trim() || "there",
+    name: playerName ?? (user.name?.trim() || "there"),
   });
   await setRegistrationCookie(type);
 

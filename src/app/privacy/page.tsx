@@ -200,9 +200,14 @@ export default function PrivacyPage() {
           <p>
             The public{" "}
             <span className="font-medium text-gray-800">Rankings</span> page
-            displays club ratings sourced from DUPR&apos;s own public
-            records — we don&apos;t send your data to DUPR. We may also
-            disclose information where required by law.
+            displays club ratings sourced from DUPR. If you choose to connect
+            your DUPR account, you sign in on DUPR&apos;s own page and DUPR
+            shares your DUPR ID and ratings with us. We show your rating on
+            your profile, event rosters, and BunalQ, use it to balance
+            open-play teams, and refresh it daily from DUPR. You can
+            disconnect at any time in Account settings, which deletes the
+            stored copy. We don&apos;t send your Bunal.club data to DUPR. We
+            may also disclose information where required by law.
           </p>
         </LegalSection>
 

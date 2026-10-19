@@ -5,6 +5,7 @@ import {
   expireBookingHolds,
   reconcileInFlightBookingPayments,
 } from "@/lib/booking-payments";
+import { sweepDuprRatings } from "@/lib/dupr-link";
 import { cleanupFacebookMessengerEvents } from "@/lib/facebook-messenger";
 import { cleanupExpiredSecurityRows } from "@/lib/security-maintenance";
 import {
@@ -64,7 +65,7 @@ async function runSweep(request: NextRequest) {
   // The run is derived from the clock, so calling it every hour is safe: only
   // the first call after a Monday or Thursday begins in Manila creates rows.
   const payouts = await createDuePayouts();
-  const [result, security, messengerEvents, serviceFeeNotifications, trainerServiceFeeNotifications, bunalQ, trainerSessions, trainerReminders] =
+  const [result, security, messengerEvents, serviceFeeNotifications, trainerServiceFeeNotifications, bunalQ, trainerSessions, trainerReminders, duprRatings] =
     await Promise.all([
       expireBookingHolds(),
       cleanupExpiredSecurityRows(),
@@ -74,6 +75,7 @@ async function runSweep(request: NextRequest) {
       cleanupStaleOpenPlaySessions(),
       sweepTrainerSessions(),
       sendTrainerSessionReminders(),
+      sweepDuprRatings(),
     ]);
   return Response.json({
     ok: true,
@@ -93,6 +95,7 @@ async function runSweep(request: NextRequest) {
     bunalQ,
     trainerSessions,
     trainerReminders,
+    duprRatings,
   });
 }
 

@@ -3,6 +3,9 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { getCurrentUser, verifySession } from "@/lib/dal";
 import { AccountForm } from "@/components/dashboard/AccountForm";
+import { DuprConnectCard } from "@/components/dupr/DuprConnectCard";
+import { duprLinkingAvailable, readSsoConfig } from "@/lib/dupr";
+import { getDuprLinkForUser, toDuprRatingView } from "@/lib/dupr-link";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { getCurrentImpersonation } from "@/lib/impersonation";
 import { SecuritySettings } from "@/components/security/SecuritySettings";
@@ -35,6 +38,10 @@ export default async function AccountPage({
   // getCurrentUser redirects to /login when unauthenticated; this guards types.
   if (!user) return null;
   const activeTab = tab === "security" ? "security" : "profile";
+  const duprLink =
+    user.role === "PLAYER" && activeTab === "profile"
+      ? await getDuprLinkForUser(user.id)
+      : null;
 
   let security:
     | Awaited<ReturnType<typeof getSecurityOverview>>
@@ -104,7 +111,18 @@ export default async function AccountPage({
         </section>
       )}
       {activeTab === "profile" ? (
-        <AccountForm user={user} />
+        <>
+          <AccountForm user={user} />
+          {user.role === "PLAYER" && (
+            <DuprConnectCard
+              sso={duprLinkingAvailable() ? readSsoConfig() : null}
+              link={toDuprRatingView(duprLink)}
+              consentLost={Boolean(duprLink?.consentLostAt)}
+              updatedAt={duprLink?.ratingsUpdatedAt.toISOString() ?? null}
+              assisting={Boolean(impersonation)}
+            />
+          )}
+        </>
       ) : impersonation ? (
         <section className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5">
           <h2 className="font-bold text-amber-950">Security remains protected</h2>

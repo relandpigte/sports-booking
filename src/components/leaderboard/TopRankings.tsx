@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 import type {
@@ -134,7 +135,16 @@ function RankingRow({ entry, rank }: { entry: RankingEntry; rank: number }) {
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#dfe7e2] bg-primary-soft text-xs font-black text-primary">
           {initials || "?"}
         </span>
-        <p className="truncate text-sm font-bold text-navy">{entry.fullName}</p>
+        {entry.profilePath ? (
+          <Link
+            href={entry.profilePath}
+            className="truncate text-sm font-bold text-navy hover:text-primary hover:underline"
+          >
+            {entry.fullName}
+          </Link>
+        ) : (
+          <p className="truncate text-sm font-bold text-navy">{entry.fullName}</p>
+        )}
       </div>
       <div className="text-right sm:text-left">
         <p className="font-mono text-sm font-black text-navy">

@@ -6,6 +6,7 @@ import {
 } from "@/components/dashboard/DashboardIcon";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { SKILL_LEVELS } from "@/lib/constants";
+import { formatDuprRating, type DuprRatingView } from "@/lib/dupr-shared";
 import type { BookingView } from "@/lib/bookings";
 import { formatManilaDateLong, formatSlotRange } from "@/lib/time";
 import { formatPHP } from "@/lib/currency";
@@ -29,11 +30,13 @@ export function PlayerHome({
   upcomingCount,
   nextBooking,
   nextEventRegistration,
+  duprRating = null,
 }: {
   user: PlayerHomeUser;
   upcomingCount: number;
   nextBooking: BookingView | null;
   nextEventRegistration: PlayerEventRegistrationView | null;
+  duprRating?: DuprRatingView | null;
 }) {
   const skillLabel =
     SKILL_LEVELS.find((s) => s.value === user.skillLevel)?.label ??
@@ -65,13 +68,22 @@ export function PlayerHome({
       icon: "trophy" as DashboardIconName,
       tone: "bg-accent-soft text-navy",
     },
-    {
-      label: "Skill level",
-      value: skillLabel,
-      href: "/dashboard/account",
-      icon: "profile" as DashboardIconName,
-      tone: "bg-ocean-soft text-ocean",
-    },
+    // A connected DUPR rating replaces the self-picked skill level.
+    duprRating?.doubles != null
+      ? {
+          label: "DUPR doubles",
+          value: formatDuprRating(duprRating.doubles),
+          href: "/dashboard/account",
+          icon: "profile" as DashboardIconName,
+          tone: "bg-ocean-soft text-ocean",
+        }
+      : {
+          label: "Skill level",
+          value: skillLabel,
+          href: "/dashboard/account",
+          icon: "profile" as DashboardIconName,
+          tone: "bg-ocean-soft text-ocean",
+        },
     {
       label: "Profile",
       value: user.privateProfile ? "Private" : "Public",

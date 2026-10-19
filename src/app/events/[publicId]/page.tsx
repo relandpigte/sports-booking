@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 
 import { PageShell } from "@/components/PageShell";
 import { EventRegistrationPanel } from "@/components/events/EventRegistrationPanel";
+import { DuprRatingBadge } from "@/components/dupr/DuprRatingBadge";
+import type { DuprRatingView } from "@/lib/dupr-shared";
 import { hasAccountName } from "@/lib/account-name-shared";
 import { ShareEventButton } from "@/components/events/ShareEventButton";
 import { Avatar } from "@/components/ui/Avatar";
@@ -297,6 +299,7 @@ export default async function EventDetailPage({
                           image={player.image}
                           displayName={displayName}
                           isGuest={player.isGuest}
+                          dupr={player.dupr}
                         />
                       );
                     })}
@@ -350,6 +353,7 @@ export default async function EventDetailPage({
                               image={player.image}
                               displayName={displayName}
                               isGuest={player.isGuest}
+                              dupr={player.dupr}
                             />
                           );
                         })}
@@ -452,10 +456,12 @@ function EventAttendeeChip({
   image,
   displayName,
   isGuest,
+  dupr,
 }: {
   image: string | null;
   displayName: string;
   isGuest: boolean;
+  dupr: DuprRatingView | null;
 }) {
   return (
     <div className="flex min-w-0 items-center gap-2 rounded-xl border border-white/80 bg-white/90 p-2.5 shadow-sm shadow-navy/5">
@@ -471,7 +477,9 @@ function EventAttendeeChip({
           <Badge className="px-1.5 py-0 text-[10px] uppercase tracking-wide">
             Guest
           </Badge>
-        ) : null}
+        ) : (
+          <DuprRatingBadge rating={dupr} className="px-1.5 py-0 text-[10px]" />
+        )}
       </div>
     </div>
   );

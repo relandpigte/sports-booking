@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 
 import { TRAINER_BOOKING_WINDOW_DAYS } from "@/lib/constants";
 import { prisma } from "@/lib/db";
+import { duprRatingSelect } from "@/lib/dupr-link";
 import { trainerSetupReady } from "@/lib/payment-readiness";
 import { emailDeliveryConfigured, sendTrainerLifecycleEmail } from "@/lib/email";
 import {
@@ -225,6 +226,7 @@ export async function getPublicPlayer(username: string) {
       image: true,
       skillLevel: true,
       trainerProfile: { select: { id: true, status: true } },
+      duprLink: { select: duprRatingSelect },
     },
   });
 }

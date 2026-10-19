@@ -34,3 +34,6 @@ After changing configuration, run:
 npm run check:leaderboard
 npm run build
 ```
+
+Players who connect their own DUPR account are linked from the leaderboard to
+their Bunal.club profile; see `docs/dupr-player-links.md`.

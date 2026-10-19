@@ -260,6 +260,7 @@ model User {
   chatReports          ChatReport[]        @relation("ChatReporter")
 
   trainerProfile            TrainerProfile?
+  duprLink                  DuprLink?
   trainerGateway            TrainerGateway?
   trainerManualMethods      TrainerManualPaymentMethod[]
   trainerSessionsBooked     TrainerSession[]              @relation("TrainerSessionPlayer")
@@ -301,6 +302,29 @@ model User {
 // A trainer is a capability attached to a PLAYER account. The account keeps
 // every player ability while this profile supplies the independently reviewed
 // public identity, availability, rate, and payout settings.
+// A player's DUPR account, connected through DUPR's consent page. One DUPR
+// account belongs to at most one Bunal.club account. Ratings are a copy that
+// the hourly sweep refreshes; DUPR stays the source of truth.
+model DuprLink {
+  id               String    @id @default(cuid())
+  userId           String    @unique
+  duprId           String    @unique @db.VarChar(12)
+  fullName         String    @db.VarChar(160)
+  singles          Decimal?  @db.Decimal(4, 3)
+  doubles          Decimal?  @db.Decimal(4, 3)
+  singlesReliable  Boolean   @default(false)
+  doublesReliable  Boolean   @default(false)
+  // Set when DUPR stops returning this player (consent withdrawn); the link
+  // stays so the player can see why their rating stopped updating.
+  consentLostAt    DateTime?
+  ratingsUpdatedAt DateTime  @default(now())
+  connectedAt      DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([ratingsUpdatedAt])
+}
+
 model TrainerProfile {
   id                   String             @id @default(cuid())
   userId               String             @unique
@@ -1936,6 +1960,9 @@ model OpenPlayParticipant {
   pairId              String?
   displayName         String                    @db.VarChar(120)
   skillLevel          String                    @default("intermediate") @db.VarChar(24)
+  // The player's DUPR doubles rating, copied in like skillLevel so a run stays
+  // stable. Guests and walk-ins have none; matchmaking falls back to the tier.
+  duprRating          Decimal?                  @db.Decimal(4, 3)
   // Run-local edits must survive Event roster refreshes. Private-profile
   // masking is still applied even when these details were overridden.
   detailsOverridden   Boolean                   @default(false)

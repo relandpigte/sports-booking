@@ -290,6 +290,18 @@ async function audit(
   }
 }
 
+function ratingNumber(value: Prisma.Decimal | null): number | null {
+  return value == null ? null : Number(value);
+}
+
+function sameRating(
+  left: Prisma.Decimal | null,
+  right: Prisma.Decimal | null
+): boolean {
+  if (left == null || right == null) return left == right;
+  return left.equals(right);
+}
+
 async function syncRosterRows(tx: Tx, sessionId: string, eventId: string) {
   const [registrations, organizerGuests] = await Promise.all([
     tx.eventRegistration.findMany({
@@ -303,6 +315,7 @@ async function syncRosterRows(tx: Tx, sessionId: string, eventId: string) {
             playerName: true,
             skillLevel: true,
             privateProfile: true,
+            duprLink: { select: { doubles: true } },
           },
         },
         guestReservation: {
@@ -334,6 +347,7 @@ async function syncRosterRows(tx: Tx, sessionId: string, eventId: string) {
             : registration.user.playerName ?? registration.user.name ?? "Player"
           : registration.guestReservation?.name ?? "Guest player",
         skillLevel: registration.user?.skillLevel ?? DEFAULT_SKILL_LEVEL,
+        duprRating: registration.user?.duprLink?.doubles ?? null,
     })),
     ...registrations.flatMap((registration) =>
       registration.guests.map((guest) => ({
@@ -379,6 +393,7 @@ async function syncRosterRows(tx: Tx, sessionId: string, eventId: string) {
       pairId: true,
       displayName: true,
       skillLevel: true,
+      duprRating: true,
       detailsOverridden: true,
     },
   });
@@ -392,6 +407,7 @@ async function syncRosterRows(tx: Tx, sessionId: string, eventId: string) {
             : registration.user.playerName ?? registration.user.name ?? "Player"
           : registration.guestReservation?.name ?? "Guest player",
         skillLevel: registration.user?.skillLevel ?? DEFAULT_SKILL_LEVEL,
+        duprRating: registration.user?.duprLink?.doubles ?? null,
         privateProfile: registration.user?.privateProfile ?? false,
       },
     ])
@@ -400,14 +416,14 @@ async function syncRosterRows(tx: Tx, sessionId: string, eventId: string) {
     registrations.flatMap((registration) =>
       registration.guests.map((guest) => [
         guest.id,
-        { displayName: guest.name, skillLevel: DEFAULT_SKILL_LEVEL },
+        { displayName: guest.name, skillLevel: DEFAULT_SKILL_LEVEL, duprRating: null },
       ] as const)
     )
   );
   const organizerDetails = new Map(
     organizerGuests.map((guest) => [
       guest.id,
-      { displayName: guest.name, skillLevel: DEFAULT_SKILL_LEVEL },
+      { displayName: guest.name, skillLevel: DEFAULT_SKILL_LEVEL, duprRating: null },
     ])
   );
   let updatedDetails = 0;
@@ -428,18 +444,23 @@ async function syncRosterRows(tx: Tx, sessionId: string, eventId: string) {
       participant.source === "REGISTERED_PLAYER" &&
       "privateProfile" in details &&
       details.privateProfile;
+    // An operator's edit is the final word on skill for this run, so it also
+    // stops the DUPR rating from re-syncing (the edit clears it).
+    const ratingChanged =
+      sameRating(participant.duprRating, details.duprRating) === false;
     if (
       (mustMaskPrivate && participant.displayName !== "Private player") ||
       (!participant.detailsOverridden &&
         (participant.displayName !== details.displayName ||
-          participant.skillLevel !== details.skillLevel))
+          participant.skillLevel !== details.skillLevel ||
+          ratingChanged))
     ) {
       await tx.openPlayParticipant.update({
         where: { id: participant.id },
         data: {
           displayName: mustMaskPrivate ? "Private player" : details.displayName,
           ...(!participant.detailsOverridden
-            ? { skillLevel: details.skillLevel }
+            ? { skillLevel: details.skillLevel, duprRating: details.duprRating }
             : {}),
         },
       });
@@ -1781,7 +1802,9 @@ export async function fillOpenPlaySlotAction(
             participantId: true,
             team: true,
             slot: true,
-            participant: { select: { skillLevel: true, lastResult: true } },
+            participant: {
+              select: { skillLevel: true, duprRating: true, lastResult: true },
+            },
           },
         },
       },
@@ -1885,6 +1908,7 @@ export async function fillOpenPlaySlotAction(
             id: true,
             queuePosition: true,
             skillLevel: true,
+            duprRating: true,
             lastResult: true,
             pairId: true,
             displayName: true,
@@ -1902,7 +1926,13 @@ export async function fillOpenPlaySlotAction(
       const queued = queuedRows.flatMap((row) =>
         row.queuePosition == null
           ? []
-          : [{ ...row, queuePosition: row.queuePosition }]
+          : [
+              {
+                ...row,
+                queuePosition: row.queuePosition,
+                duprRating: ratingNumber(row.duprRating),
+              },
+            ]
       );
       const pick = chooseOpenSlotReplacement({
         mode: session.matchingMode,
@@ -1912,6 +1942,7 @@ export async function fillOpenPlaySlotAction(
           id: player.participantId,
           team: player.team,
           skillLevel: player.participant.skillLevel,
+          duprRating: ratingNumber(player.participant.duprRating),
           lastResult: player.participant.lastResult,
         })),
         teammateHistory: buildTeammateHistory(completedGames),
@@ -2718,6 +2749,8 @@ export async function editOpenPlayParticipantAction(
       data: {
         displayName: parsed.data.displayName,
         skillLevel: parsed.data.skillLevel,
+        // The operator's skill pick now drives team balancing for this run.
+        duprRating: null,
         detailsOverridden: true,
       },
     });
@@ -3027,6 +3060,7 @@ export async function startNewOpenPlayRunAction(
           organizerGuestId: participant.organizerGuestId,
           displayName: participant.displayName,
           skillLevel: participant.skillLevel,
+          duprRating: participant.duprRating,
           status: "NOT_CHECKED_IN" as const,
         })),
         skipDuplicates: true,

@@ -1458,6 +1458,38 @@ async function check() {
     !sameTeam(balancedBySkill, "a", "b")
   );
 
+  // Same self-picked tier, so only the DUPR ratings can separate the two
+  // strongest players onto different teams.
+  const balancedByDupr = domain.chooseAutomaticMatch({
+    mode: "BALANCED",
+    queued: [
+      { id: "a", queuePosition: 1, skillLevel: "intermediate", duprRating: 4.8, lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "b", queuePosition: 2, skillLevel: "intermediate", duprRating: 4.6, lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "c", queuePosition: 3, skillLevel: "intermediate", duprRating: 3.0, lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "d", queuePosition: 4, skillLevel: "intermediate", duprRating: 3.1, lastResult: "UNCLASSIFIED", pairId: null },
+    ],
+  });
+  ok(
+    "Balanced mode balances teams by DUPR rating when players have one",
+    !sameTeam(balancedByDupr, "a", "b")
+  );
+
+  // Two rated strong players and two unrated beginners: the beginners' tier
+  // stands in for a rating, so each strong player gets a beginner partner.
+  const balancedByDuprAndTier = domain.chooseAutomaticMatch({
+    mode: "BALANCED",
+    queued: [
+      { id: "a", queuePosition: 1, skillLevel: "advanced", duprRating: 4.5, lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "b", queuePosition: 2, skillLevel: "beginner", lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "c", queuePosition: 3, skillLevel: "advanced", duprRating: 4.4, lastResult: "UNCLASSIFIED", pairId: null },
+      { id: "d", queuePosition: 4, skillLevel: "beginner", lastResult: "UNCLASSIFIED", pairId: null },
+    ],
+  });
+  ok(
+    "players without a DUPR rating are balanced by their skill tier",
+    !sameTeam(balancedByDuprAndTier, "a", "c")
+  );
+
   const balancedWithoutRematch = domain.chooseAutomaticMatch({
     mode: "BALANCED",
     queued: [

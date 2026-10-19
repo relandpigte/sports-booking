@@ -66,6 +66,7 @@ import {
   type OpenPlaySnapshot,
 } from "@/lib/open-play-shared";
 import { DEFAULT_SKILL_LEVEL, SKILL_LEVELS } from "@/lib/constants";
+import { formatDuprRating } from "@/lib/dupr-shared";
 import {
   useBunalQActionState,
   type BunalQAction,
@@ -667,7 +668,7 @@ function ChoosePlayerDialog({
                       {participant.displayName}
                     </span>
                     <span className="mt-0.5 block text-xs font-bold text-slate-500">
-                      {SKILL_LEVELS.find((level) => level.value === participant.skillLevel)?.label ?? participant.skillLevel}
+                      {playerLevel(participant)}
                       {" · "}#{queued.indexOf(participant) + 1} in queue
                     </span>
                     <span className="mt-1 block text-xs text-slate-500">
@@ -710,7 +711,7 @@ function ChoosePlayerDialog({
                       {player.displayName}
                     </span>
                     <span className="mt-0.5 block text-xs font-bold text-slate-500">
-                      {participant ? `${SKILL_LEVELS.find((level) => level.value === participant.skillLevel)?.label ?? participant.skillLevel} · ` : ""}
+                      {participant ? `${playerLevel(participant)} · ` : ""}
                       In {player.label}
                     </span>
                     <span className="mt-1 block text-xs text-slate-500">
@@ -783,6 +784,17 @@ function formatClock(milliseconds: number): string {
 
 function skillLabel(value: string): string {
   return SKILL_LEVELS.find((level) => level.value === value)?.label ?? value;
+}
+
+// A connected DUPR rating replaces the self-picked tier wherever a player's
+// level is shown, since it is what team balancing uses.
+function playerLevel(participant: {
+  skillLevel: string;
+  duprRating: number | null;
+}): string {
+  return participant.duprRating != null
+    ? `DUPR ${formatDuprRating(participant.duprRating)}`
+    : skillLabel(participant.skillLevel);
 }
 
 type Participant = OpenPlaySnapshot["participants"][number];
@@ -1276,7 +1288,7 @@ function AddPlayersDialog({
             <li key={participant.id} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2">
               <div className="min-w-0">
                 <p className="truncate text-sm font-bold text-navy">{participant.displayName}</p>
-                <p className="text-xs text-slate-500">{skillLabel(participant.skillLevel)} · {presenceLabel(participant)}</p>
+                <p className="text-xs text-slate-500">{playerLevel(participant)} · {presenceLabel(participant)}</p>
               </div>
               <ActionForm
                 action={participant.status === "PAUSED" ? resumeOpenPlayParticipantAction : checkInOpenPlayParticipantAction}
@@ -1352,7 +1364,7 @@ function QueuePanel({
                     className="max-w-full flex-none text-sm font-black"
                   />
                   <p className="text-xs font-semibold text-slate-500">
-                    {skillLabel(participant.skillLevel)} · {games} {games === 1 ? "game" : "games"}
+                    {playerLevel(participant)} · {games} {games === 1 ? "game" : "games"}
                     {now !== null && participant.queuedAt
                       ? ` · ⏱ Waiting ${formatClock(now - Date.parse(participant.queuedAt))}`
                       : ""}
@@ -1496,7 +1508,7 @@ function RequestsPanel({
                 onClick={() => onOpen(participant.id)}
                 className="max-w-full flex-none text-sm font-bold"
               />
-              <p className="text-xs text-slate-500">{skillLabel(participant.skillLevel)}</p>
+              <p className="text-xs text-slate-500">{playerLevel(participant)}</p>
             </div>
             <div className="flex shrink-0 items-start gap-2">
               <ActionForm

@@ -7,19 +7,10 @@ import {
   ownerAnalyticsOptions,
   partnerAnalyticsOptions,
 } from "@/lib/business-analytics";
+import { csvDocument, csvRow } from "@/lib/csv";
 import { getAuthenticatedUser } from "@/lib/dal";
 import { getPartnerWorkspace } from "@/lib/staffing";
 import { hasStaffAccess } from "@/lib/staffing-shared";
-
-function csvCell(value: string | number) {
-  let text = String(value);
-  if (/^[=+\-@]/.test(text)) text = `'${text}`;
-  return `"${text.replaceAll('"', '""')}"`;
-}
-
-function csvRow(values: (string | number)[]) {
-  return values.map(csvCell).join(",");
-}
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -115,7 +106,7 @@ export async function GET(request: Request) {
     );
   }
 
-  return new Response(`\uFEFF${lines.join("\r\n")}`, {
+  return new Response(csvDocument(lines), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="bunal-${audience}-analytics-${filters.from}-to-${filters.to}.csv"`,

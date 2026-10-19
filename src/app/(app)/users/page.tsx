@@ -1,6 +1,5 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import type { PartnerStatus, Role, TrainerStatus } from "@prisma/client";
 
 import { AdminUsersTable } from "@/components/admin/AdminUsersTable";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
@@ -10,69 +9,20 @@ import {
   trainerUserCount,
   userCounts,
 } from "@/lib/admin";
+import {
+  parseUserDirectoryFilters,
+  profileFilterOptions,
+  usersExportHref,
+  usersHref,
+} from "@/lib/admin-user-filters";
 import { ROLE_LABELS, ROLE_VALUES } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "Manage Users — Bunal.club",
 };
 
-const profileFilters = {
-  TRAINER_ACTIVE: { trainerStatus: "ACTIVE" as TrainerStatus },
-  TRAINER_PENDING: { trainerStatus: "PENDING" as TrainerStatus },
-  TRAINER_DRAFT: { trainerStatus: "DRAFT" as TrainerStatus },
-  TRAINER_DEACTIVATED: { trainerStatus: "DEACTIVATED" as TrainerStatus },
-  PARTNER_ACTIVE: { partnerStatus: "ACTIVE" as PartnerStatus },
-  PARTNER_PENDING: { partnerStatus: "PENDING" as PartnerStatus },
-  PARTNER_DRAFT: { partnerStatus: "DRAFT" as PartnerStatus },
-  PARTNER_DEACTIVATED: { partnerStatus: "DEACTIVATED" as PartnerStatus },
-};
-
-type ProfileFilter = keyof typeof profileFilters;
-
-const profileFilterOptions: { value: ProfileFilter; label: string }[] = [
-  { value: "TRAINER_ACTIVE", label: "Trainer · Active" },
-  { value: "TRAINER_PENDING", label: "Trainer · Pending review" },
-  { value: "TRAINER_DRAFT", label: "Trainer · Draft" },
-  { value: "TRAINER_DEACTIVATED", label: "Trainer · Deactivated" },
-  { value: "PARTNER_ACTIVE", label: "Partner · Verified" },
-  { value: "PARTNER_PENDING", label: "Partner · Pending review" },
-  { value: "PARTNER_DRAFT", label: "Partner · Draft" },
-  { value: "PARTNER_DEACTIVATED", label: "Partner · Deactivated" },
-];
-
-function isRole(value: string | undefined): value is Role {
-  return !!value && (ROLE_VALUES as readonly string[]).includes(value);
-}
-
-function isProfileFilter(value: string): value is ProfileFilter {
-  return value in profileFilters;
-}
-
 function firstSearchValue(value: string | string[] | undefined): string {
-  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
-}
-
-function usersHref({
-  query,
-  role,
-  trainerOnly,
-  profileStatus,
-  page,
-}: {
-  query?: string;
-  role?: Role;
-  trainerOnly?: boolean;
-  profileStatus?: ProfileFilter;
-  page?: number;
-}) {
-  const params = new URLSearchParams();
-  if (query) params.set("q", query);
-  if (role) params.set("role", role);
-  if (trainerOnly) params.set("trainer", "1");
-  if (profileStatus) params.set("profileStatus", profileStatus);
-  if (page && page > 1) params.set("page", String(page));
-  const value = params.toString();
-  return `/users${value ? `?${value}` : ""}`;
+  return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
 }
 
 export default async function UsersPage({
@@ -82,23 +32,13 @@ export default async function UsersPage({
 }) {
   const admin = await requireAdmin();
   const sp = await searchParams;
-  const q = firstSearchValue(sp.q).trim().slice(0, 100);
-  const requestedRole = firstSearchValue(sp.role);
-  const roleFilter = isRole(requestedRole) ? requestedRole : undefined;
-  const trainerOnly = firstSearchValue(sp.trainer) === "1";
-  const requestedProfileStatus = firstSearchValue(sp.profileStatus);
-  const profileStatus = isProfileFilter(requestedProfileStatus)
-    ? requestedProfileStatus
-    : undefined;
-  const statusFilter = profileStatus ? profileFilters[profileStatus] : undefined;
-  const trainerStatusFilter =
-    statusFilter && "trainerStatus" in statusFilter
-      ? statusFilter.trainerStatus
-      : undefined;
-  const partnerStatusFilter =
-    statusFilter && "partnerStatus" in statusFilter
-      ? statusFilter.partnerStatus
-      : undefined;
+  const filters = parseUserDirectoryFilters((name) =>
+    firstSearchValue(sp[name])
+  );
+  const q = filters.query ?? "";
+  const roleFilter = filters.role;
+  const trainerOnly = filters.trainerOnly;
+  const profileStatus = filters.profileStatus;
   const requestedPage = Number.parseInt(firstSearchValue(sp.page), 10);
   const page =
     Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
@@ -110,8 +50,8 @@ export default async function UsersPage({
       query: q || undefined,
       role: roleFilter,
       trainerOnly,
-      trainerStatus: trainerStatusFilter,
-      partnerStatus: partnerStatusFilter,
+      trainerStatus: filters.trainerStatus,
+      partnerStatus: filters.partnerStatus,
       page,
     }),
   ]);
@@ -178,13 +118,28 @@ export default async function UsersPage({
         title="Manage Users"
         description="Review accounts, role access, trainer capabilities, partner status, and recent activity across Bunal.club."
         actions={
-          <Link
-            href="/users/new"
-            className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
-          >
-            <UserPlusIcon />
-            New user
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <a
+              href={usersExportHref(filters)}
+              download
+              title={
+                hasFilters
+                  ? "Download every user matching the current filters as CSV"
+                  : "Download every user as CSV"
+              }
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-navy transition-colors hover:bg-slate-50"
+            >
+              <DownloadIcon />
+              Export CSV
+            </a>
+            <Link
+              href="/users/new"
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
+            >
+              <UserPlusIcon />
+              New user
+            </Link>
+          </div>
         }
       />
 
@@ -260,9 +215,7 @@ export default async function UsersPage({
             method="get"
             className="grid min-w-0 flex-1 gap-3 lg:grid-cols-[minmax(240px,1fr)_160px_210px_auto]"
           >
-            {trainerOnly && (
-              <input type="hidden" name="trainer" value="1" />
-            )}
+            {trainerOnly && <input type="hidden" name="trainer" value="1" />}
             <label className="relative block">
               <span className="sr-only">Search users</span>
               <SearchIcon />
@@ -335,17 +288,7 @@ export default async function UsersPage({
         </p>
         <nav className="flex gap-2" aria-label="User pages">
           <PaginationLink
-            href={
-              users.page > 1
-                ? usersHref({
-                    query: q,
-                    role: roleFilter,
-                    trainerOnly,
-                    profileStatus,
-                    page: users.page - 1,
-                  })
-                : null
-            }
+            href={users.page > 1 ? usersHref(filters, users.page - 1) : null}
           >
             Previous
           </PaginationLink>
@@ -355,13 +298,7 @@ export default async function UsersPage({
           <PaginationLink
             href={
               users.page < users.pageCount
-                ? usersHref({
-                    query: q,
-                    role: roleFilter,
-                    trainerOnly,
-                    profileStatus,
-                    page: users.page + 1,
-                  })
+                ? usersHref(filters, users.page + 1)
                 : null
             }
           >
@@ -450,6 +387,23 @@ function SummaryIcon({ name }: { name: SummaryIconName }) {
       aria-hidden="true"
     >
       {paths[name]}
+    </svg>
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
     </svg>
   );
 }

@@ -41,6 +41,19 @@ export function manilaDateOf(instant: Date): string {
   return dateFmt.format(instant);
 }
 
+const minuteFmt = new Intl.DateTimeFormat("en-GB", {
+  timeZone: MANILA_TZ,
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+// An instant as Manila wall-clock time, "2026-07-27 23:30", for exports that a
+// spreadsheet should sort as text.
+export function formatManilaTimestamp(instant: Date): string {
+  return `${dateFmt.format(instant)} ${minuteFmt.format(instant)}`;
+}
+
 // "2026-07-27" -> "2026-07". The month a civil date belongs to.
 export function manilaMonthOf(date: string): string {
   return date.slice(0, 7);

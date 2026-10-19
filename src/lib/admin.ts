@@ -8,6 +8,7 @@ import type {
 } from "@prisma/client";
 import { redirect } from "next/navigation";
 
+import type { UserDirectoryFilters } from "@/lib/admin-user-filters";
 import { prisma } from "@/lib/db";
 import { getAuthenticatedUser } from "@/lib/dal";
 
@@ -66,17 +67,12 @@ export type AdminUsersPage = {
   total: number;
 };
 
-export async function listUsers(opts: {
-  query?: string;
-  role?: Role;
-  trainerOnly?: boolean;
-  trainerStatus?: TrainerStatus;
-  partnerStatus?: PartnerStatus;
-  page: number;
-}): Promise<AdminUsersPage> {
-  await requireAdmin();
-  const { query, role, trainerOnly, trainerStatus, partnerStatus } = opts;
-  const where: Prisma.UserWhereInput = {
+// The Manage Users filters as a Prisma query. Shared with the CSV export.
+export function userDirectoryWhere(
+  filters: Omit<UserDirectoryFilters, "profileStatus">
+): Prisma.UserWhereInput {
+  const { query, role, trainerOnly, trainerStatus, partnerStatus } = filters;
+  return {
     isGuestBunalQOrganizer: false,
     ...(role ? { role } : {}),
     ...(trainerOnly ? { trainerProfile: { isNot: null } } : {}),
@@ -96,6 +92,21 @@ export async function listUsers(opts: {
         }
       : {}),
   };
+}
+
+export async function listUsers(opts: {
+  query?: string;
+  role?: Role;
+  trainerOnly?: boolean;
+  trainerStatus?: TrainerStatus;
+  partnerStatus?: PartnerStatus;
+  page: number;
+}): Promise<AdminUsersPage> {
+  await requireAdmin();
+  const where = userDirectoryWhere({
+    ...opts,
+    trainerOnly: opts.trainerOnly ?? false,
+  });
   const total = await prisma.user.count({ where });
   const pageCount = Math.max(1, Math.ceil(total / ADMIN_USERS_PAGE_SIZE));
   const page = Math.min(Math.max(1, opts.page), pageCount);

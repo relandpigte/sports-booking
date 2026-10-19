@@ -45,6 +45,7 @@ const EVENT_LABELS: Record<string, string> = {
   PASSWORD_RESET: "Password reset",
   SESSION_REVOKED: "Session revoked",
   OTHER_SESSIONS_REVOKED: "Other sessions revoked",
+  USERS_EXPORTED: "User list exported",
 };
 
 function formatDate(value: Date): string {

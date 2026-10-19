@@ -1,6 +1,10 @@
-// Admin user management: compact server pagination and role/search filters.
+// Admin user management: compact server pagination, role/search filters, and
+// the CSV export.
 //
 //   npm run check:admin-users
+import { createRequire } from "node:module";
+import path from "node:path";
+
 import { PrismaClient } from "@prisma/client";
 
 import { deleteFixtureUsers, ok, run, stubRequestContext } from "./harness";
@@ -114,6 +118,8 @@ async function check() {
     "name search is applied on the server",
     searched.total === 1 && searched.items[0]?.email === ADMIN_EMAIL
   );
+
+  await checkUserExport(admin);
 
   const emptyPartnerEmail = `${EMAIL_PREFIX}empty-partner@example.test`;
   const emptyPartner = await prisma.user.create({
@@ -815,6 +821,95 @@ async function check() {
       preservedReport.details === null &&
       preservedReport.resolution === null
   );
+}
+
+// CSV export: same filters as the page, every page of results, admin only,
+// spreadsheet formulas neutralised, and each export audited.
+async function checkUserExport(admin: { id: string; email: string; role: string }) {
+  await prisma.user.update({
+    where: { email: `${EMAIL_PREFIX}2@example.test` },
+    data: { playerName: '=HYPERLINK("http://evil.test","x")' },
+  });
+  const { GET } = await import("@/app/api/admin/users/export/route");
+  const exportUrl = (params: Record<string, string>) =>
+    new Request(
+      `http://localhost/api/admin/users/export?${new URLSearchParams(params)}`
+    );
+
+  const response = await GET(exportUrl({ q: EMAIL_PREFIX, role: "PLAYER" }));
+  const body = await response.text();
+  const lines = body.replace(/^﻿/, "").split("\r\n");
+  ok(
+    "admins download the user list as a CSV attachment",
+    response.status === 200 &&
+      response.headers.get("content-type")?.startsWith("text/csv") === true &&
+      /attachment; filename="bunal-users-players-\d{4}-\d{2}-\d{2}\.csv"/.test(
+        response.headers.get("content-disposition") ?? ""
+      ) &&
+      response.headers.get("cache-control")?.includes("no-store") === true
+  );
+  ok(
+    "the export has every matching user, not just one page of twenty",
+    lines.length === 24 && lines[0].startsWith('"User ID","Name"')
+  );
+  ok(
+    "the export applies the page's filters",
+    lines.slice(1).every((line) => line.includes('"Player"')) &&
+      !body.includes(ADMIN_EMAIL)
+  );
+  ok(
+    "a formula in a user's name is exported as text",
+    body.includes(`"'=HYPERLINK(""http://evil.test"",""x"")"`)
+  );
+  ok(
+    "the export never includes secrets",
+    !/password|mfaSecret|sessionVersion/i.test(lines[0])
+  );
+
+  const trainerExport = await (
+    await GET(exportUrl({ q: EMAIL_PREFIX, profileStatus: "TRAINER_PENDING" }))
+  ).text();
+  ok(
+    "profile status filters carry into the export",
+    trainerExport.split("\r\n").length === 2 &&
+      trainerExport.includes(`${EMAIL_PREFIX}1@example.test`) &&
+      trainerExport.includes('"Pending review"')
+  );
+
+  const audit = await prisma.securityEvent.findMany({
+    where: { userId: admin.id, type: "USERS_EXPORTED" },
+    orderBy: { createdAt: "asc" },
+    select: { metadata: true },
+  });
+  ok(
+    "each export is recorded on the admin's security activity",
+    audit.length === 2 &&
+      (audit[0].metadata as { rows: number }).rows === 23 &&
+      (audit[0].metadata as { filters: Record<string, string> }).filters
+        .role === "PLAYER"
+  );
+
+  // Swap the stubbed signed-in account for a non-admin.
+  const dal = createRequire(import.meta.url).cache[
+    path.join(process.cwd(), "src/lib/dal.ts")
+  ];
+  const original = dal?.exports.getAuthenticatedUser;
+  if (dal) {
+    dal.exports.getAuthenticatedUser = async () => ({
+      id: "check-not-admin",
+      email: `${EMAIL_PREFIX}1@example.test`,
+      role: "PLAYER",
+    });
+  }
+  try {
+    const refused = await GET(exportUrl({}));
+    ok(
+      "non-admins are refused and nothing is exported",
+      Boolean(dal) && refused.status === 403 && !(await refused.text()).includes("@")
+    );
+  } finally {
+    if (dal) dal.exports.getAuthenticatedUser = original;
+  }
 }
 
 void run(check, async () => {

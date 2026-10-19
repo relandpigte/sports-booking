@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 
+import { DuprRatingBadge } from "@/components/dupr/DuprRatingBadge";
 import { Avatar } from "@/components/ui/Avatar";
 import { formatPHP } from "@/lib/currency";
 import {
@@ -94,6 +95,7 @@ function RegistrationRow({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <p className="truncate font-bold text-navy">{name}</p>
+              <DuprRatingBadge rating={registration.player.dupr} />
               {registration.player.isGuest && (
                 <span className="rounded-full bg-ocean/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-ocean">
                   Guest checkout

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { PageShell } from "@/components/PageShell";
+import { DuprRatingBadge } from "@/components/dupr/DuprRatingBadge";
 import { TrainerRequestForm } from "@/components/trainers/TrainerRequestForm";
 import { Avatar } from "@/components/ui/Avatar";
 import {
@@ -11,6 +12,7 @@ import {
   TRAINER_MIN_LEAD_HOURS,
 } from "@/lib/constants";
 import { getViewer } from "@/lib/dal";
+import { toDuprRatingView } from "@/lib/dupr-link";
 import { getPublicPlayer, getPublicTrainer } from "@/lib/trainers";
 import {
   addDays,
@@ -37,6 +39,7 @@ export default async function PublicPlayerPage({ params }: { params: Promise<{ u
   ]);
   if (!player) notFound();
   const name = player.playerName ?? player.name ?? username;
+  const duprRating = toDuprRatingView(player.duprLink);
   const earliestBookingAt = firstBookableHourAfter(TRAINER_MIN_LEAD_HOURS);
 
   return (
@@ -66,6 +69,12 @@ export default async function PublicPlayerPage({ params }: { params: Promise<{ u
                 <p className="mt-1 text-sm capitalize text-slate-500">
                   {player.skillLevel} player
                 </p>
+                {duprRating && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <DuprRatingBadge rating={duprRating} />
+                    <DuprRatingBadge rating={duprRating} format="singles" />
+                  </div>
+                )}
                 {trainer && (
                   <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm text-slate-500">
                     {trainer.sports.map((game) => (

@@ -1,3 +1,4 @@
+import { formatDuprRating } from "@/lib/dupr-shared";
 import {
   OPEN_PLAY_MODE_DESCRIPTIONS,
   OPEN_PLAY_MODE_LABELS,
@@ -145,7 +146,11 @@ export function OpenPlayBoard({ snapshot }: { snapshot: OpenPlaySnapshot }) {
                   <span className="text-lg font-black text-slate-200">{String(index + 1).padStart(2, "0")}</span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold text-navy">{participant.displayName}</p>
-                    <p className="text-[10px] capitalize text-slate-500">{participant.skillLevel}</p>
+                    <p className="text-[10px] capitalize text-slate-500">
+                      {participant.duprRating != null
+                        ? `DUPR ${formatDuprRating(participant.duprRating)}`
+                        : participant.skillLevel}
+                    </p>
                   </div>
                   <span className="text-xs font-bold text-slate-400">
                     {participant.estimatedWaitMinutes === null

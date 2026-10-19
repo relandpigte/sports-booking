@@ -23,6 +23,8 @@ export type MatchCandidate = {
   id: string;
   queuePosition: number;
   skillLevel: string;
+  // The player's DUPR doubles rating when they connected DUPR.
+  duprRating?: number | null;
   lastResult: OpenPlayLastResult;
   pairId: string | null;
 };
@@ -67,11 +69,22 @@ type MatchUnit = {
   players: MatchCandidate[];
 };
 
-const skillScore: Record<string, number> = {
-  beginner: 1,
-  intermediate: 2,
-  advanced: 3,
+// A self-picked tier mapped onto the DUPR scale, so players with and without
+// a DUPR rating can be balanced against each other.
+const TIER_RATING: Record<string, number> = {
+  beginner: 2.5,
+  intermediate: 3.5,
+  advanced: 4.5,
 };
+
+// A player's strength for team balancing: their DUPR rating when connected,
+// otherwise their tier.
+export function matchSkill(player: {
+  skillLevel: string;
+  duprRating?: number | null;
+}): number {
+  return player.duprRating ?? TIER_RATING[player.skillLevel] ?? 3.5;
+}
 
 function pairKey(left: string, right: string): string {
   return [left, right].sort().join(":");
@@ -374,10 +387,8 @@ function rankTeamSplits(
       return [];
     }
     const [[a, b], [c, d]] = teams;
-    const first = (skillScore[players[a].skillLevel] ?? 2) +
-      (skillScore[players[b].skillLevel] ?? 2);
-    const second = (skillScore[players[c].skillLevel] ?? 2) +
-      (skillScore[players[d].skillLevel] ?? 2);
+    const first = matchSkill(players[a]) + matchSkill(players[b]);
+    const second = matchSkill(players[c]) + matchSkill(players[d]);
     const pairs = [[players[a], players[b]], [players[c], players[d]]] as const;
     const immediateRepeats = pairs.reduce(
       (total, [left, right]) =>
@@ -589,6 +600,7 @@ export type OpenSlotTeammate = {
   id: string;
   team: number;
   skillLevel: string;
+  duprRating?: number | null;
   lastResult: OpenPlayLastResult;
 };
 
@@ -649,7 +661,7 @@ export function chooseOpenSlotReplacement(input: {
   const teamSkill = (team: number) =>
     input.remaining
       .filter((player) => player.team === team)
-      .reduce((total, player) => total + (skillScore[player.skillLevel] ?? 2), 0);
+      .reduce((total, player) => total + matchSkill(player), 0);
   const otherTeam = input.team === 1 ? 2 : 1;
 
   const ranked = shortlist.map((player) => ({
@@ -662,9 +674,7 @@ export function chooseOpenSlotReplacement(input: {
       ? history.counts.get(pairKey(teammate.id, player.id)) ?? 0
       : 0,
     difference: Math.abs(
-      teamSkill(input.team) +
-        (skillScore[player.skillLevel] ?? 2) -
-        teamSkill(otherTeam)
+      teamSkill(input.team) + matchSkill(player) - teamSkill(otherTeam)
     ),
   }));
   ranked.sort(
@@ -775,6 +785,7 @@ async function loadQueuedCandidates(
       id: true,
       queuePosition: true,
       skillLevel: true,
+      duprRating: true,
       lastResult: true,
       pairId: true,
     },
@@ -782,7 +793,13 @@ async function loadQueuedCandidates(
   return rows.flatMap((row) =>
     row.queuePosition == null
       ? []
-      : [{ ...row, queuePosition: row.queuePosition }]
+      : [
+          {
+            ...row,
+            queuePosition: row.queuePosition,
+            duprRating: row.duprRating == null ? null : Number(row.duprRating),
+          },
+        ]
   ) satisfies MatchCandidate[];
 }
 
@@ -1307,6 +1324,8 @@ function toSnapshot(
       id: participant.id,
       displayName: participant.displayName,
       skillLevel: participant.skillLevel,
+      duprRating:
+        participant.duprRating == null ? null : Number(participant.duprRating),
       source: participant.source,
       status: participant.status,
       lastResult: participant.lastResult,

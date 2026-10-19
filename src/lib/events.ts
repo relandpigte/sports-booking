@@ -4,6 +4,8 @@ import { Prisma, type EventRegistrationStatus, type EventStatus } from "@prisma/
 
 import type { OperatingHours } from "@/lib/constants";
 import { prisma } from "@/lib/db";
+import { duprRatingSelect, toDuprRatingView } from "@/lib/dupr-link";
+import type { DuprRatingView } from "@/lib/dupr-shared";
 import {
   venueReadinessSelect,
   venueSetupReady,
@@ -75,6 +77,8 @@ export type EventDetailView = PublicEventView & {
     playerName: string | null;
     image: string | null;
     isGuest: boolean;
+    // Shown even beside a masked "Private player"; it doesn't identify them.
+    dupr: DuprRatingView | null;
   }[];
   viewerRegistration: EventRegistrationView | null;
   ownerId: string;
@@ -121,6 +125,7 @@ export type OwnerEventRegistrationView = {
     email: string;
     phone: string | null;
     isGuest: boolean;
+    dupr: DuprRatingView | null;
   };
   payment: {
     id: string;
@@ -316,6 +321,7 @@ const eventSelect = {
           playerName: true,
           image: true,
           privateProfile: true,
+          duprLink: { select: duprRatingSelect },
         },
       },
       guestReservation: {
@@ -513,6 +519,7 @@ export async function getPublicEvent(
                   playerName: "Private player",
                   image: null,
                   isGuest: false,
+                  dupr: toDuprRatingView(account.duprLink),
                 }
               : {
                   id: account.id,
@@ -520,6 +527,7 @@ export async function getPublicEvent(
                   playerName: account.playerName,
                   image: account.image,
                   isGuest: false,
+                  dupr: toDuprRatingView(account.duprLink),
                 }
             : guestLead
               ? {
@@ -528,6 +536,7 @@ export async function getPublicEvent(
                   playerName: null,
                   image: null,
                   isGuest: true,
+                  dupr: null,
                 }
               : {
                   id: `deleted:${registration.id}`,
@@ -535,6 +544,7 @@ export async function getPublicEvent(
                   playerName: null,
                   image: null,
                   isGuest: false,
+                  dupr: null,
                 };
           const guests = registration.guests
             .filter((guest) => guest.status === "CONFIRMED")
@@ -544,6 +554,7 @@ export async function getPublicEvent(
               playerName: null,
               image: null,
               isGuest: true,
+              dupr: null,
             }));
           return [lead, ...guests];
         }),
@@ -555,6 +566,7 @@ export async function getPublicEvent(
           playerName: null,
           image: null,
           isGuest: true,
+          dupr: null,
         })),
     ],
     viewerRegistration: viewer
@@ -866,6 +878,7 @@ export async function listOwnerEventRegistrations(
               playerName: true,
               image: true,
               email: true,
+              duprLink: { select: duprRatingSelect },
             },
           },
           guestReservation: {
@@ -967,9 +980,14 @@ export async function listOwnerEventRegistrations(
       ).length,
     player: registration.user
       ? {
-          ...registration.user,
+          id: registration.user.id,
+          name: registration.user.name,
+          playerName: registration.user.playerName,
+          image: registration.user.image,
+          email: registration.user.email,
           phone: null,
           isGuest: false,
+          dupr: toDuprRatingView(registration.user.duprLink),
         }
       : registration.guestReservation
         ? {
@@ -980,6 +998,7 @@ export async function listOwnerEventRegistrations(
             email: registration.guestReservation.email,
             phone: registration.guestReservation.phone,
             isGuest: true,
+            dupr: null,
           }
         : {
             id: `deleted:${registration.id}`,
@@ -989,6 +1008,7 @@ export async function listOwnerEventRegistrations(
             email: "",
             phone: null,
             isGuest: false,
+            dupr: null,
           },
     payment: registration.payment
       ? {
@@ -1103,6 +1123,7 @@ export async function getOwnerEventDetails(
               playerName: true,
               image: true,
               email: true,
+              duprLink: { select: duprRatingSelect },
             },
           },
           guestReservation: {
@@ -1218,9 +1239,14 @@ export async function getOwnerEventDetails(
         ).length,
       player: registration.user
         ? {
-            ...registration.user,
+            id: registration.user.id,
+            name: registration.user.name,
+            playerName: registration.user.playerName,
+            image: registration.user.image,
+            email: registration.user.email,
             phone: null,
             isGuest: false,
+            dupr: toDuprRatingView(registration.user.duprLink),
           }
         : registration.guestReservation
           ? {
@@ -1231,6 +1257,7 @@ export async function getOwnerEventDetails(
               email: registration.guestReservation.email,
               phone: registration.guestReservation.phone,
               isGuest: true,
+              dupr: null,
             }
           : {
               id: `deleted:${registration.id}`,
@@ -1240,6 +1267,7 @@ export async function getOwnerEventDetails(
               email: "",
               phone: null,
               isGuest: false,
+              dupr: null,
             },
       payment: registration.payment
         ? {

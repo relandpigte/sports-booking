@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { PlayerHome } from "@/components/dashboard/home/PlayerHome";
 import { getCurrentUser } from "@/lib/dal";
+import { getDuprLinkForUser, toDuprRatingView } from "@/lib/dupr-link";
 import { countMyUpcomingBookings, getMyNextBooking } from "@/lib/bookings";
 import { dashboardHomeFor } from "@/lib/dashboard";
 import { getMyUpcomingEventRegistrationSummary } from "@/lib/events";
@@ -17,11 +18,13 @@ export default async function PlayerDashboardPage() {
   // Land anyone else on their own dashboard rather than showing a blank page.
   if (user.role !== "PLAYER") redirect(dashboardHomeFor(user.role));
 
-  const [courtBookingCount, nextBooking, eventRegistrations] = await Promise.all([
-    countMyUpcomingBookings(),
-    getMyNextBooking(),
-    getMyUpcomingEventRegistrationSummary(),
-  ]);
+  const [courtBookingCount, nextBooking, eventRegistrations, duprLink] =
+    await Promise.all([
+      countMyUpcomingBookings(),
+      getMyNextBooking(),
+      getMyUpcomingEventRegistrationSummary(),
+      getDuprLinkForUser(user.id),
+    ]);
 
   return (
     <PlayerHome
@@ -29,6 +32,7 @@ export default async function PlayerDashboardPage() {
       upcomingCount={courtBookingCount + eventRegistrations.count}
       nextBooking={nextBooking}
       nextEventRegistration={eventRegistrations.next}
+      duprRating={toDuprRatingView(duprLink)}
     />
   );
 }

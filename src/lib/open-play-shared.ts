@@ -84,6 +84,9 @@ export type OpenPlaySnapshot = {
     id: string;
     displayName: string;
     skillLevel: string;
+    // DUPR doubles rating, when the player connected DUPR. Public on the
+    // board like the skill tier.
+    duprRating: number | null;
     source: OpenPlayParticipantSource;
     status: OpenPlayParticipantStatus;
     lastResult: OpenPlayLastResult;

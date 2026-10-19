@@ -9,6 +9,8 @@ export type RankingEntry = {
   fullName: string;
   rating: number | null;
   reliability: RatingReliability;
+  // Set when this DUPR player connected a public Bunal.club profile.
+  profilePath?: string;
 };
 
 export type LeaderboardSnapshot =

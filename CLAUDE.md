@@ -207,4 +207,4 @@ there.
 `docs/payments.md` (fees, platform collection, payouts, pre-cutover payments),
 `docs/security-operations.md` (deployment secrets, CSP rollout),
 `docs/messages.md`, `docs/email-templates.md`, `docs/facebook-messenger.md`,
-`docs/seo.md`, `docs/dupr-leaderboard.md`.
+`docs/seo.md`, `docs/dupr-leaderboard.md`, `docs/dupr-player-links.md`.

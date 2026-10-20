@@ -33,12 +33,19 @@ async function check() {
   stubRequestContext(admin);
 
   // --- 1. The arithmetic ----------------------------------------------------
-  ok("the court service fee is a flat ₱25", BOOKING_SERVICE_FEE === 25);
+  ok("the court service fee base is ₱25", BOOKING_SERVICE_FEE === 25);
   ok("an empty court total has no fee", bookingServiceFeeFor(0) === 0);
   ok("a ₱250 court total carries the ₱25 fee", bookingServiceFeeFor(250) === 25);
+  ok("a ₱999.99 court total is still a flat ₱25", bookingServiceFeeFor(999.99) === 25);
+  ok("a ₱1,000 court total adds 1.5% (₱40)", bookingServiceFeeFor(1_000) === 40);
   ok(
-    "a ₱5,000 multi-court checkout still carries one ₱25 fee",
-    bookingServiceFeeFor(5_000) === 25
+    "a 1.5% fee with centavos rounds up to the whole peso",
+    bookingServiceFeeFor(1_033.33) === 41
+  );
+  ok("a ₱2,000 court total carries ₱55", bookingServiceFeeFor(2_000) === 55);
+  ok(
+    "a ₱5,000 multi-court checkout carries one ₱100 fee",
+    bookingServiceFeeFor(5_000) === 100
   );
   ok("the trainer service fee is a flat ₱25", TRAINER_SERVICE_FEE === 25);
   ok(
@@ -95,16 +102,20 @@ async function check() {
     paymongoQrPhTotalFor(257.5) === 261.42
   );
 
-  // Bunal.club absorbs PayMongo's cut out of the flat fee. That is a margin on
-  // an ordinary booking and a loss on a large one — pinned here so a change
-  // to either number is a deliberate decision, not a surprise.
+  // Bunal.club absorbs PayMongo's cut out of the service fee. The 1.5% tier
+  // exists so large carts stay profitable — pinned here so a change to the
+  // fee or the processing rate is a deliberate decision, not a surprise.
+  const courtNet = (total: number) =>
+    bookingServiceFeeFor(total) - paymongoQrPhProcessingCostFor(grossFor(total));
+  ok("the fee covers processing on a ₱500 booking", courtNet(500) > 0);
+  ok("the fee covers processing on a ₱2,000 booking", courtNet(2_000) > 0);
+  const losing: number[] = [];
+  for (let peso = 1; peso <= 50_000; peso++) {
+    if (courtNet(peso) <= 0) losing.push(peso);
+  }
   ok(
-    "the flat fee covers processing on a ₱500 booking",
-    BOOKING_SERVICE_FEE - paymongoQrPhProcessingCostFor(grossFor(500)) > 0
-  );
-  ok(
-    "the flat fee does NOT cover processing on a ₱2,000 booking",
-    BOOKING_SERVICE_FEE - paymongoQrPhProcessingCostFor(grossFor(2_000)) < 0
+    "no court checkout up to ₱50,000 loses money to processing",
+    losing.length === 0
   );
 
   // The invariant that matters: the split always reconstitutes the total.
@@ -119,7 +130,7 @@ async function check() {
     }
   }
   ok(
-    "court total + flat fee === checkout total across booking totals",
+    "court total + service fee === checkout total across booking totals",
     drifted.length === 0
   );
   // --- 2. The ledger --------------------------------------------------------

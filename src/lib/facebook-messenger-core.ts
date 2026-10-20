@@ -277,7 +277,7 @@ export function facebookReplyForMessage(
     return {
       category: "pricing",
       text:
-        "Creating and listing your venue on Bunal.club is free—there is no setup or subscription fee, and you do not need a PayMongo account. With automatic QR Ph checkout the player pays a flat ₱25 fee per court booking, or a ₱5 payment fee per player for events, with no additional processing fee. Bunal.club pays venues their full rate every Monday and Thursday. Manual venue payments are fee-free.",
+        "Creating and listing your venue on Bunal.club is free—there is no setup or subscription fee, and you do not need a PayMongo account. With automatic QR Ph checkout the player pays a ₱25 fee per court booking (plus 1.5% on court totals of ₱1,000 or more), or a ₱5 payment fee per player for events, with no additional processing fee. Bunal.club pays venues their full rate every Monday and Thursday. Manual venue payments are fee-free.",
     };
   }
   if (

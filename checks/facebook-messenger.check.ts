@@ -132,7 +132,7 @@ function check() {
     pricingReply.category === "pricing" &&
       pricingReply.text.includes("Creating and listing your venue") &&
       pricingReply.text.includes("no setup or subscription fee") &&
-      pricingReply.text.includes("flat ₱25 fee per court booking") &&
+      pricingReply.text.includes("₱25 fee per court booking (plus 1.5% on court totals of ₱1,000 or more)") &&
       pricingReply.text.includes("₱5 payment fee per player") &&
       pricingReply.text.includes("no additional processing fee") &&
       pricingReply.text.includes("every Monday and Thursday")

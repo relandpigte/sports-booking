@@ -10,6 +10,7 @@ import { PublicInstallBanner } from "@/components/pwa/PublicInstallBanner";
 import {
   BOOKING_HOLD_MINUTES,
   BOOKING_SERVICE_FEE,
+  BOOKING_SERVICE_FEE_SUMMARY,
   EVENT_PAYMENT_FEE_PER_PLAYER,
 } from "@/lib/constants";
 
@@ -111,12 +112,12 @@ const FAQS = [
   {
     question: "Does Bunal.club charge partners a monthly fee?",
     answer:
-`No. There are no plans, subscriptions, or monthly charges, and venues never pay a fee. With automatic QR Ph checkout the player pays a flat ₱${BOOKING_SERVICE_FEE} service fee per court booking, or ₱${EVENT_PAYMENT_FEE_PER_PLAYER} per event player. Manual venue payments are fee-free.`,
+`No. There are no plans, subscriptions, or monthly charges, and venues never pay a fee. With automatic QR Ph checkout the player pays a service fee of ${BOOKING_SERVICE_FEE_SUMMARY} per court booking, or ₱${EVENT_PAYMENT_FEE_PER_PLAYER} per event player. Manual venue payments are fee-free.`,
   },
   {
     question: "How much is the booking service fee?",
     answer:
-`Automatic QR Ph court checkout adds one flat ₱${BOOKING_SERVICE_FEE} service fee per booking, however many courts or hours you reserve. Event checkout adds ₱${EVENT_PAYMENT_FEE_PER_PLAYER} per player. There is no separate processing fee, and partner-reviewed manual payments have no Bunal.club fee.`,
+`Automatic QR Ph court checkout adds one service fee per booking, however many courts or hours you reserve: ${BOOKING_SERVICE_FEE_SUMMARY}. Event checkout adds ₱${EVENT_PAYMENT_FEE_PER_PLAYER} per player. There is no separate processing fee, and partner-reviewed manual payments have no Bunal.club fee.`,
   },
   {
     question: "Where does the player's court payment go?",
@@ -336,7 +337,7 @@ function BookingPreview() {
             <div className="text-right">
               <p className="text-xs text-slate-500">Automatic Bunal fee</p>
               <p className="mt-0.5 text-sm font-bold text-navy">
-                ₱{BOOKING_SERVICE_FEE} per booking
+                From ₱{BOOKING_SERVICE_FEE} per booking
               </p>
             </div>
           </div>
@@ -635,8 +636,8 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                       </h3>
                       <p className="mt-2 max-w-2xl text-sm leading-6 text-white/70">
                         Bunal.club collects automatic QR Ph payments and pays
-                        each venue every Monday and Thursday. Our flat ₱
-                        {BOOKING_SERVICE_FEE} booking fee is shown separately at
+                        each venue every Monday and Thursday. Our booking fee
+                        ({BOOKING_SERVICE_FEE_SUMMARY}) is shown separately at
                         checkout; manual venue payments have no Bunal fee.
                       </p>
                     </div>
@@ -709,9 +710,9 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
               <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-slate-600 sm:text-lg">
                 Each venue chooses how it collects payments. Manual checkout
                 charges only the advertised venue or event amount, with no
-                Bunal.club fee. Automatic QR Ph adds one flat ₱
-                {BOOKING_SERVICE_FEE} service fee per court booking, then
-                confirms payment automatically.
+                Bunal.club fee. Automatic QR Ph adds one service fee per court
+                booking ({BOOKING_SERVICE_FEE_SUMMARY}), then confirms payment
+                automatically.
               </p>
             </div>
 
@@ -905,9 +906,9 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
               </p>
               <p className="inline-flex items-center gap-2">
                 <Icon name="card" className="h-4 w-4 text-primary" />
-                Automatic checkout has one flat ₱{BOOKING_SERVICE_FEE}{" "}
-                Bunal.club fee per court booking, with no additional
-                processing fee.
+                Automatic checkout has one Bunal.club fee per court booking (
+                {BOOKING_SERVICE_FEE_SUMMARY}), with no additional processing
+                fee.
               </p>
             </div>
           </div>
@@ -1162,7 +1163,7 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                 </h3>
                 <p className="mt-3 text-sm leading-6 text-slate-600">
                   Venues never pay Bunal.club a fee. With automatic QR Ph the
-                  player pays a flat ₱{BOOKING_SERVICE_FEE} per court booking,
+                  player pays {BOOKING_SERVICE_FEE_SUMMARY} per court booking,
                   or ₱{EVENT_PAYMENT_FEE_PER_PLAYER} per event player, shown
                   clearly at checkout.
                 </p>
@@ -1185,10 +1186,10 @@ export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
                     Automatic QR Ph
                   </p>
                   <p className="mt-3 text-4xl font-black text-navy">
-                    ₱{BOOKING_SERVICE_FEE} / ₱{EVENT_PAYMENT_FEE_PER_PLAYER}
+                    From ₱{BOOKING_SERVICE_FEE} / ₱{EVENT_PAYMENT_FEE_PER_PLAYER}
                   </p>
                   <p className="mt-1 text-xs leading-5 text-slate-500">
-                    Paid by the player: ₱{BOOKING_SERVICE_FEE} per court
+                    Paid by the player: {BOOKING_SERVICE_FEE_SUMMARY} per court
                     booking, or ₱{EVENT_PAYMENT_FEE_PER_PLAYER} per paid event
                     player. Payment processing is included.
                   </p>

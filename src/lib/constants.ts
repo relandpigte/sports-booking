@@ -180,20 +180,42 @@ export function paymongoQrPhTotalFor(subtotal: number): number {
   return (subtotalCentavos + feeCentavos) / 100;
 }
 
-// Bunal.club's flat fee for one automatic court checkout, added ON TOP of the
+// Bunal.club's base fee for one automatic court checkout, added ON TOP of the
 // venue's court total and charged once however many courts or hours the
 // player selected. Manual venue payments are fee-free.
 export const BOOKING_SERVICE_FEE = 25;
 
+// Bunal.club absorbs PayMongo's ~1.5% QR Ph cost, so a flat ₱25 alone loses
+// money on checkouts above about ₱1,641. From ₱1,000 up, the fee adds 1.5% of
+// the court total, which keeps roughly ₱23–25 after processing at any size.
+export const BOOKING_SERVICE_FEE_PERCENT = 1.5;
+export const BOOKING_SERVICE_FEE_PERCENT_FROM = 1_000;
+
 // Every court booking surface computes the fee through here so the quote and
 // the payment ledger agree. A selection with nothing to pay carries no fee.
-// Events use the per-player helpers below.
+// The result is rounded up to a whole peso. Events use the per-player helpers
+// below.
 export function bookingServiceFeeFor(courtTotal: number): number {
-  return courtTotal > 0 ? BOOKING_SERVICE_FEE : 0;
+  const courtCentavos = Math.round(courtTotal * 100);
+  if (courtCentavos <= 0) return 0;
+  if (courtCentavos < BOOKING_SERVICE_FEE_PERCENT_FROM * 100) {
+    return BOOKING_SERVICE_FEE;
+  }
+  // Integer math: base + total × 15/1000, in centavos × 1000, then ceil to a
+  // whole peso, so float error can never add a peso.
+  const scaled =
+    BOOKING_SERVICE_FEE * 100 * 1000 +
+    courtCentavos * Math.round(BOOKING_SERVICE_FEE_PERCENT * 10);
+  return Math.ceil(scaled / (100 * 1000));
 }
 
-// The same flat fee for one automatic trainer-session checkout. A trainer who
-// collects manually is paid directly by the player, so there is no fee.
+// "₱25, plus 1.5% on court totals of ₱1,000 or more" — for marketing and
+// settings copy, so the wording follows the constants.
+export const BOOKING_SERVICE_FEE_SUMMARY = `₱${BOOKING_SERVICE_FEE}, plus ${BOOKING_SERVICE_FEE_PERCENT}% on court totals of ₱${String(BOOKING_SERVICE_FEE_PERCENT_FROM).replace(/\B(?=(\d{3})+(?!\d))/g, ",")} or more`;
+
+// A flat ₱25 fee for one automatic trainer-session checkout, with no
+// percentage tier. A trainer who collects manually is paid directly by the
+// player, so there is no fee.
 export const TRAINER_SERVICE_FEE = 25;
 
 export function trainerServiceFeeFor(

@@ -50,7 +50,7 @@ export default function TermsPage() {
             processed by PayMongo and collected by Bunal.club on the
             venue&apos;s behalf; Bunal.club then pays the venue its advertised
             amount on a regular payout schedule. Automatic court checkout adds
-            one flat Bunal.club service fee per checkout, and event checkout
+            one Bunal.club service fee per checkout, and event checkout
             adds a payment fee per registered player; both are shown before you
             pay, with no additional processing fee. Manual checkout charges
             only the venue&apos;s advertised amount, is paid directly to the

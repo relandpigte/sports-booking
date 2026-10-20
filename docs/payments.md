@@ -37,15 +37,19 @@ The fee is always paid by the player, on top of the advertised price.
 
 | Checkout | Automatic QR Ph | Manual |
 | --- | --- | --- |
-| Court booking | ₱25 per checkout | No fee |
+| Court booking | ₱25 per checkout, plus 1.5% of the court total when it is ₱1,000 or more | No fee |
 | Trainer session | ₱25 per session | No fee |
 | Paid event | ₱5 per paid spot | No fee |
 
 The court fee is charged **once per checkout**, however many courts or hours
 the player selected, including selections with gaps that create separate
-booking sessions. Fee arithmetic lives in `src/lib/constants.ts`
-(`BOOKING_SERVICE_FEE`, `TRAINER_SERVICE_FEE`, `EVENT_PAYMENT_FEE_PER_PLAYER`
-and their helpers); reuse it rather than recomputing.
+booking sessions. Below a ₱1,000 court total it is a flat ₱25. From ₱1,000 up
+it is ₱25 + 1.5% of the court total, rounded up to a whole peso (₱1,000 → ₱40,
+₱2,000 → ₱55, ₱5,000 → ₱100). Fee arithmetic lives in `src/lib/constants.ts`
+(`BOOKING_SERVICE_FEE`, `BOOKING_SERVICE_FEE_PERCENT`,
+`BOOKING_SERVICE_FEE_PERCENT_FROM`, `TRAINER_SERVICE_FEE`,
+`EVENT_PAYMENT_FEE_PER_PLAYER` and their helpers); reuse it rather than
+recomputing.
 
 Each `BookingPayment` snapshots:
 
@@ -63,8 +67,12 @@ Each `BookingPayment` snapshots:
 fee is quoted when the player requests a session and re-snapshotted when the
 trainer accepts, because that is when the trainer's collection mode is read.
 
-Because Bunal.club absorbs processing, a large checkout can cost more to
-process than the flat fee earns. `PAYMONGO_QRPH_PROCESSING_RATE` is the
+Because Bunal.club absorbs processing (about 1.5%), a flat ₱25 alone would
+lose money on court checkouts above about ₱1,641. The 1.5% component keeps
+court checkouts at roughly ₱23–25 net from ₱1,000 up; it only turns negative
+above about ₱105,000. Trainer sessions (flat ₱25) still lose money above about
+₱1,641, and paid events (₱5 per spot) above about ₱329 per spot.
+`PAYMONGO_QRPH_PROCESSING_RATE` is the
 VAT-inclusive estimate used until PayMongo reports the exact fee.
 
 For open play and other paid events, the registration fee is per person. A

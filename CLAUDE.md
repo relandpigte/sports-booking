@@ -166,8 +166,9 @@ directly and nothing enters the payout ledger.
   service-fee settlements). The signature is the authorization, verified
   against the raw body; `ProviderEvent` deduplicates deliveries.
 
-The fee is flat and player-paid: ₱25 per court checkout or trainer session,
-₱5 per paid event spot, nothing on manual. Bunal.club absorbs PayMongo's
+The fee is player-paid: ₱25 per court checkout (plus 1.5% of the court total
+from ₱1,000 up, rounded up to the peso), a flat ₱25 per trainer session, ₱5
+per paid event spot, nothing on manual. Bunal.club absorbs PayMongo's
 processing cost. Every payment row snapshots `venueAmount`, `platformFee`,
 `amount`, and `processingFee`, so history never shifts when rates change. Fee
 arithmetic lives in `src/lib/constants.ts` — reuse it rather than recomputing.

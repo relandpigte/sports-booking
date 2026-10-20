@@ -134,7 +134,7 @@ export function BookingCard({
         {booking.payment && (paid || refunded) && (
           <>
             {/* Historical payments may have a separate player-paid processing
-                fee; current automatic payments include it in the flat fee. */}
+                fee; current automatic payments include it in the service fee. */}
             {booking.payment.platformFee > 0 && (
               <div className="flex items-center justify-between gap-3">
                 <dt className="text-gray-500">

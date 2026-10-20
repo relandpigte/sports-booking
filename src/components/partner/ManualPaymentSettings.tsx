@@ -18,7 +18,7 @@ import {
 import type { ManualPaymentMethodView } from "@/lib/manual-payments";
 import { savePayoutAccountAction } from "@/lib/payout-actions";
 import {
-  BOOKING_SERVICE_FEE,
+  BOOKING_SERVICE_FEE_SUMMARY,
   EVENT_PAYMENT_FEE_PER_PLAYER,
 } from "@/lib/constants";
 
@@ -623,7 +623,7 @@ export function CheckoutModeSettings({
         </div>
         <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500">
           {selectedMode === "AUTOMATIC"
-            ? `Players pay by QR Ph and are confirmed automatically. They pay a ₱${BOOKING_SERVICE_FEE} service fee per court checkout, or ₱${EVENT_PAYMENT_FEE_PER_PLAYER} per event player, on top of your price. Bunal.club collects the payment and sends your full advertised amount every Monday and Thursday.`
+            ? `Players pay by QR Ph and are confirmed automatically. They pay a service fee of ${BOOKING_SERVICE_FEE_SUMMARY} per court checkout, or ₱${EVENT_PAYMENT_FEE_PER_PLAYER} per event player, on top of your price. Bunal.club collects the payment and sends your full advertised amount every Monday and Thursday.`
             : "Players transfer only your advertised price straight to your own account and upload a receipt in 15 minutes. No Bunal.club fee applies."}
         </p>
       </section>

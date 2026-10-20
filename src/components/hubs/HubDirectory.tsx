@@ -5,7 +5,9 @@ import Link from "next/link";
 
 import { HubCard } from "@/components/hubs/HubCard";
 import {
+  BOOKING_SERVICE_FEE_SUMMARY,
   COURT_TYPES,
+  EVENT_PAYMENT_FEE_PER_PLAYER,
   GAMES,
   type OperatingHours,
 } from "@/lib/constants";
@@ -500,8 +502,9 @@ function EmptyDirectoryState() {
             </Link>
             <p className="mt-4 text-xs text-white/45">
               No monthly subscription and no PayMongo account needed. With
-              automatic QR Ph, players pay a flat ₱25 per court booking or ₱5
-              per event player; manual venue payments are fee-free.
+              automatic QR Ph, players pay {BOOKING_SERVICE_FEE_SUMMARY} per
+              court booking, or ₱{EVENT_PAYMENT_FEE_PER_PLAYER} per event
+              player; manual venue payments are fee-free.
             </p>
           </div>
         </aside>

@@ -2,7 +2,6 @@ import "server-only";
 
 import type { Prisma } from "@prisma/client";
 
-import { requireAdmin } from "@/lib/admin";
 import type { OperatingHours, Weekday } from "@/lib/constants";
 import { prisma } from "@/lib/db";
 import { dayWindow, weekdayIndexForDate } from "@/lib/slots";
@@ -1064,12 +1063,13 @@ export type PlatformEarnings = {
 
 // Bunal.club's own net fees for a Manila date range: the same figure as the
 // "Net Bunal fees" card on the admin report, split by source. It skips the
-// utilization queries, so it is cheap enough for the payouts page.
+// utilization queries, so it is cheap enough for the payouts page. Like the
+// rest of this module it does no auth of its own; callers must
+// requireAdmin() first.
 export async function platformEarnings(range: {
   from: string;
   to: string;
 }): Promise<PlatformEarnings> {
-  await requireAdmin();
   const filters = defaultAnalyticsFilters({ ...range, compare: false });
   const [venue, trainer, organizerFees] = await Promise.all([
     venuePayments(filters),

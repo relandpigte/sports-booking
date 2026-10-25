@@ -6,6 +6,7 @@ import { MarkPayoutPaidForm } from "@/components/admin/MarkPayoutPaidForm";
 import { ResendPayoutEmailButton } from "@/components/admin/ResendPayoutEmailButton";
 import { Badge } from "@/components/ui/Badge";
 import { requireAdmin } from "@/lib/admin";
+import { platformEarnings } from "@/lib/business-analytics";
 import { formatPHP } from "@/lib/currency";
 import { prisma } from "@/lib/db";
 import {
@@ -16,6 +17,7 @@ import {
   type AdminPayoutView,
   type AdminPendingPayoutView,
 } from "@/lib/payouts";
+import { manilaToday } from "@/lib/time";
 
 export const metadata: Metadata = {
   title: "Payouts — Bunal.club",
@@ -105,11 +107,14 @@ export default async function AdminPayoutsPage({
   const requested = Array.isArray(query.view) ? query.view[0] : query.view;
   const kind: PayoutRecipientKind = requested === "trainers" ? "TRAINER" : "VENUE";
 
-  const [payouts, upcoming, venuePending, trainerPending] = await Promise.all([
+  const today = manilaToday();
+  const monthStart = `${today.slice(0, 7)}-01`;
+  const [payouts, upcoming, venuePending, trainerPending, earnings] = await Promise.all([
     listAdminPayouts(kind),
     listAdminUpcomingPayouts(kind),
     prisma.payout.count({ where: { recipientKind: "VENUE", status: "PENDING" } }),
     prisma.payout.count({ where: { recipientKind: "TRAINER", status: "PENDING" } }),
+    platformEarnings({ from: monthStart, to: today }),
   ]);
   const pendingTotal = payouts.pending.reduce(
     (sum, payout) => sum + payout.amount,
@@ -148,6 +153,34 @@ export default async function AdminPayoutsPage({
           Last run {day(latestPayoutCutoff())} · Next {day(nextPayoutCutoff())}
         </p>
       </header>
+
+      <section
+        aria-label="Bunal.club earnings"
+        className="mt-4 flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-5"
+      >
+        <div className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400">
+            Bunal earnings this month
+          </p>
+          <p className="mt-1 text-2xl font-bold text-navy">
+            {formatPHP(earnings.total)}
+          </p>
+          <p className="mt-1 text-sm text-gray-500">
+            Courts {formatPHP(earnings.court)} · Events{" "}
+            {formatPHP(earnings.event)} · Trainers {formatPHP(earnings.trainer)}
+          </p>
+          <p className="mt-1 text-xs text-gray-400">
+            Net of PayMongo processing. Kept by Bunal.club, not part of any
+            payout.
+          </p>
+        </div>
+        <Link
+          href={`/dashboard/admin/reports?from=${monthStart}&to=${today}`}
+          className="inline-flex min-h-11 shrink-0 items-center text-sm font-semibold text-primary hover:underline"
+        >
+          Full report →
+        </Link>
+      </section>
 
       <nav
         aria-label="Payout recipient type"

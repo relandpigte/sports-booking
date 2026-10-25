@@ -86,7 +86,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/google.maps": "^3.65.0",
+    "@types/google.maps": "^3.66.7",
     "@types/node": "^20",
     "@types/qrcode-generator": "^1.0.6",
     "@types/react": "^19",

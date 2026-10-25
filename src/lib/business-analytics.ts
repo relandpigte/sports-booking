@@ -576,6 +576,16 @@ async function organizerEventFees(
   });
 }
 
+function organizerFeesInRange(
+  fees: OrganizerEventFee[],
+  from: string,
+  to: string
+): number {
+  return fees
+    .filter((fee) => isInRange(fee.createdAt, from, to))
+    .reduce((sum, fee) => sum + fee.amount, 0);
+}
+
 function paymentsInRange(
   payments: NormalizedPayment[],
   from: string,
@@ -1044,6 +1054,43 @@ function trainerPerformance(payments: NormalizedPayment[], from: string, to: str
   return [...rows.values()].sort((a, b) => b.revenue - a.revenue);
 }
 
+export type PlatformEarnings = {
+  total: number;
+  court: number;
+  event: number;
+  trainer: number;
+};
+
+// Bunal.club's own net fees for a Manila date range: the same figure as the
+// "Net Bunal fees" card on the admin report, split by source. It skips the
+// utilization queries, so it is cheap enough for the payouts page. Like the
+// rest of this module it does no auth of its own; callers must
+// requireAdmin() first.
+export async function platformEarnings(range: {
+  from: string;
+  to: string;
+}): Promise<PlatformEarnings> {
+  const filters = defaultAnalyticsFilters({ ...range, compare: false });
+  const [venue, trainer, organizerFees] = await Promise.all([
+    venuePayments(filters),
+    trainerPayments(filters),
+    organizerEventFees(filters),
+  ]);
+  const payments = [...venue, ...trainer];
+  const feesFor = (source: NormalizedPayment["source"]) =>
+    paymentKpis(
+      payments.filter((payment) => payment.source === source),
+      range.from,
+      range.to
+    ).serviceFees;
+
+  const court = feesFor("court");
+  const event =
+    feesFor("event") + organizerFeesInRange(organizerFees, range.from, range.to);
+  const trainerFees = feesFor("trainer");
+  return { total: court + event + trainerFees, court, event, trainer: trainerFees };
+}
+
 export async function getBusinessAnalytics(args: {
   audience: "partner" | "owner";
   filters: BusinessAnalyticsFilters;
@@ -1060,18 +1107,20 @@ export async function getBusinessAnalytics(args: {
   ]);
   const payments = [...venue, ...trainer];
   const current = paymentKpis(payments, args.filters.from, args.filters.to);
-  current.serviceFees += organizerFees
-    .filter((fee) => isInRange(fee.createdAt, args.filters.from, args.filters.to))
-    .reduce((sum, fee) => sum + fee.amount, 0);
+  current.serviceFees += organizerFeesInRange(
+    organizerFees,
+    args.filters.from,
+    args.filters.to
+  );
   const previous = args.filters.compare
     ? paymentKpis(payments, previousRange.from, previousRange.to)
     : null;
   if (previous) {
-    previous.serviceFees += organizerFees
-      .filter((fee) =>
-        isInRange(fee.createdAt, previousRange.from, previousRange.to)
-      )
-      .reduce((sum, fee) => sum + fee.amount, 0);
+    previous.serviceFees += organizerFeesInRange(
+      organizerFees,
+      previousRange.from,
+      previousRange.to
+    );
   }
   const customers = customerMetrics(payments, args.filters.from, args.filters.to);
   const previousCustomers = args.filters.compare

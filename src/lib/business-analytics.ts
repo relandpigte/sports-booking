@@ -681,7 +681,8 @@ function customerMetrics(
 function trendFor(
   payments: NormalizedPayment[],
   from: string,
-  to: string
+  to: string,
+  amountOf: (payment: NormalizedPayment) => number
 ): AnalyticsTrendPoint[] {
   const monthly = dateCount(from, to) > 62;
   const buckets = new Map<string, AnalyticsTrendPoint>();
@@ -714,7 +715,7 @@ function trendFor(
     if (isInRange(payment.paidAt, from, to)) {
       const date = manilaDateOf(payment.paidAt);
       const point = buckets.get(monthly ? manilaMonthOf(date) : date);
-      if (point) point.gross += payment.gross;
+      if (point) point.gross += amountOf(payment);
     }
     if (isInRange(payment.refundedAt, from, to) && payment.refundedAt) {
       const date = manilaDateOf(payment.refundedAt);
@@ -1147,10 +1148,13 @@ export async function getBusinessAnalytics(args: {
     retentionRate: customer.retentionRate,
   });
 
+  // Partners see only their own share; the owner view includes Bunal's fee.
+  const amountOf = (payment: NormalizedPayment) =>
+    args.audience === "partner" ? payment.recipientShare : payment.gross;
   const revenueBySource = { court: 0, event: 0, trainer: 0 };
   for (const payment of payments) {
     if (isInRange(payment.paidAt, args.filters.from, args.filters.to)) {
-      revenueBySource[payment.source] += payment.gross;
+      revenueBySource[payment.source] += amountOf(payment);
     }
   }
 
@@ -1170,7 +1174,8 @@ export async function getBusinessAnalytics(args: {
     trend: trendFor(
       paymentsInRange(payments, args.filters.from, args.filters.to),
       args.filters.from,
-      args.filters.to
+      args.filters.to,
+      amountOf
     ),
     revenueBySource,
     utilization: utilization.rows,

@@ -194,9 +194,9 @@ function EventRows({
   if (audience === "partner") {
     return (
       <div className="mt-5 overflow-x-auto">
-        <table className="w-full min-w-[680px] text-sm">
-          <thead><tr className="border-b border-slate-200 text-left text-[11px] font-black uppercase tracking-[0.12em] text-slate-400"><th className="pb-3">Event</th><th className="pb-3">Hub</th><th className="pb-3">Date</th><th className="pb-3 text-right">Transactions</th><th className="pb-3 text-right">Revenue</th><th className="pb-3 text-right">Service fees</th></tr></thead>
-          <tbody className="divide-y divide-slate-100">{rows.map((row) => <tr key={row.eventId}><td className="py-3 font-bold text-navy">{row.title}</td><td className="py-3 text-slate-500">{row.hub}</td><td className="py-3 text-slate-500">{row.date}</td><td className="py-3 text-right tabular-nums">{row.transactions}</td><td className="py-3 text-right font-bold tabular-nums text-navy">{formatPHP(row.revenue)}</td><td className="py-3 text-right tabular-nums text-primary">{formatPHP(row.serviceFees)}</td></tr>)}</tbody>
+        <table className="w-full min-w-[560px] text-sm">
+          <thead><tr className="border-b border-slate-200 text-left text-[11px] font-black uppercase tracking-[0.12em] text-slate-400"><th className="pb-3">Event</th><th className="pb-3">Hub</th><th className="pb-3">Date</th><th className="pb-3 text-right">Transactions</th><th className="pb-3 text-right">Revenue</th></tr></thead>
+          <tbody className="divide-y divide-slate-100">{rows.map((row) => <tr key={row.eventId}><td className="py-3 font-bold text-navy">{row.title}</td><td className="py-3 text-slate-500">{row.hub}</td><td className="py-3 text-slate-500">{row.date}</td><td className="py-3 text-right tabular-nums">{row.transactions}</td><td className="py-3 text-right font-bold tabular-nums text-navy">{formatPHP(row.revenue)}</td></tr>)}</tbody>
         </table>
       </div>
     );

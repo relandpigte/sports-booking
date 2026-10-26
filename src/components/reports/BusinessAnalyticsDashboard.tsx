@@ -81,7 +81,7 @@ export function BusinessAnalyticsDashboard({
         {[
           ["overview", "Overview"],
           ["courts", audience === "owner" ? "Venues" : "Courts"],
-          ["court-fees", "Booking fees"],
+          ["court-fees", audience === "owner" ? "Booking fees" : "Court payments"],
           ["customers", "Customers"],
           ["events", "Events"],
           ...(audience === "owner" ? [["trainers", "Trainers"]] : []),
@@ -93,7 +93,7 @@ export function BusinessAnalyticsDashboard({
       </nav>
 
       <section id="overview" className="scroll-mt-24 space-y-4">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <div className={`grid grid-cols-2 gap-3 ${audience === "owner" ? "md:grid-cols-5" : "md:grid-cols-4"}`}>
           <KpiCard
             primary
             label={audience === "owner" ? "Platform GMV" : "Net revenue"}
@@ -101,7 +101,7 @@ export function BusinessAnalyticsDashboard({
             note={`${data.kpis.transactions} confirmed transactions`}
             delta={change(audience === "owner" ? data.kpis.gross : data.kpis.netRevenue, audience === "owner" ? previous?.gross : previous?.netRevenue)}
           />
-          <KpiCard label="Net Bunal fees" value={formatPHP(data.kpis.serviceFees)} note="After player-checkout processing" delta={change(data.kpis.serviceFees, previous?.serviceFees)} />
+          {audience === "owner" ? <KpiCard label="Net Bunal fees" value={formatPHP(data.kpis.serviceFees)} note="After player-checkout processing" delta={change(data.kpis.serviceFees, previous?.serviceFees)} /> : null}
           <KpiCard label={audience === "owner" ? "Venue & trainer shares" : "Gross revenue"} value={formatPHP(audience === "owner" ? data.kpis.recipientShare : data.kpis.salesRevenue)} note={`${formatPHP(data.kpis.refunds)} refunded`} delta={change(audience === "owner" ? data.kpis.recipientShare : data.kpis.salesRevenue, audience === "owner" ? previous?.recipientShare : previous?.salesRevenue)} />
           <KpiCard label={data.kpis.estimatedUtilization ? "Estimated utilization" : "Court utilization"} value={percent(data.kpis.utilizationRate)} note={data.kpis.estimatedUtilization ? "Pre-launch dates use current schedules" : "Confirmed court-hours ÷ available hours"} delta={null} />
           <KpiCard label="30-day retention" value={percent(data.kpis.retentionRate)} note={`${data.kpis.newCustomers} new purchasing customers`} delta={change(data.kpis.retentionRate, previous?.retentionRate)} />
@@ -169,7 +169,7 @@ export function BusinessAnalyticsDashboard({
       </section>
 
       <section id="events" className="scroll-mt-24 rounded-2xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5">
-        <SectionHeading eyebrow="Event financial performance" title="Event revenue and payment fees" description={audience === "owner" ? "Expand an event to audit each checkout. Net Bunal revenue is the collected payment fee less PayMongo processing; settlement collection and other expenses are not allocated." : "Revenue and net Bunal fees after player-checkout processing. Settlement collection and other expenses are not allocated to individual events."} />
+        {audience === "owner" ? <SectionHeading eyebrow="Event financial performance" title="Event revenue and payment fees" description="Expand an event to audit each checkout. Net Bunal revenue is the collected payment fee less PayMongo processing; settlement collection and other expenses are not allocated." /> : <SectionHeading eyebrow="Event performance" title="Event revenue" description="Paid spots and revenue for your events." />}
         <EventFinancialPerformance
           audience={audience}
           initialView={eventView}

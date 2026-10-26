@@ -41,8 +41,12 @@ export function CourtPaymentFeeBreakdown({
   const [view, setView] = useState(initialView);
   const userChangedView = useRef(false);
   const result = useMemo(() => courtPaymentFeePage(rows, view), [rows, view]);
-  const columns =
-    "grid min-w-[1040px] grid-cols-[minmax(230px,1.4fr)_90px_repeat(5,minmax(120px,0.7fr))] items-center gap-4";
+  const owner = audience === "owner";
+  // Partners see only their own court revenue, not Bunal's fee split.
+  const minWidth = owner ? "min-w-[1040px]" : "min-w-[560px]";
+  const columns = owner
+    ? "grid min-w-[1040px] grid-cols-[minmax(230px,1.4fr)_90px_repeat(5,minmax(120px,0.7fr))] items-center gap-4"
+    : "grid min-w-[560px] grid-cols-[minmax(230px,1.4fr)_90px_minmax(120px,0.7fr)] items-center gap-4";
 
   useEffect(() => {
     if (!userChangedView.current) return;
@@ -78,15 +82,15 @@ export function CourtPaymentFeeBreakdown({
     <section id="court-fees" className="scroll-mt-24 rounded-2xl border border-[#dfe7e2] bg-white p-5 shadow-sm shadow-navy/5">
       <div>
         <p className="text-[11px] font-black uppercase tracking-[0.16em] text-primary">
-          Court payment audit
+          {owner ? "Court payment audit" : "Court payments"}
         </p>
         <h2 className="mt-1 text-lg font-black text-navy">
-          Bunal fee breakdown by checkout
+          {owner ? "Bunal fee breakdown by checkout" : "Revenue by checkout"}
         </h2>
         <p className="mt-1 text-sm leading-6 text-slate-500">
-          {audience === "owner"
+          {owner
             ? "Audit every court checkout by partner and hub, including the gross Bunal fee, absorbed PayMongo processing, and resulting net revenue."
-            : "Each payment shows the player total, your complete court revenue, the gross Bunal fee, and the PayMongo processing Bunal.club absorbs. Your court revenue is what you are paid out."}
+            : "Each payment shows your court revenue — the amount you are paid out."}
         </p>
       </div>
       <div className="mt-5 flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-[#fbfcfb] p-3">
@@ -166,21 +170,25 @@ export function CourtPaymentFeeBreakdown({
       </div>
       {result.items.length > 0 ? (
         <div className="mt-5 overflow-x-auto">
-          <div className="min-w-[1040px]">
+          <div className={minWidth}>
             <div className={`${columns} border-b border-slate-200 px-4 pb-3 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400`}>
-              <span>Payment</span><span className="text-right">Bookings</span><span className="text-right">Player checkout</span><span className="text-right">Court revenue</span><span className="text-right">Gross Bunal fee</span><span className="text-right">PayMongo</span><span className="text-right">Net Bunal fee</span>
+              <span>Payment</span><span className="text-right">Bookings</span>{owner ? <span className="text-right">Player checkout</span> : null}<span className="text-right">Court revenue</span>{owner ? <><span className="text-right">Gross Bunal fee</span><span className="text-right">PayMongo</span><span className="text-right">Net Bunal fee</span></> : null}
             </div>
             <div className="divide-y divide-slate-100">
               {result.items.map((row) => (
                 <details key={row.paymentId} className="group">
                   <summary className={`${columns} cursor-pointer list-none rounded-xl px-4 py-4 transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden`}>
-                    <span><span className="flex items-center gap-2"><span className="text-primary transition group-open:rotate-45">+</span><span className="font-mono font-semibold text-navy" title={row.reference}>{paymentReference(row.reference)}</span></span><span className="ml-5 mt-1 block truncate text-xs text-slate-400">{audience === "owner" ? `${row.partner} · ` : ""}{row.hub} · {paymentDate(row.paidAt)} · {row.collectionMode} · {row.status}</span></span>
+                    <span><span className="flex items-center gap-2"><span className="text-primary transition group-open:rotate-45">+</span><span className="font-mono font-semibold text-navy" title={row.reference}>{paymentReference(row.reference)}</span></span><span className="ml-5 mt-1 block truncate text-xs text-slate-400">{owner ? `${row.partner} · ` : ""}{row.hub} · {paymentDate(row.paidAt)} · {row.collectionMode} · {row.status}</span></span>
                     <span className="text-right tabular-nums text-slate-600">{row.bookings.length}</span>
-                    <span className="text-right font-semibold tabular-nums text-navy">{formatPHP(row.checkoutTotal)}</span>
+                    {owner ? <span className="text-right font-semibold tabular-nums text-navy">{formatPHP(row.checkoutTotal)}</span> : null}
                     <span className="text-right font-semibold tabular-nums text-navy">{formatPHP(row.venueRevenue)}</span>
-                    <span className="text-right tabular-nums text-slate-600">{formatPHP(row.grossPaymentFees)}</span>
-                    <span className="text-right tabular-nums text-red-600">{deduction(row.processingFees)}</span>
-                    <span className={`text-right font-black tabular-nums ${row.netBunalRevenue < 0 ? "text-red-600" : "text-primary"}`}>{formatPHP(row.netBunalRevenue)}</span>
+                    {owner ? (
+                      <>
+                        <span className="text-right tabular-nums text-slate-600">{formatPHP(row.grossPaymentFees)}</span>
+                        <span className="text-right tabular-nums text-red-600">{deduction(row.processingFees)}</span>
+                        <span className={`text-right font-black tabular-nums ${row.netBunalRevenue < 0 ? "text-red-600" : "text-primary"}`}>{formatPHP(row.netBunalRevenue)}</span>
+                      </>
+                    ) : null}
                   </summary>
                   <div className="mb-4 ml-5 border-l-2 border-primary/15 pl-5">
                     {row.bookings.length > 0 ? (

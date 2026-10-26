@@ -359,6 +359,21 @@ async function main() {
       firstCourtPayment.processingFees === 0 &&
       firstCourtPayment.netBunalRevenue === bookingServiceFeeFor(1_000)
   );
+  const partnerCourtRevenue = courtAnalytics.courtPayments.reduce(
+    (sum, payment) => sum + payment.venueRevenue,
+    0
+  );
+  const partnerTrendGross = courtAnalytics.trend.reduce(
+    (sum, point) => sum + point.gross,
+    0
+  );
+  ok(
+    "partner trend and revenue mix exclude Bunal's fee",
+    partnerCourtRevenue > 0 &&
+      Math.abs(partnerTrendGross - partnerCourtRevenue) < 0.005 &&
+      Math.abs(courtAnalytics.revenueBySource.court - partnerCourtRevenue) <
+        0.005
+  );
   ok(
     "partner court fee rows exclude event and other-partner payments",
     courtAnalytics.courtPayments.every(

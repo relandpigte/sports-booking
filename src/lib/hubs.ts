@@ -16,7 +16,6 @@ import {
   venueSetupReady,
 } from "@/lib/payment-readiness";
 import { getPlatformCollectionStatus } from "@/lib/platform-gateway";
-import { isServiceFeeOverdue } from "@/lib/service-fees";
 import { buildSlots, weekdayIndexForDate } from "@/lib/slots";
 import type { CourtScheduleRule } from "@/lib/slots";
 import { manilaNowHour, manilaToday } from "@/lib/time";
@@ -158,10 +157,9 @@ export type ListedHub = Hub & {
 
 // Public directory of all complete hubs owned by approved partners. No auth.
 // A ready payment setup makes the venue bookable and verified; otherwise it
-// stays discoverable as Coming soon. Overdue partners remain hidden until
-// their service-fee standing is current again.
+// stays discoverable as Coming soon.
 export async function listPublicHubs(
-  opts: { game?: Game; now?: Date } = {}
+  opts: { game?: Game } = {}
 ): Promise<ListedHub[]> {
   const rows = await prisma.hub.findMany({
     where: {
@@ -180,24 +178,7 @@ export async function listPublicHubs(
     },
   });
   const platform = await getPlatformCollectionStatus();
-  const paymentReadyOwnerIds = [
-    ...new Set(
-      rows
-        .filter((row) => venueSetupReady(row.owner))
-        .map((row) => row.ownerId)
-    ),
-  ];
-  const overdueByOwner = new Map(
-    await Promise.all(
-      paymentReadyOwnerIds.map(async (ownerId) =>
-        [ownerId, await isServiceFeeOverdue(ownerId, opts.now)] as const
-      )
-    )
-  );
   return rows
-    .filter(
-      (row) => !venueSetupReady(row.owner) || !overdueByOwner.get(row.ownerId)
-    )
     .map(({ ownerId: _ownerId, owner, ...row }) => {
       const setupReady = venueSetupReady(owner);
       return {
@@ -366,7 +347,6 @@ export type PublicHub = Hub & {
     | "inactive"
     | "gateway"
     | "setup"
-    | "settlement"
     // The venue is fully set up, but Bunal.club's own collection account is
     // not connected, so no automatic payment can be taken for anyone.
     | "platform"
@@ -390,10 +370,8 @@ export const getPublicHub = cache(
     const inactive = owner.partnerStatus === "DEACTIVATED";
     const paymentReady = venueSetupReady(owner);
     const setupComplete = rest.courts.length > 0;
-    const overdue =
-      approved && paymentReady ? await isServiceFeeOverdue(ownerId) : false;
     // The venue has done everything on its side.
-    const verified = approved && paymentReady && setupComplete && !overdue;
+    const verified = approved && paymentReady && setupComplete;
     const platformReady =
       owner.partnerPaymentMode === "MANUAL" ||
       (await getPlatformCollectionStatus()).ready;
@@ -420,11 +398,9 @@ export const getPublicHub = cache(
             ? "gateway"
             : !setupComplete
               ? "setup"
-              : overdue
-                ? "settlement"
-                : !platformReady
-                  ? "platform"
-                  : null,
+              : !platformReady
+                ? "platform"
+                : null,
       ownerId,
     };
   }

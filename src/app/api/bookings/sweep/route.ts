@@ -8,11 +8,6 @@ import {
 import { sweepDuprRatings } from "@/lib/dupr-link";
 import { cleanupFacebookMessengerEvents } from "@/lib/facebook-messenger";
 import { cleanupExpiredSecurityRows } from "@/lib/security-maintenance";
-import {
-  notifyPartnersOfOverdueServiceFees,
-  notifyTrainersOfOverdueServiceFees,
-} from "@/lib/service-fee-notifications";
-import { reconcileServiceFeeCheckouts } from "@/lib/service-fee-payments";
 import { cleanupStaleOpenPlaySessions } from "@/lib/open-play-maintenance";
 import { createDuePayouts } from "@/lib/payouts";
 import { reconcileInFlightTrainerPayments } from "@/lib/trainer-payment-settlement";
@@ -55,23 +50,18 @@ async function runSweep(request: NextRequest) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  // Reconcile provider payments first so a paid checkout whose webhook was
-  // delayed cannot receive an incorrect overdue reminder in this same run.
-  const serviceFeeCheckouts = await reconcileServiceFeeCheckouts();
-  // Player payments next, before holds are reaped and before payouts are
+  // Player payments first, before holds are reaped and before payouts are
   // batched: a payment that settles here keeps its booking and joins the run.
   const inFlightPayments = await reconcileInFlightBookingPayments();
   const inFlightTrainerPayments = await reconcileInFlightTrainerPayments();
   // The run is derived from the clock, so calling it every hour is safe: only
   // the first call after a Monday or Thursday begins in Manila creates rows.
   const payouts = await createDuePayouts();
-  const [result, security, messengerEvents, serviceFeeNotifications, trainerServiceFeeNotifications, bunalQ, trainerSessions, trainerReminders, duprRatings] =
+  const [result, security, messengerEvents, bunalQ, trainerSessions, trainerReminders, duprRatings] =
     await Promise.all([
       expireBookingHolds(),
       cleanupExpiredSecurityRows(),
       cleanupFacebookMessengerEvents(),
-      notifyPartnersOfOverdueServiceFees(),
-      notifyTrainersOfOverdueServiceFees(),
       cleanupStaleOpenPlaySessions(),
       sweepTrainerSessions(),
       sendTrainerSessionReminders(),
@@ -82,9 +72,6 @@ async function runSweep(request: NextRequest) {
     ...result,
     security,
     messengerEvents,
-    serviceFeeNotifications,
-    trainerServiceFeeNotifications,
-    serviceFeeCheckouts,
     inFlightPayments,
     inFlightTrainerPayments,
     payouts: {

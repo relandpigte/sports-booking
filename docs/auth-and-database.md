@@ -136,7 +136,7 @@ operation. `requirePartner()` is reserved for draft/pending onboarding pages.
   linking Google, and admins or users with MFA enabled still complete
   authenticator verification.
 - Sensitive financial actions (payout accounts, payout marking, gateway keys,
-  manual-payment review, fee waivers) call `requireRecentMfa()`, which asks
+  manual-payment review) call `requireRecentMfa()`, which asks
   for the authenticator code again when the session is more than 15 minutes
   old. Admins are exempt: every admin session already passed MFA at sign-in.
 - Admins can assist any non-admin account from the Users page. The session is

@@ -13,7 +13,6 @@ import { partnerApprovalEmailContent } from "@/lib/partner-approval-email";
 import { passwordResetEmailContent } from "@/lib/password-reset-email";
 import { PAYOUT_EMAIL_MAX_LINES, payoutEmailContent } from "@/lib/payout-email";
 import { newDeviceLoginEmailContent } from "@/lib/security-alert-email";
-import { serviceFeeOverdueEmailContent } from "@/lib/service-fee-notification-email";
 import { staffInvitationEmailContent } from "@/lib/staff-invitation-email";
 import { formatManilaDateLong } from "@/lib/time";
 import { trainerLifecycleEmailContent } from "@/lib/trainer-email";
@@ -120,33 +119,6 @@ async function check() {
       }),
     },
     {
-      name: "service-fee reminder",
-      content: serviceFeeOverdueEmailContent({
-        partnerName: "Venue Owner",
-        reminderKind: "DUE_SOON",
-        overdueAmount: 0,
-        amountDue: 75,
-        dueAt: new Date("2030-01-03T00:00:00.000Z"),
-        enforcementAt: new Date("2030-01-06T00:00:00.000Z"),
-        blocked: false,
-        actionUrl: `${APP_URL}/dashboard/payments`,
-      }),
-    },
-    {
-      name: "trainer service-fee alert",
-      content: serviceFeeOverdueEmailContent({
-        partnerName: "Coach One",
-        accountType: "TRAINER",
-        reminderKind: "OVERDUE",
-        overdueAmount: 30,
-        amountDue: 30,
-        dueAt: new Date("2030-01-02T00:00:00.000Z"),
-        enforcementAt: new Date("2030-01-05T00:00:00.000Z"),
-        blocked: true,
-        actionUrl: `${APP_URL}/dashboard/trainer/payments`,
-      }),
-    },
-    {
       name: "payout sent",
       content: payoutEmailContent({
         kind: "SENT",
@@ -204,7 +176,7 @@ async function check() {
     },
   ];
 
-  ok("the inventory covers every transactional email family", templates.length === 15);
+  ok("the inventory covers every transactional email family", templates.length === 13);
 
   for (const { name, content } of templates) {
     ok(

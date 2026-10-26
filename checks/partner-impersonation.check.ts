@@ -292,8 +292,6 @@ async function check() {
   const {
     payTrainerSessionAction,
     submitTrainerManualProofAction,
-    startTrainerServiceFeeCheckoutAction,
-    submitTrainerServiceFeeSettlementAction,
   } = await import("@/lib/trainer-payment-actions");
   const paymentResults = await Promise.all([
     payForBookingAction({}, payForm),
@@ -302,8 +300,6 @@ async function check() {
     submitManualPaymentProofAction({}, payForm),
     payTrainerSessionAction({}, payForm),
     submitTrainerManualProofAction({}, payForm),
-    startTrainerServiceFeeCheckoutAction({}, payForm),
-    submitTrainerServiceFeeSettlementAction({}, payForm),
   ]);
   ok(
     "every way to pay or submit a payment is refused while assisting",

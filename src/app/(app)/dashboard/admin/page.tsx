@@ -4,7 +4,6 @@ import { AdminHome } from "@/components/dashboard/home/AdminHome";
 import { requireAdmin } from "@/lib/admin";
 import { pendingPartnerCount, userCounts } from "@/lib/admin";
 import { pendingPayoutCount } from "@/lib/payouts";
-import { pendingServiceFeeSettlementCount } from "@/lib/service-fees";
 import {
   defaultAnalyticsFilters,
   getBusinessAnalytics,
@@ -17,10 +16,9 @@ export const metadata: Metadata = {
 export default async function AdminDashboardPage() {
   const user = await requireAdmin();
 
-  const [counts, pendingPartners, pendingSettlements, pendingPayouts, analytics] = await Promise.all([
+  const [counts, pendingPartners, pendingPayouts, analytics] = await Promise.all([
     userCounts(),
     pendingPartnerCount(),
-    pendingServiceFeeSettlementCount(),
     pendingPayoutCount(),
     getBusinessAnalytics({
       audience: "owner",
@@ -32,7 +30,6 @@ export default async function AdminDashboardPage() {
       name={user.name}
       counts={counts}
       pendingPartners={pendingPartners}
-      pendingSettlements={pendingSettlements}
       pendingPayouts={pendingPayouts}
       analytics={analytics.kpis}
     />

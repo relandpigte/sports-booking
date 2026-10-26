@@ -5,9 +5,10 @@ import { handlePlatformPaymentEvent } from "@/lib/platform-webhook";
 import { handleServiceFeeProviderEvent } from "@/lib/service-fee-payments";
 
 // Signed callbacks from Bunal.club's own PayMongo account: player payments it
-// collects for venues and trainers, and partner/trainer service-fee
-// settlements. The legacy /billing path is kept because existing PayMongo
-// webhook registrations already point here.
+// collects for venues and trainers, plus any late event for a legacy
+// service-fee settlement (no new ones can be started). The legacy /billing
+// path is kept because existing PayMongo webhook registrations already point
+// here.
 export const dynamic = "force-dynamic";
 
 export async function POST(

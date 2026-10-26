@@ -21,6 +21,17 @@ const nextConfig: NextConfig = {
   // Allow dev assets and HMR through the public HTTPS tunnel configured for
   // payment redirects and PayMongo webhooks.
   allowedDevOrigins: appHostname(),
+  async redirects() {
+    return [
+      // Legacy service-fee settlements are retired; old bookmarks land on
+      // payouts instead of a 404.
+      {
+        source: "/dashboard/admin/settlements",
+        destination: "/dashboard/admin/payouts",
+        permanent: false,
+      },
+    ];
+  },
   async headers() {
     const securityHeaders = [
       { key: "X-Content-Type-Options", value: "nosniff" },

@@ -25,10 +25,6 @@ import {
   type PlayerManualReceiptReceivedEmailContentInput,
 } from "@/lib/booking-notification-email";
 import {
-  serviceFeeOverdueEmailContent,
-  type ServiceFeeOverdueEmailContentInput,
-} from "@/lib/service-fee-notification-email";
-import {
   payoutEmailContent,
   type PayoutEmailContentInput,
 } from "@/lib/payout-email";
@@ -95,11 +91,6 @@ type PlayerBookingDeclinedEmailInput =
     to: string;
     idempotencyKey: string;
   };
-
-type ServiceFeeOverdueEmailInput = ServiceFeeOverdueEmailContentInput & {
-  to: string;
-  idempotencyKey: string;
-};
 
 type StaffInvitationEmailInput = StaffInvitationEmailContentInput & {
   to: string;
@@ -330,24 +321,6 @@ export async function sendPlayerBookingDeclinedEmail(
     idempotencyKey: input.idempotencyKey,
     category: "player-booking-declined",
     description: "Player booking-decline email delivery",
-  });
-}
-
-export async function sendServiceFeeOverdueEmail(
-  input: ServiceFeeOverdueEmailInput
-): Promise<void> {
-  const content = serviceFeeOverdueEmailContent(input);
-  await deliverEmail({
-    to: input.to,
-    subject: content.subject,
-    html: content.html,
-    text: content.text,
-    idempotencyKey: input.idempotencyKey,
-    category:
-      input.accountType === "TRAINER"
-        ? "trainer-service-fee-overdue"
-        : "partner-service-fee-overdue",
-    description: "Service-fee overdue email delivery",
   });
 }
 

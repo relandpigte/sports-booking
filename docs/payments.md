@@ -240,8 +240,9 @@ kinds of money and tells them apart by the resource the event names:
 
 - a **payment intent** — a player's court, event, or trainer payment, handled
   by `src/lib/platform-webhook.ts`;
-- a **checkout session** — a partner's or trainer's legacy service-fee
-  settlement, handled by `handleServiceFeeProviderEvent`.
+- a **checkout session** — a late event for a legacy service-fee settlement,
+  recorded by `handleServiceFeeProviderEvent` if one ever arrives (none can be
+  started any more).
 
 Only an invalid signature is answered with 400. A correctly signed event the
 app has nothing to do with gets 200 so PayMongo does not retry it forever.
@@ -255,8 +256,7 @@ app has nothing to do with gets 200 so PayMongo does not retry it forever.
 | `BOOKING_SWEEP_SECRET` | Bearer token for manual sweep runs. |
 | `CRON_SECRET` | Bearer token Vercel attaches to the hourly cron. |
 | `PAYMONGO_QRPH_PROCESSING_RATE` | Optional VAT-inclusive rate for estimating the absorbed processing cost; defaults to `0.015008`. |
-| `PAYMONGO_SECRET_KEY`, `BILLING_WEBHOOK_SECRET` | Legacy fallback for service-fee settlements only. Does not enable player checkout in production. |
-| `SERVICE_FEE_PAYMENT_INSTRUCTIONS` | Fallback remittance details for legacy service-fee balances. |
+| `PAYMONGO_SECRET_KEY`, `BILLING_WEBHOOK_SECRET` | Legacy environment fallback for verifying platform webhooks. Does not enable player checkout in production. |
 
 PayMongo cannot deliver webhooks to localhost. Use an HTTPS tunnel such as
 Cloudflare Tunnel or ngrok for local webhook testing.
@@ -308,7 +308,7 @@ based on the current time. These do depend on it:
   whose page was closed is polled here. Without it the player's money would
   sit in Bunal.club's account with no booking. A paid intent settles, or is
   refunded automatically if its hold was lost.
-- BunalQ automatic run closure, service-fee reminders, and security cleanup.
+- BunalQ automatic run closure and security cleanup.
 
 Submitted manual proofs are excluded from expiry and continue counting against
 court or event capacity until a partner reviews them.
@@ -317,19 +317,23 @@ court or event capacity until a partner reviews them.
 
 Until the cutover, each venue and trainer connected its own PayMongo account,
 received player payments directly, and remitted a 3% service fee to Bunal.club
-weekly. That model no longer takes new payments, but its records are live:
+weekly. That model no longer takes new payments, and its settlement flow is
+retired:
 
 - A `DIRECT` payment with a `gatewayId` is still polled, settled by its own
   webhook (`/api/venue-payments/webhook/[token]`,
   `/api/trainer-payments/webhook/[token]`), cancelled, and refunded through the
   venue's or trainer's stored keys, even if that account was disconnected.
-- Their fees live in `ServiceFeeEntry` / `TrainerServiceFeeEntry`. Outstanding
-  balances are settled through the existing screen, now labelled **Earlier
-  service fees**, and are **not** netted against payouts.
-- The weekly due date, seven-day grace, three-day enforcement grace, reminder
-  emails, and the pause on bookings and directory listing for an overdue
-  balance all still apply until the balance is cleared.
-- The settlement tab is hidden for an account with no such history.
+- Their fees live in `ServiceFeeEntry` / `TrainerServiceFeeEntry`, kept as
+  history. The ledger writers still run if such a payment settles or is
+  refunded late, but the fee is recorded only: there is no settlement screen,
+  no reminder email, no due date, and an unpaid balance never pauses bookings,
+  event registration, trainer requests, or directory listing.
+- A late PayMongo event for an old settlement checkout is still recorded by
+  `handleServiceFeeProviderEvent` (marked paid once, never for less than was
+  owed). No new settlement checkout can be started.
+- `/dashboard/admin/settlements` redirects to the payouts page. The settlement
+  and waiver tables remain until a later migration drops them.
 
 Platform-collected payments never create service-fee entries: Bunal.club
 already holds the fee.

@@ -268,96 +268,18 @@ async function check() {
         (item) => item.status === "CONFIRMED" && item.date === FUTURE_DATE
       )
   );
-  const trainerFees = await import("@/lib/trainer-service-fees");
-  const [adminBalances, adminTransactions] = await Promise.all([
-    trainerFees.listAdminTrainerServiceFeeBreakdown(),
-    trainerFees.listAdminTrainerServiceFeeTransactions(),
-  ]);
-  ok(
-    "admin trainer settlements include fee balances before remittance",
-    adminBalances.some(
-      (item) =>
-        item.trainerId === trainerUser.id && item.balance.amountDue === 15
-    )
-  );
-  ok(
-    "admin trainer settlements expose the confirmed payment transaction",
-    adminTransactions.some(
-      (item) =>
-        item.trainerId === trainerUser.id &&
-        item.id === trainerFeeEntry.id &&
-        item.amount === 15
-    )
-  );
+  // Settlements are retired: a legacy fee entry long past its old deadline
+  // no longer hides the trainer or blocks requests.
   await prisma.trainerServiceFeeEntry.update({
     where: { id: trainerFeeEntry.id },
     data: { createdAt: addDaysTo(new Date(), -30) },
   });
   ok(
-    "an unpaid trainer fee pauses public discovery after the deadline and grace",
-    (await trainerFees.isTrainerServiceFeeOverdue(trainerUser.id)) &&
-      (await trainers.getPublicTrainer("coach-check")) === null
-  );
-  const serviceFeeActions = await import("@/lib/service-fee-actions");
-  const waiverData = new FormData();
-  waiverData.set("trainerId", trainerUser.id);
-  waiverData.set("amount", "15.00");
-  waiverData.set("reason", "Approved trainer payment-system testing fees.");
-  const waiverResult =
-    await serviceFeeActions.waiveTrainerServiceFeeBalanceAction(
-      {},
-      waiverData
-    );
-  const activeWaiver = await prisma.trainerServiceFeeWaiver.findFirstOrThrow({
-    where: { trainerId: trainerUser.id, reversedAt: null },
-  });
-  const waivedBalance = await trainerFees.calculateTrainerServiceFeeBalance(
-    prisma,
-    trainerUser.id
-  );
-  ok(
-    "an admin trainer waiver clears the balance without recording cash",
-    Boolean(waiverResult.success) &&
-      waivedBalance.amountDue === 0 &&
-      waivedBalance.paid === 0 &&
-      waivedBalance.waived === 15 &&
-      (await trainers.getPublicTrainer("coach-check"))?.id === profile.id
-  );
-  const reverseWaiverData = new FormData();
-  reverseWaiverData.set("waiverId", activeWaiver.id);
-  reverseWaiverData.set(
-    "reason",
-    "Reverse the trainer waiver after payment-flow verification."
-  );
-  const reversalResult =
-    await serviceFeeActions.reverseTrainerServiceFeeWaiverAction(
-      {},
-      reverseWaiverData
-    );
-  ok(
-    "reversing a trainer waiver restores the overdue balance and restriction",
-    Boolean(reversalResult.success) &&
-      (await trainerFees.calculateTrainerServiceFeeBalance(
-        prisma,
-        trainerUser.id
-      )).amountDue === 15 &&
-      (await trainers.getPublicTrainer("coach-check")) === null
-  );
-  await prisma.trainerServiceFeeSettlement.create({
-    data: {
-      trainerId: trainerUser.id,
-      periodStart: trainerFeeEntry.createdAt,
-      periodEnd: new Date(),
-      amount: trainerFeeEntry.amount,
-      status: "PAID",
-      paymentReference: "CHECK-TRAINER-SETTLED",
-      reviewedAt: new Date(),
-    },
-  });
-  ok(
-    "an approved trainer settlement automatically restores public discovery",
-    !(await trainerFees.isTrainerServiceFeeOverdue(trainerUser.id)) &&
-      (await trainers.getPublicTrainer("coach-check"))?.id === profile.id
+    "an old unpaid trainer fee no longer hides the trainer",
+    (await trainers.getPublicTrainer("coach-check"))?.id === profile.id &&
+      (await trainers.listPublicTrainers({})).some(
+        (item) => item.id === profile.id
+      )
   );
 
   const deletionCandidate = await prisma.trainerSession.create({

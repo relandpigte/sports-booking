@@ -193,11 +193,15 @@ export default async function PaymentsPage({
           },
           {
             label: statement.upcoming < 0 ? "To be deducted" : "Next payout",
-            value: formatPHP(Math.abs(statement.upcoming)),
+            value: formatPHP(
+              statement.upcoming < 0
+                ? Math.abs(statement.upcoming)
+                : Math.max(statement.nextPayoutAmount, 0)
+            ),
             detail:
               statement.upcoming < 0
                 ? "Refunds after an earlier payout"
-                : `Scheduled ${formatSummaryDate(statement.nextCutoffAt)}`,
+                : `Scheduled ${formatSummaryDate(statement.nextPayoutAt)}`,
             tone: statement.upcoming < 0 ? "warning" : "default",
           },
           // An unpaid balance from the earlier model can still pause bookings,

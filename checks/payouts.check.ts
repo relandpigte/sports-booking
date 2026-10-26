@@ -20,7 +20,9 @@ const prisma = new PrismaClient();
 const PARTNER_EMAIL = "check-payout-partner@example.test";
 const DATE = "2099-12-27";
 
-// 1 January 2001 was a Monday, so the runs fall on Jan 1, 4, 8, and 11.
+// 1 January 2001 was a Monday, so the runs fall on Jan 1, 4, 8, 11, and 15.
+// Each run covers payments up to the payout day before it: the Thursday
+// Jan 4 run has cutoff Jan 1, the Monday Jan 8 run has cutoff Jan 4, and so on.
 const manila = (date: string, hour = 0) =>
   new Date(Date.parse(`${date}T00:00:00+08:00`) + hour * 3_600_000);
 
@@ -69,8 +71,10 @@ async function check() {
     getPayoutDetail,
     getPayoutStatement,
     latestPayoutCutoff,
+    latestPayoutRun,
     listAdminPayouts,
-    nextPayoutCutoff,
+    nextPayoutRun,
+    payoutCutoffForRun,
     releaseUnbatchedPayoutEntries,
   } = await import("@/lib/payouts");
   const {
@@ -81,8 +85,8 @@ async function check() {
   } = await import("@/lib/payout-actions");
 
   // --- 1. The schedule ------------------------------------------------------
-  const cutoffs: Array<[string, number, string]> = [
-    // [Manila date, hour, expected cutoff date]
+  const runs: Array<[string, number, string]> = [
+    // [Manila date, hour, expected run date]
     ["2001-01-01", 0, "2001-01-01"], // Monday, the instant it begins
     ["2001-01-01", 10, "2001-01-01"], // Monday
     ["2001-01-02", 10, "2001-01-01"], // Tuesday
@@ -94,24 +98,40 @@ async function check() {
     ["2001-01-08", 0, "2001-01-08"], // the next Monday
   ];
   ok(
-    "every weekday resolves to the most recent Monday or Thursday in Manila",
-    cutoffs.every(
+    "every weekday resolves to the most recent Monday or Thursday run in Manila",
+    runs.every(
       ([date, hour, expected]) =>
-        latestPayoutCutoff(manila(date, hour)).getTime() ===
+        latestPayoutRun(manila(date, hour)).getTime() ===
         manila(expected).getTime()
     )
   );
   ok(
     "a late-Sunday UTC instant that is already Monday in Manila counts as Monday",
-    latestPayoutCutoff(new Date("2000-12-31T16:30:00Z")).getTime() ===
+    latestPayoutRun(new Date("2000-12-31T16:30:00Z")).getTime() ===
       manila("2001-01-01").getTime()
   );
   ok(
     "the next run after a Monday is Thursday, and after a Thursday is Monday",
-    nextPayoutCutoff(manila("2001-01-01", 10)).getTime() ===
+    nextPayoutRun(manila("2001-01-01", 10)).getTime() ===
       manila("2001-01-04").getTime() &&
-      nextPayoutCutoff(manila("2001-01-04", 10)).getTime() ===
+      nextPayoutRun(manila("2001-01-04", 10)).getTime() ===
         manila("2001-01-08").getTime()
+  );
+  // Each run pays only what PayMongo has already paid Bunal.club, so it
+  // stops at the payout day before it.
+  ok(
+    "Monday's run covers payments through the previous Wednesday",
+    payoutCutoffForRun(manila("2001-01-08")).getTime() ===
+      manila("2001-01-04").getTime() &&
+      latestPayoutCutoff(manila("2001-01-08", 10)).getTime() ===
+        manila("2001-01-04").getTime()
+  );
+  ok(
+    "Thursday's run covers payments through Sunday",
+    payoutCutoffForRun(manila("2001-01-04")).getTime() ===
+      manila("2001-01-01").getTime() &&
+      latestPayoutCutoff(manila("2001-01-06", 10)).getTime() ===
+        manila("2001-01-01").getTime()
   );
 
   // --- 2. The ledger --------------------------------------------------------
@@ -230,8 +250,9 @@ async function check() {
     (await entries(unconfirmed)).length === 0
   );
 
-  // --- 3. The Monday run ----------------------------------------------------
-  const monday = manila("2001-01-01", 2);
+  // --- 3. The first run ----------------------------------------------------
+  // Runs on Thursday Jan 4 and pays payments made before Monday Jan 1.
+  const monday = manila("2001-01-04", 2);
   const second = await pay(300, manila("2001-01-02", 9));
   await earn(second);
 
@@ -265,7 +286,7 @@ async function check() {
   );
   const mondayPayout = mondayPayouts[0];
   ok(
-    "the payout covers only payments made before Monday began",
+    "Thursday's payout covers only payments made before Monday began",
     Number(mondayPayout.amount) === 500 &&
       mondayPayout.entries.length === 1 &&
       mondayPayout.entries[0].bookingPaymentId === first &&
@@ -320,7 +341,7 @@ async function check() {
       mondayDetail.lines[0].amount === 500 &&
       mondayDetail.lines[0].title === `${court.hub.name} · ${court.name}` &&
       mondayDetail.earningCount === 1 &&
-      // Monday's run covers payments up to the end of Sunday.
+      // Thursday's run covers payments up to the end of Sunday.
       mondayDetail.coversThrough === "2000-12-31"
   );
 
@@ -424,10 +445,11 @@ async function check() {
   );
   ok("and the action is audited once", (await markedEvents()) === 1);
 
-  // --- 5. The Thursday run --------------------------------------------------
-  const thursday = manila("2001-01-04", 1);
+  // --- 5. The next run ------------------------------------------------------
+  // Monday Jan 8 pays payments made before Thursday Jan 4.
+  const thursday = manila("2001-01-08", 1);
   ok(
-    "Thursday pays everything since, including the late line",
+    "Monday pays everything since, including the late line",
     (await createDuePayouts(thursday)).created === 1
   );
   const thursdayPayout = await prisma.payout.findFirst({
@@ -459,7 +481,7 @@ async function check() {
 
   const third = await pay(200, manila("2001-01-06", 10));
   await earn(third);
-  const secondMonday = await createDuePayouts(manila("2001-01-08", 1));
+  const secondMonday = await createDuePayouts(manila("2001-01-11", 1));
   ok(
     "a balance that is still negative creates no payout",
     secondMonday.created === 0 &&
@@ -469,7 +491,7 @@ async function check() {
   const statement = await getPayoutStatement(
     partner.id,
     "VENUE",
-    manila("2001-01-08", 1)
+    manila("2001-01-11", 1)
   );
   ok(
     "the venue's statement shows what is still to be deducted",
@@ -477,12 +499,17 @@ async function check() {
       statement.paidTotal === 500 &&
       statement.pending.length === 1
   );
+  ok(
+    "and names the next run and the last day it covers",
+    statement.nextPayoutAt.getTime() === manila("2001-01-15").getTime() &&
+      statement.nextPayoutCoversThrough === "2001-01-10"
+  );
 
   const fourth = await pay(400, manila("2001-01-09", 10));
   await earn(fourth);
   ok(
     "once earnings pass the refund, the next run pays the difference",
-    (await createDuePayouts(manila("2001-01-11", 1))).created === 1
+    (await createDuePayouts(manila("2001-01-15", 1))).created === 1
   );
   const recovered = await prisma.payout.findFirst({
     where: { recipientId: partner.id, cutoffAt: manila("2001-01-11") },

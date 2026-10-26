@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/Badge";
 import { formatPHP } from "@/lib/currency";
+import { formatManilaDate } from "@/lib/time";
 import type { PayoutStatement as Statement, PayoutView } from "@/lib/payouts";
 
 const NETWORK_LABEL = {
@@ -33,9 +34,10 @@ function PayoutRow({ payout }: { payout: PayoutView }) {
         <p className="text-sm font-bold text-navy">
           {payout.status === "PAID" && payout.paidAt
             ? `Sent ${day(payout.paidAt)}`
-            : `Payout for ${day(payout.cutoffAt)}`}
+            : `Payout for ${day(payout.createdAt)}`}
         </p>
         <p className="mt-0.5 text-xs leading-5 text-slate-500">
+          Payments through {formatManilaDate(payout.coversThrough)} ·{" "}
           {destination(payout)}
           {payout.reference ? ` · Ref ${payout.reference}` : ""}
         </p>
@@ -65,7 +67,9 @@ export function PayoutStatement({ statement }: { statement: Statement }) {
       <h2 className="text-base font-semibold text-navy">Payouts</h2>
       <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
         Bunal.club collects automatic QR Ph payments for you and transfers your
-        full advertised amount every Monday and Thursday.
+        full advertised amount every Monday and Thursday, once the payments
+        have cleared: Monday covers payments through the previous Wednesday,
+        Thursday covers payments through Sunday.
       </p>
 
       <dl className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -78,13 +82,27 @@ export function PayoutStatement({ statement }: { statement: Statement }) {
               negative ? "text-amber-700" : "text-navy"
             }`}
           >
-            {formatPHP(Math.abs(statement.upcoming))}
+            {formatPHP(
+              negative
+                ? Math.abs(statement.upcoming)
+                : Math.max(statement.nextPayoutAmount, 0)
+            )}
           </dd>
           <p className="mt-0.5 text-xs text-slate-500">
             {negative
               ? "Refunds issued after an earlier payout"
-              : `Scheduled for ${day(statement.nextCutoffAt)}`}
+              : `Scheduled for ${day(statement.nextPayoutAt)} · payments through ${formatManilaDate(statement.nextPayoutCoversThrough)}`}
           </p>
+          {!negative &&
+          statement.upcoming - Math.max(statement.nextPayoutAmount, 0) > 0 ? (
+            <p className="mt-0.5 text-xs text-slate-400">
+              +{" "}
+              {formatPHP(
+                statement.upcoming - Math.max(statement.nextPayoutAmount, 0)
+              )}{" "}
+              in a later payout
+            </p>
+          ) : null}
         </div>
         <div className="rounded-xl bg-slate-50 p-3.5">
           <dt className="text-xs font-bold uppercase tracking-wide text-slate-400">

@@ -102,11 +102,31 @@ and was refunded before confirmation writes nothing.
 
 ### The Monday and Thursday run
 
-The hourly sweep calls `createDuePayouts()`. It computes the most recent
-Monday or Thursday at 00:00 Asia/Manila and, for each recipient, batches every
-unbatched entry effective **before** that instant into one `PENDING` `Payout`.
-So each payout covers everything paid up to the end of the previous day,
-including bookings that have not been played yet.
+The hourly sweep calls `createDuePayouts()`. It finds the most recent run
+(Monday or Thursday at 00:00 Asia/Manila), takes **the payout day before it**
+as the cutoff, and for each recipient batches every unbatched entry effective
+before that cutoff into one `PENDING` `Payout`:
+
+| Run | Covers payments through |
+| --- | --- |
+| Monday | the previous Wednesday |
+| Thursday | Sunday |
+
+**Why one run behind.** Bunal.club must never pay a venue before PayMongo has
+paid Bunal.club. QR Ph takes one banking day to clear, nothing clears on
+weekends or after 5 PM, and PayMongo pays Bunal.club out on the same Monday
+and Thursday schedule. Paying "up to the end of the day before" meant Monday's
+run included weekend payments that PayMongo only pays on Thursday, so the
+difference came out of Bunal.club's own funds. One run of lag leaves at least
+a banking day of margin in a normal week. A run of holidays (for example a
+Monday and Tuesday both off) can still delay clearing; check PayMongo's
+payout before sending in those weeks.
+
+`Payout.cutoffAt` is the cutoff, not the run day: a payout covers payments up
+to the end of the day before `cutoffAt` (`payoutCoversThrough()`). Payouts
+created before this change used the run day as the cutoff, which is the same
+meaning, so their history reads correctly. Bookings that have not been played
+yet are included.
 
 - The cutoff is derived from the clock, so a missed cron run self-heals on the
   next one.

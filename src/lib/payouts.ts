@@ -25,23 +25,54 @@ const PAYOUT_WEEKDAYS: ReadonlySet<Weekday> = new Set<Weekday>(["mon", "thu"]);
 
 const money = (value: number) => Math.round(value * 100) / 100;
 
-// The start of the most recent payout day, in Manila. A run covers everything
-// effective BEFORE this instant, so "paid up to the end of the previous day".
+// Payouts run on Monday and Thursday, but each run only pays for payments
+// PayMongo has already paid out to Bunal.club, so venues are never paid from
+// Bunal.club's own pocket. QR Ph takes a banking day to clear, nothing clears
+// on weekends, and PayMongo pays Bunal.club on the same Monday/Thursday
+// schedule. A run therefore covers payments up to the PREVIOUS payout day:
 //
-// Derived from the clock on every call rather than from a schedule: an hourly
-// sweep that misses Monday 00:10 simply picks the same cutoff up at 01:10.
-export function latestPayoutCutoff(now: Date = new Date()): Date {
-  let date = manilaDateOf(now);
+//   Monday run   -> payments up to the end of the previous Wednesday
+//   Thursday run -> payments up to the end of Sunday
+//
+// A run's cutoff is that previous payout day at 00:00 Manila, and it batches
+// everything effective before it. Payout.cutoffAt stores this cutoff, so a
+// payout always covers "payments up to the end of the day before cutoffAt".
+
+function payoutDayOnOrBefore(date: string): string {
   while (!PAYOUT_WEEKDAYS.has(manilaWeekday(date))) date = addDays(date, -1);
-  return manilaInstant(date, 0);
+  return date;
 }
 
-// The cutoff of the next run. Money effective from the latest cutoff onward
-// is included here.
-export function nextPayoutCutoff(now: Date = new Date()): Date {
+// The start of the most recent payout day, in Manila: when the latest run
+// happened. Derived from the clock on every call rather than from a schedule:
+// an hourly sweep that misses Monday 00:10 simply picks the same run up at
+// 01:10.
+export function latestPayoutRun(now: Date = new Date()): Date {
+  return manilaInstant(payoutDayOnOrBefore(manilaDateOf(now)), 0);
+}
+
+// The start of the next payout day, in Manila.
+export function nextPayoutRun(now: Date = new Date()): Date {
   let date = addDays(manilaDateOf(now), 1);
   while (!PAYOUT_WEEKDAYS.has(manilaWeekday(date))) date = addDays(date, 1);
   return manilaInstant(date, 0);
+}
+
+// The cutoff of the run that happens on `run`: the payout day before it.
+export function payoutCutoffForRun(run: Date): Date {
+  const previous = payoutDayOnOrBefore(addDays(manilaDateOf(run), -1));
+  return manilaInstant(previous, 0);
+}
+
+// The cutoff of the latest run. Money effective before it has either been
+// paid out or is in a pending payout.
+export function latestPayoutCutoff(now: Date = new Date()): Date {
+  return payoutCutoffForRun(latestPayoutRun(now));
+}
+
+// The last Manila date a payout with this cutoff covers.
+export function payoutCoversThrough(cutoffAt: Date): string {
+  return addDays(manilaDateOf(cutoffAt), -1);
 }
 
 type PayoutSource = { bookingPaymentId: string } | { trainerPaymentId: string };
@@ -237,7 +268,7 @@ export type PayoutRunResult = {
 };
 
 // Batches every recipient's unbatched ledger lines effective before the latest
-// Monday or Thursday cutoff into one PENDING payout each.
+// run's cutoff (see above) into one PENDING payout each.
 //
 // Safe to call hourly and concurrently:
 //   - a recipient who already has a payout for this cutoff is skipped, so a
@@ -387,6 +418,8 @@ export type PayoutView = {
   paidAt: Date | null;
   emailedAt: Date | null;
   createdAt: Date;
+  // The last Manila date this payout covers ("YYYY-MM-DD").
+  coversThrough: string;
   earnings: number;
   refunds: number;
   lineCount: number;
@@ -417,6 +450,7 @@ function toPayoutView(row: PayoutRow): PayoutView {
   return {
     ...rest,
     amount: Number(amount),
+    coversThrough: payoutCoversThrough(rest.cutoffAt),
     earnings: money(
       entries
         .filter((entry) => entry.type === "EARNING")
@@ -437,7 +471,11 @@ export type PayoutStatement = {
   // refunds exceed new earnings and are waiting to be deducted.
   upcoming: number;
   upcomingLineCount: number;
-  nextCutoffAt: Date;
+  // The part of `upcoming` the next run will pay, when it runs, and the last
+  // day it covers. The rest waits for the run after.
+  nextPayoutAmount: number;
+  nextPayoutAt: Date;
+  nextPayoutCoversThrough: string;
   pending: PayoutView[];
   paid: PayoutView[];
   paidTotal: number;
@@ -450,12 +488,23 @@ export async function getPayoutStatement(
   recipientKind: PayoutRecipientKind,
   now: Date = new Date()
 ): Promise<PayoutStatement> {
-  const [account, upcoming, pending, paid, paidTotal] = await Promise.all([
+  const nextPayoutAt = nextPayoutRun(now);
+  const nextCutoff = payoutCutoffForRun(nextPayoutAt);
+  const [account, upcoming, next, pending, paid, paidTotal] = await Promise.all([
     getPayoutAccount(recipientId),
     prisma.payoutEntry.aggregate({
       where: { recipientId, recipientKind, payoutId: null },
       _sum: { amount: true },
       _count: true,
+    }),
+    prisma.payoutEntry.aggregate({
+      where: {
+        recipientId,
+        recipientKind,
+        payoutId: null,
+        effectiveAt: { lt: nextCutoff },
+      },
+      _sum: { amount: true },
     }),
     prisma.payout.findMany({
       where: { recipientId, recipientKind, status: "PENDING" },
@@ -478,7 +527,9 @@ export async function getPayoutStatement(
     account,
     upcoming: money(Number(upcoming._sum.amount ?? 0)),
     upcomingLineCount: upcoming._count,
-    nextCutoffAt: nextPayoutCutoff(now),
+    nextPayoutAmount: money(Number(next._sum.amount ?? 0)),
+    nextPayoutAt,
+    nextPayoutCoversThrough: payoutCoversThrough(nextCutoff),
     pending: pending.map(toPayoutView),
     paid: paid.map(toPayoutView),
     paidTotal: money(Number(paidTotal._sum.amount ?? 0)),
@@ -580,8 +631,6 @@ export type PayoutLine = {
 
 export type PayoutDetail = AdminPayoutView & {
   recipientKind: PayoutRecipientKind;
-  // Manila civil date of the last day this payout covers.
-  coversThrough: string;
   earningCount: number;
   lines: PayoutLine[];
 };
@@ -754,7 +803,6 @@ export async function getPayoutDetail(
   return {
     ...toAdminPayoutView({ ...payout, entries }),
     recipientKind,
-    coversThrough: addDays(manilaDateOf(row.cutoffAt), -1),
     earningCount: lines.filter((line) => line.type === "EARNING").length,
     lines,
   };

@@ -315,8 +315,10 @@ export function PayoutAccountPanel({
                 )}
               </label>
               <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500 sm:col-span-2">
-                Each payout covers every payment received up to the end of the
-                day before. If a booking is refunded after its payout was sent,
+                Payouts go out once payments have cleared: Monday&apos;s covers
+                payments through the previous Wednesday, Thursday&apos;s covers
+                payments through Sunday. If a booking is refunded after its
+                payout was sent,
                 that amount is deducted from your next payout. Changing this
                 account also redirects any payout that has not been sent yet.
               </p>

@@ -137,7 +137,7 @@ const FAQS = [
   {
     question: "When do venues get paid for automatic bookings?",
     answer:
-      "Every Monday and Thursday. Each payout covers all payments received up to the end of the day before, sent to the venue's GCash, Maya, or bank account.",
+      "Every Monday and Thursday, once payments have cleared. Monday's payout covers payments through the previous Wednesday and Thursday's covers payments through Sunday, sent to the venue's GCash, Maya, or bank account.",
   },
 ];
 

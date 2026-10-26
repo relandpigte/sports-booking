@@ -10,14 +10,14 @@ import { platformEarnings } from "@/lib/business-analytics";
 import { formatPHP } from "@/lib/currency";
 import { prisma } from "@/lib/db";
 import {
-  latestPayoutCutoff,
+  latestPayoutRun,
   listAdminPayouts,
   listAdminUpcomingPayouts,
-  nextPayoutCutoff,
+  nextPayoutRun,
   type AdminPayoutView,
   type AdminPendingPayoutView,
 } from "@/lib/payouts";
-import { manilaToday } from "@/lib/time";
+import { formatManilaDate, manilaToday } from "@/lib/time";
 
 export const metadata: Metadata = {
   title: "Payouts — Bunal.club",
@@ -145,12 +145,14 @@ export default async function AdminPayoutsPage({
             Automatic payments are collected by Bunal.club. Send each {noun} its
             share by transfer, then record the reference here. Marking a payout
             as sent emails the {noun} the exact amount and what it covers.
-            Payouts are created every Monday and Thursday for everything paid
-            up to the end of the day before.
+            Payouts are created every Monday and Thursday, one run behind
+            PayMongo&apos;s clearing so Bunal.club has already been paid:
+            Monday covers payments through the previous Wednesday, Thursday
+            covers payments through Sunday.
           </p>
         </div>
         <p className="shrink-0 text-xs text-gray-400">
-          Last run {day(latestPayoutCutoff())} · Next {day(nextPayoutCutoff())}
+          Last run {day(latestPayoutRun())} · Next {day(nextPayoutRun())}
         </p>
       </header>
 
@@ -241,8 +243,8 @@ export default async function AdminPayoutsPage({
                       {payout.recipientName}
                     </p>
                     <p className="text-xs text-gray-500">
-                      {payout.recipientEmail} · payments up to{" "}
-                      {day(payout.cutoffAt)}
+                      {payout.recipientEmail} · payments through{" "}
+                      {formatManilaDate(payout.coversThrough)}
                     </p>
                   </div>
                   <div className="text-right">

@@ -2,7 +2,7 @@
 
 All outbound Bunal.club email must use `transactionalEmailContent` from
 `src/lib/email-html.ts`. One shared renderer keeps account, booking, partner,
-trainer, payment, payout, security, invitation, and settlement messages visually and
+trainer, payment, payout, security, and invitation messages visually and
 structurally consistent.
 
 ## Brand contract

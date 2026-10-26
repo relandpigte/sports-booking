@@ -315,6 +315,67 @@ async function check() {
     settlementEvent.kind === "settlement"
   );
 
+  // No new settlement can be started, but a late event for an old one must
+  // still be recorded exactly once, and never for less than was owed.
+  const { handleServiceFeeProviderEvent } = await import(
+    "@/lib/service-fee-payments"
+  );
+  const legacySettlement = await prisma.serviceFeeSettlement.create({
+    data: {
+      partnerId: partner.id,
+      periodStart: new Date("2026-01-05T00:00:00Z"),
+      periodEnd: new Date("2026-01-12T00:00:00Z"),
+      amount: 25,
+      status: "AWAITING_PAYMENT",
+      provider: "paymongo",
+      providerPaymentId: "cs_some_settlement",
+    },
+    select: { id: true },
+  });
+  const underpaidSettlement = await prisma.serviceFeeSettlement.create({
+    data: {
+      partnerId: partner.id,
+      periodStart: new Date("2026-01-05T00:00:00Z"),
+      periodEnd: new Date("2026-01-12T00:00:00Z"),
+      amount: 25,
+      status: "AWAITING_PAYMENT",
+      provider: "paymongo",
+      providerPaymentId: "cs_short_settlement",
+    },
+    select: { id: true },
+  });
+  const legacySettled =
+    settlementEvent.kind === "settlement"
+      ? await handleServiceFeeProviderEvent(settlementEvent.event)
+      : null;
+  const replayed =
+    settlementEvent.kind === "settlement"
+      ? await handleServiceFeeProviderEvent(settlementEvent.event)
+      : null;
+  ok(
+    "a late paid event marks the legacy settlement paid exactly once",
+    legacySettled?.applied === true &&
+      replayed?.reason === "duplicate" &&
+      (await prisma.serviceFeeSettlement.findUnique({
+        where: { id: legacySettlement.id },
+      }))?.status === "PAID"
+  );
+  const shortEvent = await deliver(
+    mockPaidEvent("cs_short_settlement", "pay_short", 1_000)
+  );
+  const shortResult =
+    shortEvent.kind === "settlement"
+      ? await handleServiceFeeProviderEvent(shortEvent.event)
+      : null;
+  ok(
+    "an underpaid legacy settlement event is not applied",
+    shortResult?.applied === false &&
+      shortResult.reason === "underpaid" &&
+      (await prisma.serviceFeeSettlement.findUnique({
+        where: { id: underpaidSettlement.id },
+      }))?.status === "AWAITING_PAYMENT"
+  );
+
   const mismatch = await scaffold([11]);
   await chargeBookingPayment({ paymentId: mismatch.payment.id, userId: player.id });
   const mismatchIntent = (await row(mismatch.payment.id))!.providerPaymentId!;
@@ -477,7 +538,15 @@ async function cleanup() {
       OR: [
         { eventId: { startsWith: "evt_pi_" } },
         { eventId: { startsWith: "evt_refunded_pi_" } },
-        { eventId: { in: ["evt_payout_deposited", "evt_cs_some_settlement"] } },
+        {
+          eventId: {
+            in: [
+              "evt_payout_deposited",
+              "evt_cs_some_settlement",
+              "evt_cs_short_settlement",
+            ],
+          },
+        },
       ],
     },
   });

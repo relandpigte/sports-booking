@@ -3,12 +3,10 @@
 import crypto from "node:crypto";
 
 import { Prisma, type ManualPaymentNetwork } from "@prisma/client";
-import { revalidatePath } from "next/cache";
 
 import { sanitizeImageDataUrl } from "@/lib/avatar";
 import { CRYPTO_PURPOSE, encrypt, isEncryptionConfigured, secretHint } from "@/lib/crypto";
 import { getViewer, requireRecentMfa } from "@/lib/dal";
-import { requireAdmin } from "@/lib/admin";
 import { prisma } from "@/lib/db";
 import {
   ASSISTED_PAYMENT_BLOCKED,
@@ -17,7 +15,6 @@ import {
 } from "@/lib/impersonation";
 import { appUrl } from "@/lib/urls";
 import { getVenueGateway, type PaymentRail } from "@/lib/payments/venue";
-import { platformPaymongoConfigured } from "@/lib/payments/paymongo-platform";
 import { railForTrainerPayment } from "@/lib/payment-rails";
 import { ensurePayoutRefund } from "@/lib/payouts";
 import {
@@ -31,8 +28,6 @@ import {
   VENUE_WEBHOOK_EVENTS,
   registerPaymongoWebhook,
 } from "@/lib/payments/paymongo-core";
-import { consumeRateLimit } from "@/lib/rate-limit";
-import { startTrainerServiceFeeCheckout } from "@/lib/trainer-service-fee-payments";
 import { ConnectGatewaySchema } from "@/lib/validation";
 import { firstErrors } from "@/lib/zod-errors";
 import { formatSlotRange } from "@/lib/time";
@@ -620,126 +615,4 @@ export async function refundTrainerSessionAction(
   await recordImpersonatedAction({ action: "TRAINER_REFUND_RECORDED", targetType: "TrainerSession", targetId: sessionId });
   revalidateTrainerPayments(session.payment.id);
   return { success: "Refund recorded and the session closed." };
-}
-
-export async function submitTrainerServiceFeeSettlementAction(
-  _previous: TrainerPaymentState,
-  formData: FormData
-): Promise<TrainerPaymentState> {
-  if (await isImpersonationActive()) {
-    return { message: ASSISTED_PAYMENT_BLOCKED };
-  }
-  const owner = await trainerOwner();
-  if (!owner) return { message: "Trainer account required." };
-  const paymentReference = value(formData, "paymentReference", 120);
-  const rawReceipt = value(formData, "receiptImage", 1_200_000);
-  const receiptImage = rawReceipt ? await sanitizeImageDataUrl(rawReceipt, "receipt") : null;
-  if (paymentReference.length < 3) return { errors: { paymentReference: "Enter the transfer reference." } };
-  if (!receiptImage) return { errors: { receiptImage: "Upload a valid receipt image under 800KB." } };
-  try {
-    await prisma.$transaction(async (tx) => {
-      const awaitingPaymongo = await tx.trainerServiceFeeSettlement.count({
-        where: {
-          trainerId: owner.viewer.id,
-          status: "AWAITING_PAYMENT",
-          provider: "paymongo",
-        },
-      });
-      if (awaitingPaymongo > 0) throw new Error("PAYMONGO_ACTIVE");
-      const pending = await tx.trainerServiceFeeSettlement.count({ where: { trainerId: owner.viewer.id, status: "SUBMITTED" } });
-      if (pending > 0) throw new Error("SETTLEMENT_PENDING");
-      const [entries, paid, firstEntry] = await Promise.all([
-        tx.trainerServiceFeeEntry.aggregate({ where: { trainerId: owner.viewer.id }, _sum: { amount: true } }),
-        tx.trainerServiceFeeSettlement.aggregate({ where: { trainerId: owner.viewer.id, status: "PAID" }, _sum: { amount: true } }),
-        tx.trainerServiceFeeEntry.findFirst({ where: { trainerId: owner.viewer.id }, orderBy: { createdAt: "asc" }, select: { createdAt: true } }),
-      ]);
-      const due = Math.round((Number(entries._sum.amount ?? 0) - Number(paid._sum.amount ?? 0)) * 100) / 100;
-      if (due <= 0 || !firstEntry) throw new Error("NO_BALANCE");
-      await tx.trainerServiceFeeSettlement.create({ data: { trainerId: owner.viewer.id, periodStart: firstEntry.createdAt, periodEnd: new Date(), amount: new Prisma.Decimal(due), paymentReference, receiptImage } });
-    });
-  } catch (error) {
-    if (error instanceof Error && error.message === "PAYMONGO_ACTIVE") {
-      return {
-        message:
-          "A PayMongo checkout is already active. Finish or let it expire before submitting a manual transfer.",
-      };
-    }
-    if (error instanceof Error && error.message === "SETTLEMENT_PENDING") return { message: "A settlement is already under review." };
-    if (error instanceof Error && error.message === "NO_BALANCE") return { message: "There is no service-fee balance to settle." };
-    throw error;
-  }
-  revalidatePath("/dashboard/admin/settlements");
-  revalidateTrainerPayments();
-  return { success: "Settlement submitted for admin review." };
-}
-
-export async function startTrainerServiceFeeCheckoutAction(
-  _previous: TrainerPaymentState,
-  _formData: FormData
-): Promise<TrainerPaymentState> {
-  if (await isImpersonationActive()) {
-    return { message: ASSISTED_PAYMENT_BLOCKED };
-  }
-  const owner = await trainerOwner();
-  if (!owner) return { message: "Trainer account required." };
-  await requireRecentMfa("/dashboard/trainer/payments");
-  if (!(await platformPaymongoConfigured())) {
-    return {
-      message:
-        "QR Ph settlement is not configured yet. Use the manual transfer option below.",
-    };
-  }
-  if (
-    !(await consumeRateLimit({
-      namespace: "trainer-service-fee-checkout",
-      subject: owner.viewer.id,
-      limit: 10,
-      windowSeconds: 60 * 60,
-    }))
-  ) {
-    return { message: "Too many checkout attempts. Try again later." };
-  }
-
-  const result = await startTrainerServiceFeeCheckout({
-    trainerId: owner.viewer.id,
-    trainerName:
-      owner.viewer.playerName ?? owner.viewer.name ?? owner.viewer.email,
-  });
-  revalidatePath("/dashboard/admin/settlements");
-  revalidateTrainerPayments();
-
-  switch (result.status) {
-    case "redirect":
-      return { redirectUrl: result.url };
-    case "paid":
-      return { success: "Payment received. Your balance is settled." };
-    case "none":
-      return { message: "There is no service-fee balance to settle." };
-    case "pending":
-      return {
-        success:
-          "Your QR Ph checkout is being prepared. Refresh and try again in a moment.",
-      };
-    case "under-review":
-      return {
-        message:
-          "A manual settlement receipt is already under review. Wait for the admin decision before starting another payment.",
-      };
-    case "failed":
-      return { message: result.message };
-  }
-}
-
-export async function reviewTrainerServiceFeeSettlementAction(formData: FormData) {
-  const admin = await requireAdmin();
-  const settlementId = value(formData, "settlementId", 60);
-  const decision = value(formData, "decision", 20);
-  const note = value(formData, "note", 500);
-  if (!settlementId || !["PAID", "REJECTED"].includes(decision)) return;
-  await prisma.trainerServiceFeeSettlement.updateMany({
-    where: { id: settlementId, status: "SUBMITTED" },
-    data: { status: decision as "PAID" | "REJECTED", reviewedAt: new Date(), reviewedById: admin.id, reviewNote: note || null },
-  });
-  revalidatePath("/dashboard/admin/settlements");
-  revalidatePath("/dashboard/trainer/payments");
 }

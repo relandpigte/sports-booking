@@ -7,10 +7,6 @@ import { prisma } from "@/lib/db";
 import { duprRatingSelect } from "@/lib/dupr-link";
 import { trainerSetupReady } from "@/lib/payment-readiness";
 import { emailDeliveryConfigured, sendTrainerLifecycleEmail } from "@/lib/email";
-import {
-  isTrainerServiceFeeOverdue,
-  listOverdueTrainerIds,
-} from "@/lib/trainer-service-fees";
 import { appUrl } from "@/lib/urls";
 import { addDays, manilaToday, manilaWeekday } from "@/lib/time";
 import { formatManilaDateLong, formatSlotRange } from "@/lib/time";
@@ -160,13 +156,7 @@ export async function listPublicTrainers(filters: {
   });
   const query = filters.query?.trim().toLocaleLowerCase("en-PH");
   const date = filters.date;
-  const withReadiness = rows.filter(isPublicTrainer);
-  const overdueTrainerIds = await listOverdueTrainerIds(
-    withReadiness.map((profile) => profile.user.id)
-  );
-  const acceptingRequests = withReadiness.filter(
-    (profile) => !overdueTrainerIds.has(profile.user.id)
-  );
+  const acceptingRequests = rows.filter(isPublicTrainer);
   const withQuery = query
     ? acceptingRequests.filter((profile) =>
         [
@@ -212,7 +202,7 @@ export async function getPublicTrainer(username: string) {
     select: publicTrainerSelect,
   });
   if (!profile || !isPublicTrainer(profile)) return null;
-  return (await isTrainerServiceFeeOverdue(profile.user.id)) ? null : profile;
+  return profile;
 }
 
 export async function getPublicPlayer(username: string) {

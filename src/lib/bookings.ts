@@ -13,7 +13,6 @@ import { prisma } from "@/lib/db";
 import {
   venueCheckoutReady,
   venueReadinessSelect,
-  venueSetupReady,
 } from "@/lib/payment-readiness";
 import { getPlatformCollectionStatus } from "@/lib/platform-gateway";
 import { getViewer } from "@/lib/dal";
@@ -21,7 +20,6 @@ import { requireActivePartner } from "@/lib/hubs";
 import { buildSlots, type Slot } from "@/lib/slots";
 import { manilaNowHour, manilaToday } from "@/lib/time";
 import type { OperatingHours } from "@/lib/constants";
-import { isServiceFeeOverdue } from "@/lib/service-fees";
 import { courtDisplayOrder } from "@/lib/court-order";
 
 // Where a booking was before the venue moved it. Everything here is a
@@ -489,15 +487,10 @@ export const getCourtForBooking = cache(async (courtId: string) => {
   });
   if (!row) return null;
   const approved = row.hub.owner.partnerStatus === "ACTIVE";
-  const paymentReady = venueSetupReady(row.hub.owner);
   const checkoutReady = venueCheckoutReady(
     row.hub.owner,
     (await getPlatformCollectionStatus()).ready
   );
-  const overdue =
-    approved && paymentReady
-      ? await isServiceFeeOverdue(row.hub.ownerId)
-      : false;
   return {
     id: row.id,
     name: row.name,
@@ -521,7 +514,7 @@ export const getCourtForBooking = cache(async (courtId: string) => {
         playerName: row.hub.owner.playerName,
       },
       operatingHours: (row.hub.operatingHours as OperatingHours | null) ?? null,
-      bookable: approved && checkoutReady && !overdue,
+      bookable: approved && checkoutReady,
     },
   };
 });

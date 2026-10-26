@@ -95,9 +95,9 @@ npm run check:security
 ## Vercel deployment
 
 Production runs in Vercel's Singapore region. The hourly
-`/api/bookings/sweep` cron expires stale records, reconciles payments and
-settlement checkouts, creates the Monday and Thursday payouts, sends
-reminders, and performs security and open-play maintenance.
+`/api/bookings/sweep` cron expires stale records, reconciles payments,
+creates the Monday and Thursday payouts, sends reminders, and performs
+security and open-play maintenance.
 
 Configure all production secrets in Vercel and redeploy after changing them.
 Important deployment values include:

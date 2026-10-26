@@ -163,7 +163,7 @@ directly and nothing enters the payout ledger.
 - **One webhook, two kinds of money.** `/api/billing/webhook/paymongo` routes
   payment-intent events to `platform-webhook.ts` (player payments) and
   checkout-session events to `handleServiceFeeProviderEvent` (legacy
-  service-fee settlements). The signature is the authorization, verified
+  service-fee settlements; no new ones can be started). The signature is the authorization, verified
   against the raw body; `ProviderEvent` deduplicates deliveries.
 
 The fee is player-paid: ₱25 per court checkout (plus 1.5% of the court total
@@ -197,8 +197,7 @@ only invalidations and is optional, with client polling as the fallback.
 
 **The hourly sweep is the only scheduler.** `/api/bookings/sweep` (Vercel
 cron in `vercel.json`, authorized by `CRON_SECRET` or `BOOKING_SWEEP_SECRET`)
-reaps expired holds, reconciles in-flight payments and settlement checkouts
-against PayMongo, creates the Monday and Thursday payouts, sends reminders,
+reaps expired holds, reconciles in-flight payments against PayMongo, creates the Monday and Thursday payouts, sends reminders,
 cleans up security rows, and closes stale BunalQ runs. Availability never
 depends on it; payouts and lost-webhook recovery do. Put new periodic work
 there.

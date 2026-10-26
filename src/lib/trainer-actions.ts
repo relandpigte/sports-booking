@@ -38,7 +38,6 @@ import {
   rangeAvailable,
   trainerServiceFeeFor,
 } from "@/lib/trainers";
-import { isTrainerServiceFeeOverdue } from "@/lib/trainer-service-fees";
 import { addDays, manilaInstant, manilaToday } from "@/lib/time";
 import { firstErrors } from "@/lib/zod-errors";
 
@@ -408,12 +407,6 @@ export async function requestTrainerSessionAction(
     !trainerCheckoutReady(profile, (await getPlatformCollectionStatus()).ready)
   ) {
     return { message: "This trainer is not accepting requests right now." };
-  }
-  if (await isTrainerServiceFeeOverdue(profile.userId)) {
-    return {
-      message:
-        "This trainer is temporarily unavailable while a service-fee balance is being settled.",
-    };
   }
   if (profile.userId === viewer.id) return { message: "You cannot request your own trainer profile." };
   const available = await getTrainerAvailability(profile.id, parsed.data.date);

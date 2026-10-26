@@ -1,136 +1,18 @@
 import "server-only";
 
-import {
-  loadPlatformCredentialsForExistingPayment,
-  loadPlatformGatewayCredentials,
-  platformGatewayConfigured,
-} from "@/lib/platform-gateway";
-import { appUrl } from "@/lib/urls";
+import { loadPlatformCredentialsForExistingPayment } from "@/lib/platform-gateway";
 
 import type { ProviderWebhookEvent } from "./types";
 import {
-  PayMongoRequestError,
-  createCheckoutSession,
-  getCheckoutSession,
   paidPayment,
   parsePaymongoEvent,
   verifyPaymongoSignature,
 } from "./paymongo-core";
 import { mapPaymongoPaymentEvent } from "./paymongo-venue";
 
-export const platformPaymongoConfigured = platformGatewayConfigured;
-
-type PlatformServiceFeeCheckoutInput = {
-  settlementId: string;
-  accountId: string;
-  accountName: string;
-  accountType: "partner" | "trainer";
-  amount: number;
-};
-
-async function createPlatformServiceFeeCheckout(
-  input: PlatformServiceFeeCheckoutInput
-): Promise<{
-  providerPaymentId: string;
-  redirectUrl: string;
-  raw: unknown;
-}> {
-  const { secretKey } = await loadPlatformGatewayCredentials();
-  const returnPath =
-    input.accountType === "trainer"
-      ? "/dashboard/trainer/payments"
-      : "/dashboard/payments";
-  const accountMetadata: Record<string, string> =
-    input.accountType === "trainer"
-      ? {
-          trainerId: input.accountId,
-          trainerName: input.accountName.slice(0, 120),
-        }
-      : {
-          partnerId: input.accountId,
-          partnerName: input.accountName.slice(0, 120),
-        };
-  const session = await createCheckoutSession(secretKey, {
-    amountPesos: input.amount,
-    description: "Bunal.club service-fee settlement",
-    referenceNumber: input.settlementId,
-    returnUrl: appUrl(
-      `${returnPath}?settlement=${encodeURIComponent(input.settlementId)}`
-    ),
-    metadata: {
-      settlementId: input.settlementId,
-      accountType: input.accountType,
-      accountId: input.accountId,
-      accountName: input.accountName.slice(0, 120),
-      ...accountMetadata,
-    },
-    // QR Ph is the single online payment rail across player payments and
-    // partner and trainer service-fee settlements.
-    paymentMethodTypes: ["qrph"],
-    // Partners and trainers pay exactly the displayed balance. Bunal.club
-    // absorbs this collection fee.
-    passOnFees: false,
-    idempotencyKey:
-      input.accountType === "partner"
-        ? `service-fee:${input.settlementId}`
-        : `trainer-service-fee:${input.settlementId}`,
-  });
-
-  if (!session.attributes.checkout_url) {
-    throw new PayMongoRequestError(
-      502,
-      "no_checkout_url",
-      "PayMongo did not return a settlement checkout page."
-    );
-  }
-
-  return {
-    providerPaymentId: session.id,
-    redirectUrl: session.attributes.checkout_url,
-    raw: session.attributes,
-  };
-}
-
-export function createServiceFeeCheckout(input: {
-  settlementId: string;
-  partnerId: string;
-  partnerName: string;
-  amount: number;
-}) {
-  return createPlatformServiceFeeCheckout({
-    settlementId: input.settlementId,
-    accountId: input.partnerId,
-    accountName: input.partnerName,
-    accountType: "partner",
-    amount: input.amount,
-  });
-}
-
-export function createTrainerServiceFeeCheckout(input: {
-  settlementId: string;
-  trainerId: string;
-  trainerName: string;
-  amount: number;
-}) {
-  return createPlatformServiceFeeCheckout({
-    settlementId: input.settlementId,
-    accountId: input.trainerId,
-    accountName: input.trainerName,
-    accountType: "trainer",
-    amount: input.amount,
-  });
-}
-
-export async function getServiceFeeCheckout(providerPaymentId: string) {
-  const { secretKey } = await loadPlatformGatewayCredentials();
-  return getCheckoutSession(secretKey, providerPaymentId);
-}
-
-// What a delivery to Bunal.club's own PayMongo webhook turned out to be.
-//
-// The one account now receives two unrelated kinds of money: hosted-checkout
-// service-fee settlements from partners and trainers, and direct QR Ph
-// payments from players. They are told apart by the resource the event
+// The one account receives direct QR Ph payments from players, plus, rarely,
+// an event for a legacy hosted-checkout service-fee settlement (no new ones
+// can be started). They are told apart by the resource the event
 // names — a checkout session or a payment intent — never by guessing.
 export type PlatformWebhookDelivery =
   // Unsigned, mis-signed, or unparseable. The only case answered with 400.
@@ -195,16 +77,6 @@ export async function readPlatformPaymongoWebhook(
   }
 
   return { kind: "ignored" };
-}
-
-// The service-fee settlement view of a platform delivery. Kept for callers
-// that only handle settlements.
-export async function verifyPlatformPaymongoWebhook(
-  rawBody: string,
-  headers: Headers
-): Promise<ProviderWebhookEvent | null> {
-  const delivery = await readPlatformPaymongoWebhook(rawBody, headers);
-  return delivery.kind === "settlement" ? delivery.event : null;
 }
 
 function mapPlatformSettlementEvent(

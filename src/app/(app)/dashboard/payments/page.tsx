@@ -4,17 +4,10 @@ import Link from "next/link";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { CheckoutModeSettings } from "@/components/partner/ManualPaymentSettings";
 import { PaymentWorkspace } from "@/components/partner/PaymentWorkspace";
-import { ServiceFeePanel } from "@/components/partner/ServiceFeePanel";
 import { PayoutStatement } from "@/components/payments/PayoutStatement";
-import { formatPHP } from "@/lib/currency";
-import { platformPaymongoConfigured } from "@/lib/payments/paymongo-platform";
+import { payoutSummaryItems } from "@/components/payments/payout-summary";
 import { getPayoutStatement } from "@/lib/payouts";
 import { getPlatformCollectionStatus } from "@/lib/platform-gateway";
-import {
-  pollLatestServiceFeeCheckout,
-  pollServiceFeeCheckout,
-} from "@/lib/service-fee-payments";
-import { getPartnerServiceFeeView } from "@/lib/service-fees";
 import { getCurrentImpersonation } from "@/lib/impersonation";
 import { getPartnerManualPaymentSettings } from "@/lib/manual-payments";
 import { hasStaffAccess, requirePartnerWorkspace } from "@/lib/staffing";
@@ -26,33 +19,18 @@ export const metadata: Metadata = {
 export default async function PaymentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ settlement?: string; setup?: string }>;
+  searchParams: Promise<{ setup?: string }>;
 }) {
   const workspace = await requirePartnerWorkspace("payments");
   const canManage = hasStaffAccess(workspace, "payments", "MANAGE");
-  const canSettle = workspace.kind === "OWNER";
-  const { settlement, setup } = await searchParams;
+  const { setup } = await searchParams;
   const impersonation = await getCurrentImpersonation();
 
-  if (canSettle && !impersonation) {
-    if (settlement) {
-      await pollServiceFeeCheckout({
-        settlementId: settlement,
-        partnerId: workspace.partnerId,
-      });
-    } else {
-      // Recovery for a closed tab, failed return redirect, or temporarily
-      // unavailable webhook: merely reopening Payments reconciles with PayMongo.
-      await pollLatestServiceFeeCheckout(workspace.partnerId);
-    }
-  }
-  const [statement, serviceFees, paymentSettings, platform] = await Promise.all([
+  const [statement, paymentSettings, platform] = await Promise.all([
     getPayoutStatement(workspace.partnerId, "VENUE"),
-    getPartnerServiceFeeView(workspace.partnerId),
     getPartnerManualPaymentSettings(workspace.partnerId),
     getPlatformCollectionStatus(),
   ]);
-  const paymongoSettlementEnabled = await platformPaymongoConfigured();
   // The venue's own setup. Bunal.club's collection account is reported
   // separately below so its state is never mistaken for something the partner
   // has to fix.
@@ -65,24 +43,6 @@ export default async function PaymentsPage({
   const activeManualMethods = paymentSettings.methods.filter(
     (method) => method.active
   ).length;
-  // Service fees only accrued while players paid the venue's own PayMongo
-  // account. A venue that never used that model has nothing to settle.
-  const hasEarlierFees =
-    serviceFees.balance.earned > 0 ||
-    serviceFees.balance.pending > 0 ||
-    serviceFees.settlements.length > 0 ||
-    serviceFees.waivers.length > 0;
-  const pendingPayoutTotal = statement.pending.reduce(
-    (sum, payout) => sum + payout.amount,
-    0
-  );
-  const settlementStatus = serviceFees.balance.blocked
-    ? { value: "Overdue", tone: "danger" as const }
-    : serviceFees.balance.inEnforcementGrace
-      ? { value: "Due soon", tone: "warning" as const }
-      : serviceFees.balance.pending > 0
-        ? { value: "Under review", tone: "warning" as const }
-        : { value: "Current", tone: "success" as const };
 
   return (
     <div>
@@ -97,8 +57,7 @@ export default async function PaymentsPage({
           <p className="mt-1 text-sm leading-6 text-slate-600">
             You can edit checkout mode, manual payment networks, and the payout
             account for this partner. Every change is audited and requires your
-            recent admin MFA. Settlement payments remain protected because they
-            move funds rather than edit settings.
+            recent admin MFA.
           </p>
         </div>
       )}
@@ -156,18 +115,7 @@ export default async function PaymentsPage({
         </div>
       )}
       <PaymentWorkspace
-        initialTab={
-          settlement
-            ? "settlement"
-            : setup === "hub" || !checkoutReady
-              ? "checkout"
-              : // An overdue balance from the earlier model still pauses
-                // bookings, so it stays the first thing the owner sees.
-                serviceFees.balance.blocked ||
-                  serviceFees.balance.inEnforcementGrace
-                ? "settlement"
-                : "payouts"
-        }
+        initialTab={setup === "hub" || !checkoutReady ? "checkout" : "payouts"}
         summary={[
           {
             label: "Checkout mode",
@@ -191,38 +139,7 @@ export default async function PaymentsPage({
             detail: checkoutReady ? "Ready to receive player payments" : "Complete setup to open bookings",
             tone: checkoutReady ? "success" : "warning",
           },
-          {
-            label: statement.upcoming < 0 ? "To be deducted" : "Next payout",
-            value: formatPHP(
-              statement.upcoming < 0
-                ? Math.abs(statement.upcoming)
-                : Math.max(statement.nextPayoutAmount, 0)
-            ),
-            detail:
-              statement.upcoming < 0
-                ? "Refunds after an earlier payout"
-                : `Scheduled ${formatSummaryDate(statement.nextPayoutAt)}`,
-            tone: statement.upcoming < 0 ? "warning" : "default",
-          },
-          // An unpaid balance from the earlier model can still pause bookings,
-          // so it takes this tile until it is cleared.
-          serviceFees.balance.amountDue > 0
-            ? {
-                label: "Earlier service fees",
-                value: formatPHP(serviceFees.balance.amountDue),
-                detail:
-                  settlementStatus.value === "Current" &&
-                  serviceFees.balance.nextDueAt
-                    ? `Due ${formatSummaryDate(serviceFees.balance.nextDueAt)}`
-                    : settlementStatus.value,
-                tone: settlementStatus.tone,
-              }
-            : {
-                label: "Being sent",
-                value: formatPHP(pendingPayoutTotal),
-                detail: `${formatPHP(statement.paidTotal)} paid to date`,
-                tone: "default" as const,
-              },
+          ...payoutSummaryItems(statement),
         ]}
         checkout={
           <CheckoutModeSettings
@@ -234,30 +151,7 @@ export default async function PaymentsPage({
           />
         }
         payouts={<PayoutStatement statement={statement} />}
-        settlement={
-          hasEarlierFees ? (
-          <ServiceFeePanel
-            balance={serviceFees.balance}
-            settlements={serviceFees.settlements}
-            waivers={serviceFees.waivers}
-            paymongoSettlementEnabled={paymongoSettlementEnabled}
-            paymentInstructions={
-              process.env.SERVICE_FEE_PAYMENT_INSTRUCTIONS?.trim() ||
-              "Transfer this amount using the payment details provided by the admin, then enter the reference and upload the receipt."
-            }
-            readOnly={!canSettle || Boolean(impersonation)}
-          />
-          ) : undefined
-        }
       />
     </div>
   );
-}
-
-function formatSummaryDate(value: Date): string {
-  return new Intl.DateTimeFormat("en-PH", {
-    month: "short",
-    day: "numeric",
-    timeZone: "Asia/Manila",
-  }).format(value);
 }

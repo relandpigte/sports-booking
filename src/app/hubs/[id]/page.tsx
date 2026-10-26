@@ -462,13 +462,11 @@ export default async function PublicHubPage({
                       ? "Your hub is published as Coming soon. Add your payout account for automatic QR Ph, or set up manual payments, to verify the venue and open online booking."
                       : hub.blockedBy === "setup"
                         ? "Add at least one court, its rate, and operating hours before publishing your hub."
-                        : hub.blockedBy === "settlement"
-                          ? "New bookings are paused because a service-fee settlement is overdue."
-                          : hub.blockedBy === "inactive"
-                            ? "This partner account is deactivated. Its venues are hidden and new bookings are paused."
-                            : hub.blockedBy === "platform"
-                              ? "Your venue is fully set up. Online QR Ph checkout is temporarily paused by Bunal.club and reopens automatically — nothing here needs your attention."
-                              : "This partner account is waiting for admin verification."}
+                        : hub.blockedBy === "inactive"
+                          ? "This partner account is deactivated. Its venues are hidden and new bookings are paused."
+                          : hub.blockedBy === "platform"
+                            ? "Your venue is fully set up. Online QR Ph checkout is temporarily paused by Bunal.club and reopens automatically — nothing here needs your attention."
+                            : "This partner account is waiting for admin verification."}
                   </span>{" "}
                   {hub.blockedBy === "gateway" && (
                     <Link
@@ -484,14 +482,6 @@ export default async function PublicHubPage({
                       className="font-semibold text-primary hover:underline"
                     >
                       Finish hub setup →
-                    </Link>
-                  )}
-                  {hub.blockedBy === "settlement" && (
-                    <Link
-                      href="/dashboard/payments"
-                      className="font-semibold text-primary hover:underline"
-                    >
-                      Submit settlement →
                     </Link>
                   )}
                 </p>

@@ -350,7 +350,7 @@ export function StaffTeamManager({
             <h2 className="mt-4 font-black text-navy">Owner controls stay protected</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
               Staff cannot invite other staff, create or delete an entire hub,
-              or control owner settlement payments. Access changes are logged.
+              or change the owner&apos;s payout account. Access changes are logged.
             </p>
           </section>
         </div>

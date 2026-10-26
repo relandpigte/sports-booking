@@ -13,14 +13,12 @@ export function AdminHome({
   name,
   counts,
   pendingPartners,
-  pendingSettlements,
   pendingPayouts,
   analytics,
 }: {
   name: string | null;
   counts: Record<Role, number>;
   pendingPartners: number;
-  pendingSettlements: number;
   pendingPayouts: number;
   analytics: AnalyticsKpis;
 }) {
@@ -68,7 +66,7 @@ export function AdminHome({
       <DashboardPageHeader
         eyebrow="Owner dashboard"
         title={`Welcome back, ${name ?? "Owner"}`}
-        description="Private platform oversight for users, partner access, payment collection, and service-fee settlements."
+        description="Private platform oversight for users, partner access, payment collection, and payouts."
         badge={
           <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-navy shadow-sm shadow-navy/5">
             <span className="h-2 w-2 rounded-full bg-primary" />
@@ -146,23 +144,6 @@ export function AdminHome({
                 {pendingPayouts}
               </span>
             </Link>
-
-            <Link
-              href="/dashboard/admin/settlements"
-              className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-[#f7faf8] p-4 transition-colors hover:border-primary/30"
-            >
-              <div>
-                <p className="font-semibold text-navy">
-                  Service-fee settlements
-                </p>
-                <p className="mt-1 text-sm text-slate-500">
-                  Check references and receipts before marking payments paid.
-                </p>
-              </div>
-              <span className="flex h-9 min-w-9 items-center justify-center rounded-full bg-white px-3 text-sm font-black text-navy shadow-sm">
-                {pendingSettlements}
-              </span>
-            </Link>
           </div>
         </section>
 
@@ -174,8 +155,8 @@ export function AdminHome({
             Manage the platform
           </h2>
           <p className="mt-2 text-sm leading-6 text-white/60">
-            Keep user access, collections, reports, and partner settlements in
-            one private workspace.
+            Keep user access, collections, reports, and payouts in one private
+            workspace.
           </p>
           <div className="mt-5 grid grid-cols-2 gap-3">
             {[
@@ -191,9 +172,9 @@ export function AdminHome({
                 icon: "report" as const,
               },
               {
-                label: "Settlements",
-                href: "/dashboard/admin/settlements",
-                icon: "booking" as const,
+                label: "Payouts",
+                href: "/dashboard/admin/payouts",
+                icon: "payment" as const,
               },
             ].map((item) => (
               <Link

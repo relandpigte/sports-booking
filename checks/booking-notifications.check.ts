@@ -7,7 +7,6 @@ import {
   sendPlayerBookingConfirmedEmail,
   sendPlayerBookingDeclinedEmail,
   sendPlayerManualReceiptReceivedEmail,
-  sendServiceFeeOverdueEmail,
 } from "@/lib/email";
 
 type CapturedRequest = {
@@ -109,18 +108,6 @@ async function check() {
       actionUrl: "https://www.bunal.club/bookings/access/guest-declined",
       idempotencyKey: "guest-manual-booking-declined-4",
     });
-    await sendServiceFeeOverdueEmail({
-      to: "partner@example.test",
-      partnerName: "Venue <Owner>",
-      overdueAmount: 75,
-      amountDue: 95,
-      dueAt: new Date("2026-08-03T16:00:00Z"),
-      enforcementAt: new Date("2026-08-06T16:00:00Z"),
-      blocked: true,
-      actionUrl: "https://www.bunal.club/dashboard/payments",
-      idempotencyKey: "service-fee-overdue-partner-1-2026-08-10",
-    });
-
     const [
       court,
       event,
@@ -129,11 +116,10 @@ async function check() {
       automaticConfirmation,
       noPaymentConfirmation,
       declined,
-      settlement,
     ] = requests;
     ok(
-      "booking, confirmation, and settlement emails are delivered",
-      requests.length === 8
+      "booking and confirmation emails are delivered",
+      requests.length === 7
     );
     ok(
       "partner court notifications link to the review workspace",
@@ -195,16 +181,6 @@ async function check() {
         !String(court?.body.html).includes("Player <One>")
     );
     ok(
-      "overdue settlement email contains safe amounts and payment action",
-      String(settlement?.body.html).includes("₱75.00") &&
-        String(settlement?.body.html).includes("₱95.00") &&
-        String(settlement?.body.html).includes("Venue &lt;Owner&gt;") &&
-        String(settlement?.body.html).includes("/dashboard/payments") &&
-        JSON.stringify(settlement?.body.tags).includes(
-          "partner-service-fee-overdue"
-        )
-    );
-    ok(
       "notification sends use stable idempotency keys",
       court?.headers.get("Idempotency-Key") === "partner-court-booking-1" &&
       event?.headers.get("Idempotency-Key") === "partner-event-booking-1" &&
@@ -217,9 +193,7 @@ async function check() {
         noPaymentConfirmation?.headers.get("Idempotency-Key") ===
           "guest-no-payment-booking-confirmed-3" &&
         declined?.headers.get("Idempotency-Key") ===
-          "guest-manual-booking-declined-4" &&
-        settlement?.headers.get("Idempotency-Key") ===
-          "service-fee-overdue-partner-1-2026-08-10"
+          "guest-manual-booking-declined-4"
     );
   } finally {
     globalThis.fetch = originalFetch;

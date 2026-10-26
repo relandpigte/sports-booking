@@ -19,13 +19,11 @@ import {
   PLATFORM_WEBHOOK_EVENTS,
   PLATFORM_WEBHOOK_VERSION,
   PayMongoRequestError,
-  getCheckoutSession,
   getPaymentIntent,
   keyMode,
   paymongoRequest,
   registerPaymongoWebhook,
 } from "@/lib/payments/paymongo-core";
-import { reconcileServiceFeeCheckouts } from "@/lib/service-fee-payments";
 import { appUrl } from "@/lib/urls";
 import { ConnectPlatformGatewaySchema } from "@/lib/validation";
 import { firstErrors } from "@/lib/zod-errors";
@@ -66,26 +64,6 @@ function inFlightPlatformPayments() {
       select: { providerPaymentId: true },
     }),
   ]).then(([bookings, trainers]) => [...bookings, ...trainers]);
-}
-
-async function keyCanReadActiveCheckouts(secretKey: string): Promise<boolean> {
-  const active = await prisma.serviceFeeSettlement.findMany({
-    where: {
-      provider: "paymongo",
-      status: "AWAITING_PAYMENT",
-      providerPaymentId: { not: null },
-    },
-    select: { providerPaymentId: true },
-  });
-
-  try {
-    for (const settlement of active) {
-      await getCheckoutSession(secretKey, settlement.providerPaymentId!);
-    }
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 // A replacement key from a different PayMongo account would strand money this
@@ -200,15 +178,6 @@ export async function connectPlatformGatewayAction(
     };
   }
 
-  if (!(await keyCanReadActiveCheckouts(parsed.data.secretKey))) {
-    return {
-      errors: {
-        secretKey:
-          "An active settlement belongs to a different PayMongo account. Finish it before replacing the account.",
-      },
-    };
-  }
-
   if (!(await keyCanReadPlatformPayments(parsed.data.secretKey))) {
     return {
       errors: {
@@ -287,7 +256,7 @@ export async function connectPlatformGatewayAction(
   revalidatePlatformGatewaySurfaces();
   return {
     success:
-      "PayMongo connected and its payment webhook is registered. Player payments and service-fee settlements are deposited into this account.",
+      "PayMongo connected and its payment webhook is registered. Player payments are deposited into this account.",
   };
 }
 
@@ -297,18 +266,6 @@ export async function disconnectPlatformGatewayAction(
 ): Promise<PlatformGatewayFormState> {
   await requireAdmin();
   await requireRecentMfa("/dashboard/admin/payments");
-
-  await reconcileServiceFeeCheckouts();
-
-  const active = await prisma.serviceFeeSettlement.count({
-    where: { provider: "paymongo", status: "AWAITING_PAYMENT" },
-  });
-  if (active > 0) {
-    return {
-      message:
-        "This account has an active PayMongo settlement. Let it complete or expire before disconnecting.",
-    };
-  }
 
   if ((await inFlightPlatformPayments()).length > 0) {
     return {
@@ -331,6 +288,6 @@ export async function disconnectPlatformGatewayAction(
   revalidatePlatformGatewaySurfaces();
   return {
     success:
-      "PayMongo disconnected. Automatic player checkout and online settlements are paused; payments already collected can still be refunded.",
+      "PayMongo disconnected. Automatic player checkout is paused; payments already collected can still be refunded.",
   };
 }

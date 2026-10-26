@@ -9,25 +9,22 @@ import {
   type ReactNode,
 } from "react";
 
-import { PaymentWorkspace } from "@/components/partner/PaymentWorkspace";
+import {
+  PaymentWorkspace,
+  type PaymentSummaryItem,
+} from "@/components/partner/PaymentWorkspace";
 import { ReceiptUpload } from "@/components/partner/ReceiptUpload";
 import {
   PayoutAccountPanel,
   type PayoutAccountPanelAccount,
 } from "@/components/payments/PayoutAccountPanel";
-import { ServiceFeeManualDestinations } from "@/components/payments/ServiceFeeManualDestinations";
-import { ServiceFeeSettlementTabs } from "@/components/payments/ServiceFeeSettlementTabs";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 import { TRAINER_SERVICE_FEE } from "@/lib/constants";
-import { formatPHP } from "@/lib/currency";
 import { saveTrainerPayoutAccountAction } from "@/lib/payout-actions";
 import {
   deleteTrainerManualMethodAction,
   saveTrainerManualMethodAction,
   saveTrainerPaymentModeAction,
-  startTrainerServiceFeeCheckoutAction,
-  submitTrainerServiceFeeSettlementAction,
   type TrainerPaymentState,
 } from "@/lib/trainer-payment-actions";
 
@@ -56,34 +53,6 @@ const trainerNetworkOptions: Array<{
   { value: "OTHER", label: "Other / custom" },
 ];
 
-type TrainerServiceFeeView = {
-  accrued: number;
-  pending: number;
-  paid: number;
-  waived: number;
-  due: number;
-  overdue: number;
-  blocked: boolean;
-  inEnforcementGrace: boolean;
-  dueAt: string | null;
-  enforcementAt: string | null;
-  settlements: Array<{
-    id: string;
-    amount: number;
-    status: string;
-    provider: string | null;
-    submittedAt: string;
-  }>;
-  waivers: Array<{
-    id: string;
-    amount: number;
-    reason: string;
-    grantedAt: string;
-    reversedAt: string | null;
-    reversalReason: string | null;
-  }>;
-};
-
 function Result({ state }: { state: TrainerPaymentState }) {
   const message = state.success ?? state.message;
   if (!message) return null;
@@ -107,50 +76,24 @@ export function TrainerPaymentSettings({
   payoutAccount,
   payouts,
   methods,
-  serviceFees,
-  paymongoSettlementEnabled,
-  settlementInstructions,
+  payoutSummary,
 }: {
   mode: PaymentMode;
   payoutAccount: PayoutAccountPanelAccount | null;
   // The payout statement, rendered on the server.
   payouts: ReactNode;
   methods: TrainerManualMethodView[];
-  serviceFees: TrainerServiceFeeView;
-  paymongoSettlementEnabled: boolean;
-  settlementInstructions: string;
+  // "Next payout" and "Being sent", built on the server from the statement.
+  payoutSummary: PaymentSummaryItem[];
 }) {
   const payoutReady = payoutAccount != null;
   const activeManualMethods = methods.filter((method) => method.active).length;
   const checkoutReady =
     mode === "AUTOMATIC" ? payoutReady : activeManualMethods > 0;
-  // Fees only accrued while players paid the trainer directly. A trainer who
-  // never used that model has nothing to settle and never sees the tab.
-  const hasEarlierFees =
-    serviceFees.accrued > 0 ||
-    serviceFees.pending > 0 ||
-    serviceFees.settlements.length > 0 ||
-    serviceFees.waivers.length > 0;
-  const settlementStatus =
-    serviceFees.blocked
-      ? { value: "Requests paused", tone: "warning" as const }
-      : serviceFees.inEnforcementGrace
-        ? { value: "3-day grace", tone: "warning" as const }
-        : serviceFees.pending > 0
-          ? { value: "Under review", tone: "warning" as const }
-          : serviceFees.due > 0
-            ? { value: "Payment due", tone: "warning" as const }
-            : { value: "Current", tone: "success" as const };
 
   return (
     <PaymentWorkspace
-      initialTab={
-        !checkoutReady
-          ? "checkout"
-          : serviceFees.blocked || serviceFees.inEnforcementGrace
-            ? "settlement"
-            : "payouts"
-      }
+      initialTab={!checkoutReady ? "checkout" : "payouts"}
       summary={[
         {
           label: "Checkout mode",
@@ -173,30 +116,7 @@ export function TrainerPaymentSettings({
             : "Complete setup before accepting payments",
           tone: checkoutReady ? "success" : "warning",
         },
-        {
-          label: "Earlier service fees",
-          value: formatPHP(serviceFees.due),
-          detail:
-            serviceFees.pending > 0
-              ? `${formatPHP(serviceFees.pending)} under review`
-              : `${formatPHP(serviceFees.paid)} settled`,
-          tone: serviceFees.due > 0 ? "warning" : "default",
-        },
-        {
-          label: "Settlement status",
-          value: settlementStatus.value,
-          detail:
-            serviceFees.blocked
-              ? "Settle the overdue balance to resume requests"
-              : serviceFees.inEnforcementGrace && serviceFees.enforcementAt
-                ? `Requests pause ${formatSettlementDate(serviceFees.enforcementAt)}`
-                : serviceFees.pending > 0
-                  ? "Payment proof awaiting review"
-                  : serviceFees.due > 0
-                    ? "Submit settlement payment"
-                    : "No payment under review",
-          tone: settlementStatus.tone,
-        },
+        ...payoutSummary,
       ]}
       checkout={
         <TrainerCheckoutConfiguration
@@ -206,15 +126,6 @@ export function TrainerPaymentSettings({
         />
       }
       payouts={payouts}
-      settlement={
-        hasEarlierFees ? (
-          <TrainerSettlementPanel
-            serviceFees={serviceFees}
-            paymongoSettlementEnabled={paymongoSettlementEnabled}
-            settlementInstructions={settlementInstructions}
-          />
-        ) : undefined
-      }
     />
   );
 }
@@ -908,263 +819,4 @@ function ModeActivation({
       <Result state={state} />
     </section>
   );
-}
-
-function TrainerSettlementPanel({
-  serviceFees,
-  paymongoSettlementEnabled,
-  settlementInstructions,
-}: {
-  serviceFees: TrainerServiceFeeView;
-  paymongoSettlementEnabled: boolean;
-  settlementInstructions: string;
-}) {
-  const [state, action, settling] = useActionState(
-    submitTrainerServiceFeeSettlementAction,
-    initial
-  );
-  const [checkoutState, checkoutAction, startingCheckout] = useActionState(
-    startTrainerServiceFeeCheckoutAction,
-    initial
-  );
-  const awaitingCheckout = serviceFees.settlements.find(
-    (settlement) =>
-      settlement.status === "AWAITING_PAYMENT" &&
-      settlement.provider === "paymongo"
-  );
-
-  useEffect(() => {
-    if (checkoutState.redirectUrl) {
-      window.location.href = checkoutState.redirectUrl;
-    }
-  }, [checkoutState.redirectUrl]);
-
-  return (
-    <section className="rounded-2xl border border-[#dfe7e2] bg-white p-4 shadow-sm shadow-navy/5 sm:p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold text-navy">
-            Bunal.club service-fee settlement
-          </h2>
-          <p className="mt-1 text-sm leading-6 text-slate-500">
-            Service fees from sessions players paid you for directly, before
-            Bunal.club began collecting automatic payments. New sessions add
-            nothing here.
-          </p>
-        </div>
-        <span
-          className={`rounded-full px-3 py-1 text-sm font-black ${
-            serviceFees.due > 0
-              ? "bg-amber-50 text-amber-700"
-              : "bg-green-50 text-primary"
-          }`}
-        >
-          {formatPHP(serviceFees.due)} due
-        </span>
-      </div>
-
-      <dl className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <SettlementMetric label="Accrued" value={serviceFees.accrued} />
-        <SettlementMetric label="Under review" value={serviceFees.pending} />
-        <SettlementMetric label="Settled" value={serviceFees.paid} />
-        <SettlementMetric label="Waived" value={serviceFees.waived} />
-      </dl>
-
-      {serviceFees.due > 0 && serviceFees.dueAt && (
-        <div
-          className={`mt-5 rounded-xl border p-4 text-sm ${
-            serviceFees.blocked
-              ? "border-red-200 bg-red-50 text-red-700"
-              : serviceFees.inEnforcementGrace
-                ? "border-amber-200 bg-amber-50 text-amber-800"
-                : "border-slate-200 bg-slate-50 text-slate-600"
-          }`}
-        >
-          <p className="font-bold">
-            {serviceFees.blocked
-              ? "New trainer-session requests are paused"
-              : serviceFees.inEnforcementGrace
-                ? "Your balance is in the 3-day grace period"
-                : `Payment is due ${formatSettlementDate(serviceFees.dueAt)}`}
-          </p>
-          <p className="mt-1 leading-5">
-            {serviceFees.blocked
-              ? "Your public trainer listing and new requests resume automatically after the settlement is approved."
-              : serviceFees.inEnforcementGrace && serviceFees.enforcementAt
-                ? `Settle by ${formatSettlementDate(serviceFees.enforcementAt)} to keep your public listing and new requests active.`
-                : "You can continue accepting requests until the deadline and the following three-day grace period end."}
-          </p>
-        </div>
-      )}
-
-      {serviceFees.due > 0 && serviceFees.pending === 0 && (
-        <ServiceFeeSettlementTabs
-          paymongoAvailable={paymongoSettlementEnabled}
-          paymongo={
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary">
-                  Recommended method
-                </p>
-                <h3 className="mt-1 text-sm font-bold text-navy">
-                  Pay {formatPHP(serviceFees.due)} securely with QR Ph
-                </h3>
-                <p className="mt-1 max-w-xl text-xs leading-5 text-slate-600">
-                  Pay the exact amount through PayMongo with no additional
-                  processing charge. A successful transfer is confirmed
-                  automatically, so no receipt or review is needed.
-                </p>
-                <Result state={checkoutState} />
-              </div>
-              <form action={checkoutAction} className="shrink-0">
-                <Button
-                  type="submit"
-                  disabled={startingCheckout}
-                  className="sm:w-auto sm:px-6"
-                >
-                  {startingCheckout
-                    ? "Opening QR Ph…"
-                    : awaitingCheckout
-                      ? "Continue QR Ph payment"
-                      : "Pay with QR Ph"}
-                </Button>
-              </form>
-            </div>
-          }
-          manual={
-            <>
-              <ServiceFeeManualDestinations
-                amount={formatPHP(serviceFees.due)}
-                qrPhAvailable={paymongoSettlementEnabled}
-              />
-              {awaitingCheckout ? (
-                <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
-                  A QR Ph checkout is already active. Continue it from the
-                  PayMongo tab, or let it expire before submitting a manual
-                  transfer for review.
-                </p>
-              ) : (
-                <form
-                  action={action}
-                  className="mt-5 border-t border-slate-100 pt-5"
-                >
-                  <div className="mb-4">
-                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
-                      Manual payment review
-                    </p>
-                    <h3 className="mt-1 text-base font-semibold text-navy">
-                      Share your transfer details
-                    </h3>
-                    <p className="mt-1 text-xs leading-5 text-slate-600">
-                      {settlementInstructions} Your manual payment remains
-                      pending until the Bunal.club owner reviews it.
-                    </p>
-                  </div>
-                  <Input
-                    label="Transaction reference"
-                    name="paymentReference"
-                    placeholder="Bank or GCash transaction reference"
-                    required
-                    error={state.errors?.paymentReference}
-                  />
-                  <div className="mt-3">
-                    <ReceiptUpload error={state.errors?.receiptImage} />
-                  </div>
-                  <Button disabled={settling} className="mt-3 sm:w-auto">
-                    {settling ? "Submitting…" : "Submit for review"}
-                  </Button>
-                  <Result state={state} />
-                </form>
-              )}
-            </>
-          }
-        />
-      )}
-
-      {serviceFees.settlements.length > 0 && (
-        <div className="mt-5 overflow-hidden rounded-xl border border-slate-200">
-          <p className="border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
-            Recent settlements
-          </p>
-          <div className="divide-y divide-slate-100">
-            {serviceFees.settlements.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center justify-between gap-3 px-4 py-3 text-sm"
-              >
-                <div>
-                  <p className="font-semibold text-navy">
-                    {formatPHP(item.amount)}
-                  </p>
-                  <p className="mt-0.5 text-xs text-slate-400">
-                    {new Date(item.submittedAt).toLocaleDateString("en-PH")}
-                  </p>
-                </div>
-                <strong className="text-xs text-slate-500">
-                  {item.status.replaceAll("_", " ")}
-                </strong>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {serviceFees.waivers.length > 0 && (
-        <div className="mt-5 overflow-hidden rounded-xl border border-primary/15">
-          <p className="border-b border-primary/10 bg-primary-soft px-4 py-3 text-xs font-bold uppercase tracking-[0.14em] text-primary">
-            Waiver history
-          </p>
-          <div className="divide-y divide-slate-100">
-            {serviceFees.waivers.map((item) => (
-              <div key={item.id} className="px-4 py-3 text-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-semibold text-navy">
-                      {formatPHP(item.amount)} service-fee credit
-                    </p>
-                    <p className="mt-0.5 text-xs leading-5 text-slate-500">
-                      {item.reason}
-                    </p>
-                    <p className="mt-1 text-[11px] text-slate-400">
-                      Granted {formatSettlementDate(item.grantedAt)}
-                    </p>
-                  </div>
-                  <strong
-                    className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] uppercase tracking-wide ${
-                      item.reversedAt
-                        ? "bg-red-50 text-red-600"
-                        : "bg-primary-soft text-primary"
-                    }`}
-                  >
-                    {item.reversedAt ? "Reversed" : "Active"}
-                  </strong>
-                </div>
-                {item.reversedAt && item.reversalReason ? (
-                  <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">
-                    {item.reversalReason}
-                  </p>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function SettlementMetric({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-xl bg-slate-50 p-3.5">
-      <dt className="text-xs text-slate-500">{label}</dt>
-      <dd className="mt-1 font-black text-navy">{formatPHP(value)}</dd>
-    </div>
-  );
-}
-
-function formatSettlementDate(value: string): string {
-  return new Intl.DateTimeFormat("en-PH", {
-    dateStyle: "medium",
-    timeZone: "Asia/Manila",
-  }).format(new Date(value));
 }

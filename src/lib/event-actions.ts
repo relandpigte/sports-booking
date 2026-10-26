@@ -32,7 +32,6 @@ import {
 } from "@/lib/booking-payments";
 import {
   ensureOrganizerGuestServiceFeeRefund,
-  isServiceFeeOverdue,
 } from "@/lib/service-fees";
 import {
   addDaysTo,
@@ -486,18 +485,6 @@ export async function saveEventAction(
       },
     };
   }
-  if (
-    willPublish &&
-    values.registrationFee > 0 &&
-    (await isServiceFeeOverdue(partner.id))
-  ) {
-    return {
-      errors: {
-        registrationFee:
-          "Settle the overdue Bunal service-fee balance before publishing a paid event.",
-      },
-    };
-  }
   if (willPublish) {
     const checks = await Promise.all(
       occurrenceDates.map(async (date) => ({
@@ -779,8 +766,6 @@ export async function registerForEventAction(
   const paymentSetup =
     fee > 0 ? await getPartnerPaymentSetup(event.hub.ownerId) : null;
   const manualPayment = paymentSetup?.mode === "MANUAL";
-  const overdue =
-    fee > 0 ? await isServiceFeeOverdue(event.hub.ownerId) : false;
   if (
     fee > 0 &&
     (!paymentSetup ||
@@ -789,12 +774,6 @@ export async function registerForEventAction(
         : !paymentSetup.automaticReady))
   ) {
     return { message: "The organizer's payment account is not available." };
-  }
-  if (overdue) {
-    return {
-      message:
-        "Registration is temporarily unavailable while the organizer updates billing.",
-    };
   }
 
   const now = new Date();
@@ -1225,7 +1204,6 @@ export async function registerGuestForEventAction(
   const paymentSetup =
     fee > 0 ? await getPartnerPaymentSetup(event.hub.ownerId) : null;
   const manualPayment = paymentSetup?.mode === "MANUAL";
-  const overdue = fee > 0 ? await isServiceFeeOverdue(event.hub.ownerId) : false;
   if (
     fee > 0 &&
     (!paymentSetup ||
@@ -1234,12 +1212,6 @@ export async function registerGuestForEventAction(
         : !paymentSetup.automaticReady))
   ) {
     return { message: "The organizer's payment account is not available." };
-  }
-  if (overdue) {
-    return {
-      message:
-        "Registration is temporarily unavailable while the organizer updates billing.",
-    };
   }
 
   const now = new Date();
@@ -1609,8 +1581,6 @@ export async function addEventGuestSlotsAction(
   const paymentSetup =
     fee > 0 ? await getPartnerPaymentSetup(event.hub.ownerId) : null;
   const manualPayment = paymentSetup?.mode === "MANUAL";
-  const overdue =
-    fee > 0 ? await isServiceFeeOverdue(event.hub.ownerId) : false;
   if (
     fee > 0 &&
     (!paymentSetup ||
@@ -1619,12 +1589,6 @@ export async function addEventGuestSlotsAction(
         : !paymentSetup.automaticReady))
   ) {
     return { message: "The organizer's payment account is not available." };
-  }
-  if (overdue) {
-    return {
-      message:
-        "Registration is temporarily unavailable while the organizer updates billing.",
-    };
   }
 
   const now = new Date();

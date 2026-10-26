@@ -251,7 +251,7 @@ export function TrainerProfileForm({ profile }: { profile: Profile | null }) {
             <SetupStep
               number="3"
               title="Payments"
-              detail="Checkout and settlement setup"
+              detail="Checkout and payout setup"
               href="/dashboard/trainer/payments"
             />
             <SetupStep

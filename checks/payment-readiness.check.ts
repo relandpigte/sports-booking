@@ -176,6 +176,48 @@ async function check() {
         ?.paymentReady === true
   );
 
+  // Settlements are retired: a legacy fee entry long past its old deadline
+  // no longer pauses the venue, its listing, or booking.
+  const legacyPaidAt = new Date("2020-01-01T00:00:00Z");
+  // A payment the venue collected itself, before platform collection.
+  const legacyPayment = await prisma.bookingPayment.create({
+    data: {
+      partnerId: partner.id,
+      collectedBy: "DIRECT",
+      userId: partner.id,
+      hubId,
+      amount: 1030,
+      venueAmount: 1000,
+      platformFee: 30,
+      method: "QRPH",
+      collectionMode: "MANUAL",
+      status: "SUCCEEDED",
+      expiresAt: legacyPaidAt,
+      provider: "manual",
+      paidAt: legacyPaidAt,
+    },
+    select: { id: true },
+  });
+  await prisma.serviceFeeEntry.create({
+    data: {
+      partnerId: partner.id,
+      bookingPaymentId: legacyPayment.id,
+      type: "CHARGE",
+      amount: 30,
+      createdAt: legacyPaidAt,
+    },
+  });
+  const withLegacyFee = await getPublicHub(hubId);
+  ok(
+    "an old unpaid service fee no longer blocks the hub, its listing, or booking",
+    withLegacyFee?.blockedBy === null &&
+      withLegacyFee.bookable === true &&
+      (await listed())?.bookable === true &&
+      (await getCourtForBooking(courtId))?.hub.bookable === true
+  );
+  // Its fee entry cascades with it.
+  await prisma.bookingPayment.delete({ where: { id: legacyPayment.id } });
+
   // --- 3. Bunal.club's own account goes away --------------------------------
   delete process.env.PAYMONGO_SECRET_KEY;
   const paused = await getPublicHub(hubId);

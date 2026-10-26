@@ -759,7 +759,7 @@ async function check() {
     select: { id: true },
   });
   ok(
-    "an overdue service-fee balance does not block fee-free organizer-added players",
+    "a legacy unpaid service-fee balance does not block organizer-added players",
     Boolean(blockedOrganizerPlayer.success) &&
       (await prisma.eventOrganizerGuest.count({
         where: { eventId: blockedOrganizerEvent.id },

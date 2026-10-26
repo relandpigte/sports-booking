@@ -43,7 +43,7 @@ function CopyField({ value }: { value: string }) {
   return (
     <div className="flex flex-col gap-1.5">
       <span className="text-sm font-medium text-gray-800">
-        Settlement webhook URL
+        Payment webhook URL
       </span>
       <div className="flex items-center gap-2">
         <code className="min-w-0 flex-1 truncate rounded-lg bg-gray-50 px-3 py-2.5 text-xs text-gray-600">
@@ -164,7 +164,7 @@ export function PlatformGatewayPanel({
             className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800"
           >
             This URL is not reaching the payment webhook. Funds can still
-            arrive in PayMongo, but bookings and settlements will not confirm
+            arrive in PayMongo, but bookings will not confirm
             reliably. Update <code>APP_URL</code>{" "}
             to the live HTTPS site, restart the app, then replace this
             connection.

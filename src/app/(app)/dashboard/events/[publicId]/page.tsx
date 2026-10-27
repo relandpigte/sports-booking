@@ -481,8 +481,9 @@ export default async function PartnerEventDetailsPage({
               </div>
               <p className="mt-4 text-xs leading-5 text-slate-400">
                 Automatic registrations are collected by Bunal.club and your
-                registration revenue is included in your next Monday or
-                Thursday payout. Payment fees are paid by the player.
+                registration revenue is included in a Monday or Thursday
+                payout once the payment clears. Payment fees are paid by the
+                player.
               </p>
             </section>
           </div>

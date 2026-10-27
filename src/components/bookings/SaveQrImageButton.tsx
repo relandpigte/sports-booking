@@ -2,6 +2,8 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 
+import { shouldShareImageFile } from "@/lib/save-image";
+
 type Prepared = { blob: Blob; file: File };
 
 // Decode locally rather than fetch(): connect-src does not allow data: URLs.
@@ -33,11 +35,10 @@ function saveWithAnchor(blob: Blob, filename: string) {
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000);
 }
 
-// A plain <a download> sends the image to Files on iOS. The share sheet is
-// the only way a web page can offer "Save Image", which saves to Photos, so
-// touch devices get the share sheet and everything else a normal download.
-// The file is prepared ahead of the tap because iOS only opens the share
-// sheet while the tap's user activation is still fresh.
+// iPhone and iPad get the share sheet ("Save Image" saves to Photos);
+// everything else gets a normal download. See shouldShareImageFile(). The
+// file is prepared ahead of the tap because iOS only opens the share sheet
+// while the tap's user activation is still fresh.
 export function SaveQrImageButton({
   src,
   filename,
@@ -91,13 +92,7 @@ export function SaveQrImageButton({
     }
     setSaving(true);
     try {
-      const canShareFile =
-        navigator.maxTouchPoints > 0 &&
-        typeof navigator.share === "function" &&
-        typeof navigator.canShare === "function" &&
-        navigator.canShare({ files: [prepared.file] });
-
-      if (canShareFile) {
+      if (shouldShareImageFile(prepared.file)) {
         await navigator.share({ files: [prepared.file], title: shareTitle });
       } else {
         saveWithAnchor(prepared.blob, filename);

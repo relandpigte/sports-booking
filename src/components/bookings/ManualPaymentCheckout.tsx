@@ -9,6 +9,7 @@ import {
   type ManualPaymentFormState,
 } from "@/lib/manual-payment-actions";
 import { focusQrImageBlob } from "@/lib/image";
+import { shouldShareImageFile } from "@/lib/save-image";
 import type { ManualPaymentMethodView } from "@/lib/manual-payments";
 
 const initialState: ManualPaymentFormState = {};
@@ -781,12 +782,7 @@ function QrImageDownloadButton({
     setStatus("saving");
 
     try {
-      if (
-        navigator.maxTouchPoints > 0 &&
-        typeof navigator.share === "function" &&
-        typeof navigator.canShare === "function" &&
-        navigator.canShare({ files: [prepared.file] })
-      ) {
+      if (shouldShareImageFile(prepared.file)) {
         await navigator.share({
           files: [prepared.file],
           title: `${label} payment QR`,

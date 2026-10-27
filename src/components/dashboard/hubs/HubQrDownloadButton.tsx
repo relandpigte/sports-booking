@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { shouldShareImageFile } from "@/lib/save-image";
+
 type DownloadStatus = "preparing" | "idle" | "saving" | "error";
 type PreparedDownload = { blob: Blob; file: File; filename: string };
 
@@ -80,13 +82,7 @@ export function HubQrDownloadButton({
     setStatus("saving");
 
     try {
-      const canShareFile =
-        navigator.maxTouchPoints > 0 &&
-        typeof navigator.share === "function" &&
-        typeof navigator.canShare === "function" &&
-        navigator.canShare({ files: [prepared.file] });
-
-      if (canShareFile) {
+      if (shouldShareImageFile(prepared.file)) {
         await navigator.share({
           files: [prepared.file],
           title: `${hubName} booking QR`,

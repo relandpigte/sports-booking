@@ -1,5 +1,6 @@
 import { qrSvg } from "@/lib/qr";
 import { HoldCountdown } from "@/components/bookings/HoldCountdown";
+import { SaveQrImageButton } from "@/components/bookings/SaveQrImageButton";
 
 export function PayMongoCheckout({
   qrImageUrl,
@@ -103,14 +104,15 @@ export function PayMongoCheckout({
               </div>
             </div>
 
-            <a
-              href={qrImageUrl}
-              download="bunal-qrph-payment.png"
-              className="mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary-soft"
+            <SaveQrImageButton
+              src={qrImageUrl}
+              filename="bunal-qrph-payment.png"
+              shareTitle="QR Ph payment code"
+              className="mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary-soft disabled:cursor-wait disabled:opacity-60"
             >
               <DownloadIcon />
-              Download QR code
-            </a>
+              Save QR code
+            </SaveQrImageButton>
 
             <div className="mt-3 max-w-sm rounded-xl border border-primary/20 bg-primary-soft px-4 py-3 text-left">
               <p className="flex items-center gap-2 text-xs font-bold text-primary">
@@ -118,9 +120,9 @@ export function PayMongoCheckout({
                 Paying on this device?
               </p>
               <p className="mt-1.5 text-xs leading-5 text-navy/70">
-                Download the QR code and import it into your bank or e-wallet
-                app. If downloading fails, take a screenshot and select it from
-                your gallery instead.
+                Save the QR code to your photos and import it into your bank or
+                e-wallet app. If saving fails, take a screenshot and select it
+                from your gallery instead.
               </p>
             </div>
           </div>

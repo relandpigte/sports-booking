@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 
 import { HoldCountdown } from "@/components/bookings/HoldCountdown";
 import { PayMongoCheckout } from "@/components/bookings/PayMongoCheckout";
+import { SaveQrImageButton } from "@/components/bookings/SaveQrImageButton";
 import { PaymentStatusPoller } from "@/components/bookings/PaymentStatusPoller";
 import { ReceiptUpload } from "@/components/partner/ReceiptUpload";
 import { usePwa } from "@/components/pwa/PwaProvider";
@@ -325,13 +326,14 @@ function ManualTrainerPayment({
                     className="aspect-square w-full object-cover"
                   />
                 </div>
-                <a
-                  href={payment.manualQrImage}
-                  download="trainer-payment-qr.png"
-                  className="mt-3 flex min-h-10 w-full items-center justify-center rounded-xl border border-navy/10 bg-white px-3 text-xs font-bold text-primary transition-colors hover:bg-primary-soft"
+                <SaveQrImageButton
+                  src={payment.manualQrImage}
+                  filename="trainer-payment-qr.png"
+                  shareTitle="Trainer payment QR"
+                  className="mt-3 flex min-h-10 w-full items-center justify-center rounded-xl border border-navy/10 bg-white px-3 text-xs font-bold text-primary transition-colors hover:bg-primary-soft disabled:cursor-wait disabled:opacity-60"
                 >
                   Save QR image
-                </a>
+                </SaveQrImageButton>
                 <p className="mt-3 rounded-xl border border-primary/20 bg-primary-soft px-3 py-2.5 text-[11px] leading-4 text-navy/70">
                   Paying on this device? Save the QR and import it into your
                   banking or e-wallet app.

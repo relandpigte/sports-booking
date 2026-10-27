@@ -143,8 +143,8 @@ export function PayoutStatement({ statement }: { statement: Statement }) {
 
       {statement.pending.length + statement.paid.length === 0 ? (
         <p className="mt-5 text-sm text-slate-500">
-          No payouts yet. Your first one is created on the next Monday or
-          Thursday after a player pays through QR Ph.
+          No payouts yet. Your first one is created on a Monday or Thursday
+          once a player&apos;s QR Ph payment has cleared.
         </p>
       ) : (
         <ul className="mt-4 divide-y divide-slate-100 border-t border-slate-100">

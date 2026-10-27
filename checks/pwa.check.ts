@@ -11,6 +11,47 @@ async function pngDimensions(file: string) {
   return [bytes.readUInt32BE(16), bytes.readUInt32BE(20)];
 }
 
+// The share sheet is the only route into Photos on iPhone and iPad, but on
+// Android and desktops a normal download is what lands in the gallery.
+async function checkShareSheetGate() {
+  const { shouldShareImageFile } = await import("../src/lib/save-image");
+  const original = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  const file = new File([new Uint8Array([1])], "qr.png", { type: "image/png" });
+  const gate = (userAgent: string, maxTouchPoints: number, share = true) => {
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: {
+        userAgent,
+        maxTouchPoints,
+        share: share ? async () => {} : undefined,
+        canShare: share ? () => true : undefined,
+      },
+    });
+    return shouldShareImageFile(file);
+  };
+
+  try {
+    const iphone =
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
+    const ipadOs =
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15";
+    const android =
+      "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36";
+    const windows =
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0";
+
+    assert.equal(gate(iphone, 5), true, "iPhone uses the share sheet");
+    assert.equal(gate(ipadOs, 5), true, "iPadOS uses the share sheet");
+    assert.equal(gate(ipadOs, 0), false, "a Mac downloads");
+    assert.equal(gate(android, 5), false, "Android downloads");
+    assert.equal(gate(windows, 10), false, "Windows touchscreens download");
+    assert.equal(gate(iphone, 5, false), false, "no Web Share falls back");
+  } finally {
+    if (original) Object.defineProperty(globalThis, "navigator", original);
+    else Reflect.deleteProperty(globalThis, "navigator");
+  }
+}
+
 async function main() {
   const root = process.cwd();
   const appManifest = manifest();
@@ -119,7 +160,7 @@ async function main() {
     ),
     "utf8"
   );
-  assert.match(hubQrDownload, /navigator\.canShare\(\{ files:/);
+  assert.match(hubQrDownload, /shouldShareImageFile\(prepared\.file\)/);
   assert.match(hubQrDownload, /new File\(\[blob\]/);
   assert.doesNotMatch(hubQrDownload, /window\.location/);
 
@@ -133,9 +174,31 @@ async function main() {
     ),
     "utf8"
   );
-  assert.match(manualCheckout, /navigator\.canShare\(\{ files:/);
+  assert.match(manualCheckout, /shouldShareImageFile\(prepared\.file\)/);
   assert.match(manualCheckout, /Save QR image/);
   assert.doesNotMatch(manualCheckout, /Open the image/);
+
+  // QR Ph and trainer QRs must not fall back to a plain <a download>, which
+  // iOS sends to Files instead of Photos.
+  const saveQrButton = await readFile(
+    path.join(root, "src", "components", "bookings", "SaveQrImageButton.tsx"),
+    "utf8"
+  );
+  assert.match(saveQrButton, /shouldShareImageFile\(prepared\.file\)/);
+  assert.match(saveQrButton, /new File\(\[blob\]/);
+  for (const file of [
+    ["bookings", "PayMongoCheckout.tsx"],
+    ["trainers", "TrainerCheckout.tsx"],
+  ]) {
+    const source = await readFile(
+      path.join(root, "src", "components", ...file),
+      "utf8"
+    );
+    assert.match(source, /<SaveQrImageButton/);
+    assert.doesNotMatch(source, /download="/);
+  }
+
+  await checkShareSheetGate();
 
   const offline = await readFile(
     path.join(root, "public", "offline.html"),

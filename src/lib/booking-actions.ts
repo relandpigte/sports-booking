@@ -518,22 +518,23 @@ export async function createBookingAction(
           .join(", ")}`
     )
     .join("; ")}`;
-  await notifyPartnerTeamOfBooking({
-    partnerId: hub.ownerId,
-    module: "bookings",
-    playerName,
-    kind: "COURT",
-    venueName: hub.name,
-    bookingTitle,
-    schedule,
-    status: requiresPayment
-      ? manualPayment
-        ? "Pending manual payment"
-        : "Pending automatic payment"
-      : "Confirmed",
-    actionPath: `/dashboard/bookings?q=${encodeURIComponent(created[0].id)}`,
-    idempotencyKey: `partner-court-booking-${paymentId ?? created[0].id}`,
-  });
+  // A paid booking starts as a 15-minute hold, so the venue hears about it
+  // only once money moves: settleBookingPayment for automatic payments, and
+  // the receipt submission for manual ones.
+  if (!requiresPayment) {
+    await notifyPartnerTeamOfBooking({
+      partnerId: hub.ownerId,
+      module: "bookings",
+      playerName,
+      kind: "COURT",
+      venueName: hub.name,
+      bookingTitle,
+      schedule,
+      status: "Confirmed",
+      actionPath: `/dashboard/bookings?q=${encodeURIComponent(created[0].id)}`,
+      idempotencyKey: `partner-court-booking-${paymentId ?? created[0].id}`,
+    });
+  }
   if (!paymentId) {
     await Promise.all(
       created.map((booking) =>

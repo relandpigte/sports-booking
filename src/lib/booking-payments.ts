@@ -36,7 +36,10 @@ import {
   recordBookingSystemMessage,
   recordEventRegistrationSystemMessage,
 } from "@/lib/message-system-events";
-import { notifyPlayerBookingConfirmed } from "@/lib/booking-notifications";
+import {
+  notifyPartnerTeamOfBooking,
+  notifyPlayerBookingConfirmed,
+} from "@/lib/booking-notifications";
 import { hubPublicPath } from "@/lib/hub-slug";
 import {
   eventGuestAccessPath,
@@ -684,9 +687,7 @@ type ConfirmationEmailDelivery =
   | "skipped"
   | "failed";
 
-async function notifyPlayerOfPaymentConfirmation(
-  paymentId: string
-): Promise<ConfirmationEmailDelivery | undefined> {
+async function loadPaymentConfirmation(paymentId: string) {
   const payment = await prisma.bookingPayment.findFirst({
     where: {
       id: paymentId,
@@ -694,6 +695,7 @@ async function notifyPlayerOfPaymentConfirmation(
     },
     select: {
       id: true,
+      partnerId: true,
       collectionMode: true,
       user: { select: { email: true, name: true, playerName: true } },
       guestReservation: {
@@ -703,6 +705,7 @@ async function notifyPlayerOfPaymentConfirmation(
         where: { status: "CONFIRMED" },
         orderBy: { startsAt: "asc" },
         select: {
+          id: true,
           date: true,
           startHour: true,
           endHour: true,
@@ -727,7 +730,6 @@ async function notifyPlayerOfPaymentConfirmation(
       },
       eventGuestSlots: {
         where: { status: "CONFIRMED" },
-        take: 1,
         select: {
           registration: {
             select: {
@@ -747,14 +749,15 @@ async function notifyPlayerOfPaymentConfirmation(
       },
     },
   });
-  if (!payment) return undefined;
+  if (!payment) return null;
 
-  const event =
-    payment.eventRegistration?.status === "CONFIRMED"
-      ? payment.eventRegistration.event
-      : payment.eventGuestSlots[0]?.registration.event;
+  const registrationConfirmed =
+    payment.eventRegistration?.status === "CONFIRMED";
+  const event = registrationConfirmed
+    ? payment.eventRegistration!.event
+    : payment.eventGuestSlots[0]?.registration.event;
   const firstBooking = payment.bookings[0];
-  if (!event && !firstBooking) return undefined;
+  if (!event && !firstBooking) return null;
 
   const bookingTitle = event
     ? event.title
@@ -776,6 +779,25 @@ async function notifyPlayerOfPaymentConfirmation(
         )
         .join("; ")}`;
 
+  return {
+    payment,
+    event,
+    firstBooking,
+    registrationConfirmed,
+    bookingTitle,
+    schedule,
+    venueName: event?.hub.name ?? firstBooking.hub.name,
+  };
+}
+
+type PaymentConfirmation = NonNullable<
+  Awaited<ReturnType<typeof loadPaymentConfirmation>>
+>;
+
+async function notifyPlayerOfPaymentConfirmation(
+  confirmation: PaymentConfirmation
+): Promise<ConfirmationEmailDelivery> {
+  const { payment, event, bookingTitle, schedule, venueName } = confirmation;
   const guestToken = payment.guestReservation
     ? await issueGuestAccessToken(payment.guestReservation.id)
     : null;
@@ -790,7 +812,7 @@ async function notifyPlayerOfPaymentConfirmation(
       payment.user?.name ??
       payment.guestReservation?.name ??
       "Bunal.club player",
-    venueName: event?.hub.name ?? firstBooking.hub.name,
+    venueName,
     bookingTitle,
     schedule,
     actionPath: guestToken
@@ -805,13 +827,59 @@ async function notifyPlayerOfPaymentConfirmation(
   });
 }
 
+// Automatic payments tell the venue only once the money has moved, so an
+// abandoned 15-minute hold never reaches the venue's inbox. Manual payments
+// are announced when the receipt is submitted, and the venue confirms those
+// itself. Extra guest spots added to an existing registration stay silent, as
+// they always have.
+async function notifyPartnerOfAutomaticPayment(
+  confirmation: PaymentConfirmation
+): Promise<void> {
+  const {
+    payment,
+    event,
+    firstBooking,
+    registrationConfirmed,
+    bookingTitle,
+    schedule,
+    venueName,
+  } = confirmation;
+  if (payment.collectionMode !== "AUTOMATIC") return;
+  if (event && !registrationConfirmed) return;
+
+  await notifyPartnerTeamOfBooking({
+    partnerId: payment.partnerId,
+    module: event ? "events" : "bookings",
+    playerName:
+      payment.user?.playerName ??
+      payment.user?.name ??
+      payment.guestReservation?.name ??
+      "A player",
+    kind: event ? "EVENT" : "COURT",
+    venueName,
+    bookingTitle,
+    schedule,
+    status: "Paid and confirmed",
+    ...(event ? { spots: 1 + payment.eventGuestSlots.length } : {}),
+    actionPath: event
+      ? `/dashboard/events/${event.publicId}`
+      : `/dashboard/bookings?q=${encodeURIComponent(firstBooking.id)}`,
+    idempotencyKey: `partner-${event ? "event" : "court"}-booking-paid-${payment.id}`,
+  });
+}
+
 export async function settleBookingPayment(
   paymentId: string
 ): Promise<SettleOutcome> {
   const outcome = await settleBookingPaymentState(paymentId);
   if (outcome.status === "confirmed" || outcome.status === "already") {
+    const confirmation = await loadPaymentConfirmation(paymentId);
+    if (!confirmation) return { ...outcome, confirmationEmail: undefined };
+    if (outcome.status === "confirmed") {
+      await notifyPartnerOfAutomaticPayment(confirmation);
+    }
     const confirmationEmail =
-      await notifyPlayerOfPaymentConfirmation(paymentId);
+      await notifyPlayerOfPaymentConfirmation(confirmation);
     return { ...outcome, confirmationEmail };
   }
   return outcome;

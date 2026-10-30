@@ -979,11 +979,9 @@ export async function registerForEventAction(
       );
     }
   }
-  if (
-    outcome.kind === "payment" ||
-    outcome.kind === "confirmed" ||
-    outcome.kind === "waitlist"
-  ) {
+  // Paid registrations reach the venue once money moves: settleBookingPayment
+  // for automatic payments, and the receipt submission for manual ones.
+  if (outcome.kind === "confirmed" || outcome.kind === "waitlist") {
     await notifyPartnerTeamOfBooking({
       partnerId: event.hub.ownerId,
       module: "events",
@@ -995,21 +993,10 @@ export async function registerForEventAction(
         event.startHour,
         event.endHour
       )}`,
-      status:
-        outcome.kind === "waitlist"
-          ? "Waitlisted"
-          : outcome.kind === "confirmed"
-            ? "Confirmed"
-            : manualPayment
-              ? "Pending manual payment"
-              : "Pending automatic payment",
+      status: outcome.kind === "waitlist" ? "Waitlisted" : "Confirmed",
       spots: requestedSpots,
       actionPath: `/dashboard/events/${event.publicId}`,
-      idempotencyKey: `partner-event-booking-${
-        outcome.kind === "payment"
-          ? outcome.paymentId
-          : `${event.id}-${viewer.id}-${outcome.kind}`
-      }`,
+      idempotencyKey: `partner-event-booking-${event.id}-${viewer.id}-${outcome.kind}`,
     });
   }
   if (outcome.kind === "payment") {
@@ -1446,31 +1433,28 @@ export async function registerGuestForEventAction(
     );
   }
 
-  await notifyPartnerTeamOfBooking({
-    partnerId: event.hub.ownerId,
-    module: "events",
-    playerName: contact.data.guestName,
-    kind: "EVENT",
-    venueName: event.hub.name,
-    bookingTitle: event.title,
-    schedule: `${formatManilaDateLong(event.date)} · ${formatSlotRange(
-      event.startHour,
-      event.endHour
-    )}`,
-    status:
-      outcome.kind === "waitlist"
-        ? "Waitlisted"
-        : outcome.kind === "confirmed"
-          ? "Confirmed"
-          : manualPayment
-            ? "Pending manual payment"
-            : "Pending automatic payment",
-    spots: requestedSpots,
-    actionPath: `/dashboard/events/${event.publicId}`,
-    idempotencyKey: `partner-guest-event-booking-${
-      outcome.paymentId ?? outcome.registrationId
-    }`,
-  });
+  // Paid registrations reach the venue once money moves: settleBookingPayment
+  // for automatic payments, and the receipt submission for manual ones.
+  if (outcome.kind !== "payment") {
+    await notifyPartnerTeamOfBooking({
+      partnerId: event.hub.ownerId,
+      module: "events",
+      playerName: contact.data.guestName,
+      kind: "EVENT",
+      venueName: event.hub.name,
+      bookingTitle: event.title,
+      schedule: `${formatManilaDateLong(event.date)} · ${formatSlotRange(
+        event.startHour,
+        event.endHour
+      )}`,
+      status: outcome.kind === "waitlist" ? "Waitlisted" : "Confirmed",
+      spots: requestedSpots,
+      actionPath: `/dashboard/events/${event.publicId}`,
+      idempotencyKey: `partner-guest-event-booking-${
+        outcome.paymentId ?? outcome.registrationId
+      }`,
+    });
+  }
 
   const accessToken = await issueGuestAccessToken(outcome.guestReservationId);
   if (accessToken) {
